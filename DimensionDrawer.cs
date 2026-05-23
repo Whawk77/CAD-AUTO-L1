@@ -974,10 +974,15 @@ namespace AutoFixtureDim
                 group.Add(segment);
             }
 
-            return groups
+            var points = groups
                 .Select(g => GetTopMostPoint(g, ignoredPoints))
                 .Where(p => p.HasValue)
                 .Select(p => p.Value)
+                .ToList();
+
+            AddTopInclinedEndpointStructurePoints(points, outline, ignoredPoints);
+
+            return points
                 .OrderBy(p => p.X)
                 .ToList();
         }
@@ -1001,10 +1006,15 @@ namespace AutoFixtureDim
                 group.Add(segment);
             }
 
-            return groups
+            var points = groups
                 .Select(g => GetBottomMostPoint(g, ignoredPoints))
                 .Where(p => p.HasValue)
                 .Select(p => p.Value)
+                .ToList();
+
+            AddBottomInclinedEndpointStructurePoints(points, outline, ignoredPoints);
+
+            return points
                 .OrderBy(p => p.X)
                 .ToList();
         }
@@ -1317,10 +1327,15 @@ namespace AutoFixtureDim
                 group.Add(segment);
             }
 
-            return groups
+            var points = groups
                 .Select(g => GetLeftMostPoint(g, ignoredPoints))
                 .Where(p => p.HasValue)
                 .Select(p => p.Value)
+                .ToList();
+
+            AddSideInclinedEndpointStructurePoints(points, outline, ignoredPoints, DimSide.Left);
+
+            return points
                 .OrderByDescending(p => p.Y)
                 .ToList();
         }
@@ -1356,10 +1371,15 @@ namespace AutoFixtureDim
                 group.Add(segment);
             }
 
-            return groups
+            var points = groups
                 .Select(g => GetRightMostPoint(g, ignoredPoints))
                 .Where(p => p.HasValue)
                 .Select(p => p.Value)
+                .ToList();
+
+            AddSideInclinedEndpointStructurePoints(points, outline, ignoredPoints, DimSide.Right);
+
+            return points
                 .OrderByDescending(p => p.Y)
                 .ToList();
         }
@@ -1385,6 +1405,11 @@ namespace AutoFixtureDim
 
         private bool IsCurrentRightSideStructurePoint(Point2d point, OutlineFeature outline, IList<Point2d> ignoredPoints)
         {
+            if (IsSideInclinedEndpointStructurePoint(point, outline, ignoredPoints, DimSide.Right))
+            {
+                return true;
+            }
+
             var tolerance = _config.GeometryTolerance;
             var levelSegments = outline.Segments
                 .Where(s => s.IsHorizontal(tolerance))
@@ -1401,6 +1426,56 @@ namespace AutoFixtureDim
             return rightMost.HasValue && PointsEqual(rightMost.Value, point);
         }
 
+        private void AddSideInclinedEndpointStructurePoints(
+            IList<Point2d> points,
+            OutlineFeature outline,
+            IList<Point2d> ignoredPoints,
+            DimSide side)
+        {
+            var tolerance = _config.GeometryTolerance;
+            foreach (var segment in outline.Segments
+                .Where(s => !s.IsHorizontal(tolerance))
+                .Where(s => !s.IsVertical(tolerance))
+                .Where(IsFortyFiveDegreeSegment)
+                .Where(s => IsSideInnerGrooveChamferSegment(s, outline, side)))
+            {
+                AddSideInclinedEndpointStructurePoint(points, segment.Start, outline, ignoredPoints);
+                AddSideInclinedEndpointStructurePoint(points, segment.End, outline, ignoredPoints);
+            }
+        }
+
+        private void AddSideInclinedEndpointStructurePoint(
+            IList<Point2d> points,
+            Point2d point,
+            OutlineFeature outline,
+            IList<Point2d> ignoredPoints)
+        {
+            if (ContainsPoint(points, point)
+                || ContainsPoint(ignoredPoints, point)
+                || IsEnvelopeHorizontalSidePoint(point, outline))
+            {
+                return;
+            }
+
+            points.Add(point);
+        }
+
+        private bool IsSideInclinedEndpointStructurePoint(Point2d point, OutlineFeature outline, IList<Point2d> ignoredPoints, DimSide side)
+        {
+            if (ContainsPoint(ignoredPoints, point) || IsEnvelopeHorizontalSidePoint(point, outline))
+            {
+                return false;
+            }
+
+            var tolerance = _config.GeometryTolerance;
+            return outline.Segments
+                .Where(s => !s.IsHorizontal(tolerance))
+                .Where(s => !s.IsVertical(tolerance))
+                .Where(IsFortyFiveDegreeSegment)
+                .Where(s => IsSideInnerGrooveChamferSegment(s, outline, side))
+                .Any(s => PointsEqual(point, s.Start) || PointsEqual(point, s.End));
+        }
+
         private bool IsTopSideHorizontalStructureCandidate(DeferredDim dim, OutlineFeature outline, IList<Point2d> ignoredPoints)
         {
             return IsCurrentTopSideStructurePoint(new Point2d(dim.XLine1.X, dim.XLine1.Y), outline, ignoredPoints)
@@ -1415,6 +1490,11 @@ namespace AutoFixtureDim
 
         private bool IsCurrentTopSideStructurePoint(Point2d point, OutlineFeature outline, IList<Point2d> ignoredPoints)
         {
+            if (IsTopInclinedEndpointStructurePoint(point, outline, ignoredPoints))
+            {
+                return true;
+            }
+
             var tolerance = _config.GeometryTolerance;
             var levelSegments = outline.Segments
                 .Where(s => s.IsVertical(tolerance))
@@ -1431,8 +1511,59 @@ namespace AutoFixtureDim
             return topMost.HasValue && PointsEqual(topMost.Value, point);
         }
 
+        private void AddTopInclinedEndpointStructurePoints(IList<Point2d> points, OutlineFeature outline, IList<Point2d> ignoredPoints)
+        {
+            var tolerance = _config.GeometryTolerance;
+            foreach (var segment in outline.Segments
+                .Where(s => !s.IsHorizontal(tolerance))
+                .Where(s => !s.IsVertical(tolerance))
+                .Where(IsFortyFiveDegreeSegment)
+                .Where(s => IsInnerGrooveChamferSegment(s, outline, isTopSide: true)))
+            {
+                AddTopInclinedEndpointStructurePoint(points, segment.Start, outline, ignoredPoints);
+                AddTopInclinedEndpointStructurePoint(points, segment.End, outline, ignoredPoints);
+            }
+        }
+
+        private void AddTopInclinedEndpointStructurePoint(
+            IList<Point2d> points,
+            Point2d point,
+            OutlineFeature outline,
+            IList<Point2d> ignoredPoints)
+        {
+            if (ContainsPoint(points, point)
+                || ContainsPoint(ignoredPoints, point)
+                || IsEnvelopeSidePoint(point, outline))
+            {
+                return;
+            }
+
+            points.Add(point);
+        }
+
+        private bool IsTopInclinedEndpointStructurePoint(Point2d point, OutlineFeature outline, IList<Point2d> ignoredPoints)
+        {
+            if (ContainsPoint(ignoredPoints, point) || IsEnvelopeSidePoint(point, outline))
+            {
+                return false;
+            }
+
+            var tolerance = _config.GeometryTolerance;
+            return outline.Segments
+                .Where(s => !s.IsHorizontal(tolerance))
+                .Where(s => !s.IsVertical(tolerance))
+                .Where(IsFortyFiveDegreeSegment)
+                .Where(s => IsInnerGrooveChamferSegment(s, outline, isTopSide: true))
+                .Any(s => PointsEqual(point, s.Start) || PointsEqual(point, s.End));
+        }
+
         private bool IsCurrentBottomSideStructurePoint(Point2d point, OutlineFeature outline, IList<Point2d> ignoredPoints)
         {
+            if (IsBottomInclinedEndpointStructurePoint(point, outline, ignoredPoints))
+            {
+                return true;
+            }
+
             var tolerance = _config.GeometryTolerance;
             var levelSegments = outline.Segments
                 .Where(s => s.IsVertical(tolerance))
@@ -1449,6 +1580,52 @@ namespace AutoFixtureDim
             return bottomMost.HasValue && PointsEqual(bottomMost.Value, point);
         }
 
+        private void AddBottomInclinedEndpointStructurePoints(IList<Point2d> points, OutlineFeature outline, IList<Point2d> ignoredPoints)
+        {
+            var tolerance = _config.GeometryTolerance;
+            foreach (var segment in outline.Segments
+                .Where(s => !s.IsHorizontal(tolerance))
+                .Where(s => !s.IsVertical(tolerance))
+                .Where(IsFortyFiveDegreeSegment)
+                .Where(s => IsInnerGrooveChamferSegment(s, outline, isTopSide: false)))
+            {
+                AddBottomInclinedEndpointStructurePoint(points, segment.Start, outline, ignoredPoints);
+                AddBottomInclinedEndpointStructurePoint(points, segment.End, outline, ignoredPoints);
+            }
+        }
+
+        private void AddBottomInclinedEndpointStructurePoint(
+            IList<Point2d> points,
+            Point2d point,
+            OutlineFeature outline,
+            IList<Point2d> ignoredPoints)
+        {
+            if (ContainsPoint(points, point)
+                || ContainsPoint(ignoredPoints, point)
+                || IsEnvelopeSidePoint(point, outline))
+            {
+                return;
+            }
+
+            points.Add(point);
+        }
+
+        private bool IsBottomInclinedEndpointStructurePoint(Point2d point, OutlineFeature outline, IList<Point2d> ignoredPoints)
+        {
+            if (ContainsPoint(ignoredPoints, point) || IsEnvelopeSidePoint(point, outline))
+            {
+                return false;
+            }
+
+            var tolerance = _config.GeometryTolerance;
+            return outline.Segments
+                .Where(s => !s.IsHorizontal(tolerance))
+                .Where(s => !s.IsVertical(tolerance))
+                .Where(IsFortyFiveDegreeSegment)
+                .Where(s => IsInnerGrooveChamferSegment(s, outline, isTopSide: false))
+                .Any(s => PointsEqual(point, s.Start) || PointsEqual(point, s.End));
+        }
+
         private List<Point2d> GetLeftExtensionCrossingPoints(IList<DeferredDim> candidates, OutlineFeature outline)
         {
             var points = new List<Point2d>();
@@ -1456,7 +1633,8 @@ namespace AutoFixtureDim
             {
                 AddCrossingPoint(points, dim.XLine1, outline);
                 AddCrossingPoint(points, dim.XLine2, outline);
-                AddInclinedEdgeProjectionPoints(points, dim, outline);
+                AddSideDirectionalInclinedEndpoint(points, dim.XLine1, outline, DimSide.Left);
+                AddSideDirectionalInclinedEndpoint(points, dim.XLine2, outline, DimSide.Left);
             }
 
             return points;
@@ -1469,7 +1647,8 @@ namespace AutoFixtureDim
             {
                 AddRightCrossingPoint(points, dim.XLine1, outline);
                 AddRightCrossingPoint(points, dim.XLine2, outline);
-                AddRightInclinedEdgeProjectionPoints(points, dim, outline);
+                AddSideDirectionalInclinedEndpoint(points, dim.XLine1, outline, DimSide.Right);
+                AddSideDirectionalInclinedEndpoint(points, dim.XLine2, outline, DimSide.Right);
             }
 
             return points;
@@ -1482,10 +1661,8 @@ namespace AutoFixtureDim
             {
                 AddTopCrossingPoint(points, dim.XLine1, outline);
                 AddTopCrossingPoint(points, dim.XLine2, outline);
-                AddTopChamferEndpointPoints(points, dim.XLine1, outline);
-                AddTopChamferEndpointPoints(points, dim.XLine2, outline);
-                AddHorizontalInclinedEdgeProjectionPoints(points, dim.XLine1, dim, outline);
-                AddHorizontalInclinedEdgeProjectionPoints(points, dim.XLine2, dim, outline);
+                AddDirectionalInclinedEndpoint(points, dim.XLine1, outline, invertDirection: true);
+                AddDirectionalInclinedEndpoint(points, dim.XLine2, outline, invertDirection: true);
             }
 
             return points;
@@ -1498,8 +1675,8 @@ namespace AutoFixtureDim
             {
                 AddBottomCrossingPoint(points, dim.XLine1, outline);
                 AddBottomCrossingPoint(points, dim.XLine2, outline);
-                AddBottomDirectionalInclinedEndpoint(points, dim.XLine1, outline);
-                AddBottomDirectionalInclinedEndpoint(points, dim.XLine2, outline);
+                AddDirectionalInclinedEndpoint(points, dim.XLine1, outline, invertDirection: false);
+                AddDirectionalInclinedEndpoint(points, dim.XLine2, outline, invertDirection: false);
             }
 
             return points;
@@ -1584,13 +1761,16 @@ namespace AutoFixtureDim
             }
         }
 
-        private void AddBottomDirectionalInclinedEndpoint(IList<Point2d> points, Point3d featurePoint, OutlineFeature outline)
+        private void AddDirectionalInclinedEndpoint(
+            IList<Point2d> points,
+            Point3d featurePoint,
+            OutlineFeature outline,
+            bool invertDirection)
         {
             var point = new Point2d(featurePoint.X, featurePoint.Y);
             if (ContainsPoint(points, point)
                 || IsEnvelopeSidePoint(point, outline)
-                || !IsPointOnVerticalOutlineSegment(point, outline)
-                || !ShouldIgnoreDirectionalBottomInclinedEndpoint(point, outline))
+                || !ShouldIgnoreDirectionalInclinedEndpoint(point, outline, invertDirection))
             {
                 return;
             }
@@ -1598,7 +1778,41 @@ namespace AutoFixtureDim
             points.Add(point);
         }
 
-        private bool ShouldIgnoreDirectionalBottomInclinedEndpoint(Point2d point, OutlineFeature outline)
+        private void AddSideInnerGrooveEndpoint(
+            IList<Point2d> points,
+            Point3d featurePoint,
+            OutlineFeature outline,
+            DimSide side)
+        {
+            var point = new Point2d(featurePoint.X, featurePoint.Y);
+            if (ContainsPoint(points, point)
+                || IsEnvelopeHorizontalSidePoint(point, outline)
+                || !ShouldIgnoreSideInnerGrooveEndpoint(point, outline, side))
+            {
+                return;
+            }
+
+            points.Add(point);
+        }
+
+        private void AddSideDirectionalInclinedEndpoint(
+            IList<Point2d> points,
+            Point3d featurePoint,
+            OutlineFeature outline,
+            DimSide side)
+        {
+            var point = new Point2d(featurePoint.X, featurePoint.Y);
+            if (ContainsPoint(points, point)
+                || IsEnvelopeHorizontalSidePoint(point, outline)
+                || !ShouldIgnoreSideDirectionalInclinedEndpoint(point, outline, side))
+            {
+                return;
+            }
+
+            points.Add(point);
+        }
+
+        private bool ShouldIgnoreSideDirectionalInclinedEndpoint(Point2d point, OutlineFeature outline, DimSide side)
         {
             if (outline == null)
             {
@@ -1609,10 +1823,13 @@ namespace AutoFixtureDim
                 .Where(s => !s.IsHorizontal(_config.GeometryTolerance))
                 .Where(s => !s.IsVertical(_config.GeometryTolerance))
                 .Where(IsFortyFiveDegreeSegment)
-                .Any(s => IsDirectionalIgnoredEndpoint(point, s));
+                .Any(s =>
+                    IsSideInnerGrooveChamferSegment(s, outline, side)
+                        ? IsSideInnerGrooveIgnoredEndpoint(point, s, outline, side)
+                        : IsSideDirectionalIgnoredEndpoint(point, s, side));
         }
 
-        private bool IsDirectionalIgnoredEndpoint(Point2d point, OutlineSegment segment)
+        private bool IsSideDirectionalIgnoredEndpoint(Point2d point, OutlineSegment segment, DimSide side)
         {
             if (!PointsEqual(point, segment.Start) && !PointsEqual(point, segment.End))
             {
@@ -1628,12 +1845,324 @@ namespace AutoFixtureDim
 
             if (dx * dy > 0.0)
             {
-                var leftPoint = segment.Start.X <= segment.End.X ? segment.Start : segment.End;
-                return PointsEqual(point, leftPoint);
+                var ignoredPoint = side == DimSide.Left
+                    ? (segment.Start.Y <= segment.End.Y ? segment.Start : segment.End)
+                    : (segment.Start.Y >= segment.End.Y ? segment.Start : segment.End);
+                return PointsEqual(point, ignoredPoint);
             }
 
-            var rightPoint = segment.Start.X >= segment.End.X ? segment.Start : segment.End;
-            return PointsEqual(point, rightPoint);
+            var negativeIgnoredPoint = side == DimSide.Left
+                ? (segment.Start.Y >= segment.End.Y ? segment.Start : segment.End)
+                : (segment.Start.Y <= segment.End.Y ? segment.Start : segment.End);
+            return PointsEqual(point, negativeIgnoredPoint);
+        }
+
+        private bool ShouldIgnoreSideInnerGrooveEndpoint(Point2d point, OutlineFeature outline, DimSide side)
+        {
+            if (outline == null)
+            {
+                return false;
+            }
+
+            return outline.Segments
+                .Where(s => !s.IsHorizontal(_config.GeometryTolerance))
+                .Where(s => !s.IsVertical(_config.GeometryTolerance))
+                .Where(IsFortyFiveDegreeSegment)
+                .Where(s => IsSideInnerGrooveChamferSegment(s, outline, side))
+                .Any(s => IsSideInnerGrooveIgnoredEndpoint(point, s, outline, side));
+        }
+
+        private bool ShouldIgnoreDirectionalInclinedEndpoint(Point2d point, OutlineFeature outline, bool invertDirection)
+        {
+            if (outline == null)
+            {
+                return false;
+            }
+
+            var segments = outline.Segments
+                .Where(s => !s.IsHorizontal(_config.GeometryTolerance))
+                .Where(s => !s.IsVertical(_config.GeometryTolerance))
+                .Where(IsFortyFiveDegreeSegment);
+
+            if (invertDirection)
+            {
+                return segments.Any(s =>
+                    IsInnerGrooveChamferSegment(s, outline, isTopSide: true)
+                        ? IsInnerGrooveIgnoredEndpoint(point, s, outline, isTopSide: true)
+                        : IsDirectionalIgnoredEndpoint(point, s, invertDirection: true));
+            }
+
+            return segments.Any(s =>
+                IsInnerGrooveChamferSegment(s, outline, isTopSide: false)
+                    ? IsInnerGrooveIgnoredEndpoint(point, s, outline, isTopSide: false)
+                    : IsDirectionalIgnoredEndpoint(point, s, invertDirection: false));
+        }
+
+        private bool IsInnerGrooveChamferSegment(OutlineSegment chamfer, OutlineFeature outline, bool isTopSide)
+        {
+            if (!IsFortyFiveDegreeSegment(chamfer))
+            {
+                return false;
+            }
+
+            var tolerance = _config.GeometryTolerance;
+            var chamferTopY = Math.Max(chamfer.Start.Y, chamfer.End.Y);
+            var chamferBottomY = Math.Min(chamfer.Start.Y, chamfer.End.Y);
+            foreach (var horizontal in outline.Segments.Where(s => s.IsHorizontal(tolerance) && !s.IsArcChord))
+            {
+                if (Math.Abs(horizontal.MinY - outline.MaxY) <= tolerance
+                    || Math.Abs(horizontal.MinY - outline.MinY) <= tolerance)
+                {
+                    continue;
+                }
+
+                if (isTopSide && horizontal.MinY >= chamferTopY - tolerance)
+                {
+                    continue;
+                }
+
+                if (!isTopSide && horizontal.MinY <= chamferBottomY + tolerance)
+                {
+                    continue;
+                }
+
+                if (SegmentTouchesPoint(horizontal, chamfer.Start)
+                    && HorizontalOtherEndConnectsInnerGroove(horizontal, chamfer.Start, chamfer, outline))
+                {
+                    return true;
+                }
+
+                if (SegmentTouchesPoint(horizontal, chamfer.End)
+                    && HorizontalOtherEndConnectsInnerGroove(horizontal, chamfer.End, chamfer, outline))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsSideInnerGrooveChamferSegment(OutlineSegment chamfer, OutlineFeature outline, DimSide side)
+        {
+            if (!IsFortyFiveDegreeSegment(chamfer))
+            {
+                return false;
+            }
+
+            var tolerance = _config.GeometryTolerance;
+            var chamferLeftX = Math.Min(chamfer.Start.X, chamfer.End.X);
+            var chamferRightX = Math.Max(chamfer.Start.X, chamfer.End.X);
+            foreach (var vertical in outline.Segments.Where(s => s.IsVertical(tolerance) && !s.IsArcChord))
+            {
+                if (Math.Abs(vertical.MinX - outline.MinX) <= tolerance
+                    || Math.Abs(vertical.MinX - outline.MaxX) <= tolerance)
+                {
+                    continue;
+                }
+
+                if (side == DimSide.Left && vertical.MinX <= chamferLeftX + tolerance)
+                {
+                    continue;
+                }
+
+                if (side == DimSide.Right && vertical.MinX >= chamferRightX - tolerance)
+                {
+                    continue;
+                }
+
+                if (SegmentTouchesPoint(vertical, chamfer.Start)
+                    && IsInternalSideGrooveVertical(vertical, chamfer, side, outline))
+                {
+                    return true;
+                }
+
+                if (SegmentTouchesPoint(vertical, chamfer.End)
+                    && IsInternalSideGrooveVertical(vertical, chamfer, side, outline))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsInnerGrooveIgnoredEndpoint(Point2d point, OutlineSegment chamfer, OutlineFeature outline, bool isTopSide)
+        {
+            var sharedPoint = GetInnerGrooveHorizontalSharedPoint(chamfer, outline, isTopSide);
+            return sharedPoint.HasValue && PointsEqual(point, sharedPoint.Value);
+        }
+
+        private Point2d? GetInnerGrooveHorizontalSharedPoint(OutlineSegment chamfer, OutlineFeature outline, bool isTopSide)
+        {
+            var tolerance = _config.GeometryTolerance;
+            var chamferTopY = Math.Max(chamfer.Start.Y, chamfer.End.Y);
+            var chamferBottomY = Math.Min(chamfer.Start.Y, chamfer.End.Y);
+            foreach (var horizontal in outline.Segments.Where(s => s.IsHorizontal(tolerance) && !s.IsArcChord))
+            {
+                if (Math.Abs(horizontal.MinY - outline.MaxY) <= tolerance
+                    || Math.Abs(horizontal.MinY - outline.MinY) <= tolerance
+                    || (isTopSide && horizontal.MinY >= chamferTopY - tolerance)
+                    || (!isTopSide && horizontal.MinY <= chamferBottomY + tolerance))
+                {
+                    continue;
+                }
+
+                if (SegmentTouchesPoint(horizontal, chamfer.Start)
+                    && HorizontalOtherEndConnectsInnerGroove(horizontal, chamfer.Start, chamfer, outline))
+                {
+                    return chamfer.Start;
+                }
+
+                if (SegmentTouchesPoint(horizontal, chamfer.End)
+                    && HorizontalOtherEndConnectsInnerGroove(horizontal, chamfer.End, chamfer, outline))
+                {
+                    return chamfer.End;
+                }
+            }
+
+            return null;
+        }
+
+        private bool IsSideInnerGrooveIgnoredEndpoint(Point2d point, OutlineSegment chamfer, OutlineFeature outline, DimSide side)
+        {
+            var sharedPoint = GetSideInnerGrooveVerticalSharedPoint(chamfer, outline, side);
+            return sharedPoint.HasValue && PointsEqual(point, sharedPoint.Value);
+        }
+
+        private Point2d? GetSideInnerGrooveVerticalSharedPoint(OutlineSegment chamfer, OutlineFeature outline, DimSide side)
+        {
+            var tolerance = _config.GeometryTolerance;
+            var chamferLeftX = Math.Min(chamfer.Start.X, chamfer.End.X);
+            var chamferRightX = Math.Max(chamfer.Start.X, chamfer.End.X);
+            foreach (var vertical in outline.Segments.Where(s => s.IsVertical(tolerance) && !s.IsArcChord))
+            {
+                if (Math.Abs(vertical.MinX - outline.MinX) <= tolerance
+                    || Math.Abs(vertical.MinX - outline.MaxX) <= tolerance
+                    || (side == DimSide.Left && vertical.MinX <= chamferLeftX + tolerance)
+                    || (side == DimSide.Right && vertical.MinX >= chamferRightX - tolerance))
+                {
+                    continue;
+                }
+
+                if (SegmentTouchesPoint(vertical, chamfer.Start)
+                    && IsInternalSideGrooveVertical(vertical, chamfer, side, outline))
+                {
+                    return chamfer.Start;
+                }
+
+                if (SegmentTouchesPoint(vertical, chamfer.End)
+                    && IsInternalSideGrooveVertical(vertical, chamfer, side, outline))
+                {
+                    return chamfer.End;
+                }
+            }
+
+            return null;
+        }
+
+        private bool IsInternalSideGrooveVertical(
+            OutlineSegment vertical,
+            OutlineSegment chamfer,
+            DimSide side,
+            OutlineFeature outline)
+        {
+            var tolerance = _config.GeometryTolerance;
+            if (!vertical.IsVertical(tolerance)
+                || Math.Abs(vertical.MinX - outline.MinX) <= tolerance
+                || Math.Abs(vertical.MinX - outline.MaxX) <= tolerance)
+            {
+                return false;
+            }
+
+            var chamferLeftX = Math.Min(chamfer.Start.X, chamfer.End.X);
+            var chamferRightX = Math.Max(chamfer.Start.X, chamfer.End.X);
+            if (side == DimSide.Left)
+            {
+                return vertical.MinX > chamferLeftX + tolerance;
+            }
+
+            if (side == DimSide.Right)
+            {
+                return vertical.MinX < chamferRightX - tolerance;
+            }
+
+            return false;
+        }
+
+        private bool IsKnownChamferSegment(OutlineSegment segment, OutlineFeature outline)
+        {
+            return outline.Chamfers.Any(chamfer =>
+                IsFortyFiveDegreeChamfer(chamfer)
+                && ((PointsEqual(chamfer.StartPoint, segment.Start) && PointsEqual(chamfer.EndPoint, segment.End))
+                    || (PointsEqual(chamfer.StartPoint, segment.End) && PointsEqual(chamfer.EndPoint, segment.Start))));
+        }
+
+        private bool HorizontalOtherEndConnectsInnerGroove(
+            OutlineSegment horizontal,
+            Point2d sharedPoint,
+            OutlineSegment currentChamfer,
+            OutlineFeature outline)
+        {
+            var otherEnd = PointsEqual(horizontal.Start, sharedPoint) ? horizontal.End : horizontal.Start;
+            return outline.Segments.Any(segment =>
+                    !ReferenceEquals(segment, currentChamfer)
+                    && !segment.IsHorizontal(_config.GeometryTolerance)
+                    && !segment.IsVertical(_config.GeometryTolerance)
+                    && IsFortyFiveDegreeSegment(segment)
+                    && (PointsEqual(segment.Start, otherEnd) || PointsEqual(segment.End, otherEnd)))
+                || outline.Chamfers.Any(chamfer =>
+                    IsFortyFiveDegreeChamfer(chamfer)
+                    && (PointsEqual(chamfer.StartPoint, otherEnd) || PointsEqual(chamfer.EndPoint, otherEnd)))
+                || outline.Fillets.Any(fillet =>
+                    PointsEqual(fillet.StartPoint, otherEnd) || PointsEqual(fillet.EndPoint, otherEnd));
+        }
+
+        private bool VerticalOtherEndConnectsInnerGroove(
+            OutlineSegment vertical,
+            Point2d sharedPoint,
+            OutlineSegment currentChamfer,
+            OutlineFeature outline)
+        {
+            var otherEnd = PointsEqual(vertical.Start, sharedPoint) ? vertical.End : vertical.Start;
+            return outline.Segments.Any(segment =>
+                    !ReferenceEquals(segment, currentChamfer)
+                    && !segment.IsHorizontal(_config.GeometryTolerance)
+                    && !segment.IsVertical(_config.GeometryTolerance)
+                    && IsFortyFiveDegreeSegment(segment)
+                    && (PointsEqual(segment.Start, otherEnd) || PointsEqual(segment.End, otherEnd)))
+                || outline.Chamfers.Any(chamfer =>
+                    IsFortyFiveDegreeChamfer(chamfer)
+                    && (PointsEqual(chamfer.StartPoint, otherEnd) || PointsEqual(chamfer.EndPoint, otherEnd)))
+                || outline.Fillets.Any(fillet =>
+                    PointsEqual(fillet.StartPoint, otherEnd) || PointsEqual(fillet.EndPoint, otherEnd));
+        }
+
+        private bool IsDirectionalIgnoredEndpoint(Point2d point, OutlineSegment segment, bool invertDirection)
+        {
+            if (!PointsEqual(point, segment.Start) && !PointsEqual(point, segment.End))
+            {
+                return false;
+            }
+
+            var dx = segment.End.X - segment.Start.X;
+            var dy = segment.End.Y - segment.Start.Y;
+            if (Math.Abs(dx) <= _config.GeometryTolerance || Math.Abs(dy) <= _config.GeometryTolerance)
+            {
+                return false;
+            }
+
+            if (dx * dy > 0.0)
+            {
+                var ignoredPoint = invertDirection
+                    ? (segment.Start.X >= segment.End.X ? segment.Start : segment.End)
+                    : (segment.Start.X <= segment.End.X ? segment.Start : segment.End);
+                return PointsEqual(point, ignoredPoint);
+            }
+
+            var negativeIgnoredPoint = invertDirection
+                ? (segment.Start.X <= segment.End.X ? segment.Start : segment.End)
+                : (segment.Start.X >= segment.End.X ? segment.Start : segment.End);
+            return PointsEqual(point, negativeIgnoredPoint);
         }
 
         private bool IsEnvelopeSidePoint(Point2d point, OutlineFeature outline)
@@ -1645,6 +2174,17 @@ namespace AutoFixtureDim
 
             return point.X <= outline.MinX + _config.GeometryTolerance
                 || point.X >= outline.MaxX - _config.GeometryTolerance;
+        }
+
+        private bool IsEnvelopeHorizontalSidePoint(Point2d point, OutlineFeature outline)
+        {
+            if (outline == null)
+            {
+                return false;
+            }
+
+            return point.Y <= outline.MinY + _config.GeometryTolerance
+                || point.Y >= outline.MaxY - _config.GeometryTolerance;
         }
 
         private bool IsTopChamferEndpoint(Point2d point, OutlineFeature outline)

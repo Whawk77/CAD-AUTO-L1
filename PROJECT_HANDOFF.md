@@ -1,6 +1,6 @@
 # AUTOFIXDIM / ASD Handoff
 
-Last synced: 2026-05-21
+Last synced: 2026-05-23
 
 ## Goal
 AutoCAD 2020 .NET Framework plugin for semi-automatic fixture-part annotation. Active command is `ASD`; old commands remain for compatibility.
@@ -16,15 +16,16 @@ The plugin annotates:
 It never creates centerlines or a `CENTER` layer.
 
 ## Project
-- Workspace: `D:\work\AI\project\autocad-net-c-autocad-autocad-net`
+- Active L1 workspace: `D:\work\AI\project\L1`
+- Active source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340`
 - Project file: `AutoFixtureDim.csproj`
 - Target framework: .NET Framework 4.7.2
 - AutoCAD install: `D:\Program Files\Autodesk\AutoCAD 2020`
-- Build command: `dotnet msbuild AutoFixtureDim.csproj /p:Configuration=Debug /v:minimal`
-- Build output: `D:\work\AI\project\autocad-net-c-autocad-autocad-net\bin\Debug\AutoFixtureDim.dll`
+- Build command: `dotnet msbuild AutoFixtureDim.csproj /p:Configuration=Debug /p:PostBuildEvent= /p:DebugType=None /p:DebugSymbols=false /v:minimal`
+- Build output: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\AutoFixtureDim.dll`
 - Deployment folder: `D:\app\不加班的小刘_工具箱\dll`
 - Deploy script: `.\deploy_next_version.ps1`
-- Latest test DLL from current source: `D:\work\AI\project\autocad-net-c-autocad-autocad-net\bin\Debug\autofixdim-v113.dll`
+- Latest test DLL from current source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LA38.dll`
 - Pre-rewrite `DimensionDrawer.cs` backup requested by user: `D:\work\AI\project\1\DimensionDrawer.cs.bak`
 - Historical note: the earlier abandoned `autofixdim-v89.dll` build must not be used as a baseline. The source was rolled back to the `v88` logic before the rejected step-dimension replacement behavior, and the current `v89` suffix is reused for the diameter-style follow-current-child-style test build.
 
@@ -98,6 +99,8 @@ It never creates centerlines or a `CENTER` layer.
 - `OutlineFeature` carries `Chamfers` and `Fillets` in addition to vertices, segments, and arcs.
 - Chamfers are recognized on MainOutline 45-degree non-axis segments that connect one horizontal and one vertical main edge.
 - If a second 45-degree segment is collinear with the first and close enough to be its extension, the chamfer value is calculated from the merged endpoints' `max(dx, dy)`.
+- After normal chamfer and fillet recognition, `RecognizeInnerGrooveChamfers(outline)` supplements missing inner-groove chamfers. This is intentionally after `RecognizeFillets(outline)` so chamfer + internal line + fillet structures can be recognized.
+- Inner-groove chamfer supplement only accepts 45/135-degree local segments that participate in an internal horizontal or vertical groove relationship. It should not turn long structural inclined edges into chamfer callouts.
 - Chamfer callout text follows the diameter/corner callout dimstyle main-unit linear precision (`Dimdec`) for non-integers; integer chamfer values suppress trailing decimals, e.g. `C5` rather than `C5.00`.
 - Long structural inclined edges that are not local 45-degree chamfer geometry remain `Inclined Edge`, not `Chamfer`.
 - Fillets are recognized only from MainOutline arcs or polyline bulges with reasonable radius and connected outline endpoints.
@@ -112,6 +115,7 @@ It never creates centerlines or a `CENTER` layer.
 - Do not suppress OverallWidth, OverallHeight, main body length/height, functional positioning dimensions, or unrelated local dimensions.
 - A widened single-tangent fillet check prevents the wrong local tangent dimension near an end fillet when the intended outer size should include the radius.
 - Top/Bottom mirrored duplicate horizontal normal dimensions are deduped across sides; Bottom is kept by default.
+- Left/Right mirrored duplicate vertical normal dimensions are deduped across sides when the Y interval and override text match; Left is kept by default. Overall height, forced outer-level dimensions, and non-normal feature dimensions are not suppressed by this rule.
 - A local horizontal/vertical edge between two chamfers is suppressed when it is derivable from the overall envelope minus the two chamfer projections.
 - The abandoned `v89` rule tried to replace a long overall-minus-chamfer width such as `55` with a chamfer projection `5`; it was rejected and removed from source.
 
@@ -119,6 +123,10 @@ It never creates centerlines or a `CENTER` layer.
 - Current `DrawRightStepHeight` is an experimental rewrite from 2026-05-21. It no longer emits one right-side height candidate directly from a vertical segment.
 - It groups horizontal outline segments by Y level, takes each level's leftmost point, emits a left-side continuous vertical chain between adjacent levels, then removes the candidate with the longest extension-line reach to avoid a closed dimension chain.
 - This rewrite intentionally places those step-chain dimensions on the left side.
+- `DrawRightSideStepHeight` separately builds the right-side vertical chain from the rightmost points of horizontal outline levels. Left-side ignored points do not flow into right-side ignored points.
+- Top and bottom horizontal step-width rules now use side-specific structure point sets. Top only allows upper-half inner-groove chamfer endpoints into the Top point set; Bottom only allows lower-half inner-groove chamfer endpoints into the Bottom point set.
+- Left and right vertical step chains use matching inner-groove behavior: for a side inner groove, the ignored endpoint is the chamfer endpoint connected to the groove's internal vertical line.
+- Directional 45/135-degree endpoint suppression should stay in `AddDirectionalInclinedEndpoint`, `AddSideDirectionalInclinedEndpoint`, and the `IsInnerGroove...` helper family. Avoid adding one-off ignored points in the drawing routines.
 - Bottom horizontal protrusion width no longer blindly selects the longest internal horizontal segment; it targets lower local protrusions and can resolve the span from nearby vertical boundaries.
 - A user-requested source backup before the `DrawRightStepHeight` rewrite exists at `D:\work\AI\project\1\DimensionDrawer.cs.bak`.
 - The step/protrusion rules are still under AutoCAD visual testing. Prefer adjusting the classifier/chain logic deliberately rather than adding isolated longest-segment heuristics.
@@ -170,29 +178,29 @@ It never creates centerlines or a `CENTER` layer.
 - `NativeDiameterDimensioner.PromptDiameterDimensions` handles diameter/thread callout placement and pin roughness block insertion.
 
 ## Known Issues / Follow-Up
-- Step-dimension rules are in active redesign. The current `v113` source uses a user-requested left-side continuous chain experiment for vertical step dimensions; it needs AutoCAD verification before treating it as stable.
+- Step-dimension rules are in active redesign. The current `LA38` source uses experimental four-side point-set and inner-groove endpoint rules; it needs AutoCAD verification before treating it as stable.
 - The next durable design should still classify step candidates before emitting dimensions: `Overall`, `FeatureDerived`, `FeatureProjection`, `StructuralStep`, and `AmbiguousSmallStep`.
 - The user prefers not to keep the abandoned `v89` replacement rule. Do not reintroduce the behavior that replaced long structural widths with chamfer projections.
 - Watch for accidental closed dimension chains. The current experimental rule deletes the candidate with the longest extension-line reach, but this should be verified against real fixture outlines.
 - Validate whether lower protrusion widths and chamfer-extension values match the user's intended blue-guide dimensions.
 - Roughness block placement may still need exact horizontal-line midpoint extraction from the generated dimension block if text-position anchoring is not visually correct.
 - `AnnotationPreview.cs` is legacy support; the active hole and corner placement flow uses `DrawJig`.
-- Current latest test DLL from source is `bin\Debug\autofixdim-v113.dll`; it was compiled with `DebugSymbols=false` / `DebugType=none` because AutoCAD can lock `bin\Debug\AutoFixtureDim.pdb`.
+- Current latest test DLL from source is `bin\Debug\autofixdim-LA38.dll`; it was compiled with `DebugSymbols=false` / `DebugType=None` because AutoCAD can lock `bin\Debug\AutoFixtureDim.pdb`.
 
 ## Verification
 - Standard build command:
-  `dotnet msbuild AutoFixtureDim.csproj /p:Configuration=Debug /v:minimal`
+  `dotnet msbuild AutoFixtureDim.csproj /p:Configuration=Debug /p:PostBuildEvent= /p:DebugType=None /p:DebugSymbols=false /v:minimal`
 - If AutoCAD locks `bin\Debug\AutoFixtureDim.pdb`, use a versioned no-PDB build folder, for example:
   `dotnet msbuild AutoFixtureDim.csproj /p:Configuration=Debug /p:DebugSymbols=false /p:DebugType=none /p:OutputPath=bin\Debug\vNNNbuild\ /v:minimal`
 - Standard deploy command:
   `powershell -ExecutionPolicy Bypass -File .\deploy_next_version.ps1`
 - Latest compiled DLL:
-  `D:\work\AI\project\autocad-net-c-autocad-autocad-net\bin\Debug\v113build\AutoFixtureDim.dll`
+  `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\AutoFixtureDim.dll`
 - Latest test DLL:
-  `D:\work\AI\project\autocad-net-c-autocad-autocad-net\bin\Debug\autofixdim-v113.dll`
+  `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LA38.dll`
 
 ## Manual AutoCAD Test Checklist
-- Load `D:\work\AI\project\autocad-net-c-autocad-autocad-net\bin\Debug\autofixdim-v113.dll` with `NETLOAD` for the current local test build.
+- Load `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LA38.dll` with `NETLOAD` for the current local test build.
 - Run `ASD`.
 - Select outline and hole geometry.
 - Pick the intended first-group datum pin.

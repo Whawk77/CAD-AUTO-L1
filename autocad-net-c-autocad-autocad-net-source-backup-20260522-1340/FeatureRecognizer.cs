@@ -1152,6 +1152,7 @@ namespace AutoFixtureDim
             outline.Fillets.Clear();
             RecognizeChamfers(outline);
             RecognizeFillets(outline);
+            RecognizeInnerGrooveChamfers(outline);
             WriteCornerFeatureDiagnostics(outline);
         }
 
@@ -1228,6 +1229,33 @@ namespace AutoFixtureDim
                     }
 
                     outline.Chamfers.Add(CreateChamferFeature(segment, dx, dy, chamferLeg));
+                    continue;
+                }
+
+                outline.Chamfers.Add(CreateChamferFeature(segment, dx, dy, chamferLeg));
+            }
+        }
+
+        private void RecognizeInnerGrooveChamfers(OutlineFeature outline)
+        {
+            var maxChamferLeg = Math.Max(outline.Width, outline.Height) * 0.25;
+            foreach (var segment in outline.Segments)
+            {
+                if (segment.IsArcChord
+                    || segment.IsHorizontal(_config.GeometryTolerance)
+                    || segment.IsVertical(_config.GeometryTolerance)
+                    || !IsFortyFiveDegreeSegment(segment)
+                    || IsKnownChamferSegment(segment, outline)
+                    || !IsInnerGrooveChamferSegment(segment, outline))
+                {
+                    continue;
+                }
+
+                var dx = Math.Abs(segment.End.X - segment.Start.X);
+                var dy = Math.Abs(segment.End.Y - segment.Start.Y);
+                var chamferLeg = GetChamferDimensionLeg(outline, segment, dx, dy);
+                if (segment.Length <= _config.GeometryTolerance || chamferLeg > maxChamferLeg)
+                {
                     continue;
                 }
 
@@ -1378,6 +1406,140 @@ namespace AutoFixtureDim
             var gap = Math.Max(candidateA - chamferB, chamferA - candidateB);
             var maxGap = Math.Max(chamferLeg * 0.75, Math.Max(_config.GeometryTolerance, 2.0));
             return gap <= maxGap + _config.GeometryTolerance;
+        }
+
+        private bool IsInnerGrooveChamferSegment(OutlineSegment chamfer, OutlineFeature outline)
+        {
+            return IsHorizontalInnerGrooveChamferSegment(chamfer, outline, isTopSide: true)
+                || IsHorizontalInnerGrooveChamferSegment(chamfer, outline, isTopSide: false)
+                || IsVerticalInnerGrooveChamferSegment(chamfer, outline, leftSide: true)
+                || IsVerticalInnerGrooveChamferSegment(chamfer, outline, leftSide: false);
+        }
+
+        private bool IsHorizontalInnerGrooveChamferSegment(
+            OutlineSegment chamfer,
+            OutlineFeature outline,
+            bool isTopSide)
+        {
+            var tolerance = _config.GeometryTolerance;
+            var chamferTopY = Math.Max(chamfer.Start.Y, chamfer.End.Y);
+            var chamferBottomY = Math.Min(chamfer.Start.Y, chamfer.End.Y);
+            foreach (var horizontal in outline.Segments.Where(s => s.IsHorizontal(tolerance) && !s.IsArcChord))
+            {
+                if (Math.Abs(horizontal.MinY - outline.MaxY) <= tolerance
+                    || Math.Abs(horizontal.MinY - outline.MinY) <= tolerance
+                    || (isTopSide && horizontal.MinY >= chamferTopY - tolerance)
+                    || (!isTopSide && horizontal.MinY <= chamferBottomY + tolerance))
+                {
+                    continue;
+                }
+
+                if (SegmentTouchesPoint(horizontal, chamfer.Start)
+                    && HorizontalOtherEndConnectsInnerGroove(horizontal, chamfer.Start, chamfer, outline))
+                {
+                    return true;
+                }
+
+                if (SegmentTouchesPoint(horizontal, chamfer.End)
+                    && HorizontalOtherEndConnectsInnerGroove(horizontal, chamfer.End, chamfer, outline))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsVerticalInnerGrooveChamferSegment(
+            OutlineSegment chamfer,
+            OutlineFeature outline,
+            bool leftSide)
+        {
+            var tolerance = _config.GeometryTolerance;
+            var chamferLeftX = Math.Min(chamfer.Start.X, chamfer.End.X);
+            var chamferRightX = Math.Max(chamfer.Start.X, chamfer.End.X);
+            foreach (var vertical in outline.Segments.Where(s => s.IsVertical(tolerance) && !s.IsArcChord))
+            {
+                if (Math.Abs(vertical.MinX - outline.MinX) <= tolerance
+                    || Math.Abs(vertical.MinX - outline.MaxX) <= tolerance
+                    || (leftSide && vertical.MinX <= chamferLeftX + tolerance)
+                    || (!leftSide && vertical.MinX >= chamferRightX - tolerance))
+                {
+                    continue;
+                }
+
+                if ((SegmentTouchesPoint(vertical, chamfer.Start) || SegmentTouchesPoint(vertical, chamfer.End))
+                    && IsInternalSideGrooveVertical(vertical, chamfer, leftSide, outline))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsInternalSideGrooveVertical(
+            OutlineSegment vertical,
+            OutlineSegment chamfer,
+            bool leftSide,
+            OutlineFeature outline)
+        {
+            var tolerance = _config.GeometryTolerance;
+            if (!vertical.IsVertical(tolerance)
+                || Math.Abs(vertical.MinX - outline.MinX) <= tolerance
+                || Math.Abs(vertical.MinX - outline.MaxX) <= tolerance)
+            {
+                return false;
+            }
+
+            var chamferLeftX = Math.Min(chamfer.Start.X, chamfer.End.X);
+            var chamferRightX = Math.Max(chamfer.Start.X, chamfer.End.X);
+            return leftSide
+                ? vertical.MinX > chamferLeftX + tolerance
+                : vertical.MinX < chamferRightX - tolerance;
+        }
+
+        private bool HorizontalOtherEndConnectsInnerGroove(
+            OutlineSegment horizontal,
+            Point2d sharedPoint,
+            OutlineSegment currentChamfer,
+            OutlineFeature outline)
+        {
+            var otherEnd = PointsEqual(horizontal.Start, sharedPoint) ? horizontal.End : horizontal.Start;
+            return outline.Segments.Any(segment =>
+                    !ReferenceEquals(segment, currentChamfer)
+                    && !segment.IsHorizontal(_config.GeometryTolerance)
+                    && !segment.IsVertical(_config.GeometryTolerance)
+                    && IsFortyFiveDegreeSegment(segment)
+                    && (PointsEqual(segment.Start, otherEnd) || PointsEqual(segment.End, otherEnd)))
+                || outline.Chamfers.Any(chamfer =>
+                    (PointsEqual(chamfer.StartPoint, otherEnd) || PointsEqual(chamfer.EndPoint, otherEnd)))
+                || outline.Fillets.Any(fillet =>
+                    PointsEqual(fillet.StartPoint, otherEnd) || PointsEqual(fillet.EndPoint, otherEnd));
+        }
+
+        private bool IsKnownChamferSegment(OutlineSegment segment, OutlineFeature outline)
+        {
+            return outline.Chamfers.Any(chamfer =>
+                (PointsEqual(chamfer.StartPoint, segment.Start) && PointsEqual(chamfer.EndPoint, segment.End))
+                || (PointsEqual(chamfer.StartPoint, segment.End) && PointsEqual(chamfer.EndPoint, segment.Start)));
+        }
+
+        private bool IsFortyFiveDegreeSegment(OutlineSegment segment)
+        {
+            var dx = Math.Abs(segment.End.X - segment.Start.X);
+            var dy = Math.Abs(segment.End.Y - segment.Start.Y);
+            if (dx <= _config.GeometryTolerance || dy <= _config.GeometryTolerance)
+            {
+                return false;
+            }
+
+            return Math.Abs(dx - dy) <= Math.Max(_config.GeometryTolerance, Math.Max(dx, dy) * 0.05);
+        }
+
+        private bool SegmentTouchesPoint(OutlineSegment segment, Point2d point)
+        {
+            return PointsEqual(segment.Start, point) || PointsEqual(segment.End, point);
         }
 
         private static double DistanceFromPointToLine(Point2d point, Point2d linePoint, Vector2d direction)

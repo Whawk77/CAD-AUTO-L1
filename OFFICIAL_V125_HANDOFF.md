@@ -2,6 +2,8 @@
 
 整理时间：2026-05-22
 
+补充：2026-05-23 之后的 LA 系列实验开发在 `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340` 继续推进；本文件仍只记录正式 `v125` 基线，不作为 LA 实验线的最新规则说明。
+
 ## 结论
 
 `v125` 是当前正式推进基线。`D:\work\AI\project\L1\bin\Debug\autofixdim-v125.dll` 已从正式源码目录复制，并与正式源码输出、工具箱 DLL 哈希一致。

@@ -7,15 +7,18 @@
 - If bulk deletion seems necessary, stop and ask the user to handle it manually.
 
 ## Environment
-- Workspace: `D:\work\AI\project\autocad-net-c-autocad-autocad-net`
+- Active L1 workspace: `D:\work\AI\project\L1`
+- Active source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340`
 - AutoCAD 2020 install path: `D:\Program Files\Autodesk\AutoCAD 2020`
-- Build command: `dotnet msbuild AutoFixtureDim.csproj /p:Configuration=Debug /v:minimal`
-- If AutoCAD locks `bin\Debug\AutoFixtureDim.pdb`, compile to a versioned no-PDB folder with `DebugSymbols=false`, `DebugType=none`, and a custom `OutputPath`.
+- Build command for local test DLLs: `dotnet msbuild AutoFixtureDim.csproj /p:Configuration=Debug /p:PostBuildEvent= /p:DebugType=None /p:DebugSymbols=false /v:minimal`
+- Use `/p:PostBuildEvent=` unless the user explicitly wants the project post-build copy to run.
+- If AutoCAD locks `bin\Debug\AutoFixtureDim.pdb`, keep `DebugSymbols=false` and `DebugType=None`.
 - Build output: `bin\Debug\AutoFixtureDim.dll`
+- User-requested test DLL folder: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug`
 - Deployment folder: `D:\app\不加班的小刘_工具箱\dll`
 - Deploy script: `.\deploy_next_version.ps1`
-- Deployed DLL names use lowercase base name: `autofixdim-vNN.dll`.
-- Latest test DLL from current source: `bin\Debug\autofixdim-v113.dll`.
+- Current experimental DLL names use lowercase LA suffixes: `autofixdim-LANN.dll`.
+- Latest test DLL from current source: `bin\Debug\autofixdim-LA38.dll`.
 - Historical note: the earlier abandoned `autofixdim-v89.dll` build must not be used as a baseline. The source was rolled back to the `v88` logic before the rejected step-dimension replacement rule, and the current `v89` suffix is reused for the diameter-style follow-current-child-style test build.
 - AutoCAD may lock a loaded DLL; if copy fails because the DLL is busy, increment the suffix and load the fresh DLL.
 
@@ -42,6 +45,8 @@
 - OverallWidth and OverallHeight must use the full real envelope (`MinX -> MaxX`, `MinY -> MaxY`) of the selected MainOutline, including arcs, fillets, chamfers, and transition edges.
 - Overall dimensions have highest priority and must not be replaced by local step, chamfer, or fillet tangent dimensions.
 - Chamfers require a non-axis 45-degree MainOutline segment connected to one horizontal and one vertical main edge. If a second 45-degree segment is collinear with the first and close enough to be its extension, the chamfer callout value uses the merged endpoints' `max(dx, dy)`.
+- After normal chamfer and fillet recognition, `RecognizeInnerGrooveChamfers(outline)` supplements missing 45/135-degree inner-groove chamfers so their `C...` leaders are emitted by the normal corner-feature path.
+- Inner-groove chamfer supplement is for structures that form chamfer plus internal horizontal/vertical groove line plus chamfer or fillet; do not use it as a general long inclined-edge classifier.
 - Chamfer callout text follows the diameter/corner callout dimstyle main-unit linear precision (`Dimdec`) for non-integers; integer values are emitted without trailing decimals, e.g. `C5` not `C5.00`.
 - Fillets are recognized only from MainOutline arcs or polyline bulges with reasonable radius and connected outline endpoints.
 - Diagnostic output should explain recognized pin/normal/thread holes, suppressed circles, and recognized chamfers/fillets.
@@ -53,9 +58,14 @@
 - Do not suppress OverallWidth, OverallHeight, main body length/height, functional positioning dimensions, or unrelated local dimensions.
 - For fillet ends, avoid emitting the wrong tangent-only local size when the intended manufacturing logic is full outer size plus radius.
 - Suppress mirrored duplicate horizontal local dimensions across Top/Bottom when they have the same arrow interval and text; keep Bottom by default.
+- Suppress mirrored duplicate vertical local dimensions across Left/Right when they have the same Y interval and override text, are `DimensionType.Normal`, and are not `ForceOuterLevel`; keep Left by default.
 - Suppress a local horizontal/vertical edge between two chamfers when it is derivable from the overall envelope minus the two chamfer projections.
 - Do not reintroduce the abandoned `v89` behavior that replaced an overall-minus-chamfer long width such as `55` with a chamfer projection `5`.
-- Current vertical step-dimension test rule is intentionally experimental: `DrawRightStepHeight` builds a left-side continuous chain from the leftmost points of horizontal outline levels, then removes the candidate with the longest extension-line reach to avoid a closed dimension chain.
+- Current side step-dimension rules are experimental: `DrawRightStepHeight` builds a left-side chain from the leftmost points of horizontal outline levels, while `DrawRightSideStepHeight` builds the right-side chain from the rightmost points.
+- Top and bottom horizontal step-width rules collect structure points from local horizontal outline levels and use side-specific ignored-point rules before emitting `_topDims` / `_bottomDims`.
+- For top/bottom point sets, only upper-half inner-groove chamfer endpoints may enter Top and only lower-half inner-groove chamfer endpoints may enter Bottom.
+- For left/right point sets, inner-groove chamfer endpoints are handled with the same intent as top/bottom: ignore the endpoint connected to the groove's internal vertical line, then let chain dimensions span the remaining structural width/height.
+- Directional 45/135-degree endpoint suppression is side-specific. Top/bottom use horizontal groove context; left/right use vertical groove context. Keep this logic in `AddDirectionalInclinedEndpoint`, `AddSideDirectionalInclinedEndpoint`, and their `IsInnerGroove...` helpers rather than scattering one-off ignores.
 - Bottom horizontal step width currently targets local protrusion widths near the lower outline, resolving the span from nearby vertical boundaries where possible instead of blindly selecting the longest internal horizontal segment.
 
 ## Leader and Attachment Rules

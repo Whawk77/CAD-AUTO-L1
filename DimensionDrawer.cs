@@ -541,10 +541,7 @@ namespace AutoFixtureDim
                     continue;
                 }
 
-                var reference = group.Pins
-                    .OrderBy(p => DistanceSquared(p.Center, hole.Center))
-                    .ThenByDescending(p => IsSameHole(p, group.BasePin) ? 1 : 0)
-                    .FirstOrDefault();
+                var reference = group.BasePin;
                 if (reference == null)
                 {
                     continue;

@@ -103,6 +103,7 @@ namespace AutoFixtureDim
                 tr.Commit();
             }
 
+            editor.WriteMessage("\nMove hole callout {0}, click to place, Enter to skip.", calloutText);
             var jig = new DiameterCalloutJig(center, radius, textHeight, calloutText);
             var result = editor.Drag(jig);
             if (result.Status == PromptStatus.OK)
@@ -312,7 +313,6 @@ namespace AutoFixtureDim
             private readonly string _previewText;
             private readonly double _redrawTolerance;
             private readonly double _textWidth;
-            private readonly string _promptMessage;
             private Point3d _textPoint;
 
             public DiameterCalloutJig(
@@ -328,7 +328,6 @@ namespace AutoFixtureDim
                 _previewText = _calloutText.Replace("%%c", "D");
                 _redrawTolerance = Math.Max(textHeight * 0.45, radius * 0.08);
                 _textWidth = Math.Max(_previewText.Length, 2) * _textHeight * 0.65;
-                _promptMessage = "\nMove hole callout " + _calloutText + ", click to place, Enter to skip: ";
                 _textPoint = center + new Vector3d(radius * 3.0, radius * 3.0, 0.0);
             }
 
@@ -341,7 +340,7 @@ namespace AutoFixtureDim
 
             protected override SamplerStatus Sampler(JigPrompts prompts)
             {
-                var options = new JigPromptPointOptions(_promptMessage);
+                var options = new JigPromptPointOptions("\nPick point: ");
                 options.UserInputControls =
                     UserInputControls.Accept3dCoordinates
                     | UserInputControls.NullResponseAccepted;

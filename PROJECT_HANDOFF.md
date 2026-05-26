@@ -17,10 +17,11 @@ It never creates centerlines or a `CENTER` layer.
 
 ## Recent Source Changes
 - `DimensionDrawer.cs`: pin-group planning now keeps the user-selected datum pin as the first group's `BasePin`. Later groups are recognized first, then their `BasePin` is chosen from within the completed group using the previous group's `BasePin` as the locating reference.
-- `DimensionDrawer.cs`: hole-position linear dimensions now choose Bottom/Top and Left/Right placement from the hole or pin group's nearest outline side. Pin-group dimensions keep the selected side through first-base positioning, group transfers, and same-group pin spacing; normal/thread holes use their own nearest side.
+- `DimensionDrawer.cs`: pin-group base dimensions choose Bottom/Top and Left/Right placement from the pin group base's nearest outline side. Same-group pin distances currently choose side from the midpoint between the two pins. Normal/thread holes assigned to a pin group currently use that group's selected side; only the no-pin fallback uses the target hole's own nearest side.
 - `DimensionDrawer.cs`: when a hole is centered between opposite sides within `GeometryTolerance`, pin-group placement falls back to the side opposite the datum edge, reducing overlap with datum-side dimensions.
 - `DimensionDrawer.cs`: corner-feature leader preview/final leader lines now follow the current AutoCAD layer and `CECOLOR`; corner-feature `MText` uses the diameter/corner callout dimstyle text color.
 - `DimensionDrawer.cs` and `FeatureRecognizer.cs`: inner-groove chamfer recognition now requires the other end of the internal vertical groove line to connect to another 45-degree chamfer, known chamfer, or fillet. This prevents a single loose vertical line from promoting a long inclined structural edge into an inner-groove chamfer.
+- `DimensionDrawer.cs`: same-side duplicate measured dimensions are now deduped by measured arrow interval and span instead of requiring identical override text. When duplicates measure the same geometry, the retained dimension prefers explicit tolerance text first, then the smaller tolerance value, then the functional dimension type priority, then forced outer-level dimensions, then non-empty override text.
 
 ## Project
 - Active L1 workspace: `D:\work\AI\project\L1`
@@ -40,12 +41,12 @@ It never creates centerlines or a `CENTER` layer.
 - `ASD`: main command.
 - `AUTOFIXDIM`: same workflow.
 - `AUTOFIXDIMREGEN`: clear old plugin annotations first, then regenerate.
-- `AUTOFIXDIMCLEAR`: remove entities carrying XData app name `AUTOFIXDIM`.
+- `AUTOFIXDIMCLEAR`: remove entities carrying XData app name `AUTOFIXDIM` from non-XRef, non-dependent block table records.
 
 ## Current Workflow
 1. Select outline on layer `DRAWING`.
 2. Confirm datum edge, defaulting to outline `MinX` / `MinY`, or specify datum points.
-3. Window-select hole geometry; plugin recognizes circles and thread arcs from that selection.
+3. Window-select hole geometry; plugin recognizes circles, thread arcs, slot arcs, and slot lines from that selection.
 4. If no holes are recognized from the window selection, prompt for manual circle selection.
 5. If pin holes exist, prompt the user to pick one pin hole as the datum hole.
 6. If a datum hole is picked, prompt X and Y reference points for that datum hole's own position dimensions.
@@ -65,8 +66,9 @@ It never creates centerlines or a `CENTER` layer.
 - `RuleConfig.cs`: centralized tolerances and callout text, including pin-hole H7, pin spacing `±0.02`, group spacing `±0.05`, datum location `<>±0.05`, and default datum tolerance mode.
 - `DimensionDrawer.cs`: linear position dimensions, pin-group logic, stacked placement, envelope overall dimensions, current experimental step/protrusion rules, chamfer/fillet suppression, corner-feature Jig placement.
 - `NativeDiameterDimensioner.cs`: final interactive diameter/thread dimensions, hole callout Jig preview, pin-hole roughness block insertion.
-- `AnnotationMetadata.cs`: XData marking and clear logic for app name `AUTOFIXDIM`.
+- `AnnotationMetadata.cs`: XData marking and clear logic for app name `AUTOFIXDIM`; generated entities carry `GroupId` in XData.
 - `LayerManager.cs`: preferred annotation layer is `JEE-DIM标注`, otherwise current layer.
+- `DimStyleManager.cs`: linear dimensions keep the current dimstyle if it is one of the preferred `SCALE-1-0x` styles; diameter callouts first try the selected linear style's `$3` child, then fall back to `SCALE-1-01$3`, then the linear style.
 - `deploy_next_version.ps1`: deploys `bin\Debug\AutoFixtureDim.dll` as the next `autofixdim-vNN.dll` in the toolbox DLL folder.
 
 ## Rule Configuration
@@ -79,6 +81,7 @@ It never creates centerlines or a `CENTER` layer.
 ## Hole Recognition
 - Normal hole: selected `Circle` inside outline bounds.
 - Pin hole: selected `Circle` matched to a CadAider pin marker block.
+- A user-picked datum pin can be matched by `ObjectId`; if that fails, the source accepts a center/radius tolerance match of `0.01`. If the picked circle is reasonable (`0.5 <= radius <= 100.0`) and inside the outline, it is accepted as a manual datum pin even if it was not in the automatically recognized pin list.
 - Pin marker matching is intentionally tight: concentric matching first, with fallback search radius `max(radius * 0.0, 1.0)`.
 - Thread hole: selected `DRAWING` arc with sweep angle at least 270 degrees and a concentric minor circle.
 - Thread minor circle provides the thread callout and is suppressed as a separate normal-hole diameter callout.
@@ -89,14 +92,22 @@ It never creates centerlines or a `CENTER` layer.
   - `10.106` / `10.2` -> `M12`
   - `13.835` / `14.0` -> `M16`
 - Diagnostics should show recognized pin/normal/thread holes and explain suppressed circles.
+- U-slot half arcs are accepted within about 15 degrees of a semicircle. Two-arc slots require matching radii within `max(GeometryTolerance, radius * 0.02)`, same-X or same-Y alignment within about `radius * 0.05`, and exactly two connecting `DRAWING` lines.
+- Single-arc U-slots are also recognized from one half arc plus two parallel lines touching opposite arc endpoints. Their center distance is `0`, so no center-distance dimension is emitted; radius leaders target the real arc midpoint.
+- Slot source entities are suppressed from normal hole/circle processing after a slot is recognized. Slot center points are represented as `HoleKind.Slot` only for positioning flow and are excluded from diameter callout grouping.
 - U-slot recognition detects selected `DRAWING` layer slots made from two parallel lines plus two half-circle arcs. A recognized slot prioritizes its two arc centers by emitting their center-distance dimension, adds external positioning only for the datum-side slot center, and emits one interactive `2-Rx` radius callout. It does not emit diameter callouts or `8x17腰孔` specification text.
 - When no pin holes exist, U-slot positioning uses a continuous dimension chain from datum/reference points instead of repeating every slot from the datum edge.
+- When pin groups exist, U-slot anchor positioning uses the datum-side slot center and locates it from the nearest pin reference; group base pins win tie-breaks through the pin-group reference ordering.
 
 - Same-radius U-slot radius callouts are grouped at placement time, for example two matching `2-R3.5` slots become one `2x2-R3.5` callout.
+- Diameter callout groups exclude slot points and are separated by `HoleKind`, diameter, fit tolerance, and thread callout text. The interactive callout representative is the first hole in Y-then-X order inside the group.
 
 ## Outline / Envelope Dimensions
 - Outer contour selection targets `DRAWING` layer objects and treats entity linetype as `ByLayer`; layer linetype filters center/hidden/dashed construction geometry.
 - Closed polyline remains preferred; otherwise `GeometryCollector.SelectMainOutlineComponent` selects the best continuous fallback component using layer semantics, lineweight, closed/continuous geometry, and bounding extent.
+- Outline selection intentionally avoids a hard DXF selection filter so old `POLYLINE` entities and mixed selected geometry still reach project diagnostics.
+- Fallback outline entities may be lines, arcs, lightweight polylines, or old `Polyline2d` entities. Confirmed thread arcs are excluded from fallback outline candidates.
+- Fallback component scoring favors layer semantics first (`DRAWING`, then layer names containing `OUTLINE`/`CONTOUR`), then layer/entity lineweight, closedness, continuity count, length, and bounding area.
 - OverallWidth is always `MinX -> MaxX` of the real selected MainOutline envelope.
 - OverallHeight is always `MinY -> MaxY` of the real selected MainOutline envelope and stays on the left side.
 - Envelope recognition includes straight edges, arcs, fillets, chamfers, polyline bulges, and transition edges. Arc cardinal points are added when they fall on the arc.
@@ -124,6 +135,9 @@ It never creates centerlines or a `CENTER` layer.
 - A widened single-tangent fillet check prevents the wrong local tangent dimension near an end fillet when the intended outer size should include the radius.
 - Top/Bottom mirrored duplicate horizontal normal dimensions are deduped across sides; Bottom is kept by default.
 - Left/Right mirrored duplicate vertical normal dimensions are deduped across sides when the Y interval and override text match; Left is kept by default. Overall height, forced outer-level dimensions, and non-normal feature dimensions are not suppressed by this rule.
+- Same-side duplicate dimensions are considered duplicates when their arrow interval and measured span match within `GeometryTolerance`, even if their override text differs. The retained duplicate is selected by `CompareDuplicatePreference`.
+- Same-side duplicate preference order is: keep a dimension with tolerance text over one without tolerance text; when both have tolerance text, keep the smaller extracted tolerance value such as `±0.02` over `±0.05`; then prefer dimension types in this order: `PinDistance`, `PinGroupDistance`, datum-hole location, overall width/height, normal; then prefer `ForceOuterLevel`; then prefer any non-empty override text.
+- Tolerance extraction intentionally recognizes both the correct `±` character and the common mojibake `卤` character so the duplicate keeper still works against legacy encoded override strings.
 - A local horizontal/vertical edge between two chamfers is suppressed when it is derivable from the overall envelope minus the two chamfer projections.
 - The abandoned `v89` rule tried to replace a long overall-minus-chamfer width such as `55` with a chamfer projection `5`; it was rejected and removed from source.
 
@@ -144,14 +158,14 @@ It never creates centerlines or a `CENTER` layer.
 ### Pin Holes
 - Pin holes are grouped before any normal/thread hole positioning is emitted.
 - The first pin-hole group starts from the user-selected datum pin when available, and that selected pin must remain the first group's `BasePin`; otherwise the left/bottom pin is used as a fallback base.
-- Second and later groups are recognized as complete same-X or same-Y groups before the group `BasePin` is selected. The nearest pin to the previous group is only a group-discovery seed, not automatically the final base.
+- Pin groups currently contain the seed pin plus the nearest same-diameter paired pin, when such a pin exists. Later group discovery seeds from the remaining pin nearest to the previous group base; after the pair is formed, the group's `BasePin` is chosen from inside that group against the previous group base.
 - The first pin-group base pin is positioned from the outline/datum edges.
-- Second and later pin-group base pins are positioned from the previous pin-group base pin, not repeatedly from the outline.
+- Current source positions second and later pin-group base pins from the first pin-group base pin, not from the immediately previous group and not repeatedly from the outline.
 - Pin-group-to-pin-group locating dimensions use `±0.05`.
 - Same-group pin spacing is emitted from the group base pin to each other pin in the group and uses `±0.02`.
 - Pin-group hole-position dimensions choose their output side from the group base pin: horizontal dimensions go Bottom/Top by nearest outline side, vertical dimensions go Left/Right by nearest outline side.
-- Once a group's `BasePin` is fixed, all horizontal same-group pin distances use that group's horizontal side and all vertical same-group pin distances use that group's vertical side.
-- Same-group pin distances must never be affected by another group's side rule; inter-group dimensions use the target group's `BasePin` side.
+- Once a group's `BasePin` is fixed, same-group pin distances are emitted from that base pin to the other pins, but their side is chosen from the midpoint of the pin pair rather than from the group's stored side.
+- Same-group pin distances must never be affected by another group's side rule; inter-group dimensions use the target group's selected `BasePin` side.
 - If a pin-group base pin is geometrically centered between opposite sides, its hole-position dimensions use the side opposite the datum edge.
 - Zero-length dimensions are skipped.
 
@@ -159,15 +173,16 @@ It never creates centerlines or a `CENTER` layer.
 - Normal holes are not high-precision pin holes.
 - Normal-hole position dimensions do not get `±0.02` or `±0.05`.
 - Normal holes do not establish or transfer pin-group datum.
-- Normal holes are positioned from the nearest available pin reference, with pin-group bases preferred on ties.
-- Thread holes follow the same nearest pin-reference positioning principle as normal holes.
+- Normal holes are assigned to the nearest pin pair/group by summed distance to the group's first two pins; ties are resolved by distance to the group `BasePin`.
+- Thread holes follow the same pin-group assignment principle as normal holes.
 - Thread holes never become pin-group bases and do not participate in pin-group datum transfer.
 - If no pin holes exist, normal/thread holes fall back to outline/datum-edge positioning.
-- Normal/thread hole-position dimensions are also placed on the nearest outline side of the target hole instead of always Bottom/Left.
+- With pin groups present, normal/thread holes are positioned from the assigned group `BasePin` and placed on that group's selected side. With no pin groups, normal/thread holes are positioned from outline/datum edges and placed on the target hole's nearest outline side.
 
 ## Diameter / Roughness Callouts
 - Diameter/thread callout placement uses lightweight `DrawJig` preview to avoid sluggish `DiametricDimension` dynamic-block redraws.
 - Final callouts are still real AutoCAD `DiametricDimension` entities.
+- Diameter/thread callout Jig defaults the preview text point to `center + radius * 3` in X and Y; Enter skips the current diameter group and Esc/cancel stops remaining diameter groups.
 - Corner-feature leader lines use the current AutoCAD layer and current entity color (`CECOLOR`) for both preview and final leaders.
 - Corner-feature callout text remains on the annotation layer but takes its color from the active diameter/corner callout dimstyle text color.
 - Pin-hole diameter callouts insert block `CadAider_国标粗糙度16下` if the block definition exists in the current drawing.
@@ -176,16 +191,18 @@ It never creates centerlines or a `CENTER` layer.
 
 ## Current Code State
 - `DimensionDrawer.DrawHolePositionFromDatumHole` contains the active datum-hole path.
-- `BuildPinGroupPlan` builds the pin-group datum chain. The selected datum pin anchors the first group as its `BasePin`; later groups are built first and then choose a group-internal `BasePin` against the previous group base.
+- `BuildPinGroupPlan` builds the pin-group datum chain. The selected datum pin anchors the first group as its `BasePin`; each group is the seed plus nearest same-diameter paired pin when available, and later groups choose a group-internal `BasePin` against the previous group base after the pair is formed.
 - `AssignPinGroupPlacementSides` chooses each pin group's horizontal and vertical output side before hole-position dimensions are emitted.
 - `EmitFirstPinGroupBaseLocation` positions the first group base from the outline/datum edge on the selected side.
-- `EmitPinGroupBaseTransfers` positions later group bases from the previous group base on the current group's selected side.
-- `EmitSameGroupPinDistances` emits same-group `±0.02` pin spacing on the group's selected side.
-- `EmitNonPinHoleLocations` positions normal/thread holes from the nearest pin reference and places the dimensions on the target hole's nearest outline side.
+- `EmitPinGroupBaseTransfers` currently positions every later group base from the first group base on the target group's selected side.
+- `EmitSameGroupPinDistances` emits same-group pin spacing with `±0.02` and chooses the output side from the midpoint of the two pins being dimensioned.
+- `AssignNonPinHolesToNearestPinPair` assigns normal/thread holes to the nearest pin pair by summed pin distance, then `EmitNonPinHoleLocations` positions them from that group's `BasePin` on the group's selected side.
 - `DrawSlotDimensions` emits U-slot center-distance dimensions, then `DrawSlotAnchorLocations` emits only the datum-side slot-center external positioning dimension.
 - `DrawSlotDimensions` uses continuous slot positioning when there are no pin holes.
+- `AddSingleArcSlotHorizontalDatumDimension` handles horizontal single-arc slots without pin groups by measuring the true center-to-datum span in override text while attaching the extension points to a real outline point and the nearest upper/lower arc grip point.
 - `PickSlotAnchorPoint` selects the datum-side slot center by geometry: horizontal slots choose the center closer to `datum.BaseX`; vertical slots choose the center closer to `datum.BaseY`.
 - `DrawSlotRadiusLeadersWithJig` groups same-radius U-slot radius callouts, for example `2x2-R3.5`.
+- `SuppressDuplicateMeasuredDimensions` runs inside each side's `FlushSide` after sorting by span. It removes same-side duplicate measured dimensions by geometry, and uses `CompareDuplicatePreference`, `GetDimensionPreferenceRank`, and `TryExtractTolerance` to keep the most rule-significant candidate.
 - `RecognizeOutlineCornerFeatures` fills `outline.Chamfers` and `outline.Fillets`.
 - `RecognizeChamfers` stores a numeric chamfer `Value`; chamfer display text is re-formatted during drawing from the active diameter/corner callout dimstyle linear precision, with integer values shown without trailing decimals.
 - Chamfer extension handling can merge nearby collinear 45-degree segments before calculating the callout value.
@@ -197,6 +214,8 @@ It never creates centerlines or a `CENTER` layer.
 ## Known Issues / Follow-Up
 - Step-dimension rules are in active redesign. The current `LA38` source uses experimental four-side point-set and inner-groove endpoint rules; it needs AutoCAD verification before treating it as stable.
 - The next durable design should still classify step candidates before emitting dimensions: `Overall`, `FeatureDerived`, `FeatureProjection`, `StructuralStep`, and `AmbiguousSmallStep`.
+- The handoff is now aligned to the current source behavior where `EmitPinGroupBaseTransfers` references the first pin group base for all later groups. If the intended design is a true previous-group chain, change the code deliberately and update this document at the same time.
+- The handoff is also aligned to the current source behavior where same-group pin spacing uses midpoint side selection and normal/thread holes assigned to pin groups use the owning group's side. If future visual testing expects per-target nearest side, adjust `EmitSameGroupPinDistances` / `EmitNonPinHoleLocations` deliberately.
 - The user prefers not to keep the abandoned `v89` replacement rule. Do not reintroduce the behavior that replaced long structural widths with chamfer projections.
 - Watch for accidental closed dimension chains. The current experimental rule deletes the candidate with the longest extension-line reach, but this should be verified against real fixture outlines.
 - Validate whether lower protrusion widths and chamfer-extension values match the user's intended blue-guide dimensions.
@@ -225,15 +244,19 @@ It never creates centerlines or a `CENTER` layer.
 - Confirm pin-hole diameter callouts always include `H7`, for example `2-%%c8H7`.
 - Confirm same-group pin spacing shows `±0.02`.
 - Confirm pin-group-to-pin-group locating dimensions show `±0.05`.
+- Confirm later pin-group base transfers currently measure from the first pin-group base, matching source behavior.
 - Confirm normal holes do not receive `±0.02` or `±0.05`.
 - Confirm thread holes do not receive pin-group tolerance rules.
-- Confirm hole-position dimensions move to the nearest suitable side: lower holes to Bottom, upper holes to Top, left holes to Left, right holes to Right.
+- Confirm no-pin normal/thread fallback dimensions move to the nearest suitable side: lower holes to Bottom, upper holes to Top, left holes to Left, right holes to Right.
+- Confirm normal/thread holes assigned to pin groups use the owning pin group's selected side in the current source.
 - Confirm centered pin groups use the side opposite the datum edge instead of colliding with datum-side dimensions.
 - Confirm each U-slot emits the two-center distance and exactly one external positioning pair to the datum-side slot center.
+- Confirm single-arc U-slots emit no center-distance dimension, still emit radius leader callouts, and attach datum dimensions to real outline/arc grip points when no pin group exists.
 - Confirm horizontal U-slots choose the center closer to `datum.BaseX`; vertical U-slots choose the center closer to `datum.BaseY`.
 - Confirm U-slot points do not produce diameter callouts or `8x17腰孔` text.
 - Confirm same-radius U-slot radius callouts are grouped, for example `2x2-R3.5`.
 - Confirm no zero-length dimensions are emitted.
+- Confirm same-side duplicate measured dimensions keep the rule-significant override instead of keeping the first/shortest textual duplicate: `±0.02` should beat `±0.05`, a tolerance override should beat blank text, and pin/datum/overall types should not be lost to plain normal dimensions measuring the same span.
 - Confirm OverallWidth/OverallHeight measure the full envelope including chamfers and fillets.
 - Confirm `DrawRightStepHeight` emits the left-side vertical chain from horizontal outline levels, removes the longest extension-line candidate, and avoids a closed dimension chain.
 - Confirm lower protrusion widths are emitted from the intended local vertical-boundary span, not from the longest internal horizontal segment.

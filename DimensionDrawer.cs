@@ -3509,21 +3509,7 @@ namespace AutoFixtureDim
             var gap = textHeight * 0.5;
             var isHorizontal = side == DimSide.Bottom || side == DimSide.Top;
             dims.Sort((a, b) => a.Span.CompareTo(b.Span));
-
-            for (int i = dims.Count - 1; i >= 1; i--)
-            {
-                bool removed = false;
-                for (int j = 0; j < i; j++)
-                {
-                    if (IsDuplicate(dims[i], dims[j], isHorizontal))
-                    {
-                        dims.RemoveAt(i);
-                        removed = true;
-                        break;
-                    }
-                }
-                if (removed) continue;
-            }
+            SuppressDuplicateMeasuredDimensions(dims, isHorizontal);
 
             var firstOffset = Scale(_config.FirstDimOffset);
             var layers = new List<List<(DeferredDim Dim, double TxtA, double TxtB, double ArrA, double ArrB)>>();
@@ -3583,6 +3569,8 @@ namespace AutoFixtureDim
                 layers[targetLevel].Add((dim, textBox.A, textBox.B, arrow.A, arrow.B));
             }
 
+            AlignDimensionsBySharedExtensionLines(layers, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
+
             var placedDims = new List<PlacedDim>();
 
             for (int level = 0; level < layers.Count; level++)
@@ -3615,6 +3603,192 @@ namespace AutoFixtureDim
                     placed.Dim.OverrideText,
                     useSegmentedExtensionLines: false);
             }
+        }
+
+        private void AlignDimensionsBySharedExtensionLines(
+            List<List<(DeferredDim Dim, double TxtA, double TxtB, double ArrA, double ArrB)>> layers,
+            DimSide side,
+            OutlineFeature outline,
+            double textHeight,
+            double gap,
+            double firstOffset,
+            double perLevelSpacing,
+            bool isHorizontal)
+        {
+            for (int sourceLevel = 0; sourceLevel < layers.Count - 1; sourceLevel++)
+            {
+                for (int i = layers[sourceLevel].Count - 1; i >= 0; i--)
+                {
+                    var item = layers[sourceLevel][i];
+                    if (HasArrowEndpointTouch(item, layers, sourceLevel, i, side, outline, firstOffset, perLevelSpacing, isHorizontal))
+                    {
+                        continue;
+                    }
+
+                    var targetLevel = FindSharedExtensionAlignmentLevel(
+                        item,
+                        layers,
+                        sourceLevel,
+                        side,
+                        outline,
+                        textHeight,
+                        gap,
+                        firstOffset,
+                        perLevelSpacing,
+                        isHorizontal);
+
+                    if (targetLevel <= sourceLevel)
+                    {
+                        continue;
+                    }
+
+                    layers[sourceLevel].RemoveAt(i);
+                    layers[targetLevel].Add(item);
+                }
+            }
+        }
+
+        private bool HasArrowEndpointTouch(
+            (DeferredDim Dim, double TxtA, double TxtB, double ArrA, double ArrB) candidate,
+            List<List<(DeferredDim Dim, double TxtA, double TxtB, double ArrA, double ArrB)>> layers,
+            int candidateLevel,
+            int candidateIndex,
+            DimSide side,
+            OutlineFeature outline,
+            double firstOffset,
+            double perLevelSpacing,
+            bool isHorizontal)
+        {
+            var candidateOffset = firstOffset + candidateLevel * perLevelSpacing;
+            var candidateDimLinePoint = GetDimLinePoint(candidate.Dim, side, outline, candidateOffset);
+            for (int level = 0; level < layers.Count; level++)
+            {
+                var otherOffset = firstOffset + level * perLevelSpacing;
+                for (int index = 0; index < layers[level].Count; index++)
+                {
+                    if (level == candidateLevel && index == candidateIndex)
+                    {
+                        continue;
+                    }
+
+                    var other = layers[level][index];
+                    var otherDimLinePoint = GetDimLinePoint(other.Dim, side, outline, otherOffset);
+                    if (ArrowEndpointTouches(candidate.Dim.XLine1, candidateDimLinePoint, other.Dim.XLine1, otherDimLinePoint, isHorizontal)
+                        || ArrowEndpointTouches(candidate.Dim.XLine1, candidateDimLinePoint, other.Dim.XLine2, otherDimLinePoint, isHorizontal)
+                        || ArrowEndpointTouches(candidate.Dim.XLine2, candidateDimLinePoint, other.Dim.XLine1, otherDimLinePoint, isHorizontal)
+                        || ArrowEndpointTouches(candidate.Dim.XLine2, candidateDimLinePoint, other.Dim.XLine2, otherDimLinePoint, isHorizontal))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private bool ArrowEndpointTouches(
+            Point3d featureA,
+            Point3d dimLineA,
+            Point3d featureB,
+            Point3d dimLineB,
+            bool isHorizontal)
+        {
+            var arrowA = isHorizontal
+                ? new Point3d(featureA.X, dimLineA.Y, 0.0)
+                : new Point3d(dimLineA.X, featureA.Y, 0.0);
+            var arrowB = isHorizontal
+                ? new Point3d(featureB.X, dimLineB.Y, 0.0)
+                : new Point3d(dimLineB.X, featureB.Y, 0.0);
+
+            return arrowA.DistanceTo(arrowB) <= _config.GeometryTolerance;
+        }
+
+        private int FindSharedExtensionAlignmentLevel(
+            (DeferredDim Dim, double TxtA, double TxtB, double ArrA, double ArrB) candidate,
+            List<List<(DeferredDim Dim, double TxtA, double TxtB, double ArrA, double ArrB)>> layers,
+            int sourceLevel,
+            DimSide side,
+            OutlineFeature outline,
+            double textHeight,
+            double gap,
+            double firstOffset,
+            double perLevelSpacing,
+            bool isHorizontal)
+        {
+            for (int targetLevel = sourceLevel + 1; targetLevel < layers.Count; targetLevel++)
+            {
+                var targetOffset = firstOffset + targetLevel * perLevelSpacing;
+                if (TextCoversOutline(candidate.Dim, side, targetOffset, textHeight, outline, isHorizontal))
+                {
+                    continue;
+                }
+
+                bool sharesExtension = false;
+                bool placementOk = true;
+                foreach (var existing in layers[targetLevel])
+                {
+                    if (HasSharedExtensionLine(candidate.Dim, existing.Dim, side, outline, targetOffset))
+                    {
+                        sharesExtension = true;
+                    }
+
+                    if (HasStrictArrowConflict(candidate.ArrA, candidate.ArrB, existing.ArrA, existing.ArrB)
+                        || !AreCompatible(existing.TxtA, existing.TxtB, candidate.TxtA, candidate.TxtB, gap))
+                    {
+                        placementOk = false;
+                        break;
+                    }
+                }
+
+                if (sharesExtension && placementOk)
+                {
+                    return targetLevel;
+                }
+            }
+
+            return sourceLevel;
+        }
+
+        private bool HasSharedExtensionLine(DeferredDim a, DeferredDim b, DimSide side, OutlineFeature outline, double targetOffset)
+        {
+            if (side == DimSide.Bottom || side == DimSide.Top)
+            {
+                var lineY = side == DimSide.Bottom
+                    ? outline.MinY - targetOffset
+                    : outline.MaxY + targetOffset;
+                return ExtensionLineOverlapsAtCoordinate(a.XLine1.X, a.XLine1.Y, lineY, b.XLine1.X, b.XLine1.Y, lineY)
+                    || ExtensionLineOverlapsAtCoordinate(a.XLine1.X, a.XLine1.Y, lineY, b.XLine2.X, b.XLine2.Y, lineY)
+                    || ExtensionLineOverlapsAtCoordinate(a.XLine2.X, a.XLine2.Y, lineY, b.XLine1.X, b.XLine1.Y, lineY)
+                    || ExtensionLineOverlapsAtCoordinate(a.XLine2.X, a.XLine2.Y, lineY, b.XLine2.X, b.XLine2.Y, lineY);
+            }
+
+            var lineX = side == DimSide.Left
+                ? outline.MinX - targetOffset
+                : outline.MaxX + targetOffset;
+            return ExtensionLineOverlapsAtCoordinate(a.XLine1.Y, a.XLine1.X, lineX, b.XLine1.Y, b.XLine1.X, lineX)
+                || ExtensionLineOverlapsAtCoordinate(a.XLine1.Y, a.XLine1.X, lineX, b.XLine2.Y, b.XLine2.X, lineX)
+                || ExtensionLineOverlapsAtCoordinate(a.XLine2.Y, a.XLine2.X, lineX, b.XLine1.Y, b.XLine1.X, lineX)
+                || ExtensionLineOverlapsAtCoordinate(a.XLine2.Y, a.XLine2.X, lineX, b.XLine2.Y, b.XLine2.X, lineX);
+        }
+
+        private bool ExtensionLineOverlapsAtCoordinate(
+            double coordinateA,
+            double featureA,
+            double lineA,
+            double coordinateB,
+            double featureB,
+            double lineB)
+        {
+            if (Math.Abs(coordinateA - coordinateB) > _config.GeometryTolerance)
+            {
+                return false;
+            }
+
+            var a1 = Math.Min(featureA, lineA);
+            var a2 = Math.Max(featureA, lineA);
+            var b1 = Math.Min(featureB, lineB);
+            var b2 = Math.Max(featureB, lineB);
+            return a1 <= b2 + _config.GeometryTolerance && b1 <= a2 + _config.GeometryTolerance;
         }
 
         private Point3d GetDimLinePoint(DeferredDim dim, DimSide side, OutlineFeature outline, double offset)
@@ -3878,6 +4052,171 @@ namespace AutoFixtureDim
             var textA = a.OverrideText ?? string.Empty;
             var textB = b.OverrideText ?? string.Empty;
             return string.Equals(textA, textB, StringComparison.Ordinal);
+        }
+
+        private void SuppressDuplicateMeasuredDimensions(List<DeferredDim> dims, bool isHorizontal)
+        {
+            for (int i = 0; i < dims.Count; i++)
+            {
+                var bestIndex = i;
+                for (int j = i + 1; j < dims.Count; j++)
+                {
+                    if (!IsSameMeasuredDimension(dims[i], dims[j], isHorizontal))
+                    {
+                        continue;
+                    }
+
+                    if (CompareDuplicatePreference(dims[j], dims[bestIndex]) > 0)
+                    {
+                        bestIndex = j;
+                    }
+                }
+
+                if (bestIndex != i)
+                {
+                    var best = dims[bestIndex];
+                    dims[bestIndex] = dims[i];
+                    dims[i] = best;
+                }
+
+                for (int j = dims.Count - 1; j > i; j--)
+                {
+                    if (IsSameMeasuredDimension(dims[i], dims[j], isHorizontal))
+                    {
+                        dims.RemoveAt(j);
+                    }
+                }
+            }
+        }
+
+        private bool IsSameMeasuredDimension(DeferredDim a, DeferredDim b, bool isHorizontal)
+        {
+            var aArrow = ComputeArrowInterval(a, isHorizontal);
+            var bArrow = ComputeArrowInterval(b, isHorizontal);
+            if (Math.Abs(aArrow.A - bArrow.A) > _config.GeometryTolerance)
+            {
+                return false;
+            }
+
+            if (Math.Abs(aArrow.B - bArrow.B) > _config.GeometryTolerance)
+            {
+                return false;
+            }
+
+            return Math.Abs(a.Span - b.Span) <= _config.GeometryTolerance;
+        }
+
+        private int CompareDuplicatePreference(DeferredDim a, DeferredDim b)
+        {
+            var toleranceA = TryExtractTolerance(a.OverrideText);
+            var toleranceB = TryExtractTolerance(b.OverrideText);
+            if (toleranceA.HasValue && !toleranceB.HasValue)
+            {
+                return 1;
+            }
+
+            if (!toleranceA.HasValue && toleranceB.HasValue)
+            {
+                return -1;
+            }
+
+            if (toleranceA.HasValue && toleranceB.HasValue)
+            {
+                var toleranceCompare = toleranceB.Value.CompareTo(toleranceA.Value);
+                if (toleranceCompare != 0)
+                {
+                    return toleranceCompare;
+                }
+            }
+
+            var typeCompare = GetDimensionPreferenceRank(b).CompareTo(GetDimensionPreferenceRank(a));
+            if (typeCompare != 0)
+            {
+                return typeCompare;
+            }
+
+            if (a.ForceOuterLevel != b.ForceOuterLevel)
+            {
+                return a.ForceOuterLevel ? 1 : -1;
+            }
+
+            var hasTextA = !string.IsNullOrWhiteSpace(a.OverrideText);
+            var hasTextB = !string.IsNullOrWhiteSpace(b.OverrideText);
+            if (hasTextA != hasTextB)
+            {
+                return hasTextA ? 1 : -1;
+            }
+
+            return 0;
+        }
+
+        private static int GetDimensionPreferenceRank(DeferredDim dim)
+        {
+            switch (dim.DimType)
+            {
+                case DimensionType.PinDistance:
+                    return 0;
+                case DimensionType.PinGroupDistance:
+                    return 1;
+                case DimensionType.DatumHoleLocationX:
+                case DimensionType.DatumHoleLocationY:
+                    return 2;
+                case DimensionType.OverallWidth:
+                case DimensionType.OverallHeight:
+                    return 3;
+                case DimensionType.Normal:
+                    return 4;
+                default:
+                    return 5;
+            }
+        }
+
+        private static double? TryExtractTolerance(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return null;
+            }
+
+            var index = text.IndexOf('\u00B1');
+            if (index < 0)
+            {
+                index = text.IndexOf('\u5364');
+            }
+
+            if (index < 0 || index >= text.Length - 1)
+            {
+                return null;
+            }
+
+            var start = index + 1;
+            while (start < text.Length && char.IsWhiteSpace(text[start]))
+            {
+                start++;
+            }
+
+            var end = start;
+            while (end < text.Length && (char.IsDigit(text[end]) || text[end] == '.'))
+            {
+                end++;
+            }
+
+            if (end <= start)
+            {
+                return null;
+            }
+
+            double value;
+            if (double.TryParse(
+                text.Substring(start, end - start),
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out value))
+            {
+                return value;
+            }
+
+            return null;
         }
 
         private bool TextCoversOutline(DeferredDim dim, DimSide side, double offset, double textHeight, OutlineFeature outline, bool isHorizontal)

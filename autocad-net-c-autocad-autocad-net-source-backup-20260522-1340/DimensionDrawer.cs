@@ -62,6 +62,9 @@ namespace AutoFixtureDim
         {
             public HoleFeature BasePin { get; set; }
             public List<HoleFeature> Pins { get; } = new List<HoleFeature>();
+            public List<HoleFeature> MemberHoles { get; } = new List<HoleFeature>();
+            public DimSide HorizontalSide { get; set; } = DimSide.Bottom;
+            public DimSide VerticalSide { get; set; } = DimSide.Left;
         }
 
         public DimensionDrawer(
@@ -200,34 +203,36 @@ namespace AutoFixtureDim
         {
             var datumHole = datum.DatumHole;
             var holes = rows.SelectMany(r => r).ToList();
-            var pinGroups = BuildPinGroupPlan(holes.Where(h => h.IsPinHole), datumHole);
+            var pinGroups = BuildPinGroupPlan(holes, datumHole);
 
             if (pinGroups.Count == 0)
             {
-                DrawNonPinHolesFromOutlineEdge(datum, holes);
+                DrawNonPinHolesFromOutlineEdge(outline, datum, holes);
                 return;
             }
 
-            EmitFirstPinGroupBaseLocation(datum, pinGroups[0].BasePin);
+            AssignPinGroupPlacementSides(outline, datum, pinGroups);
+            EmitFirstPinGroupBaseLocation(datum, pinGroups[0]);
             EmitPinGroupBaseTransfers(pinGroups);
-            EmitSameGroupPinDistances(pinGroups);
-            EmitNonPinHoleLocations(holes, pinGroups);
+            EmitSameGroupPinDistances(outline, pinGroups);
+            EmitNonPinHoleLocations(outline, holes, pinGroups);
         }
 
-        private List<PinGroupPlan> BuildPinGroupPlan(IEnumerable<HoleFeature> pinHoles, HoleFeature datumPin)
+        private List<PinGroupPlan> BuildPinGroupPlan(IEnumerable<HoleFeature> holes, HoleFeature datumPin)
         {
-            var remaining = pinHoles.OrderBy(h => h.Center.X).ThenBy(h => h.Center.Y).ToList();
+            var allHoles = holes.Where(h => h != null && !h.IsSlotPoint).ToList();
+            var remaining = allHoles.Where(h => h.IsPinHole).OrderBy(h => h.Center.X).ThenBy(h => h.Center.Y).ToList();
             var groups = new List<PinGroupPlan>();
             if (remaining.Count == 0)
             {
                 return groups;
             }
 
-            var seed = datumPin != null
+            var seed = datumPin != null && datumPin.IsPinHole
                 ? remaining.FirstOrDefault(h => IsSameHole(h, datumPin)) ?? datumPin
                 : remaining.OrderBy(h => h.Center.X).ThenBy(h => h.Center.Y).First();
 
-            var firstGroup = CreatePinGroup(seed, remaining);
+            var firstGroup = CreatePinPairGroup(seed, remaining, seed, null);
             groups.Add(firstGroup);
             RemoveGroupPins(remaining, firstGroup);
 
@@ -240,38 +245,123 @@ namespace AutoFixtureDim
                     .ThenBy(h => h.Center.Y)
                     .First();
 
-                var group = CreatePinGroup(seed, remaining);
+                var group = CreatePinPairGroup(seed, remaining, null, previousBase);
                 groups.Add(group);
                 RemoveGroupPins(remaining, group);
             }
 
+            AssignNonPinHolesToNearestPinPair(allHoles, groups);
             return groups;
         }
 
-        private PinGroupPlan CreatePinGroup(HoleFeature seed, IList<HoleFeature> candidates)
+        private PinGroupPlan CreatePinPairGroup(
+            HoleFeature seed,
+            IList<HoleFeature> candidates,
+            HoleFeature forcedBasePin,
+            HoleFeature referenceBasePin)
         {
-            var sameX = candidates
-                .Where(h => Math.Abs(h.Center.X - seed.Center.X) <= _config.GeometryTolerance)
-                .OrderBy(h => h.Center.Y)
-                .ToList();
-            var sameY = candidates
-                .Where(h => Math.Abs(h.Center.Y - seed.Center.Y) <= _config.GeometryTolerance)
-                .OrderBy(h => h.Center.X)
-                .ToList();
-
-            var pins = sameX.Count >= sameY.Count ? sameX : sameY;
-            if (pins.Count == 0)
+            var pins = new List<HoleFeature> { seed };
+            var pairedPin = candidates
+                .Where(h => !IsSameHole(h, seed) && IsSamePinDiameter(h, seed))
+                .OrderBy(h => DistanceSquared(h.Center, seed.Center))
+                .ThenBy(h => h.Center.X)
+                .ThenBy(h => h.Center.Y)
+                .FirstOrDefault();
+            if (pairedPin != null)
             {
-                pins.Add(seed);
+                pins.Add(pairedPin);
             }
 
-            var group = new PinGroupPlan { BasePin = seed };
-            foreach (var pin in pins.OrderBy(h => DistanceSquared(h.Center, seed.Center)))
+            var basePin = ChoosePinGroupBasePin(pins, forcedBasePin, referenceBasePin, seed);
+            var group = new PinGroupPlan { BasePin = basePin };
+            foreach (var pin in pins.OrderBy(h => DistanceSquared(h.Center, basePin.Center)))
             {
                 group.Pins.Add(pin);
+                group.MemberHoles.Add(pin);
             }
 
             return group;
+        }
+
+        private bool IsSamePinDiameter(HoleFeature a, HoleFeature b)
+        {
+            if (a == null || b == null)
+            {
+                return false;
+            }
+
+            return Math.Abs(a.Diameter - b.Diameter) <= _config.GeometryTolerance;
+        }
+
+        private void AssignNonPinHolesToNearestPinPair(IList<HoleFeature> holes, IList<PinGroupPlan> groups)
+        {
+            if (groups.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var hole in holes.Where(h => !h.IsPinHole && !h.IsSlotPoint))
+            {
+                var group = groups
+                    .OrderBy(g => DistanceToPinPair(hole, g))
+                    .ThenBy(g => DistanceSquared(hole.Center, g.BasePin.Center))
+                    .FirstOrDefault();
+                if (group != null)
+                {
+                    group.MemberHoles.Add(hole);
+                }
+            }
+        }
+
+        private double DistanceToPinPair(HoleFeature hole, PinGroupPlan group)
+        {
+            if (hole == null || group == null || group.Pins.Count == 0)
+            {
+                return double.MaxValue;
+            }
+
+            if (group.Pins.Count == 1)
+            {
+                return Math.Sqrt(DistanceSquared(hole.Center, group.Pins[0].Center));
+            }
+
+            return group.Pins
+                .Take(2)
+                .Sum(pin => Math.Sqrt(DistanceSquared(hole.Center, pin.Center)));
+        }
+
+        private HoleFeature ChoosePinGroupBasePin(
+            IList<HoleFeature> groupPins,
+            HoleFeature forcedBasePin,
+            HoleFeature referenceBasePin,
+            HoleFeature fallbackPin)
+        {
+            if (forcedBasePin != null)
+            {
+                var matchedForced = groupPins.FirstOrDefault(h => IsSameHole(h, forcedBasePin));
+                if (matchedForced != null)
+                {
+                    return matchedForced;
+                }
+
+                return forcedBasePin;
+            }
+
+            if (referenceBasePin != null && groupPins.Count > 0)
+            {
+                return groupPins
+                    .OrderBy(h => DistanceSquared(h.Center, referenceBasePin.Center))
+                    .ThenBy(h => Math.Abs(h.Center.X - referenceBasePin.Center.X))
+                    .ThenBy(h => Math.Abs(h.Center.Y - referenceBasePin.Center.Y))
+                    .ThenBy(h => h.Center.X)
+                    .ThenBy(h => h.Center.Y)
+                    .First();
+            }
+
+            return groupPins
+                .OrderBy(h => h.Center.X)
+                .ThenBy(h => h.Center.Y)
+                .FirstOrDefault() ?? fallbackPin;
         }
 
         private void RemoveGroupPins(IList<HoleFeature> remaining, PinGroupPlan group)
@@ -288,8 +378,60 @@ namespace AutoFixtureDim
             }
         }
 
-        private void EmitFirstPinGroupBaseLocation(DatumDefinition datum, HoleFeature basePin)
+        private void AssignPinGroupPlacementSides(OutlineFeature outline, DatumDefinition datum, IList<PinGroupPlan> groups)
         {
+            foreach (var group in groups)
+            {
+                group.HorizontalSide = ChooseHorizontalHoleSide(outline, datum, group.BasePin.Center);
+                group.VerticalSide = ChooseVerticalHoleSide(outline, datum, group.BasePin.Center);
+            }
+        }
+
+        private DimSide ChooseHorizontalHoleSide(OutlineFeature outline, DatumDefinition datum, Point3d point)
+        {
+            var bottomDistance = Math.Abs(point.Y - outline.MinY);
+            var topDistance = Math.Abs(outline.MaxY - point.Y);
+            var distanceDelta = Math.Abs(bottomDistance - topDistance);
+            if (distanceDelta <= _config.GeometryTolerance)
+            {
+                return ChooseOppositeHorizontalDatumSide(outline, datum);
+            }
+
+            return bottomDistance < topDistance ? DimSide.Bottom : DimSide.Top;
+        }
+
+        private DimSide ChooseVerticalHoleSide(OutlineFeature outline, DatumDefinition datum, Point3d point)
+        {
+            var leftDistance = Math.Abs(point.X - outline.MinX);
+            var rightDistance = Math.Abs(outline.MaxX - point.X);
+            var distanceDelta = Math.Abs(leftDistance - rightDistance);
+            if (distanceDelta <= _config.GeometryTolerance)
+            {
+                return ChooseOppositeVerticalDatumSide(outline, datum);
+            }
+
+            return leftDistance < rightDistance ? DimSide.Left : DimSide.Right;
+        }
+
+        private DimSide ChooseOppositeHorizontalDatumSide(OutlineFeature outline, DatumDefinition datum)
+        {
+            var datumToBottom = Math.Abs(datum.BaseY - outline.MinY);
+            var datumToTop = Math.Abs(outline.MaxY - datum.BaseY);
+            var datumSide = datumToBottom <= datumToTop ? DimSide.Bottom : DimSide.Top;
+            return datumSide == DimSide.Bottom ? DimSide.Top : DimSide.Bottom;
+        }
+
+        private DimSide ChooseOppositeVerticalDatumSide(OutlineFeature outline, DatumDefinition datum)
+        {
+            var datumToLeft = Math.Abs(datum.BaseX - outline.MinX);
+            var datumToRight = Math.Abs(outline.MaxX - datum.BaseX);
+            var datumSide = datumToLeft <= datumToRight ? DimSide.Left : DimSide.Right;
+            return datumSide == DimSide.Left ? DimSide.Right : DimSide.Left;
+        }
+
+        private void EmitFirstPinGroupBaseLocation(DatumDefinition datum, PinGroupPlan group)
+        {
+            var basePin = group.BasePin;
             var xRef = datum.DatumHoleLocationBaseX ?? datum.BaseX;
             var yRef = datum.DatumHoleLocationBaseY ?? datum.BaseY;
             var xToleranceText = ShouldUseDatumHoleLocationTolerance(datum, isXDirection: true)
@@ -298,8 +440,8 @@ namespace AutoFixtureDim
             var yToleranceText = ShouldUseDatumHoleLocationTolerance(datum, isXDirection: false)
                 ? _config.DatumHoleLocationToleranceText ?? string.Empty
                 : string.Empty;
-            AddHorizontalDimFromPoint(new Point3d(xRef, basePin.Center.Y, 0.0), basePin.Center, xToleranceText, DimensionType.DatumHoleLocationX);
-            AddVerticalDimFromPoint(new Point3d(basePin.Center.X, yRef, 0.0), basePin.Center, yToleranceText, DimensionType.DatumHoleLocationY);
+            AddHorizontalDimFromPointToSide(new Point3d(xRef, basePin.Center.Y, 0.0), basePin.Center, xToleranceText, DimensionType.DatumHoleLocationX, group.HorizontalSide);
+            AddVerticalDimFromPointToSide(new Point3d(basePin.Center.X, yRef, 0.0), basePin.Center, yToleranceText, DimensionType.DatumHoleLocationY, group.VerticalSide);
         }
 
         private static bool ShouldUseDatumHoleLocationTolerance(DatumDefinition datum, bool isXDirection)
@@ -316,34 +458,41 @@ namespace AutoFixtureDim
 
         private void EmitPinGroupBaseTransfers(IList<PinGroupPlan> groups)
         {
+            if (groups.Count < 2)
+            {
+                return;
+            }
+
+            var firstBase = groups[0].BasePin;
             for (int i = 1; i < groups.Count; i++)
             {
-                var previousBase = groups[i - 1].BasePin;
                 var currentBase = groups[i].BasePin;
-                var dx = Math.Abs(currentBase.Center.X - previousBase.Center.X);
-                var dy = Math.Abs(currentBase.Center.Y - previousBase.Center.Y);
+                var dx = Math.Abs(currentBase.Center.X - firstBase.Center.X);
+                var dy = Math.Abs(currentBase.Center.Y - firstBase.Center.Y);
 
                 if (dx > _config.GeometryTolerance)
                 {
-                    AddHorizontalDim(
-                        previousBase.Center,
+                    AddHorizontalDimToSide(
+                        firstBase.Center,
                         currentBase.Center,
                         _config.FormatPinGroupDistanceOverride(dx),
-                        DimensionType.PinGroupDistance);
+                        DimensionType.PinGroupDistance,
+                        groups[i].HorizontalSide);
                 }
 
                 if (dy > _config.GeometryTolerance)
                 {
-                    AddVerticalDim(
-                        previousBase.Center,
+                    AddVerticalDimToSide(
+                        firstBase.Center,
                         currentBase.Center,
                         _config.FormatPinGroupDistanceOverride(dy),
-                        DimensionType.PinGroupDistance);
+                        DimensionType.PinGroupDistance,
+                        groups[i].VerticalSide);
                 }
             }
         }
 
-        private void EmitSameGroupPinDistances(IList<PinGroupPlan> groups)
+        private void EmitSameGroupPinDistances(OutlineFeature outline, IList<PinGroupPlan> groups)
         {
             foreach (var group in groups)
             {
@@ -358,53 +507,74 @@ namespace AutoFixtureDim
                     var dy = Math.Abs(pin.Center.Y - group.BasePin.Center.Y);
                     if (dx > _config.GeometryTolerance)
                     {
-                        AddHorizontalDim(
+                        var horizontalSide = ChooseHorizontalHoleSide(outline, Midpoint(group.BasePin.Center, pin.Center));
+                        AddHorizontalDimToSide(
                             group.BasePin.Center,
                             pin.Center,
                             _config.FormatPinCenterDistanceOverride(dx),
-                            DimensionType.PinDistance);
+                            DimensionType.PinDistance,
+                            horizontalSide);
                     }
 
                     if (dy > _config.GeometryTolerance)
                     {
-                        AddVerticalDim(
+                        var verticalSide = ChooseVerticalHoleSide(outline, Midpoint(group.BasePin.Center, pin.Center));
+                        AddVerticalDimToSide(
                             group.BasePin.Center,
                             pin.Center,
                             _config.FormatPinCenterDistanceOverride(dy),
-                            DimensionType.PinDistance);
+                            DimensionType.PinDistance,
+                            verticalSide);
                     }
                 }
             }
         }
 
-        private void EmitNonPinHoleLocations(IList<HoleFeature> holes, IList<PinGroupPlan> pinGroups)
+        private void EmitNonPinHoleLocations(OutlineFeature outline, IList<HoleFeature> holes, IList<PinGroupPlan> pinGroups)
         {
-            var referencePins = pinGroups
-                .SelectMany(g => g.Pins.Select(p => new { Pin = p, IsGroupBase = IsSameHole(p, g.BasePin) }))
-                .ToList();
-
             foreach (var hole in holes.Where(h => !h.IsPinHole && !h.IsSlotPoint))
             {
-                var reference = referencePins
-                    .OrderBy(r => DistanceSquared(r.Pin.Center, hole.Center))
-                    .ThenByDescending(r => r.IsGroupBase ? 1 : 0)
+                var group = pinGroups.FirstOrDefault(g => g.MemberHoles.Any(h => IsSameHole(h, hole)))
+                    ?? pinGroups.OrderBy(g => DistanceToPinPair(hole, g)).FirstOrDefault();
+                if (group == null)
+                {
+                    continue;
+                }
+
+                var reference = group.Pins
+                    .OrderBy(p => DistanceSquared(p.Center, hole.Center))
+                    .ThenByDescending(p => IsSameHole(p, group.BasePin) ? 1 : 0)
                     .FirstOrDefault();
                 if (reference == null)
                 {
                     continue;
                 }
 
-                AddHorizontalDim(reference.Pin.Center, hole.Center, string.Empty, DimensionType.Normal);
-                AddVerticalDim(reference.Pin.Center, hole.Center, string.Empty, DimensionType.Normal);
+                AddHorizontalDimToSide(reference.Center, hole.Center, string.Empty, DimensionType.Normal, group.HorizontalSide);
+                AddVerticalDimToSide(reference.Center, hole.Center, string.Empty, DimensionType.Normal, group.VerticalSide);
             }
         }
 
-        private void DrawNonPinHolesFromOutlineEdge(DatumDefinition datum, IList<HoleFeature> holes)
+        private DimSide ChooseHorizontalHoleSide(OutlineFeature outline, Point3d point)
+        {
+            var bottomDistance = Math.Abs(point.Y - outline.MinY);
+            var topDistance = Math.Abs(outline.MaxY - point.Y);
+            return bottomDistance <= topDistance ? DimSide.Bottom : DimSide.Top;
+        }
+
+        private DimSide ChooseVerticalHoleSide(OutlineFeature outline, Point3d point)
+        {
+            var leftDistance = Math.Abs(point.X - outline.MinX);
+            var rightDistance = Math.Abs(outline.MaxX - point.X);
+            return leftDistance <= rightDistance ? DimSide.Left : DimSide.Right;
+        }
+
+        private void DrawNonPinHolesFromOutlineEdge(OutlineFeature outline, DatumDefinition datum, IList<HoleFeature> holes)
         {
             foreach (var hole in holes.Where(h => !h.IsPinHole && !h.IsSlotPoint))
             {
-                AddHorizontalDimFromX(datum.BaseX, hole.Center, string.Empty, DimensionType.Normal);
-                AddVerticalDimFromY(datum.BaseY, hole.Center, string.Empty, DimensionType.Normal);
+                AddHorizontalDimFromXToSide(datum.BaseX, hole.Center, string.Empty, DimensionType.Normal, ChooseHorizontalHoleSide(outline, hole.Center));
+                AddVerticalDimFromYToSide(datum.BaseY, hole.Center, string.Empty, DimensionType.Normal, ChooseVerticalHoleSide(outline, hole.Center));
             }
         }
 
@@ -707,7 +877,7 @@ namespace AutoFixtureDim
             }
 
             var holes = rows.SelectMany(r => r).ToList();
-            var pinGroups = BuildPinGroupPlan(holes.Where(h => h.IsPinHole), datum.DatumHole);
+            var pinGroups = BuildPinGroupPlan(holes, datum.DatumHole);
             if (pinGroups.Count == 0)
             {
                 foreach (var slot in slots)
@@ -766,12 +936,27 @@ namespace AutoFixtureDim
             AddHorizontalDimFromPoint(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType);
         }
 
+        private void AddHorizontalDimToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side)
+        {
+            AddHorizontalDimFromPointToSide(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType, side);
+        }
+
         private void AddHorizontalDimFromX(double fromX, Point3d to, string overrideText, DimensionType dimType)
         {
             AddHorizontalDimFromPoint(new Point3d(fromX, to.Y, 0.0), to, overrideText, dimType);
         }
 
+        private void AddHorizontalDimFromXToSide(double fromX, Point3d to, string overrideText, DimensionType dimType, DimSide side)
+        {
+            AddHorizontalDimFromPointToSide(new Point3d(fromX, to.Y, 0.0), to, overrideText, dimType, side);
+        }
+
         private void AddHorizontalDimFromPoint(Point3d from, Point3d to, string overrideText, DimensionType dimType)
+        {
+            AddHorizontalDimFromPointToSide(from, to, overrideText, dimType, DimSide.Bottom);
+        }
+
+        private void AddHorizontalDimFromPointToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side)
         {
             var span = Math.Abs(to.X - from.X);
             if (span <= _config.GeometryTolerance)
@@ -779,7 +964,7 @@ namespace AutoFixtureDim
                 return;
             }
 
-            _bottomDims.Add(new DeferredDim
+            var dim = new DeferredDim
             {
                 Rotation = 0.0,
                 XLine1 = from,
@@ -788,7 +973,15 @@ namespace AutoFixtureDim
                 Span = span,
                 DimType = dimType,
                 UseSegmentedExtensionLines = true
-            });
+            };
+
+            if (side == DimSide.Top)
+            {
+                _topDims.Add(dim);
+                return;
+            }
+
+            _bottomDims.Add(dim);
         }
 
         private void AddVerticalDim(Point3d from, Point3d to, string overrideText, DimensionType dimType)
@@ -796,12 +989,27 @@ namespace AutoFixtureDim
             AddVerticalDimFromPoint(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType);
         }
 
+        private void AddVerticalDimToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side)
+        {
+            AddVerticalDimFromPointToSide(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType, side);
+        }
+
         private void AddVerticalDimFromY(double fromY, Point3d to, string overrideText, DimensionType dimType)
         {
             AddVerticalDimFromPoint(new Point3d(to.X, fromY, 0.0), to, overrideText, dimType);
         }
 
+        private void AddVerticalDimFromYToSide(double fromY, Point3d to, string overrideText, DimensionType dimType, DimSide side)
+        {
+            AddVerticalDimFromPointToSide(new Point3d(to.X, fromY, 0.0), to, overrideText, dimType, side);
+        }
+
         private void AddVerticalDimFromPoint(Point3d from, Point3d to, string overrideText, DimensionType dimType)
+        {
+            AddVerticalDimFromPointToSide(from, to, overrideText, dimType, DimSide.Left);
+        }
+
+        private void AddVerticalDimFromPointToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side)
         {
             var span = Math.Abs(to.Y - from.Y);
             if (span <= _config.GeometryTolerance)
@@ -809,7 +1017,7 @@ namespace AutoFixtureDim
                 return;
             }
 
-            _leftDims.Add(new DeferredDim
+            var dim = new DeferredDim
             {
                 Rotation = Math.PI / 2.0,
                 XLine1 = from,
@@ -818,7 +1026,15 @@ namespace AutoFixtureDim
                 Span = span,
                 DimType = dimType,
                 UseSegmentedExtensionLines = true
-            });
+            };
+
+            if (side == DimSide.Right)
+            {
+                _rightDims.Add(dim);
+                return;
+            }
+
+            _leftDims.Add(dim);
         }
 
         private bool IsSameHole(HoleFeature a, HoleFeature b)
@@ -841,17 +1057,18 @@ namespace AutoFixtureDim
         private void DrawHolePositionFromOutlineEdge(OutlineFeature outline, DatumDefinition datum, IList<IList<HoleFeature>> rows)
         {
             var holes = rows.SelectMany(r => r).ToList();
-            var pinGroups = BuildPinGroupPlan(holes.Where(h => h.IsPinHole), null);
+            var pinGroups = BuildPinGroupPlan(holes, null);
             if (pinGroups.Count == 0)
             {
-                DrawNonPinHolesFromOutlineEdge(datum, holes);
+                DrawNonPinHolesFromOutlineEdge(outline, datum, holes);
                 return;
             }
 
-            EmitFirstPinGroupBaseLocation(datum, pinGroups[0].BasePin);
+            AssignPinGroupPlacementSides(outline, datum, pinGroups);
+            EmitFirstPinGroupBaseLocation(datum, pinGroups[0]);
             EmitPinGroupBaseTransfers(pinGroups);
-            EmitSameGroupPinDistances(pinGroups);
-            EmitNonPinHoleLocations(holes, pinGroups);
+            EmitSameGroupPinDistances(outline, pinGroups);
+            EmitNonPinHoleLocations(outline, holes, pinGroups);
         }
 
         private void DrawTopStepWidth(OutlineFeature outline)
@@ -1971,13 +2188,15 @@ namespace AutoFixtureDim
                 }
 
                 if (SegmentTouchesPoint(vertical, chamfer.Start)
-                    && IsInternalSideGrooveVertical(vertical, chamfer, side, outline))
+                    && IsInternalSideGrooveVertical(vertical, chamfer, side, outline)
+                    && VerticalOtherEndConnectsChamfer(vertical, chamfer.Start, chamfer, outline))
                 {
                     return true;
                 }
 
                 if (SegmentTouchesPoint(vertical, chamfer.End)
-                    && IsInternalSideGrooveVertical(vertical, chamfer, side, outline))
+                    && IsInternalSideGrooveVertical(vertical, chamfer, side, outline)
+                    && VerticalOtherEndConnectsChamfer(vertical, chamfer.End, chamfer, outline))
                 {
                     return true;
                 }
@@ -2045,13 +2264,15 @@ namespace AutoFixtureDim
                 }
 
                 if (SegmentTouchesPoint(vertical, chamfer.Start)
-                    && IsInternalSideGrooveVertical(vertical, chamfer, side, outline))
+                    && IsInternalSideGrooveVertical(vertical, chamfer, side, outline)
+                    && VerticalOtherEndConnectsChamfer(vertical, chamfer.Start, chamfer, outline))
                 {
                     return chamfer.Start;
                 }
 
                 if (SegmentTouchesPoint(vertical, chamfer.End)
-                    && IsInternalSideGrooveVertical(vertical, chamfer, side, outline))
+                    && IsInternalSideGrooveVertical(vertical, chamfer, side, outline)
+                    && VerticalOtherEndConnectsChamfer(vertical, chamfer.End, chamfer, outline))
                 {
                     return chamfer.End;
                 }
@@ -2118,6 +2339,26 @@ namespace AutoFixtureDim
         }
 
         private bool VerticalOtherEndConnectsInnerGroove(
+            OutlineSegment vertical,
+            Point2d sharedPoint,
+            OutlineSegment currentChamfer,
+            OutlineFeature outline)
+        {
+            var otherEnd = PointsEqual(vertical.Start, sharedPoint) ? vertical.End : vertical.Start;
+            return outline.Segments.Any(segment =>
+                    !ReferenceEquals(segment, currentChamfer)
+                    && !segment.IsHorizontal(_config.GeometryTolerance)
+                    && !segment.IsVertical(_config.GeometryTolerance)
+                    && IsFortyFiveDegreeSegment(segment)
+                    && (PointsEqual(segment.Start, otherEnd) || PointsEqual(segment.End, otherEnd)))
+                || outline.Chamfers.Any(chamfer =>
+                    IsFortyFiveDegreeChamfer(chamfer)
+                    && (PointsEqual(chamfer.StartPoint, otherEnd) || PointsEqual(chamfer.EndPoint, otherEnd)))
+                || outline.Fillets.Any(fillet =>
+                    PointsEqual(fillet.StartPoint, otherEnd) || PointsEqual(fillet.EndPoint, otherEnd));
+        }
+
+        private bool VerticalOtherEndConnectsChamfer(
             OutlineSegment vertical,
             Point2d sharedPoint,
             OutlineSegment currentChamfer,
@@ -3267,11 +3508,10 @@ namespace AutoFixtureDim
                 return;
             }
 
-            dims.Sort((a, b) => a.Span.CompareTo(b.Span));
-
             var textHeight = GetDimStyleTextHeight(_dimStyleId);
             var gap = textHeight * 0.5;
             var isHorizontal = side == DimSide.Bottom || side == DimSide.Top;
+            dims.Sort((a, b) => a.Span.CompareTo(b.Span));
 
             for (int i = dims.Count - 1; i >= 1; i--)
             {
@@ -4276,26 +4516,30 @@ namespace AutoFixtureDim
                 ? AttachmentPoint.MiddleRight
                 : AttachmentPoint.MiddleLeft;
             mtext.Layer = _annotationLayer;
+            mtext.Color = GetDimStyleTextColor(_diameterCalloutDimStyleId);
             Append(mtext);
 
             if (!_appendToDatabase)
             {
                 var previewLine = new Line(arrowPoint, landingPoint);
                 previewLine.SetDatabaseDefaults(_db);
-                previewLine.Layer = _annotationLayer;
+                previewLine.Layer = GetCurrentLayerName();
+                previewLine.Color = GetCurrentEntityColor();
                 Append(previewLine);
                 return;
             }
 
             var leader = new Leader();
             leader.SetDatabaseDefaults(_db);
-            leader.Layer = _annotationLayer;
+            leader.Layer = GetCurrentLayerName();
             leader.DimensionStyle = _diameterCalloutDimStyleId;
+            leader.Color = GetCurrentEntityColor();
             leader.AppendVertex(arrowPoint);
             leader.AppendVertex(landingPoint);
             Append(leader);
             leader.Annotation = mtext.ObjectId;
             leader.EvaluateLeader();
+            leader.Color = GetCurrentEntityColor();
         }
 
         private Vector2d GetHorizontalOutwardDirection(OutlineFeature outline, Point2d target)
@@ -4350,6 +4594,11 @@ namespace AutoFixtureDim
         private static Point2d Midpoint(Point2d a, Point2d b)
         {
             return new Point2d((a.X + b.X) / 2.0, (a.Y + b.Y) / 2.0);
+        }
+
+        private static Point3d Midpoint(Point3d a, Point3d b)
+        {
+            return new Point3d((a.X + b.X) / 2.0, (a.Y + b.Y) / 2.0, (a.Z + b.Z) / 2.0);
         }
 
         private static Point2d GetArcLeaderTarget(FilletFeature feature)
@@ -4538,6 +4787,76 @@ namespace AutoFixtureDim
             }
 
             return _db.Textstyle;
+        }
+
+        private string GetCurrentLayerName()
+        {
+            var currentLayer = _tr.GetObject(_db.Clayer, OpenMode.ForRead) as LayerTableRecord;
+            return currentLayer != null ? currentLayer.Name : _annotationLayer;
+        }
+
+        private Autodesk.AutoCAD.Colors.Color GetCurrentEntityColor()
+        {
+            var colorText = Convert.ToString(Application.GetSystemVariable("CECOLOR"));
+            if (string.IsNullOrWhiteSpace(colorText))
+            {
+                return _db.Cecolor;
+            }
+
+            colorText = colorText.Trim();
+            if (string.Equals(colorText, "BYLAYER", StringComparison.OrdinalIgnoreCase))
+            {
+                return Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByLayer, 256);
+            }
+
+            if (string.Equals(colorText, "BYBLOCK", StringComparison.OrdinalIgnoreCase))
+            {
+                return Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByBlock, 0);
+            }
+
+            short colorIndex;
+            if (short.TryParse(colorText, out colorIndex))
+            {
+                return Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, colorIndex);
+            }
+
+            switch (colorText.ToUpperInvariant())
+            {
+                case "RED":
+                case "红":
+                    return Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, 1);
+                case "YELLOW":
+                case "黄":
+                    return Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, 2);
+                case "GREEN":
+                case "绿":
+                    return Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, 3);
+                case "CYAN":
+                case "青":
+                    return Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, 4);
+                case "BLUE":
+                case "蓝":
+                    return Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, 5);
+                case "MAGENTA":
+                case "洋红":
+                    return Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, 6);
+                case "WHITE":
+                case "白":
+                    return Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, 7);
+                default:
+                    return _db.Cecolor;
+            }
+        }
+
+        private Autodesk.AutoCAD.Colors.Color GetDimStyleTextColor(ObjectId dimStyleId)
+        {
+            var record = _tr.GetObject(dimStyleId, OpenMode.ForRead) as DimStyleTableRecord;
+            if (record != null && record.Dimclrt != null)
+            {
+                return record.Dimclrt;
+            }
+
+            return Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByLayer, 256);
         }
 
         private double GetDimStyleTextHeight(ObjectId dimStyleId)

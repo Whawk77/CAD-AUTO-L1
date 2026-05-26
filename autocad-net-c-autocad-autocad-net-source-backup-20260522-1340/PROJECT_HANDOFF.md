@@ -1,6 +1,6 @@
 # AUTOFIXDIM / ASD Handoff
 
-Last synced: 2026-05-23
+Last synced: 2026-05-26
 
 ## Goal
 AutoCAD 2020 .NET Framework plugin for semi-automatic fixture-part annotation. Active command is `ASD`; old commands remain for compatibility.
@@ -15,6 +15,13 @@ The plugin annotates:
 
 It never creates centerlines or a `CENTER` layer.
 
+## Recent Source Changes
+- `DimensionDrawer.cs`: pin-group planning now keeps the user-selected datum pin as the first group's `BasePin`. Later groups are recognized first, then their `BasePin` is chosen from within the completed group using the previous group's `BasePin` as the locating reference.
+- `DimensionDrawer.cs`: hole-position linear dimensions now choose Bottom/Top and Left/Right placement from the hole or pin group's nearest outline side. Pin-group dimensions keep the selected side through first-base positioning, group transfers, and same-group pin spacing; normal/thread holes use their own nearest side.
+- `DimensionDrawer.cs`: when a hole is centered between opposite sides within `GeometryTolerance`, pin-group placement falls back to the side opposite the datum edge, reducing overlap with datum-side dimensions.
+- `DimensionDrawer.cs`: corner-feature leader preview/final leader lines now follow the current AutoCAD layer and `CECOLOR`; corner-feature `MText` uses the diameter/corner callout dimstyle text color.
+- `DimensionDrawer.cs` and `FeatureRecognizer.cs`: inner-groove chamfer recognition now requires the other end of the internal vertical groove line to connect to another 45-degree chamfer, known chamfer, or fillet. This prevents a single loose vertical line from promoting a long inclined structural edge into an inner-groove chamfer.
+
 ## Project
 - Active L1 workspace: `D:\work\AI\project\L1`
 - Active source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340`
@@ -25,7 +32,7 @@ It never creates centerlines or a `CENTER` layer.
 - Build output: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\AutoFixtureDim.dll`
 - Deployment folder: `D:\app\不加班的小刘_工具箱\dll`
 - Deploy script: `.\deploy_next_version.ps1`
-- Latest test DLL from current source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LA38.dll`
+- Latest test DLL from current source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB3.dll`
 - Pre-rewrite `DimensionDrawer.cs` backup requested by user: `D:\work\AI\project\1\DimensionDrawer.cs.bak`
 - Historical note: the earlier abandoned `autofixdim-v89.dll` build must not be used as a baseline. The source was rolled back to the `v88` logic before the rejected step-dimension replacement behavior, and the current `v89` suffix is reused for the diameter-style follow-current-child-style test build.
 
@@ -101,6 +108,7 @@ It never creates centerlines or a `CENTER` layer.
 - If a second 45-degree segment is collinear with the first and close enough to be its extension, the chamfer value is calculated from the merged endpoints' `max(dx, dy)`.
 - After normal chamfer and fillet recognition, `RecognizeInnerGrooveChamfers(outline)` supplements missing inner-groove chamfers. This is intentionally after `RecognizeFillets(outline)` so chamfer + internal line + fillet structures can be recognized.
 - Inner-groove chamfer supplement only accepts 45/135-degree local segments that participate in an internal horizontal or vertical groove relationship. It should not turn long structural inclined edges into chamfer callouts.
+- For vertical inner-groove relationships, the internal vertical line must connect at its other end to another chamfer/45-degree segment or fillet. This keeps the supplement limited to real chamfer-line-chamfer or chamfer-line-fillet groove structures.
 - Chamfer callout text follows the diameter/corner callout dimstyle main-unit linear precision (`Dimdec`) for non-integers; integer chamfer values suppress trailing decimals, e.g. `C5` rather than `C5.00`.
 - Long structural inclined edges that are not local 45-degree chamfer geometry remain `Inclined Edge`, not `Chamfer`.
 - Fillets are recognized only from MainOutline arcs or polyline bulges with reasonable radius and connected outline endpoints.
@@ -135,11 +143,16 @@ It never creates centerlines or a `CENTER` layer.
 
 ### Pin Holes
 - Pin holes are grouped before any normal/thread hole positioning is emitted.
-- The first pin-hole group starts from the user-selected datum pin when available; otherwise the left/bottom pin is used as a fallback base.
+- The first pin-hole group starts from the user-selected datum pin when available, and that selected pin must remain the first group's `BasePin`; otherwise the left/bottom pin is used as a fallback base.
+- Second and later groups are recognized as complete same-X or same-Y groups before the group `BasePin` is selected. The nearest pin to the previous group is only a group-discovery seed, not automatically the final base.
 - The first pin-group base pin is positioned from the outline/datum edges.
 - Second and later pin-group base pins are positioned from the previous pin-group base pin, not repeatedly from the outline.
 - Pin-group-to-pin-group locating dimensions use `±0.05`.
 - Same-group pin spacing is emitted from the group base pin to each other pin in the group and uses `±0.02`.
+- Pin-group hole-position dimensions choose their output side from the group base pin: horizontal dimensions go Bottom/Top by nearest outline side, vertical dimensions go Left/Right by nearest outline side.
+- Once a group's `BasePin` is fixed, all horizontal same-group pin distances use that group's horizontal side and all vertical same-group pin distances use that group's vertical side.
+- Same-group pin distances must never be affected by another group's side rule; inter-group dimensions use the target group's `BasePin` side.
+- If a pin-group base pin is geometrically centered between opposite sides, its hole-position dimensions use the side opposite the datum edge.
 - Zero-length dimensions are skipped.
 
 ### Normal And Thread Holes
@@ -150,21 +163,25 @@ It never creates centerlines or a `CENTER` layer.
 - Thread holes follow the same nearest pin-reference positioning principle as normal holes.
 - Thread holes never become pin-group bases and do not participate in pin-group datum transfer.
 - If no pin holes exist, normal/thread holes fall back to outline/datum-edge positioning.
+- Normal/thread hole-position dimensions are also placed on the nearest outline side of the target hole instead of always Bottom/Left.
 
 ## Diameter / Roughness Callouts
 - Diameter/thread callout placement uses lightweight `DrawJig` preview to avoid sluggish `DiametricDimension` dynamic-block redraws.
 - Final callouts are still real AutoCAD `DiametricDimension` entities.
+- Corner-feature leader lines use the current AutoCAD layer and current entity color (`CECOLOR`) for both preview and final leaders.
+- Corner-feature callout text remains on the annotation layer but takes its color from the active diameter/corner callout dimstyle text color.
 - Pin-hole diameter callouts insert block `CadAider_国标粗糙度16下` if the block definition exists in the current drawing.
 - The roughness block is rotated 180 degrees and marked with `AUTOFIXDIM` XData.
 - Current implementation inserts the roughness block at the final dimension text position. If the user requires the exact geometric midpoint of the actual horizontal dimension line, inspect the generated anonymous dimension block and derive the longest horizontal segment midpoint.
 
 ## Current Code State
 - `DimensionDrawer.DrawHolePositionFromDatumHole` contains the active datum-hole path.
-- `BuildPinGroupPlan` builds the pin-group datum chain. The selected datum pin anchors the first group.
-- `EmitFirstPinGroupBaseLocation` positions the first group base from the outline/datum edge.
-- `EmitPinGroupBaseTransfers` positions later group bases from the previous group base.
-- `EmitSameGroupPinDistances` emits same-group `±0.02` pin spacing.
-- `EmitNonPinHoleLocations` positions normal/thread holes from the nearest pin reference.
+- `BuildPinGroupPlan` builds the pin-group datum chain. The selected datum pin anchors the first group as its `BasePin`; later groups are built first and then choose a group-internal `BasePin` against the previous group base.
+- `AssignPinGroupPlacementSides` chooses each pin group's horizontal and vertical output side before hole-position dimensions are emitted.
+- `EmitFirstPinGroupBaseLocation` positions the first group base from the outline/datum edge on the selected side.
+- `EmitPinGroupBaseTransfers` positions later group bases from the previous group base on the current group's selected side.
+- `EmitSameGroupPinDistances` emits same-group `±0.02` pin spacing on the group's selected side.
+- `EmitNonPinHoleLocations` positions normal/thread holes from the nearest pin reference and places the dimensions on the target hole's nearest outline side.
 - `DrawSlotDimensions` emits U-slot center-distance dimensions, then `DrawSlotAnchorLocations` emits only the datum-side slot-center external positioning dimension.
 - `DrawSlotDimensions` uses continuous slot positioning when there are no pin holes.
 - `PickSlotAnchorPoint` selects the datum-side slot center by geometry: horizontal slots choose the center closer to `datum.BaseX`; vertical slots choose the center closer to `datum.BaseY`.
@@ -185,7 +202,7 @@ It never creates centerlines or a `CENTER` layer.
 - Validate whether lower protrusion widths and chamfer-extension values match the user's intended blue-guide dimensions.
 - Roughness block placement may still need exact horizontal-line midpoint extraction from the generated dimension block if text-position anchoring is not visually correct.
 - `AnnotationPreview.cs` is legacy support; the active hole and corner placement flow uses `DrawJig`.
-- Current latest test DLL from source is `bin\Debug\autofixdim-LA38.dll`; it was compiled with `DebugSymbols=false` / `DebugType=None` because AutoCAD can lock `bin\Debug\AutoFixtureDim.pdb`.
+- Current latest test DLL from source is `bin\Debug\autofixdim-LB3.dll`; it was compiled with `DebugSymbols=false` / `DebugType=None` because AutoCAD can lock `bin\Debug\AutoFixtureDim.pdb`.
 
 ## Verification
 - Standard build command:
@@ -200,7 +217,7 @@ It never creates centerlines or a `CENTER` layer.
   `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LA38.dll`
 
 ## Manual AutoCAD Test Checklist
-- Load `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LA38.dll` with `NETLOAD` for the current local test build.
+- Load `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB3.dll` with `NETLOAD` for the current local test build.
 - Run `ASD`.
 - Select outline and hole geometry.
 - Pick the intended first-group datum pin.
@@ -210,6 +227,8 @@ It never creates centerlines or a `CENTER` layer.
 - Confirm pin-group-to-pin-group locating dimensions show `±0.05`.
 - Confirm normal holes do not receive `±0.02` or `±0.05`.
 - Confirm thread holes do not receive pin-group tolerance rules.
+- Confirm hole-position dimensions move to the nearest suitable side: lower holes to Bottom, upper holes to Top, left holes to Left, right holes to Right.
+- Confirm centered pin groups use the side opposite the datum edge instead of colliding with datum-side dimensions.
 - Confirm each U-slot emits the two-center distance and exactly one external positioning pair to the datum-side slot center.
 - Confirm horizontal U-slots choose the center closer to `datum.BaseX`; vertical U-slots choose the center closer to `datum.BaseY`.
 - Confirm U-slot points do not produce diameter callouts or `8x17腰孔` text.
@@ -219,7 +238,9 @@ It never creates centerlines or a `CENTER` layer.
 - Confirm `DrawRightStepHeight` emits the left-side vertical chain from horizontal outline levels, removes the longest extension-line candidate, and avoids a closed dimension chain.
 - Confirm lower protrusion widths are emitted from the intended local vertical-boundary span, not from the longest internal horizontal segment.
 - Confirm 45-degree chamfers use merged collinear extension segments when present and display integer values without trailing decimals while non-integers follow the callout dimstyle linear precision.
+- Confirm inner-groove chamfer recognition does not classify a long structural inclined edge as a chamfer unless the internal vertical groove line connects to another chamfer/fillet at its other end.
 - Confirm chamfer/fillet leaders attach to real geometry.
+- Confirm corner-feature leader lines follow the current layer/current `CECOLOR`, while the callout text follows the diameter/corner dimstyle text color.
 - Test Jig placement for corner callouts and diameter/thread callouts.
 - Confirm pin-hole roughness block appears only when block `CadAider_国标粗糙度16下` exists in the drawing.
 - Confirm `AUTOFIXDIMCLEAR` removes generated dimensions/callouts/roughness blocks only.

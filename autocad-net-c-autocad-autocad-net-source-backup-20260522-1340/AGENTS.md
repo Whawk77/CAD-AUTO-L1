@@ -6,6 +6,13 @@
 - If deletion is required, delete only one explicit file path at a time.
 - If bulk deletion seems necessary, stop and ask the user to handle it manually.
 
+## Documentation Rules
+- Do not update project documentation or `AGENTS.md` automatically; the user decides when documentation or agent rules should be updated.
+- When the user asks for documentation updates after new features or behavior changes, update `PROJECT_HANDOFF.md` first.
+- Only write rules into `AGENTS.md` when future AI coding agents would likely make mistakes without reading them.
+- Do not put one-off development logs or single-session changelogs into `AGENTS.md`.
+- Do not use relative time words such as "today", "yesterday", or "recently"; use absolute dates instead.
+
 ## Environment
 - Active L1 workspace: `D:\work\AI\project\L1`
 - Active source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340`
@@ -17,8 +24,8 @@
 - User-requested test DLL folder: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug`
 - Deployment folder: `D:\app\不加班的小刘_工具箱\dll`
 - Deploy script: `.\deploy_next_version.ps1`
-- Current experimental DLL names use lowercase LA suffixes: `autofixdim-LANN.dll`.
-- Latest test DLL from current source: `bin\Debug\autofixdim-LA38.dll`.
+- Current user test DLL names use uppercase LB suffixes: `autofixdim-LBN.dll`; after compiling, increment the LB number and copy `bin\Debug\AutoFixtureDim.dll` to the new test DLL name.
+- Latest test DLL from current source: `bin\Debug\autofixdim-LB3.dll`.
 - Historical note: the earlier abandoned `autofixdim-v89.dll` build must not be used as a baseline. The source was rolled back to the `v88` logic before the rejected step-dimension replacement rule, and the current `v89` suffix is reused for the diameter-style follow-current-child-style test build.
 - AutoCAD may lock a loaded DLL; if copy fails because the DLL is busy, increment the suffix and load the fresh DLL.
 
@@ -47,6 +54,7 @@
 - Chamfers require a non-axis 45-degree MainOutline segment connected to one horizontal and one vertical main edge. If a second 45-degree segment is collinear with the first and close enough to be its extension, the chamfer callout value uses the merged endpoints' `max(dx, dy)`.
 - After normal chamfer and fillet recognition, `RecognizeInnerGrooveChamfers(outline)` supplements missing 45/135-degree inner-groove chamfers so their `C...` leaders are emitted by the normal corner-feature path.
 - Inner-groove chamfer supplement is for structures that form chamfer plus internal horizontal/vertical groove line plus chamfer or fillet; do not use it as a general long inclined-edge classifier.
+- Vertical inner-groove chamfer detection must verify that the internal vertical line's other end connects to another chamfer/45-degree segment or fillet before accepting the groove relationship.
 - Chamfer callout text follows the diameter/corner callout dimstyle main-unit linear precision (`Dimdec`) for non-integers; integer values are emitted without trailing decimals, e.g. `C5` not `C5.00`.
 - Fillets are recognized only from MainOutline arcs or polyline bulges with reasonable radius and connected outline endpoints.
 - Diagnostic output should explain recognized pin/normal/thread holes, suppressed circles, and recognized chamfers/fillets.
@@ -74,6 +82,7 @@
 - Chamfer leader arrows attach to the real chamfer edge; fillet/radius arrows attach to the real arc.
 - Corner feature and hole diameter callout placement use lightweight `DrawJig` previews: move mouse to preview, click to place, Enter to skip the current group, Esc to cancel the remaining callouts.
 - Final chamfer leaders are `Leader` + `MText`; final fillet callouts use `RadialDimension`; final hole/thread callouts use `DiametricDimension`.
+- Corner-feature leader lines follow the current layer and current entity color (`CECOLOR`); corner-feature `MText` stays on the annotation layer and uses the diameter/corner callout dimstyle text color.
 - Pin-hole diameter callouts insert block `CadAider_国标粗糙度16下` when the block definition exists in the drawing. The block is rotated 180 degrees, marked with `AUTOFIXDIM` XData, and currently follows the dimension text position rather than a measured anonymous-dimension horizontal-line midpoint.
 
 ## Hole Position Rules
@@ -82,6 +91,8 @@
 - Later pin-group base pins are positioned from the previous pin-group base pin, not repeatedly from the outline.
 - Same-group pin spacing is emitted from the group base pin to the other pins and uses `±0.02`.
 - Pin-group-to-pin-group transfer dimensions use `±0.05`.
+- Hole-position dimensions should choose their per-side bucket by geometry: lower/upper holes go Bottom/Top, left/right holes go Left/Right.
+- If a pin-group base is centered between opposite sides within `GeometryTolerance`, choose the side opposite the datum edge to avoid datum-side overlap.
 - Normal holes are not high-precision pin holes and never participate in pin-group datum transfer.
 - Normal holes are positioned from the nearest available pin reference, preferring pin group bases on ties.
 - Thread holes follow the same positioning rule as normal holes and never become pin-group bases.

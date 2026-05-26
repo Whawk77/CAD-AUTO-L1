@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -8,6 +8,7 @@ namespace AutoFixtureDim
 {
     public sealed class FeatureRecognizer
     {
+        private static readonly bool DiagnosticsEnabled = false;
         private readonly DimensionRuleConfig _config;
 
         public FeatureRecognizer(DimensionRuleConfig config)
@@ -36,7 +37,7 @@ namespace AutoFixtureDim
                 return outline;
             }
 
-            throw new InvalidOperationException("外轮廓必须是闭合 Polyline 或 DRAWING 图层轮廓线。");
+            throw new InvalidOperationException("Outline must be a closed Polyline or DRAWING outline component.");
         }
 
         public OutlineFeature RecognizeOutline(IEnumerable<ObjectId> outlineEntityIds, Transaction tr)
@@ -57,7 +58,7 @@ namespace AutoFixtureDim
 
             if (outline.MinX == double.MaxValue)
             {
-                throw new InvalidOperationException("未能从 DRAWING 图层对象计算外轮廓外包围盒。");
+                throw new InvalidOperationException("Unable to calculate outline extents from DRAWING objects.");
             }
 
             RecognizeOutlineCornerFeatures(outline);
@@ -84,7 +85,7 @@ namespace AutoFixtureDim
 
             foreach (var ta in threadArcs)
             {
-                threadArcDiag.Add(string.Format("(中心={0:0.###},{1:0.###} R={2:0.###})", ta.Center.X, ta.Center.Y, ta.Radius));
+                threadArcDiag.Add(string.Format("(涓績={0:0.###},{1:0.###} R={2:0.###})", ta.Center.X, ta.Center.Y, ta.Radius));
             }
 
             foreach (var slot in LastRecognizedSlots)
@@ -122,7 +123,7 @@ namespace AutoFixtureDim
                     if (IsSuppressedByThreadArc(circle, threadArcs))
                     {
                         suppressedCount++;
-                        suppressedCircles.Add(string.Format("(中心={0:0.###},{1:0.###} R={2:0.###})", circle.Center.X, circle.Center.Y, circle.Radius));
+                        suppressedCircles.Add(string.Format("(涓績={0:0.###},{1:0.###} R={2:0.###})", circle.Center.X, circle.Center.Y, circle.Radius));
                         continue;
                     }
 
@@ -166,10 +167,10 @@ namespace AutoFixtureDim
             }
 
             var doc = Autodesk.AutoCAD.ApplicationServices.Application.DocumentManager.MdiActiveDocument;
-            if (doc != null)
+            if (doc != null && DiagnosticsEnabled)
             {
                 var ed = doc.Editor;
-                ed.WriteMessage("\n[诊断] Circle总数={0}, 被螺纹弧抑制={1}, 被螺纹小径匹配={2}, 销孔标记匹配={3}, 销孔标记未匹配={4}",
+                ed.WriteMessage("\n[璇婃柇] Circle鎬绘暟={0}, 琚灪绾瑰姬鎶戝埗={1}, 琚灪绾瑰皬寰勫尮閰?{2}, 閿€瀛旀爣璁板尮閰?{3}, 閿€瀛旀爣璁版湭鍖归厤={4}",
                     circleCount, suppressedCount, threadByMinorCount, pinMatchCount, pinNoMatchCount);
                 ed.WriteMessage("\n[diagnostic] Hole recognition: circles={0}, suppressed={1}, threadMinorSuppressed={2}, pinMatched={3}, normalCircles={4}",
                     circleCount, suppressedCount, threadByMinorCount, pinMatchCount, pinNoMatchCount);
@@ -177,27 +178,27 @@ namespace AutoFixtureDim
                 WriteSlotDiagnostics(ed, LastRecognizedSlots);
                 if (pinNoMatchCount > 0 && pinMarkers.Count > 0)
                 {
-                    ed.WriteMessage("\n[诊断] 销孔标记位置:");
+                    ed.WriteMessage("\n[璇婃柇] 閿€瀛旀爣璁颁綅缃?");
                     foreach (var m in pinMarkers)
                     {
                         ed.WriteMessage(" ({0:0.###},{1:0.###})", m.X, m.Y);
                     }
-                    ed.WriteMessage("\n[诊断] 未匹配销孔的Circle:");
+                    ed.WriteMessage("\n[璇婃柇] 鏈尮閰嶉攢瀛旂殑Circle:");
                     foreach (var h in holes)
                     {
                         if (h.HoleKind == HoleKind.Normal)
                         {
-                            ed.WriteMessage(" (中心={0:0.###},{1:0.###} R={2:0.###})", h.Center.X, h.Center.Y, h.Diameter / 2.0);
+                            ed.WriteMessage(" (涓績={0:0.###},{1:0.###} R={2:0.###})", h.Center.X, h.Center.Y, h.Diameter / 2.0);
                         }
                     }
                 }
                 if (threadArcDiag.Count > 0)
                 {
-                    ed.WriteMessage("\n[诊断] 确认螺纹弧: {0}", string.Join(", ", threadArcDiag));
+                    ed.WriteMessage("\n[璇婃柇] 纭铻虹汗寮? {0}", string.Join(", ", threadArcDiag));
                 }
                 if (suppressedCircles.Count > 0)
                 {
-                    ed.WriteMessage("\n[诊断] 被抑制的Circle: {0}", string.Join(", ", suppressedCircles));
+                    ed.WriteMessage("\n[璇婃柇] 琚姂鍒剁殑Circle: {0}", string.Join(", ", suppressedCircles));
                 }
             }
 
@@ -881,7 +882,7 @@ namespace AutoFixtureDim
 
             if (outline.Vertices.Count == 0)
             {
-                throw new InvalidOperationException("外轮廓 Polyline 没有有效顶点。");
+                throw new InvalidOperationException("Outline Polyline has no valid vertices.");
             }
 
             return outline;
@@ -1158,6 +1159,11 @@ namespace AutoFixtureDim
 
         private static void WriteCornerFeatureDiagnostics(OutlineFeature outline)
         {
+            if (!DiagnosticsEnabled)
+            {
+                return;
+            }
+
             var doc = Autodesk.AutoCAD.ApplicationServices.Application.DocumentManager.MdiActiveDocument;
             if (doc == null)
             {
@@ -1721,13 +1727,13 @@ namespace AutoFixtureDim
             }
 
             var doc = Autodesk.AutoCAD.ApplicationServices.Application.DocumentManager.MdiActiveDocument;
-            if (doc != null)
+            if (doc != null && DiagnosticsEnabled)
             {
                 var ed = doc.Editor;
-                ed.WriteMessage("\n[诊断] 框选中 BlockReference 数量={0}, 销孔标记数量={1}", blockRefCount, pinMarkerCount);
+                ed.WriteMessage("\n[璇婃柇] 妗嗛€変腑 BlockReference 鏁伴噺={0}, 閿€瀛旀爣璁版暟閲?{1}", blockRefCount, pinMarkerCount);
                 if (nonMatchingBlockNames.Count > 0 && pinMarkerCount == 0)
                 {
-                    ed.WriteMessage("\n[诊断] 未匹配的块名: {0}", string.Join(", ", nonMatchingBlockNames));
+                    ed.WriteMessage("\n[璇婃柇] 鏈尮閰嶇殑鍧楀悕: {0}", string.Join(", ", nonMatchingBlockNames));
                 }
             }
 
@@ -1796,7 +1802,7 @@ namespace AutoFixtureDim
                     continue;
                 }
 
-                // Concentric circle found — must be smaller than the arc (minor < major).
+                // Concentric circle found 鈥?must be smaller than the arc (minor < major).
                 if (circle.Radius < arc.Radius - _config.GeometryTolerance)
                 {
                     return true;
@@ -1909,8 +1915,8 @@ namespace AutoFixtureDim
         private static bool IsPinMarkerBlock(BlockReference blockReference, Transaction tr)
         {
             string blockName = GetBlockName(blockReference, tr);
-            return string.Equals(blockName, "CadAider_销孔标记", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(blockName, "CadAider_销孔标记背面", StringComparison.OrdinalIgnoreCase);
+            return string.Equals(blockName, "CadAider_\u9500\u5B54\u6807\u8BB0", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(blockName, "CadAider_\u9500\u5B54\u6807\u8BB0\u80CC\u9762", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string GetBlockName(BlockReference blockReference, Transaction tr)

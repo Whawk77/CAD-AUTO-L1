@@ -67,8 +67,12 @@ namespace AutoFixtureDim
             var config = DimensionRuleConfig.CreateDefault();
             var groupId = DateTime.Now.ToString("yyyyMMddHHmmssfff");
             System.Collections.Generic.IList<System.Collections.Generic.IList<HoleFeature>> diameterGroupsForPlacement = null;
+            OutlineFeature outlineForInteractivePlacement = null;
+            System.Collections.Generic.IList<SlotFeature> slotFeaturesForInteractivePlacement = null;
+            ObjectId dimStyleIdForInteractivePlacement = ObjectId.Null;
             ObjectId diameterCalloutDimStyleIdForPlacement = ObjectId.Null;
             string annotationLayerForPlacement = string.Empty;
+            double dimScaleForInteractivePlacement = 1.0;
 
             try
             {
@@ -164,7 +168,7 @@ namespace AutoFixtureDim
                         .Concat(outlineSlotFeatures)
                         .ToList();
                     var rows = recognizer.GroupHolesByHorizontalRow(holes);
-                    var diameterGroups = recognizer.GroupHolesByDiameter(holes);
+                    var diameterGroups = BuildDiameterGroupsForPlacement(holes, datum.DatumHole, config);
                     var currentSpace = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
                     AnnotationMetadata.EnsureRegApp(db, tr);
 
@@ -181,6 +185,14 @@ namespace AutoFixtureDim
                         groupId: groupId);
 
                     DrawLinearDimensions(drawer, outline, datum, rows, slotFeatures, skipHoleDimensions);
+                    outlineForInteractivePlacement = outline;
+                    slotFeaturesForInteractivePlacement = slotFeatures;
+                    dimStyleIdForInteractivePlacement = dimStyleId;
+                    diameterCalloutDimStyleIdForPlacement = diameterCalloutDimStyleId;
+                    annotationLayerForPlacement = annotationLayer;
+                    dimScaleForInteractivePlacement = dimScale;
+                    if (EnableInlineInteractiveCallouts())
+                    {
                     try
                     {
                         DrawCornerFeatureLeadersWithPreview(
@@ -214,6 +226,7 @@ namespace AutoFixtureDim
                             editor.WriteMessage("\nU slot radius callouts skipped: {0}", ex.Message);
                         }
                     }
+                    }
 
                     if (!skipHoleDimensions)
                     {
@@ -224,6 +237,17 @@ namespace AutoFixtureDim
 
                     tr.Commit();
                 }
+
+                DrawPostLinearInteractiveAnnotations(
+                    document,
+                    config,
+                    dimStyleIdForInteractivePlacement,
+                    diameterCalloutDimStyleIdForPlacement,
+                    dimScaleForInteractivePlacement,
+                    annotationLayerForPlacement,
+                    groupId,
+                    outlineForInteractivePlacement,
+                    slotFeaturesForInteractivePlacement);
 
                 if (diameterGroupsForPlacement != null)
                 {
@@ -246,6 +270,335 @@ namespace AutoFixtureDim
             {
                 editor.WriteMessage("\nAUTOFIXDIM 发生异常: {0}", ex.Message);
             }
+        }
+
+        private static void DrawPostLinearInteractiveAnnotations(
+            Document document,
+            DimensionRuleConfig config,
+            ObjectId dimStyleId,
+            ObjectId diameterCalloutDimStyleId,
+            double dimScale,
+            string annotationLayer,
+            string groupId,
+            OutlineFeature outline,
+            System.Collections.Generic.IEnumerable<SlotFeature> slotFeatures)
+        {
+            if (document == null || outline == null)
+            {
+                return;
+            }
+
+            Database db = document.Database;
+            Editor editor = document.Editor;
+            try
+            {
+                using (Transaction tr = db.TransactionManager.StartTransaction())
+                {
+                    var currentSpace = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
+                    AnnotationMetadata.EnsureRegApp(db, tr);
+                    var drawer = new DimensionDrawer(
+                        db,
+                        tr,
+                        currentSpace,
+                        config,
+                        dimStyleId,
+                        diameterCalloutDimStyleId,
+                        dimScale,
+                        annotationLayer,
+                        appendToDatabase: true,
+                        groupId: groupId);
+
+                    try
+                    {
+                        drawer.DrawCornerFeatureLeadersWithJig(editor, outline);
+                    }
+                    catch (System.Exception ex)
+                    {
+                        editor.WriteMessage("\nChamfer/fillet callouts skipped: {0}", ex.Message);
+                    }
+
+                    var slots = slotFeatures == null
+                        ? new System.Collections.Generic.List<SlotFeature>()
+                        : slotFeatures.Where(s => s != null).ToList();
+                    if (slots.Count > 0)
+                    {
+                        try
+                        {
+                            drawer.DrawSlotRadiusLeadersWithJig(editor, slots);
+                        }
+                        catch (System.Exception ex)
+                        {
+                            editor.WriteMessage("\nU slot radius callouts skipped: {0}", ex.Message);
+                        }
+                    }
+
+                    tr.Commit();
+                }
+            }
+            catch (System.Exception ex)
+            {
+                editor.WriteMessage("\nInteractive corner/slot callouts skipped: {0}", ex.Message);
+            }
+        }
+
+        private static bool EnableInlineInteractiveCallouts()
+        {
+            return false;
+        }
+
+        private sealed class HoleCalloutCluster
+        {
+            public HoleFeature BasePin { get; set; }
+            public System.Collections.Generic.List<HoleFeature> Pins { get; } = new System.Collections.Generic.List<HoleFeature>();
+            public System.Collections.Generic.List<HoleFeature> Members { get; } = new System.Collections.Generic.List<HoleFeature>();
+        }
+
+        private static System.Collections.Generic.IList<System.Collections.Generic.IList<HoleFeature>> BuildDiameterGroupsForPlacement(
+            System.Collections.Generic.IEnumerable<HoleFeature> holes,
+            HoleFeature datumPin,
+            DimensionRuleConfig config)
+        {
+            var holeList = holes == null
+                ? new System.Collections.Generic.List<HoleFeature>()
+                : holes.Where(h => h != null && !h.IsSlotPoint).ToList();
+            var pinHoles = holeList.Where(h => h.IsPinHole).ToList();
+            if (pinHoles.Count == 0)
+            {
+                return BuildDiameterGroupsBySpatialRows(holeList, config);
+            }
+
+            var clusters = BuildPinCalloutClusters(pinHoles, datumPin, config);
+            AssignNonPinHolesToCalloutClusters(holeList, clusters);
+            var result = new System.Collections.Generic.List<System.Collections.Generic.IList<HoleFeature>>();
+            foreach (var cluster in clusters)
+            {
+                result.AddRange(GroupCalloutClusterMembers(cluster.Members, config));
+            }
+
+            return result;
+        }
+
+        private static System.Collections.Generic.IList<System.Collections.Generic.IList<HoleFeature>> BuildDiameterGroupsBySpatialRows(
+            System.Collections.Generic.IList<HoleFeature> holes,
+            DimensionRuleConfig config)
+        {
+            var result = new System.Collections.Generic.List<System.Collections.Generic.IList<HoleFeature>>();
+            var rows = new System.Collections.Generic.List<System.Collections.Generic.List<HoleFeature>>();
+            foreach (var hole in holes.OrderBy(h => h.Center.Y).ThenBy(h => h.Center.X))
+            {
+                var row = rows.FirstOrDefault(r => System.Math.Abs(r.Average(h => h.Center.Y) - hole.Center.Y) <= config.GeometryTolerance);
+                if (row == null)
+                {
+                    row = new System.Collections.Generic.List<HoleFeature>();
+                    rows.Add(row);
+                }
+
+                row.Add(hole);
+            }
+
+            foreach (var row in rows.OrderBy(r => r.Average(h => h.Center.Y)))
+            {
+                result.AddRange(GroupCalloutClusterMembers(row, config));
+            }
+
+            return result;
+        }
+
+        private static System.Collections.Generic.List<HoleCalloutCluster> BuildPinCalloutClusters(
+            System.Collections.Generic.IList<HoleFeature> pinHoles,
+            HoleFeature datumPin,
+            DimensionRuleConfig config)
+        {
+            var remaining = pinHoles.OrderBy(h => h.Center.X).ThenBy(h => h.Center.Y).ToList();
+            var clusters = new System.Collections.Generic.List<HoleCalloutCluster>();
+            var seed = datumPin != null && datumPin.IsPinHole
+                ? remaining.FirstOrDefault(h => IsSameHoleForCallout(h, datumPin, config)) ?? datumPin
+                : remaining.First();
+
+            while (remaining.Count > 0)
+            {
+                var reference = clusters.Count == 0 ? null : clusters[clusters.Count - 1].BasePin;
+                if (clusters.Count > 0)
+                {
+                    seed = remaining
+                        .OrderBy(h => DistanceSquared(h.Center, reference.Center))
+                        .ThenBy(h => h.Center.X)
+                        .ThenBy(h => h.Center.Y)
+                        .First();
+                }
+
+                var cluster = CreatePinCalloutCluster(seed, remaining, clusters.Count == 0 ? seed : null, reference, config);
+                clusters.Add(cluster);
+                foreach (var pin in cluster.Pins.ToList())
+                {
+                    for (int i = remaining.Count - 1; i >= 0; i--)
+                    {
+                        if (IsSameHoleForCallout(remaining[i], pin, config))
+                        {
+                            remaining.RemoveAt(i);
+                        }
+                    }
+                }
+
+                if (remaining.Count > 0 && !remaining.Any(h => IsSameHoleForCallout(h, seed, config)))
+                {
+                    seed = remaining[0];
+                }
+            }
+
+            return clusters;
+        }
+
+        private static HoleCalloutCluster CreatePinCalloutCluster(
+            HoleFeature seed,
+            System.Collections.Generic.IList<HoleFeature> candidates,
+            HoleFeature forcedBasePin,
+            HoleFeature referenceBasePin,
+            DimensionRuleConfig config)
+        {
+            var pins = new System.Collections.Generic.List<HoleFeature> { seed };
+            var pairedPin = candidates
+                .Where(h => !IsSameHoleForCallout(h, seed, config) && System.Math.Abs(h.Diameter - seed.Diameter) <= config.GeometryTolerance)
+                .OrderBy(h => DistanceSquared(h.Center, seed.Center))
+                .ThenBy(h => h.Center.X)
+                .ThenBy(h => h.Center.Y)
+                .FirstOrDefault();
+            if (pairedPin != null)
+            {
+                pins.Add(pairedPin);
+            }
+
+            var basePin = ChooseCalloutBasePin(pins, forcedBasePin, referenceBasePin, seed, config);
+            var cluster = new HoleCalloutCluster { BasePin = basePin };
+            foreach (var pin in pins.OrderBy(h => DistanceSquared(h.Center, basePin.Center)))
+            {
+                cluster.Pins.Add(pin);
+                cluster.Members.Add(pin);
+            }
+
+            return cluster;
+        }
+
+        private static HoleFeature ChooseCalloutBasePin(
+            System.Collections.Generic.IList<HoleFeature> pins,
+            HoleFeature forcedBasePin,
+            HoleFeature referenceBasePin,
+            HoleFeature fallbackPin,
+            DimensionRuleConfig config)
+        {
+            if (forcedBasePin != null)
+            {
+                return pins.FirstOrDefault(h => IsSameHoleForCallout(h, forcedBasePin, config)) ?? forcedBasePin;
+            }
+
+            if (referenceBasePin != null)
+            {
+                return pins
+                    .OrderBy(h => DistanceSquared(h.Center, referenceBasePin.Center))
+                    .ThenBy(h => h.Center.X)
+                    .ThenBy(h => h.Center.Y)
+                    .First();
+            }
+
+            return pins.OrderBy(h => h.Center.X).ThenBy(h => h.Center.Y).FirstOrDefault() ?? fallbackPin;
+        }
+
+        private static void AssignNonPinHolesToCalloutClusters(
+            System.Collections.Generic.IList<HoleFeature> holes,
+            System.Collections.Generic.IList<HoleCalloutCluster> clusters)
+        {
+            foreach (var hole in holes.Where(h => !h.IsPinHole && !h.IsSlotPoint))
+            {
+                var cluster = clusters
+                    .OrderBy(g => DistanceToCalloutCluster(hole, g))
+                    .ThenBy(g => DistanceSquared(hole.Center, g.BasePin.Center))
+                    .FirstOrDefault();
+                if (cluster != null)
+                {
+                    cluster.Members.Add(hole);
+                }
+            }
+        }
+
+        private static double DistanceToCalloutCluster(HoleFeature hole, HoleCalloutCluster cluster)
+        {
+            if (cluster == null || cluster.Pins.Count == 0)
+            {
+                return double.MaxValue;
+            }
+
+            if (cluster.Pins.Count == 1)
+            {
+                return System.Math.Sqrt(DistanceSquared(hole.Center, cluster.Pins[0].Center));
+            }
+
+            return cluster.Pins.Take(2).Sum(pin => System.Math.Sqrt(DistanceSquared(hole.Center, pin.Center)));
+        }
+
+        private static System.Collections.Generic.IEnumerable<System.Collections.Generic.IList<HoleFeature>> GroupCalloutClusterMembers(
+            System.Collections.Generic.IEnumerable<HoleFeature> members,
+            DimensionRuleConfig config)
+        {
+            foreach (var typeGroup in members
+                .Where(h => h != null && !h.IsSlotPoint)
+                .GroupBy(GetHoleCalloutTypeRank)
+                .OrderBy(g => g.Key))
+            {
+                var groups = new System.Collections.Generic.List<System.Collections.Generic.List<HoleFeature>>();
+                foreach (var hole in typeGroup.OrderBy(h => h.Diameter).ThenBy(h => h.Center.Y).ThenBy(h => h.Center.X))
+                {
+                    var group = groups.FirstOrDefault(g =>
+                        System.Math.Abs(g.Average(h => h.Diameter) - hole.Diameter) <= config.GeometryTolerance
+                        && g[0].HoleKind == hole.HoleKind
+                        && string.Equals(g[0].FitTolerance ?? string.Empty, hole.FitTolerance ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(g[0].ThreadCallout ?? string.Empty, hole.ThreadCallout ?? string.Empty, StringComparison.OrdinalIgnoreCase));
+                    if (group == null)
+                    {
+                        group = new System.Collections.Generic.List<HoleFeature>();
+                        groups.Add(group);
+                    }
+
+                    group.Add(hole);
+                }
+
+                foreach (var group in groups)
+                {
+                    yield return group;
+                }
+            }
+        }
+
+        private static int GetHoleCalloutTypeRank(HoleFeature hole)
+        {
+            if (hole.IsPinHole)
+            {
+                return 0;
+            }
+
+            if (hole.IsThreadHole)
+            {
+                return 1;
+            }
+
+            return 2;
+        }
+
+        private static bool IsSameHoleForCallout(HoleFeature a, HoleFeature b, DimensionRuleConfig config)
+        {
+            if (a == null || b == null)
+            {
+                return false;
+            }
+
+            return a.Center.DistanceTo(b.Center) <= config.GeometryTolerance
+                && System.Math.Abs(a.Diameter - b.Diameter) <= config.GeometryTolerance;
+        }
+
+        private static double DistanceSquared(Autodesk.AutoCAD.Geometry.Point3d a, Autodesk.AutoCAD.Geometry.Point3d b)
+        {
+            var dx = a.X - b.X;
+            var dy = a.Y - b.Y;
+            return dx * dx + dy * dy;
         }
 
         private static void DrawLinearDimensions(

@@ -1468,8 +1468,16 @@ namespace AutoFixtureDim
                     continue;
                 }
 
-                if ((SegmentTouchesPoint(vertical, chamfer.Start) || SegmentTouchesPoint(vertical, chamfer.End))
-                    && IsInternalSideGrooveVertical(vertical, chamfer, leftSide, outline))
+                if (SegmentTouchesPoint(vertical, chamfer.Start)
+                    && IsInternalSideGrooveVertical(vertical, chamfer, leftSide, outline)
+                    && VerticalOtherEndConnectsInnerGroove(vertical, chamfer.Start, chamfer, outline))
+                {
+                    return true;
+                }
+
+                if (SegmentTouchesPoint(vertical, chamfer.End)
+                    && IsInternalSideGrooveVertical(vertical, chamfer, leftSide, outline)
+                    && VerticalOtherEndConnectsInnerGroove(vertical, chamfer.End, chamfer, outline))
                 {
                     return true;
                 }
@@ -1514,6 +1522,25 @@ namespace AutoFixtureDim
                     && (PointsEqual(segment.Start, otherEnd) || PointsEqual(segment.End, otherEnd)))
                 || outline.Chamfers.Any(chamfer =>
                     (PointsEqual(chamfer.StartPoint, otherEnd) || PointsEqual(chamfer.EndPoint, otherEnd)))
+                || outline.Fillets.Any(fillet =>
+                    PointsEqual(fillet.StartPoint, otherEnd) || PointsEqual(fillet.EndPoint, otherEnd));
+        }
+
+        private bool VerticalOtherEndConnectsInnerGroove(
+            OutlineSegment vertical,
+            Point2d sharedPoint,
+            OutlineSegment currentChamfer,
+            OutlineFeature outline)
+        {
+            var otherEnd = PointsEqual(vertical.Start, sharedPoint) ? vertical.End : vertical.Start;
+            return outline.Segments.Any(segment =>
+                    !ReferenceEquals(segment, currentChamfer)
+                    && !segment.IsHorizontal(_config.GeometryTolerance)
+                    && !segment.IsVertical(_config.GeometryTolerance)
+                    && IsFortyFiveDegreeSegment(segment)
+                    && (PointsEqual(segment.Start, otherEnd) || PointsEqual(segment.End, otherEnd)))
+                || outline.Chamfers.Any(chamfer =>
+                    PointsEqual(chamfer.StartPoint, otherEnd) || PointsEqual(chamfer.EndPoint, otherEnd))
                 || outline.Fillets.Any(fillet =>
                     PointsEqual(fillet.StartPoint, otherEnd) || PointsEqual(fillet.EndPoint, otherEnd));
         }

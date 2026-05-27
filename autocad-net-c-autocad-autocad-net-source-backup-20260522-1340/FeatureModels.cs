@@ -20,6 +20,7 @@ namespace AutoFixtureDim
         HoleDiameter,
         PinDistance,
         PinGroupDistance,
+        HoleLocation,
         DatumHoleLocationX,
         DatumHoleLocationY
     }

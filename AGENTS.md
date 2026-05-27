@@ -25,7 +25,7 @@
 - Deployment folder: `D:\app\不加班的小刘_工具箱\dll`
 - Deploy script: `.\deploy_next_version.ps1`
 - Current user test DLL names use uppercase LB suffixes: `autofixdim-LBN.dll`; after compiling, increment the LB number and copy `bin\Debug\AutoFixtureDim.dll` to the new test DLL name.
-- Latest test DLL from current source: `bin\Debug\autofixdim-LB3.dll`.
+- Latest test DLL from current source: `bin\Debug\autofixdim-LB21.dll`.
 - Historical note: the earlier abandoned `autofixdim-v89.dll` build must not be used as a baseline. The source was rolled back to the `v88` logic before the rejected step-dimension replacement rule, and the current `v89` suffix is reused for the diameter-style follow-current-child-style test build.
 - AutoCAD may lock a loaded DLL; if copy fails because the DLL is busy, increment the suffix and load the fresh DLL.
 
@@ -57,7 +57,7 @@
 - Vertical inner-groove chamfer detection must verify that the internal vertical line's other end connects to another chamfer/45-degree segment or fillet before accepting the groove relationship.
 - Chamfer callout text follows the diameter/corner callout dimstyle main-unit linear precision (`Dimdec`) for non-integers; integer values are emitted without trailing decimals, e.g. `C5` not `C5.00`.
 - Fillets are recognized only from MainOutline arcs or polyline bulges with reasonable radius and connected outline endpoints.
-- Diagnostic output should explain recognized pin/normal/thread holes, suppressed circles, and recognized chamfers/fillets.
+- Diagnostic output is disabled by default in normal runs. Only re-enable `FeatureRecognizer.DiagnosticsEnabled` for targeted debugging.
 - U-slot recognition is incremental: only detect selected `DRAWING` layer slots made from two parallel lines plus two half-circle arcs. Prioritize the two arc centers by emitting their center-distance dimension, add external positioning only for the datum-side slot center, and group same-radius interactive radius callouts such as `2x2-R3.5`; do not emit diameter callouts or slot specification text.
 
 ## Feature Suppression Rules

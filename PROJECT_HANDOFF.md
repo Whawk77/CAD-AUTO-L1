@@ -22,6 +22,10 @@ It never creates centerlines or a `CENTER` layer.
 - `DimensionDrawer.cs`: corner-feature leader preview/final leader lines now follow the current AutoCAD layer and `CECOLOR`; corner-feature `MText` uses the diameter/corner callout dimstyle text color.
 - `DimensionDrawer.cs` and `FeatureRecognizer.cs`: inner-groove chamfer recognition now requires the other end of the internal vertical groove line to connect to another 45-degree chamfer, known chamfer, or fillet. This prevents a single loose vertical line from promoting a long inclined structural edge into an inner-groove chamfer.
 - `DimensionDrawer.cs`: same-side duplicate measured dimensions are now deduped by measured arrow interval and span instead of requiring identical override text. When duplicates measure the same geometry, the retained dimension prefers explicit tolerance text first, then the smaller tolerance value, then the functional dimension type priority, then forced outer-level dimensions, then non-empty override text.
+- `DimensionDrawer.cs`: post-layout shared-extension alignment can move a candidate dimension outward to the nearest suitable outer dimension. The block rule checks actual 2D arrow endpoint contact; sharing only the same X or Y coordinate at a different dimension-line level does not block alignment.
+- `Commands.cs`: chamfer/fillet, U-slot radius, and hole diameter/thread interactive Jig placement now runs after the main linear dimensions are committed. Diameter/thread callouts are ordered by spatial hole group; inside each group the order is pin holes, thread holes, then normal holes.
+- `NativeDiameterDimensioner.cs`: hole callout Jig prints the full callout instruction once per group, then uses a short `Pick point:` AcquirePoint prompt during movement.
+- `FeatureRecognizer.cs`: previous hole/chamfer/fillet diagnostic logs are gated by `DiagnosticsEnabled = false` and should stay quiet in normal AutoCAD runs.
 
 ## Project
 - Active L1 workspace: `D:\work\AI\project\L1`
@@ -33,7 +37,7 @@ It never creates centerlines or a `CENTER` layer.
 - Build output: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\AutoFixtureDim.dll`
 - Deployment folder: `D:\app\不加班的小刘_工具箱\dll`
 - Deploy script: `.\deploy_next_version.ps1`
-- Latest test DLL from current source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB3.dll`
+- Latest test DLL from current source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB21.dll`
 - Pre-rewrite `DimensionDrawer.cs` backup requested by user: `D:\work\AI\project\1\DimensionDrawer.cs.bak`
 - Historical note: the earlier abandoned `autofixdim-v89.dll` build must not be used as a baseline. The source was rolled back to the `v88` logic before the rejected step-dimension replacement behavior, and the current `v89` suffix is reused for the diameter-style follow-current-child-style test build.
 
@@ -53,19 +57,21 @@ It never creates centerlines or a `CENTER` layer.
 7. After each datum X/Y point, prompt tolerance mode: default `A` means no `±0.05`; entering `S` adds `<>±0.05`.
 8. Recognize MainOutline chamfers/fillets from outline geometry only.
 9. Collect linear dimensions into Bottom / Top / Left / Right buckets.
-10. Flush stacked dimensions with arrow/text collision avoidance and current suppression rules.
-11. Place chamfer/fillet callouts with lightweight `DrawJig`: move mouse to preview, click to place, Enter to skip current group, Esc to cancel remaining corner callouts.
-12. Place diameter/thread callouts with lightweight `DrawJig`: move mouse to preview, click to place, Enter to skip current group, Esc to cancel remaining diameter callouts.
-13. For pin-hole diameter callouts, insert block `CadAider_国标粗糙度16下` if the drawing already contains that block definition.
+10. Flush stacked dimensions with arrow/text collision avoidance, current suppression rules, and post-layout shared-extension alignment.
+11. Commit the main automatic linear dimensions before any interactive callout Jig starts.
+12. Place chamfer/fillet callouts with lightweight `DrawJig`: move mouse to preview, click to place, Enter to skip current group, Esc to cancel remaining corner callouts.
+13. Place U-slot radius callouts with lightweight `DrawJig`: same-radius slots are grouped, for example `2x2-R3.5`.
+14. Place diameter/thread callouts with lightweight `DrawJig`: spatial hole groups are processed in order; inside each group annotate pin holes, then thread holes, then normal holes.
+15. For pin-hole diameter callouts, insert roughness block `CadAider_国标粗糙度16下` if the drawing already contains that block definition.
 
 ## Source Map
-- `Commands.cs`: command entrypoints and main workflow.
+- `Commands.cs`: command entrypoints, main workflow, post-linear interactive callout orchestration, and diameter Jig placement ordering.
 - `GeometryCollector.cs`: outline selection, hole source collection, datum prompts, datum-hole pick prompts.
-- `FeatureRecognizer.cs`: outline/hole recognition, MainOutline chamfer/fillet recognition, pin marker matching, thread arc/minor-circle logic, U-slot recognition, row grouping, diagnostics.
+- `FeatureRecognizer.cs`: outline/hole recognition, MainOutline chamfer/fillet recognition, pin marker matching, thread arc/minor-circle logic, U-slot recognition, row grouping, diagnostics gated by `DiagnosticsEnabled`.
 - `FeatureModels.cs`: `HoleFeature`, `HoleKind`, `DimensionType`, `OutlineSegment`, `OutlineArc`, `ChamferFeature`, `FilletFeature`.
 - `RuleConfig.cs`: centralized tolerances and callout text, including pin-hole H7, pin spacing `±0.02`, group spacing `±0.05`, datum location `<>±0.05`, and default datum tolerance mode.
-- `DimensionDrawer.cs`: linear position dimensions, pin-group logic, stacked placement, envelope overall dimensions, current experimental step/protrusion rules, chamfer/fillet suppression, corner-feature Jig placement.
-- `NativeDiameterDimensioner.cs`: final interactive diameter/thread dimensions, hole callout Jig preview, pin-hole roughness block insertion.
+- `DimensionDrawer.cs`: linear position dimensions, pin-group logic, stacked placement, shared-extension alignment, envelope overall dimensions, current experimental step/protrusion rules, chamfer/fillet suppression, corner-feature Jig placement.
+- `NativeDiameterDimensioner.cs`: final interactive diameter/thread dimensions, hole callout Jig preview, short AcquirePoint prompt, pin-hole roughness block insertion.
 - `AnnotationMetadata.cs`: XData marking and clear logic for app name `AUTOFIXDIM`; generated entities carry `GroupId` in XData.
 - `LayerManager.cs`: preferred annotation layer is `JEE-DIM标注`, otherwise current layer.
 - `DimStyleManager.cs`: linear dimensions keep the current dimstyle if it is one of the preferred `SCALE-1-0x` styles; diameter callouts first try the selected linear style's `$3` child, then fall back to `SCALE-1-01$3`, then the linear style.
@@ -91,7 +97,7 @@ It never creates centerlines or a `CENTER` layer.
   - `8.376` / `8.5` -> `M10`
   - `10.106` / `10.2` -> `M12`
   - `13.835` / `14.0` -> `M16`
-- Diagnostics should show recognized pin/normal/thread holes and explain suppressed circles.
+- Diagnostic output is disabled by default through `DiagnosticsEnabled = false`; re-enable it only for targeted debugging.
 - U-slot half arcs are accepted within about 15 degrees of a semicircle. Two-arc slots require matching radii within `max(GeometryTolerance, radius * 0.02)`, same-X or same-Y alignment within about `radius * 0.05`, and exactly two connecting `DRAWING` lines.
 - Single-arc U-slots are also recognized from one half arc plus two parallel lines touching opposite arc endpoints. Their center distance is `0`, so no center-distance dimension is emitted; radius leaders target the real arc midpoint.
 - Slot source entities are suppressed from normal hole/circle processing after a slot is recognized. Slot center points are represented as `HoleKind.Slot` only for positioning flow and are excluded from diameter callout grouping.
@@ -100,7 +106,8 @@ It never creates centerlines or a `CENTER` layer.
 - When pin groups exist, U-slot anchor positioning uses the datum-side slot center and locates it from the nearest pin reference; group base pins win tie-breaks through the pin-group reference ordering.
 
 - Same-radius U-slot radius callouts are grouped at placement time, for example two matching `2-R3.5` slots become one `2x2-R3.5` callout.
-- Diameter callout groups exclude slot points and are separated by `HoleKind`, diameter, fit tolerance, and thread callout text. The interactive callout representative is the first hole in Y-then-X order inside the group.
+- Diameter callout groups exclude slot points and are separated by spatial hole group, then `HoleKind`, diameter, fit tolerance, and thread callout text. Inside each spatial group, the interactive order is pin holes, thread holes, then normal holes; after that the next spatial group is processed.
+- Spatial grouping prefers pin-cluster structure when pins exist, so the holes that belong to the same fixture-hole group are placed together. With no pin clusters, the fallback uses the current row/spatial order.
 
 ## Outline / Envelope Dimensions
 - Outer contour selection targets `DRAWING` layer objects and treats entity linetype as `ByLayer`; layer linetype filters center/hidden/dashed construction geometry.
@@ -138,6 +145,8 @@ It never creates centerlines or a `CENTER` layer.
 - Same-side duplicate dimensions are considered duplicates when their arrow interval and measured span match within `GeometryTolerance`, even if their override text differs. The retained duplicate is selected by `CompareDuplicatePreference`.
 - Same-side duplicate preference order is: keep a dimension with tolerance text over one without tolerance text; when both have tolerance text, keep the smaller extracted tolerance value such as `±0.02` over `±0.05`; then prefer dimension types in this order: `PinDistance`, `PinGroupDistance`, datum-hole location, overall width/height, normal; then prefer `ForceOuterLevel`; then prefer any non-empty override text.
 - Tolerance extraction intentionally recognizes both the correct `±` character and the common mojibake `卤` character so the duplicate keeper still works against legacy encoded override strings.
+- After the first stacked layout pass, a linear dimension can align outward to the nearest suitable outer dimension when one of its extension lines overlaps that outer dimension's extension line. This is intended for cases like `50±0.02` aligning to `124±0.05` through a shared extension line.
+- A candidate is not aligned when one of its real dimension-line arrow endpoints has 2D point contact with another dimension arrow endpoint. Same X with different Y, or same Y with different X, is not contact and must not block alignment.
 - A local horizontal/vertical edge between two chamfers is suppressed when it is derivable from the overall envelope minus the two chamfer projections.
 - The abandoned `v89` rule tried to replace a long overall-minus-chamfer width such as `55` with a chamfer projection `5`; it was rejected and removed from source.
 
@@ -181,8 +190,10 @@ It never creates centerlines or a `CENTER` layer.
 
 ## Diameter / Roughness Callouts
 - Diameter/thread callout placement uses lightweight `DrawJig` preview to avoid sluggish `DiametricDimension` dynamic-block redraws.
+- Diameter/thread callout placement starts only after the main linear dimensions have been generated and committed.
 - Final callouts are still real AutoCAD `DiametricDimension` entities.
-- Diameter/thread callout Jig defaults the preview text point to `center + radius * 3` in X and Y; Enter skips the current diameter group and Esc/cancel stops remaining diameter groups.
+- Diameter/thread callout Jig prints the full instruction once per group, then uses a short `Pick point:` AcquirePoint prompt while sampling points. The preview text point defaults to `center + radius * 3` in X and Y; Enter skips the current diameter group and Esc/cancel stops remaining diameter groups.
+- Diameter/thread placement order is spatial group by spatial group. Within one spatial group, pin-hole diameter callouts are prompted first, then thread callouts, then normal-hole diameter callouts.
 - Corner-feature leader lines use the current AutoCAD layer and current entity color (`CECOLOR`) for both preview and final leaders.
 - Corner-feature callout text remains on the annotation layer but takes its color from the active diameter/corner callout dimstyle text color.
 - Pin-hole diameter callouts insert block `CadAider_国标粗糙度16下` if the block definition exists in the current drawing.
@@ -203,16 +214,21 @@ It never creates centerlines or a `CENTER` layer.
 - `PickSlotAnchorPoint` selects the datum-side slot center by geometry: horizontal slots choose the center closer to `datum.BaseX`; vertical slots choose the center closer to `datum.BaseY`.
 - `DrawSlotRadiusLeadersWithJig` groups same-radius U-slot radius callouts, for example `2x2-R3.5`.
 - `SuppressDuplicateMeasuredDimensions` runs inside each side's `FlushSide` after sorting by span. It removes same-side duplicate measured dimensions by geometry, and uses `CompareDuplicatePreference`, `GetDimensionPreferenceRank`, and `TryExtractTolerance` to keep the most rule-significant candidate.
+- `AlignDimensionsBySharedExtensionLines` runs after stacked placement and can align candidates to the nearest suitable outer dimension by shared extension line.
+- `HasArrowEndpointTouch` blocks that alignment only when actual 2D arrow endpoints touch on the dimension line, not when endpoints merely share one coordinate.
+- `Commands.DrawPostLinearInteractiveAnnotations` runs chamfer/fillet, U-slot radius, and diameter/thread Jig placement after the automatic linear-dimension transaction is committed.
+- `Commands.BuildDiameterGroupsForPlacement` orders diameter/thread Jig groups spatially, then pin/thread/normal inside each spatial group.
 - `RecognizeOutlineCornerFeatures` fills `outline.Chamfers` and `outline.Fillets`.
 - `RecognizeChamfers` stores a numeric chamfer `Value`; chamfer display text is re-formatted during drawing from the active diameter/corner callout dimstyle linear precision, with integer values shown without trailing decimals.
 - Chamfer extension handling can merge nearby collinear 45-degree segments before calculating the callout value.
 - `DrawCornerFeatureLeadersWithJig` handles chamfer/fillet callout placement.
 - `DrawRightStepHeight` currently emits a left-side continuous vertical chain from horizontal outline levels and removes the longest extension-line candidate.
 - `DrawLowerRightStepWidth` targets lower local protrusion widths and can resolve endpoints from nearby vertical boundaries.
-- `NativeDiameterDimensioner.PromptDiameterDimensions` handles diameter/thread callout placement and pin roughness block insertion.
+- `NativeDiameterDimensioner.PromptDiameterDimensions` handles diameter/thread callout placement, one-time full callout messages, short AcquirePoint prompts, and pin roughness block insertion.
+- `FeatureRecognizer.DiagnosticsEnabled` gates hole, slot, chamfer, and fillet diagnostics and is false in the current source.
 
 ## Known Issues / Follow-Up
-- Step-dimension rules are in active redesign. The current `LA38` source uses experimental four-side point-set and inner-groove endpoint rules; it needs AutoCAD verification before treating it as stable.
+- Step-dimension rules are in active redesign. The current LB21 source uses experimental four-side point-set and inner-groove endpoint rules; it needs AutoCAD verification before treating it as stable.
 - The next durable design should still classify step candidates before emitting dimensions: `Overall`, `FeatureDerived`, `FeatureProjection`, `StructuralStep`, and `AmbiguousSmallStep`.
 - The handoff is now aligned to the current source behavior where `EmitPinGroupBaseTransfers` references the first pin group base for all later groups. If the intended design is a true previous-group chain, change the code deliberately and update this document at the same time.
 - The handoff is also aligned to the current source behavior where same-group pin spacing uses midpoint side selection and normal/thread holes assigned to pin groups use the owning group's side. If future visual testing expects per-target nearest side, adjust `EmitSameGroupPinDistances` / `EmitNonPinHoleLocations` deliberately.
@@ -221,7 +237,9 @@ It never creates centerlines or a `CENTER` layer.
 - Validate whether lower protrusion widths and chamfer-extension values match the user's intended blue-guide dimensions.
 - Roughness block placement may still need exact horizontal-line midpoint extraction from the generated dimension block if text-position anchoring is not visually correct.
 - `AnnotationPreview.cs` is legacy support; the active hole and corner placement flow uses `DrawJig`.
-- Current latest test DLL from source is `bin\Debug\autofixdim-LB3.dll`; it was compiled with `DebugSymbols=false` / `DebugType=None` because AutoCAD can lock `bin\Debug\AutoFixtureDim.pdb`.
+- Current latest test DLL from source is `bin\Debug\autofixdim-LB21.dll`; it was compiled with `DebugSymbols=false` / `DebugType=None` because AutoCAD can lock `bin\Debug\AutoFixtureDim.pdb`.
+- Post-layout shared-extension alignment still needs real-drawing visual verification. The key acceptance case is that a small dimension sharing an extension line with an outer dimension aligns outward when its arrows do not actually touch another dimension's arrows in 2D.
+- Diameter/thread spatial grouping assumes pin clusters define the natural hole groups. Verify no-pin drawings still place callouts in a sensible row/spatial order.
 
 ## Verification
 - Standard build command:
@@ -233,10 +251,10 @@ It never creates centerlines or a `CENTER` layer.
 - Latest compiled DLL:
   `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\AutoFixtureDim.dll`
 - Latest test DLL:
-  `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LA38.dll`
+  `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB21.dll`
 
 ## Manual AutoCAD Test Checklist
-- Load `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB3.dll` with `NETLOAD` for the current local test build.
+- Load `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB21.dll` with `NETLOAD` for the current local test build.
 - Run `ASD`.
 - Select outline and hole geometry.
 - Pick the intended first-group datum pin.
@@ -264,6 +282,11 @@ It never creates centerlines or a `CENTER` layer.
 - Confirm inner-groove chamfer recognition does not classify a long structural inclined edge as a chamfer unless the internal vertical groove line connects to another chamfer/fillet at its other end.
 - Confirm chamfer/fillet leaders attach to real geometry.
 - Confirm corner-feature leader lines follow the current layer/current `CECOLOR`, while the callout text follows the diameter/corner dimstyle text color.
+- Confirm normal runs do not print `[diagnostic]` or `[诊断]` hole/chamfer/fillet logs.
+- Confirm chamfer/fillet, U-slot radius, and diameter/thread Jig prompts start only after the automatic linear dimensions have been generated and committed.
+- Confirm diameter/thread Jig order is spatial group by spatial group, with pin holes before thread holes before normal holes inside each group.
+- Confirm post-layout shared-extension alignment moves eligible dimensions outward, but does not move a dimension whose real arrow endpoint has 2D point contact with another arrow endpoint on the same dimension-line level.
+- Confirm the hole callout command line prints the full instruction once per group and uses the short `Pick point:` prompt during Jig movement.
 - Test Jig placement for corner callouts and diameter/thread callouts.
 - Confirm pin-hole roughness block appears only when block `CadAider_国标粗糙度16下` exists in the drawing.
 - Confirm `AUTOFIXDIMCLEAR` removes generated dimensions/callouts/roughness blocks only.

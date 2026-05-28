@@ -43,6 +43,7 @@ namespace AutoFixtureDim
             public bool UseSegmentedExtensionLines;
             public bool ForceOuterLevel;
             public int LooseChainId;
+            public bool PreferLocalBoundary;
         }
 
         private struct PlacedDim
@@ -836,8 +837,8 @@ namespace AutoFixtureDim
 
                 foreach (var hole in functionalGroup.Holes)
                 {
-                    AddHorizontalDimToSide(reference.Center, hole.Center, string.Empty, DimensionType.HoleLocation, pinGroup.HorizontalSide);
-                    AddVerticalDimToSide(reference.Center, hole.Center, string.Empty, DimensionType.HoleLocation, pinGroup.VerticalSide);
+                    AddHorizontalDimToSide(reference.Center, hole.Center, string.Empty, DimensionType.HoleLocation, pinGroup.HorizontalSide, preferLocalBoundary: true);
+                    AddVerticalDimToSide(reference.Center, hole.Center, string.Empty, DimensionType.HoleLocation, pinGroup.VerticalSide, preferLocalBoundary: true);
                 }
             }
         }
@@ -1858,9 +1859,9 @@ namespace AutoFixtureDim
             AddHorizontalDimFromPoint(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType);
         }
 
-        private void AddHorizontalDimToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side)
+        private void AddHorizontalDimToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side, bool preferLocalBoundary = false)
         {
-            AddHorizontalDimFromPointToSide(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType, side);
+            AddHorizontalDimFromPointToSide(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType, side, preferLocalBoundary);
         }
 
         private void AddHorizontalDimFromX(double fromX, Point3d to, string overrideText, DimensionType dimType)
@@ -1878,7 +1879,7 @@ namespace AutoFixtureDim
             AddHorizontalDimFromPointToSide(from, to, overrideText, dimType, DimSide.Bottom);
         }
 
-        private void AddHorizontalDimFromPointToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side)
+        private void AddHorizontalDimFromPointToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side, bool preferLocalBoundary = false)
         {
             var span = Math.Abs(to.X - from.X);
             if (span <= _config.GeometryTolerance)
@@ -1894,7 +1895,8 @@ namespace AutoFixtureDim
                 OverrideText = overrideText ?? string.Empty,
                 Span = span,
                 DimType = dimType,
-                UseSegmentedExtensionLines = true
+                UseSegmentedExtensionLines = true,
+                PreferLocalBoundary = preferLocalBoundary
             };
 
             if (side == DimSide.Top)
@@ -1911,9 +1913,9 @@ namespace AutoFixtureDim
             AddVerticalDimFromPoint(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType);
         }
 
-        private void AddVerticalDimToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side)
+        private void AddVerticalDimToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side, bool preferLocalBoundary = false)
         {
-            AddVerticalDimFromPointToSide(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType, side);
+            AddVerticalDimFromPointToSide(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType, side, preferLocalBoundary);
         }
 
         private void AddVerticalDimFromY(double fromY, Point3d to, string overrideText, DimensionType dimType)
@@ -1931,7 +1933,7 @@ namespace AutoFixtureDim
             AddVerticalDimFromPointToSide(from, to, overrideText, dimType, DimSide.Left);
         }
 
-        private void AddVerticalDimFromPointToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side)
+        private void AddVerticalDimFromPointToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side, bool preferLocalBoundary = false)
         {
             var span = Math.Abs(to.Y - from.Y);
             if (span <= _config.GeometryTolerance)
@@ -1947,7 +1949,8 @@ namespace AutoFixtureDim
                 OverrideText = overrideText ?? string.Empty,
                 Span = span,
                 DimType = dimType,
-                UseSegmentedExtensionLines = true
+                UseSegmentedExtensionLines = true,
+                PreferLocalBoundary = preferLocalBoundary
             };
 
             side = ChooseVerticalNormalDimensionSide(dim, side);
@@ -5434,7 +5437,8 @@ namespace AutoFixtureDim
 
         private static bool CanUseLocalDimensionBoundary(DeferredDim dim)
         {
-            return dim.DimType == DimensionType.PinDistance
+            return dim.PreferLocalBoundary
+                || dim.DimType == DimensionType.PinDistance
                 || dim.DimType == DimensionType.PinGroupDistance;
         }
 

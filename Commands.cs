@@ -21,14 +21,14 @@ namespace AutoFixtureDim
             RunAutoFixDim(clearExistingBeforeGenerate: false);
         }
 
-        [CommandMethod("AUTOFIXDIMREGEN")]
-        public void AutoFixDimRegen()
+        [CommandMethod("ASD2")]
+        public void Asd2()
         {
             RunAutoFixDim(clearExistingBeforeGenerate: true);
         }
 
-        [CommandMethod("AUTOFIXDIMCLEAR")]
-        public void AutoFixDimClear()
+        [CommandMethod("ASD3")]
+        public void Asd3()
         {
             Document document = Application.DocumentManager.MdiActiveDocument;
             if (document == null)
@@ -50,7 +50,7 @@ namespace AutoFixtureDim
             }
             catch (System.Exception ex)
             {
-                editor.WriteMessage("\nAUTOFIXDIMCLEAR 发生异常: {0}", ex.Message);
+                editor.WriteMessage("\nASD3 发生异常: {0}", ex.Message);
             }
         }
 

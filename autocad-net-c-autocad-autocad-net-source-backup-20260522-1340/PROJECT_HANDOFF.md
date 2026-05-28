@@ -1,6 +1,79 @@
 # AUTOFIXDIM / ASD Handoff
 
-Last synced: 2026-05-26
+Last synced: 2026-05-28
+
+## 2026-05-28 Project Handoff Summary
+
+### 1. Current Project Goal
+- Maintain and iterate the AutoCAD 2020 .NET Framework plugin for semi-automatic fixture-part annotation.
+- Active command remains `ASD`; compatibility commands remain `AUTOFIXDIM`, `AUTOFIXDIMREGEN`, and `AUTOFIXDIMCLEAR`.
+- Current development focus is loose/scatter non-pin hole position layout: grouping, chain dimensions, duplicate suppression, side selection, and interaction with pin-hole datum dimensions.
+
+### 2. Completed Work
+- The current source was rolled back to the source corresponding to `autofixdim-LB34.dll`, then loose-hole layout work continued from that baseline.
+- `DimensionDrawer.cs` now has internal loose-hole planning models: `LooseHoleLineGroup`, `LooseHoleMacroGroup`, and `LooseHoleLocationPlan`.
+- Loose normal/thread holes are grouped by same specification plus same X or same Y axis, with long gaps split into separate natural chains.
+- Loose line groups and singleton loose holes are clustered into macro groups by spatial proximity.
+- Macro groups choose a pin reference and anchor loose hole by mutual-nearest logic, with fallback to shortest pin-base-to-hole distance.
+- Loose-hole center distances are emitted before loose-hole location dimensions.
+- Loose-hole location prefers chain-style positioning from the selected pin reference or already located nearby loose hole.
+- Loose-chain dimensions carry `LooseChainId`; post-processing avoids moving a single dimension out of its chain.
+- Same-side and cross-side duplicate suppression were tightened so repeated measured dimensions prefer tolerance/pin/datum/overall significance over plain duplicates.
+- Per the 2026-05-28 requirement, loose/scatter `HoleLocation` dimensions no longer use local boundary placement.
+- Local boundary placement is retained only for `PinDistance` and `PinGroupDistance`; loose-chain dimensions are excluded from local boundary lookup.
+- Latest compiled test DLL from current source: `bin\Debug\autofixdim-LB51.dll`.
+
+### 3. Key Modified Files
+- `DimensionDrawer.cs`: loose-hole grouping, macro grouping, chain IDs, loose-chain alignment, duplicate suppression, pin-distance local boundary behavior, and removal of loose-hole local boundary placement.
+- `PROJECT_HANDOFF.md`: this handoff summary and current test DLL references.
+- `中文注释.md`: untracked local note file exists; do not treat it as an official project document unless the user explicitly asks.
+
+### 4. Current Known Problems
+- `autofixdim-LB51.dll` still needs AutoCAD visual verification on the user's fixture drawings.
+- Loose-hole chains now align on a shared side, but after removing local boundary usage they use the global outline side baseline; visual distance may still need side/layer policy tuning.
+- Pin-hole center distance and pin-group locating dimensions can use local boundaries; their behavior near recesses/protrusions still needs manual confirmation.
+- Cross-side duplicate suppression should be checked on drawings that intentionally keep mirrored dimensions.
+- Loose macro grouping uses a heuristic threshold, so unusual drawings may still over-group or under-group loose holes.
+- Short loose-position dimensions use heuristic reference selection/text fitting; some cases may still need manual visual tuning.
+- There are no automated AutoCAD visual tests; validation is by `NETLOAD` plus manual `ASD` runs.
+
+### 5. Next Tasks
+- Load `bin\Debug\autofixdim-LB51.dll` in AutoCAD and run `ASD` on the highlighted loose-hole cases from 2026-05-28.
+- Confirm same-row loose-hole chains are visually collinear and not split across unintended levels or sides.
+- Confirm loose-hole dimensions no longer bind to local outline boundaries.
+- Confirm pin-hole `50±0.02` and pin-group `105±0.05` style dimensions still keep the intended tolerance and side behavior.
+- Verify duplicate suppression does not remove required functional dimensions.
+- If LB51 visual output is accepted, keep LB51 as the current handoff baseline; otherwise continue from current source and compile LB52 or later.
+
+### 6. Key Rules And Constraints
+- Do not create centerlines or a `CENTER` layer.
+- Generated objects must carry XData app name `AUTOFIXDIM` so `AUTOFIXDIMCLEAR` removes only plugin-generated annotations.
+- Pin holes keep `H7`; same-group pin spacing uses `±0.02`; pin-group locating dimensions use `±0.05`.
+- Normal/thread loose-hole location dimensions must not inherit pin tolerance text.
+- `RuleConfig.cs` remains the preferred place for machining-rule constants and tolerance text.
+- Loose/scatter `HoleLocation` dimensions must not use local boundary placement unless the user explicitly reverses the 2026-05-28 decision.
+- `PinDistance` and `PinGroupDistance` may use local boundary placement, but should not place dimension lines inside the real outer contour.
+- Do not reintroduce the abandoned `autofixdim-v89.dll` behavior that replaced long structural widths with chamfer projections.
+- Do not batch-delete files or directories. Use only one explicit file path per deletion, and never use recursive delete commands.
+
+### 7. Important Commands
+- Build:
+  `dotnet msbuild AutoFixtureDim.csproj /p:Configuration=Debug /p:PostBuildEvent= /p:DebugType=None /p:DebugSymbols=false /v:minimal`
+- Current test DLL:
+  `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB51.dll`
+- AutoCAD load command: `NETLOAD`, then select the current test DLL.
+- Main command: `ASD`
+- Regenerate command: `AUTOFIXDIMREGEN`
+- Clear generated annotations: `AUTOFIXDIMCLEAR`
+- Standard deploy script when explicitly needed:
+  `powershell -ExecutionPolicy Bypass -File .\deploy_next_version.ps1`
+
+### 8. Notes
+- AutoCAD can lock loaded DLL/PDB files. If copying over an existing test DLL fails, build without debug symbols and create a new `autofixdim-LB<N>.dll` suffix.
+- The current working tree contains modified `DimensionDrawer.cs`; do not assume the checked-out source is identical to a committed baseline.
+- The latest user-requested loose-hole rule change is: remove local boundary usage for loose/scatter hole dimensions, while keeping chain alignment behavior.
+- `AGENTS.md` is a rule file, not a changelog; avoid writing session history there.
+- Use exact dates in documentation instead of relative words.
 
 ## Goal
 AutoCAD 2020 .NET Framework plugin for semi-automatic fixture-part annotation. Active command is `ASD`; old commands remain for compatibility.
@@ -37,7 +110,7 @@ It never creates centerlines or a `CENTER` layer.
 - Build output: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\AutoFixtureDim.dll`
 - Deployment folder: `D:\app\不加班的小刘_工具箱\dll`
 - Deploy script: `.\deploy_next_version.ps1`
-- Latest test DLL from current source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB21.dll`
+- Latest test DLL from current source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB51.dll`
 - Pre-rewrite `DimensionDrawer.cs` backup requested by user: `D:\work\AI\project\1\DimensionDrawer.cs.bak`
 - Historical note: the earlier abandoned `autofixdim-v89.dll` build must not be used as a baseline. The source was rolled back to the `v88` logic before the rejected step-dimension replacement behavior, and the current `v89` suffix is reused for the diameter-style follow-current-child-style test build.
 
@@ -228,7 +301,7 @@ It never creates centerlines or a `CENTER` layer.
 - `FeatureRecognizer.DiagnosticsEnabled` gates hole, slot, chamfer, and fillet diagnostics and is false in the current source.
 
 ## Known Issues / Follow-Up
-- Step-dimension rules are in active redesign. The current LB21 source uses experimental four-side point-set and inner-groove endpoint rules; it needs AutoCAD verification before treating it as stable.
+- Step-dimension rules are in active redesign. The current LB51 source still contains experimental four-side point-set and inner-groove endpoint rules; it needs AutoCAD verification before treating it as stable.
 - The next durable design should still classify step candidates before emitting dimensions: `Overall`, `FeatureDerived`, `FeatureProjection`, `StructuralStep`, and `AmbiguousSmallStep`.
 - The handoff is now aligned to the current source behavior where `EmitPinGroupBaseTransfers` references the first pin group base for all later groups. If the intended design is a true previous-group chain, change the code deliberately and update this document at the same time.
 - The handoff is also aligned to the current source behavior where same-group pin spacing uses midpoint side selection and normal/thread holes assigned to pin groups use the owning group's side. If future visual testing expects per-target nearest side, adjust `EmitSameGroupPinDistances` / `EmitNonPinHoleLocations` deliberately.
@@ -237,7 +310,7 @@ It never creates centerlines or a `CENTER` layer.
 - Validate whether lower protrusion widths and chamfer-extension values match the user's intended blue-guide dimensions.
 - Roughness block placement may still need exact horizontal-line midpoint extraction from the generated dimension block if text-position anchoring is not visually correct.
 - `AnnotationPreview.cs` is legacy support; the active hole and corner placement flow uses `DrawJig`.
-- Current latest test DLL from source is `bin\Debug\autofixdim-LB21.dll`; it was compiled with `DebugSymbols=false` / `DebugType=None` because AutoCAD can lock `bin\Debug\AutoFixtureDim.pdb`.
+- Current latest test DLL from source is `bin\Debug\autofixdim-LB51.dll`; it was compiled with `DebugSymbols=false` / `DebugType=None` because AutoCAD can lock `bin\Debug\AutoFixtureDim.pdb`.
 - Post-layout shared-extension alignment still needs real-drawing visual verification. The key acceptance case is that a small dimension sharing an extension line with an outer dimension aligns outward when its arrows do not actually touch another dimension's arrows in 2D.
 - Diameter/thread spatial grouping assumes pin clusters define the natural hole groups. Verify no-pin drawings still place callouts in a sensible row/spatial order.
 
@@ -251,10 +324,10 @@ It never creates centerlines or a `CENTER` layer.
 - Latest compiled DLL:
   `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\AutoFixtureDim.dll`
 - Latest test DLL:
-  `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB21.dll`
+  `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB51.dll`
 
 ## Manual AutoCAD Test Checklist
-- Load `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB21.dll` with `NETLOAD` for the current local test build.
+- Load `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB51.dll` with `NETLOAD` for the current local test build.
 - Run `ASD`.
 - Select outline and hole geometry.
 - Pick the intended first-group datum pin.

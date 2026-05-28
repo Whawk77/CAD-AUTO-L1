@@ -25,7 +25,7 @@
 - Deployment folder: `D:\app\不加班的小刘_工具箱\dll`
 - Deploy script: `.\deploy_next_version.ps1`
 - Current user test DLL names use uppercase LB suffixes: `autofixdim-LBN.dll`; after compiling, increment the LB number and copy `bin\Debug\AutoFixtureDim.dll` to the new test DLL name.
-- Latest test DLL from current source: `bin\Debug\autofixdim-LB21.dll`.
+- Latest test DLL from current source: `bin\Debug\autofixdim-LB51.dll`.
 - Historical note: the earlier abandoned `autofixdim-v89.dll` build must not be used as a baseline. The source was rolled back to the `v88` logic before the rejected step-dimension replacement rule, and the current `v89` suffix is reused for the diameter-style follow-current-child-style test build.
 - AutoCAD may lock a loaded DLL; if copy fails because the DLL is busy, increment the suffix and load the fresh DLL.
 
@@ -97,6 +97,8 @@
 - Normal holes are positioned from the nearest available pin reference, preferring pin group bases on ties.
 - Thread holes follow the same positioning rule as normal holes and never become pin-group bases.
 - If no pin holes exist, normal/thread holes fall back to outline/datum-edge positioning.
+- Loose/scatter normal and thread hole `HoleLocation` dimensions must not use local boundary placement unless the user explicitly changes this rule.
+- `PinDistance` and `PinGroupDistance` may use local boundary placement, but the dimension line must stay outside the real outer contour.
 - Zero-length dimensions must never be emitted.
 
 ## Dimension Stacking Rules

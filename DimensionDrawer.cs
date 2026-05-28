@@ -28,6 +28,7 @@ namespace AutoFixtureDim
         private readonly List<DeferredDim> _leftDims = new List<DeferredDim>();
         private readonly List<DeferredDim> _rightDims = new List<DeferredDim>();
         private readonly List<TextBounds> _linearDimTextObstacles = new List<TextBounds>();
+        private int _nextLooseChainId = 1;
 
         private enum DimSide { Bottom, Top, Left, Right }
 
@@ -41,6 +42,7 @@ namespace AutoFixtureDim
             public DimensionType DimType;
             public bool UseSegmentedExtensionLines;
             public bool ForceOuterLevel;
+            public int LooseChainId;
         }
 
         private struct PlacedDim
@@ -74,6 +76,26 @@ namespace AutoFixtureDim
         {
             public PinGroupPlan PinGroup { get; set; }
             public List<HoleFeature> Holes { get; } = new List<HoleFeature>();
+        }
+
+        private sealed class LooseHoleLineGroup
+        {
+            public bool Horizontal { get; set; }
+            public string SpecKey { get; set; }
+            public List<HoleFeature> Holes { get; } = new List<HoleFeature>();
+        }
+
+        private sealed class LooseHoleMacroGroup
+        {
+            public List<LooseHoleLineGroup> LineGroups { get; } = new List<LooseHoleLineGroup>();
+            public List<HoleFeature> Holes { get; } = new List<HoleFeature>();
+        }
+
+        private sealed class LooseHoleLocationPlan
+        {
+            public LooseHoleMacroGroup MacroGroup { get; set; }
+            public PinGroupPlan ReferencePinGroup { get; set; }
+            public HoleFeature AnchorHole { get; set; }
         }
 
         public DimensionDrawer(
@@ -826,110 +848,119 @@ namespace AutoFixtureDim
             IList<PinGroupPlan> pinGroups,
             IList<HoleFeature> groupedHoles)
         {
-            var horizontalEmitted = new List<HoleFeature>();
-            var verticalEmitted = new List<HoleFeature>();
-            foreach (var group in pinGroups)
-            {
-                var loose = holes
-                    .Where(h => h != null && !h.IsPinHole && !h.IsSlotPoint)
-                    .Where(h => !ContainsHole(groupedHoles, h))
-                    .Where(h => group.MemberHoles.Any(m => IsSameHole(m, h)))
-                    .OrderBy(h => DistanceSquared(h.Center, group.BasePin.Center))
-                    .ToList();
-
-                EmitLooseScatterChain(loose, group, horizontalEmitted, verticalEmitted);
-            }
-
-            foreach (var hole in holes.Where(h => !h.IsPinHole && !h.IsSlotPoint))
-            {
-                if (ContainsHole(groupedHoles, hole)
-                    || (ContainsHole(horizontalEmitted, hole) && ContainsHole(verticalEmitted, hole)))
-                {
-                    continue;
-                }
-
-                var group = pinGroups.FirstOrDefault(g => g.MemberHoles.Any(h => IsSameHole(h, hole)))
-                    ?? pinGroups.OrderBy(g => DistanceToPinPair(hole, g)).FirstOrDefault();
-                if (group == null)
-                {
-                    continue;
-                }
-
-                var reference = group.BasePin;
-                if (reference == null)
-                {
-                    continue;
-                }
-
-                EmitLooseScatterChain(new List<HoleFeature> { hole }, group, horizontalEmitted, verticalEmitted);
-            }
-        }
-
-        private void EmitLooseScatterChain(
-            IList<HoleFeature> loose,
-            PinGroupPlan group,
-            IList<HoleFeature> horizontalEmitted,
-            IList<HoleFeature> verticalEmitted)
-        {
-            if (loose == null || loose.Count == 0 || group == null || group.BasePin == null)
+            var loose = holes
+                .Where(h => h != null && !h.IsPinHole && !h.IsSlotPoint)
+                .Where(h => !ContainsHole(groupedHoles, h))
+                .ToList();
+            if (loose.Count == 0 || pinGroups.Count == 0)
             {
                 return;
             }
 
-            var horizontalLoose = loose.Where(h => !ContainsHole(horizontalEmitted, h)).ToList();
-            var verticalLoose = loose.Where(h => !ContainsHole(verticalEmitted, h)).ToList();
-            var anchor = loose
-                .OrderBy(h => DistanceSquared(h.Center, group.BasePin.Center))
-                .ThenBy(h => h.Center.X)
-                .ThenBy(h => h.Center.Y)
-                .First();
+            var lineGroups = BuildLooseHoleLineGroups(loose);
+            var macroGroups = BuildLooseHoleMacroGroups(loose, lineGroups);
+            var plans = macroGroups
+                .Select(macro => BuildLooseHoleLocationPlan(macro, pinGroups))
+                .Where(plan => plan.ReferencePinGroup != null && plan.ReferencePinGroup.BasePin != null && plan.AnchorHole != null)
+                .OrderBy(plan => DistanceSquared(plan.ReferencePinGroup.BasePin.Center, plan.AnchorHole.Center))
+                .ThenBy(plan => plan.AnchorHole.Center.X)
+                .ThenBy(plan => plan.AnchorHole.Center.Y)
+                .ToList();
 
-            if (horizontalLoose.Count > 0)
+            foreach (var plan in plans)
             {
-                AddHorizontalDimToSide(group.BasePin.Center, anchor.Center, string.Empty, DimensionType.HoleLocation, group.HorizontalSide);
-                AddLooseAxisChain(horizontalLoose, group, horizontal: true);
-                foreach (var hole in horizontalLoose)
-                {
-                    horizontalEmitted.Add(hole);
-                }
-            }
-
-            if (verticalLoose.Count > 0)
-            {
-                AddVerticalDimToSide(group.BasePin.Center, anchor.Center, string.Empty, DimensionType.HoleLocation, group.VerticalSide);
-                AddLooseAxisChain(verticalLoose, group, horizontal: false);
-                foreach (var hole in verticalLoose)
-                {
-                    verticalEmitted.Add(hole);
-                }
+                EmitLooseHoleMacroGroup(outline, plan);
             }
         }
 
-        private void AddLooseAxisChain(IList<HoleFeature> holes, PinGroupPlan group, bool horizontal)
+        private List<LooseHoleLineGroup> BuildLooseHoleLineGroups(IList<HoleFeature> holes)
         {
-            var ordered = holes
-                .OrderBy(h => horizontal ? h.Center.X : h.Center.Y)
-                .ThenBy(h => horizontal ? h.Center.Y : h.Center.X)
-                .ToList();
-
-            for (int i = 1; i < ordered.Count; i++)
+            var result = new List<LooseHoleLineGroup>();
+            foreach (var specGroup in GroupLooseHolesBySpec(holes))
             {
-                if (horizontal)
+                foreach (var horizontal in new[] { true, false })
                 {
-                    AddHorizontalDimToSide(ordered[i - 1].Center, ordered[i].Center, string.Empty, DimensionType.HoleLocation, group.HorizontalSide);
-                }
-                else
-                {
-                    AddVerticalDimToSide(ordered[i - 1].Center, ordered[i].Center, string.Empty, DimensionType.HoleLocation, group.VerticalSide);
+                    foreach (var coordinateGroup in GroupLooseHolesByCoordinate(specGroup, horizontal))
+                    {
+                        foreach (var chain in SplitLooseCoordinateGroupIntoChains(coordinateGroup, horizontal))
+                        {
+                            if (chain.Count < 2)
+                            {
+                                continue;
+                            }
+
+                            var lineGroup = new LooseHoleLineGroup
+                            {
+                                Horizontal = horizontal,
+                                SpecKey = GetLooseHoleSpecKey(chain[0])
+                            };
+                            foreach (var hole in chain)
+                            {
+                                lineGroup.Holes.Add(hole);
+                            }
+
+                            result.Add(lineGroup);
+                        }
+                    }
                 }
             }
+
+            return result;
+        }
+
+        private IEnumerable<List<HoleFeature>> GroupLooseHolesBySpec(IList<HoleFeature> holes)
+        {
+            var groups = new List<List<HoleFeature>>();
+            foreach (var hole in holes.OrderBy(GetLooseHoleSpecKey).ThenBy(h => h.Center.X).ThenBy(h => h.Center.Y))
+            {
+                var group = groups.FirstOrDefault(g => AreSameLooseHoleSpec(g[0], hole));
+                if (group == null)
+                {
+                    group = new List<HoleFeature>();
+                    groups.Add(group);
+                }
+
+                group.Add(hole);
+            }
+
+            return groups;
+        }
+
+        private string GetLooseHoleSpecKey(HoleFeature hole)
+        {
+            if (hole == null)
+            {
+                return string.Empty;
+            }
+
+            if (hole.IsThreadHole)
+            {
+                return "Thread:" + (hole.ThreadCallout ?? string.Empty) + ":" + _config.FormatNumber(hole.Diameter);
+            }
+
+            return hole.HoleKind + ":" + _config.FormatNumber(hole.Diameter);
+        }
+
+        private bool AreSameLooseHoleSpec(HoleFeature a, HoleFeature b)
+        {
+            if (a == null || b == null || a.HoleKind != b.HoleKind)
+            {
+                return false;
+            }
+
+            if (a.IsThreadHole && !string.Equals(a.ThreadCallout ?? string.Empty, b.ThreadCallout ?? string.Empty, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return Math.Abs(a.Diameter - b.Diameter) <= _config.GeometryTolerance;
         }
 
         private IEnumerable<List<HoleFeature>> GroupLooseHolesByCoordinate(IList<HoleFeature> holes, bool horizontal)
         {
             var tolerance = GetFunctionalHoleAlignmentTolerance();
             var groups = new List<List<HoleFeature>>();
-            foreach (var hole in holes)
+            foreach (var hole in holes.OrderBy(h => horizontal ? h.Center.Y : h.Center.X))
             {
                 var coordinate = horizontal ? hole.Center.Y : hole.Center.X;
                 var group = groups.FirstOrDefault(g => Math.Abs(g.Average(h => horizontal ? h.Center.Y : h.Center.X) - coordinate) <= tolerance);
@@ -942,7 +973,49 @@ namespace AutoFixtureDim
                 group.Add(hole);
             }
 
-            return groups.Where(g => g.Count >= 2);
+            return groups
+                .Where(g => g.Count >= 2)
+                .OrderBy(g => g.Average(h => horizontal ? h.Center.Y : h.Center.X))
+                .Select(g => g
+                    .OrderBy(h => horizontal ? h.Center.X : h.Center.Y)
+                    .ThenBy(h => horizontal ? h.Center.Y : h.Center.X)
+                    .ToList());
+        }
+
+        private IEnumerable<List<HoleFeature>> SplitLooseCoordinateGroupIntoChains(IList<HoleFeature> holes, bool horizontal)
+        {
+            var ordered = holes
+                .OrderBy(h => horizontal ? h.Center.X : h.Center.Y)
+                .ThenBy(h => horizontal ? h.Center.Y : h.Center.X)
+                .ToList();
+            if (ordered.Count <= 2 || HasContinuousHoleSpacing(ordered, horizontal))
+            {
+                yield return ordered;
+                yield break;
+            }
+
+            var gaps = GetLooseHoleAxisGaps(ordered, horizontal);
+            if (gaps.Count == 0)
+            {
+                yield return ordered;
+                yield break;
+            }
+
+            var breakGap = gaps.Min() * 2.5;
+            var current = new List<HoleFeature> { ordered[0] };
+            for (int i = 1; i < ordered.Count; i++)
+            {
+                var gap = GetAxisDistance(ordered[i - 1].Center, ordered[i].Center, horizontal);
+                if (gap > breakGap)
+                {
+                    yield return current;
+                    current = new List<HoleFeature>();
+                }
+
+                current.Add(ordered[i]);
+            }
+
+            yield return current;
         }
 
         private bool HasContinuousHoleSpacing(IList<HoleFeature> holes, bool horizontal)
@@ -967,6 +1040,436 @@ namespace AutoFixtureDim
             }
 
             return gaps.Max() <= gaps.Min() * 2.5;
+        }
+
+        private List<double> GetLooseHoleAxisGaps(IList<HoleFeature> ordered, bool horizontal)
+        {
+            var gaps = new List<double>();
+            for (int i = 1; i < ordered.Count; i++)
+            {
+                var gap = GetAxisDistance(ordered[i - 1].Center, ordered[i].Center, horizontal);
+                if (gap > _config.GeometryTolerance)
+                {
+                    gaps.Add(gap);
+                }
+            }
+
+            return gaps;
+        }
+
+        private double GetAxisDistance(Point3d a, Point3d b, bool horizontal)
+        {
+            return Math.Abs((horizontal ? b.X : b.Y) - (horizontal ? a.X : a.Y));
+        }
+
+        private List<LooseHoleMacroGroup> BuildLooseHoleMacroGroups(IList<HoleFeature> holes, IList<LooseHoleLineGroup> lineGroups)
+        {
+            var seeds = new List<LooseHoleMacroGroup>();
+            foreach (var lineGroup in lineGroups)
+            {
+                var seed = new LooseHoleMacroGroup();
+                seed.LineGroups.Add(lineGroup);
+                AddUniqueHoles(seed.Holes, lineGroup.Holes);
+                seeds.Add(seed);
+            }
+
+            foreach (var hole in holes)
+            {
+                if (seeds.Any(existingSeed => ContainsHole(existingSeed.Holes, hole)))
+                {
+                    continue;
+                }
+
+                var singleSeed = new LooseHoleMacroGroup();
+                singleSeed.Holes.Add(hole);
+                seeds.Add(singleSeed);
+            }
+
+            var threshold = GetLooseMacroGroupDistanceThreshold(holes);
+            var merged = true;
+            while (merged)
+            {
+                merged = false;
+                for (int i = 0; i < seeds.Count && !merged; i++)
+                {
+                    for (int j = i + 1; j < seeds.Count; j++)
+                    {
+                        if (GetMacroGroupDistance(seeds[i], seeds[j]) > threshold)
+                        {
+                            continue;
+                        }
+
+                        AddUniqueHoles(seeds[i].Holes, seeds[j].Holes);
+                        foreach (var lineGroup in seeds[j].LineGroups)
+                        {
+                            if (!seeds[i].LineGroups.Contains(lineGroup))
+                            {
+                                seeds[i].LineGroups.Add(lineGroup);
+                            }
+                        }
+
+                        seeds.RemoveAt(j);
+                        merged = true;
+                        break;
+                    }
+                }
+            }
+
+            return seeds
+                .Where(seed => seed.Holes.Count > 0)
+                .OrderBy(seed => seed.Holes.Average(h => h.Center.X))
+                .ThenBy(seed => seed.Holes.Average(h => h.Center.Y))
+                .ToList();
+        }
+
+        private double GetLooseMacroGroupDistanceThreshold(IList<HoleFeature> holes)
+        {
+            var spacings = new List<double>();
+            foreach (var horizontal in new[] { true, false })
+            {
+                foreach (var coordinateGroup in GroupLooseHolesByCoordinate(holes, horizontal))
+                {
+                    var ordered = coordinateGroup
+                        .OrderBy(h => horizontal ? h.Center.X : h.Center.Y)
+                        .ToList();
+                    spacings.AddRange(GetLooseHoleAxisGaps(ordered, horizontal));
+                }
+            }
+
+            var medianSpacing = spacings.Count == 0
+                ? 0.0
+                : spacings.OrderBy(v => v).ElementAt(spacings.Count / 2);
+            return Math.Max(medianSpacing * 2.5, Scale(_config.TextHeight * 6.0));
+        }
+
+        private double GetMacroGroupDistance(LooseHoleMacroGroup a, LooseHoleMacroGroup b)
+        {
+            if (a == null || b == null || a.Holes.Count == 0 || b.Holes.Count == 0)
+            {
+                return double.MaxValue;
+            }
+
+            var aMinX = a.Holes.Min(h => h.Center.X);
+            var aMaxX = a.Holes.Max(h => h.Center.X);
+            var aMinY = a.Holes.Min(h => h.Center.Y);
+            var aMaxY = a.Holes.Max(h => h.Center.Y);
+            var bMinX = b.Holes.Min(h => h.Center.X);
+            var bMaxX = b.Holes.Max(h => h.Center.X);
+            var bMinY = b.Holes.Min(h => h.Center.Y);
+            var bMaxY = b.Holes.Max(h => h.Center.Y);
+
+            var dx = Math.Max(0.0, Math.Max(bMinX - aMaxX, aMinX - bMaxX));
+            var dy = Math.Max(0.0, Math.Max(bMinY - aMaxY, aMinY - bMaxY));
+            return Math.Sqrt(dx * dx + dy * dy);
+        }
+
+        private LooseHoleLocationPlan BuildLooseHoleLocationPlan(LooseHoleMacroGroup macroGroup, IList<PinGroupPlan> pinGroups)
+        {
+            var plan = new LooseHoleLocationPlan { MacroGroup = macroGroup };
+            var bestMutualDistance = double.MaxValue;
+            foreach (var pinGroup in pinGroups.Where(g => g != null && g.BasePin != null))
+            {
+                var nearestHole = macroGroup.Holes
+                    .OrderBy(h => DistanceSquared(h.Center, pinGroup.BasePin.Center))
+                    .ThenBy(h => h.Center.X)
+                    .ThenBy(h => h.Center.Y)
+                    .FirstOrDefault();
+                if (nearestHole == null)
+                {
+                    continue;
+                }
+
+                var nearestPinGroup = pinGroups
+                    .Where(g => g != null && g.BasePin != null)
+                    .OrderBy(g => DistanceSquared(nearestHole.Center, g.BasePin.Center))
+                    .ThenBy(g => g.BasePin.Center.X)
+                    .ThenBy(g => g.BasePin.Center.Y)
+                    .FirstOrDefault();
+                if (nearestPinGroup != pinGroup)
+                {
+                    continue;
+                }
+
+                var distance = DistanceSquared(nearestHole.Center, pinGroup.BasePin.Center);
+                if (distance >= bestMutualDistance)
+                {
+                    continue;
+                }
+
+                bestMutualDistance = distance;
+                plan.ReferencePinGroup = pinGroup;
+                plan.AnchorHole = nearestHole;
+            }
+
+            if (plan.ReferencePinGroup != null)
+            {
+                return plan;
+            }
+
+            var fallback = pinGroups
+                .Where(g => g != null && g.BasePin != null)
+                .SelectMany(g => macroGroup.Holes.Select(h => new { PinGroup = g, Hole = h, Distance = DistanceSquared(g.BasePin.Center, h.Center) }))
+                .OrderBy(x => x.Distance)
+                .ThenBy(x => x.Hole.Center.X)
+                .ThenBy(x => x.Hole.Center.Y)
+                .FirstOrDefault();
+            if (fallback != null)
+            {
+                plan.ReferencePinGroup = fallback.PinGroup;
+                plan.AnchorHole = fallback.Hole;
+            }
+
+            return plan;
+        }
+
+        private void EmitLooseHoleMacroGroup(OutlineFeature outline, LooseHoleLocationPlan plan)
+        {
+            var centerEdges = EmitLooseHoleCenterDistances(outline, plan.MacroGroup.LineGroups);
+            var located = new List<HoleFeature> { plan.AnchorHole };
+            ExpandLocatedLooseHolesByCenterEdges(located, centerEdges);
+
+            EmitLooseHoleLocationPair(outline, plan.ReferencePinGroup, plan.ReferencePinGroup.BasePin.Center, plan.AnchorHole, located, forcePinReference: true);
+
+            while (located.Count < plan.MacroGroup.Holes.Count)
+            {
+                var target = plan.MacroGroup.Holes
+                    .Where(h => !ContainsHole(located, h))
+                    .OrderBy(h => GetNearestLooseLocationDistance(h, located, plan.ReferencePinGroup.BasePin.Center))
+                    .ThenBy(h => h.Center.X)
+                    .ThenBy(h => h.Center.Y)
+                    .FirstOrDefault();
+                if (target == null)
+                {
+                    break;
+                }
+
+                EmitLooseHoleLocationPair(outline, plan.ReferencePinGroup, plan.ReferencePinGroup.BasePin.Center, target, located, forcePinReference: false);
+                located.Add(target);
+                ExpandLocatedLooseHolesByCenterEdges(located, centerEdges);
+            }
+        }
+
+        private List<Tuple<HoleFeature, HoleFeature>> EmitLooseHoleCenterDistances(OutlineFeature outline, IList<LooseHoleLineGroup> lineGroups)
+        {
+            var edges = new List<Tuple<HoleFeature, HoleFeature>>();
+            var emitted = new HashSet<string>();
+            foreach (var lineGroup in lineGroups)
+            {
+                var ordered = lineGroup.Holes
+                    .OrderBy(h => lineGroup.Horizontal ? h.Center.X : h.Center.Y)
+                    .ThenBy(h => lineGroup.Horizontal ? h.Center.Y : h.Center.X)
+                    .ToList();
+                var chainId = _nextLooseChainId++;
+                var side = ChooseLooseDimensionSide(outline, ordered, lineGroup.Horizontal);
+                for (int i = 1; i < ordered.Count; i++)
+                {
+                    var key = GetLooseDimKey(ordered[i - 1], ordered[i], lineGroup.Horizontal);
+                    if (!emitted.Add(key))
+                    {
+                        continue;
+                    }
+
+                    var dim = CreateHoleLocationDim(ordered[i - 1].Center, ordered[i].Center, lineGroup.Horizontal, chainId);
+                    AddDeferredDimensionToSide(dim, side);
+                    edges.Add(Tuple.Create(ordered[i - 1], ordered[i]));
+                }
+            }
+
+            return edges;
+        }
+
+        private void EmitLooseHoleLocationPair(
+            OutlineFeature outline,
+            PinGroupPlan referencePinGroup,
+            Point3d pinReference,
+            HoleFeature target,
+            IList<HoleFeature> located,
+            bool forcePinReference)
+        {
+            var horizontalReference = forcePinReference
+                ? pinReference
+                : ChooseLooseLocationReference(pinReference, target, located, horizontal: true);
+            if (Math.Abs(horizontalReference.X - target.Center.X) > _config.GeometryTolerance)
+            {
+                var chainId = _nextLooseChainId++;
+                var dim = CreateHoleLocationDim(horizontalReference, target.Center, horizontal: true, chainId: chainId);
+                AddDeferredDimensionToSide(dim, ChooseLooseDimensionSide(outline, new[] { target }, horizontal: true));
+            }
+
+            var verticalReference = forcePinReference
+                ? pinReference
+                : ChooseLooseLocationReference(pinReference, target, located, horizontal: false);
+            if (Math.Abs(verticalReference.Y - target.Center.Y) > _config.GeometryTolerance)
+            {
+                var chainId = _nextLooseChainId++;
+                var dim = CreateHoleLocationDim(verticalReference, target.Center, horizontal: false, chainId: chainId);
+                AddDeferredDimensionToSide(dim, ChooseLooseDimensionSide(outline, new[] { target }, horizontal: false));
+            }
+        }
+
+        private Point3d ChooseLooseLocationReference(Point3d pinReference, HoleFeature target, IList<HoleFeature> located, bool horizontal)
+        {
+            var candidates = new List<Point3d> { pinReference };
+            candidates.AddRange(located.Where(h => !IsSameHole(h, target)).Select(h => h.Center));
+            var sameAxisCandidates = candidates
+                .Where(p => horizontal
+                    ? Math.Abs(p.Y - target.Center.Y) <= GetFunctionalHoleAlignmentTolerance()
+                    : Math.Abs(p.X - target.Center.X) <= GetFunctionalHoleAlignmentTolerance())
+                .ToList();
+            var usable = sameAxisCandidates.Count > 0 ? sameAxisCandidates : candidates;
+            var fitting = usable
+                .Where(p => LooseLocationTextFits(p, target.Center, horizontal))
+                .ToList();
+            if (fitting.Count > 0)
+            {
+                usable = fitting;
+            }
+
+            return usable
+                .OrderBy(p => Math.Abs((horizontal ? p.X : p.Y) - (horizontal ? target.Center.X : target.Center.Y)))
+                .ThenBy(p => DistanceSquared(p, target.Center))
+                .First();
+        }
+
+        private bool LooseLocationTextFits(Point3d from, Point3d to, bool horizontal)
+        {
+            var span = horizontal ? Math.Abs(to.X - from.X) : Math.Abs(to.Y - from.Y);
+            if (span <= _config.GeometryTolerance)
+            {
+                return false;
+            }
+
+            var text = _config.FormatNumber(span);
+            var textLength = Math.Max(text.Length, 2) * GetDimStyleTextHeight(_dimStyleId) * 0.7;
+            return textLength <= span - Math.Max(_config.GeometryTolerance, GetDimStyleTextHeight(_dimStyleId) * 0.5);
+        }
+
+        private double GetNearestLooseLocationDistance(HoleFeature target, IList<HoleFeature> located, Point3d pinReference)
+        {
+            var best = DistanceSquared(target.Center, pinReference);
+            foreach (var hole in located)
+            {
+                best = Math.Min(best, DistanceSquared(target.Center, hole.Center));
+            }
+
+            return best;
+        }
+
+        private void ExpandLocatedLooseHolesByCenterEdges(IList<HoleFeature> located, IList<Tuple<HoleFeature, HoleFeature>> edges)
+        {
+            var changed = true;
+            while (changed)
+            {
+                changed = false;
+                foreach (var edge in edges)
+                {
+                    var firstLocated = ContainsHole(located, edge.Item1);
+                    var secondLocated = ContainsHole(located, edge.Item2);
+                    if (firstLocated && !secondLocated)
+                    {
+                        located.Add(edge.Item2);
+                        changed = true;
+                    }
+                    else if (secondLocated && !firstLocated)
+                    {
+                        located.Add(edge.Item1);
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+        private DeferredDim CreateHoleLocationDim(Point3d from, Point3d to, bool horizontal, int chainId)
+        {
+            var span = horizontal ? Math.Abs(to.X - from.X) : Math.Abs(to.Y - from.Y);
+            return new DeferredDim
+            {
+                Rotation = horizontal ? 0.0 : Math.PI / 2.0,
+                XLine1 = from,
+                XLine2 = to,
+                OverrideText = string.Empty,
+                Span = span,
+                DimType = DimensionType.HoleLocation,
+                UseSegmentedExtensionLines = true,
+                LooseChainId = chainId
+            };
+        }
+
+        private DimSide ChooseLooseDimensionSide(OutlineFeature outline, IEnumerable<HoleFeature> holes, bool horizontal)
+        {
+            var points = holes.Select(h => h.Center).ToList();
+            if (points.Count == 0)
+            {
+                return horizontal ? DimSide.Bottom : DimSide.Left;
+            }
+
+            if (horizontal)
+            {
+                var averageY = points.Average(p => p.Y);
+                return Math.Abs(averageY - outline.MinY) <= Math.Abs(outline.MaxY - averageY)
+                    ? DimSide.Bottom
+                    : DimSide.Top;
+            }
+
+            var averageX = points.Average(p => p.X);
+            return Math.Abs(averageX - outline.MinX) <= Math.Abs(outline.MaxX - averageX)
+                ? DimSide.Left
+                : DimSide.Right;
+        }
+
+        private void AddDeferredDimensionToSide(DeferredDim dim, DimSide side)
+        {
+            if (dim.Span <= _config.GeometryTolerance)
+            {
+                return;
+            }
+
+            if (side == DimSide.Bottom)
+            {
+                _bottomDims.Add(dim);
+            }
+            else if (side == DimSide.Top)
+            {
+                _topDims.Add(dim);
+            }
+            else if (side == DimSide.Right)
+            {
+                _rightDims.Add(dim);
+            }
+            else
+            {
+                _leftDims.Add(dim);
+            }
+        }
+
+        private string GetLooseDimKey(HoleFeature a, HoleFeature b, bool horizontal)
+        {
+            var first = GetHolePointKey(a);
+            var second = GetHolePointKey(b);
+            if (string.CompareOrdinal(first, second) > 0)
+            {
+                var temp = first;
+                first = second;
+                second = temp;
+            }
+
+            return (horizontal ? "H:" : "V:") + first + ":" + second;
+        }
+
+        private string GetHolePointKey(HoleFeature hole)
+        {
+            return _config.FormatNumber(hole.Center.X) + "," + _config.FormatNumber(hole.Center.Y);
+        }
+
+        private void AddUniqueHoles(IList<HoleFeature> target, IEnumerable<HoleFeature> source)
+        {
+            foreach (var hole in source)
+            {
+                if (!ContainsHole(target, hole))
+                {
+                    target.Add(hole);
+                }
+            }
         }
 
         private bool ContainsHole(IEnumerable<HoleFeature> holes, HoleFeature target)
@@ -3967,6 +4470,8 @@ namespace AutoFixtureDim
 
         private void RebalanceVerticalHoleLocationSide(List<DeferredDim> sourceDims, List<DeferredDim> targetDims)
         {
+            RebalanceVerticalLooseChains(sourceDims, targetDims);
+
             for (int i = sourceDims.Count - 1; i >= 0; i--)
             {
                 var dim = sourceDims[i];
@@ -3991,9 +4496,57 @@ namespace AutoFixtureDim
             }
         }
 
+        private void RebalanceVerticalLooseChains(List<DeferredDim> sourceDims, List<DeferredDim> targetDims)
+        {
+            var chainIds = sourceDims
+                .Where(dim => dim.LooseChainId != 0 && dim.DimType == DimensionType.HoleLocation)
+                .Select(dim => dim.LooseChainId)
+                .Distinct()
+                .ToList();
+
+            foreach (var chainId in chainIds)
+            {
+                var chainDims = sourceDims.Where(dim => dim.LooseChainId == chainId).ToList();
+                if (chainDims.Count == 0 || chainDims.Any(dim => !CanRebalanceVerticalLooseChainDimension(dim)))
+                {
+                    continue;
+                }
+
+                var sourceWithoutChain = sourceDims
+                    .Where(dim => dim.LooseChainId != chainId)
+                    .ToList();
+                var sourceScore = chainDims.Sum(dim => ScoreVerticalSideCrowding(dim, sourceWithoutChain));
+                var targetScore = chainDims.Sum(dim => ScoreVerticalSideCrowding(dim, targetDims));
+                var threshold = Math.Max(2, chainDims.Count);
+                if (sourceScore - targetScore < threshold)
+                {
+                    continue;
+                }
+
+                for (int i = sourceDims.Count - 1; i >= 0; i--)
+                {
+                    if (sourceDims[i].LooseChainId != chainId)
+                    {
+                        continue;
+                    }
+
+                    targetDims.Add(sourceDims[i]);
+                    sourceDims.RemoveAt(i);
+                }
+            }
+        }
+
+        private bool CanRebalanceVerticalLooseChainDimension(DeferredDim dim)
+        {
+            return dim.DimType == DimensionType.HoleLocation
+                && IsShortVerticalDimension(dim)
+                && !dim.ForceOuterLevel;
+        }
+
         private bool CanRebalanceVerticalHoleLocation(DeferredDim dim)
         {
             return dim.DimType == DimensionType.HoleLocation
+                && dim.LooseChainId == 0
                 && IsShortVerticalDimension(dim)
                 && !dim.ForceOuterLevel;
         }
@@ -4010,11 +4563,13 @@ namespace AutoFixtureDim
 
                 if (_bottomDims.Any(bottom =>
                     CanSuppressMirroredHorizontalDimension(bottom)
-                    && IsDuplicate(top, bottom, isHorizontal: true)))
+                        && IsDuplicate(top, bottom, isHorizontal: true)))
                 {
                     _topDims.RemoveAt(i);
                 }
             }
+
+            SuppressMirroredHoleRelatedDuplicates(_bottomDims, _topDims, isHorizontal: true);
         }
 
         private static bool CanSuppressMirroredHorizontalDimension(DeferredDim dim)
@@ -4034,16 +4589,53 @@ namespace AutoFixtureDim
 
                 if (_leftDims.Any(left =>
                     CanSuppressMirroredVerticalDimension(left)
-                    && IsDuplicate(right, left, isHorizontal: false)))
+                        && IsDuplicate(right, left, isHorizontal: false)))
                 {
                     _rightDims.RemoveAt(i);
                 }
             }
+
+            SuppressMirroredHoleRelatedDuplicates(_leftDims, _rightDims, isHorizontal: false);
         }
 
         private static bool CanSuppressMirroredVerticalDimension(DeferredDim dim)
         {
             return dim.DimType == DimensionType.Normal && !dim.ForceOuterLevel;
+        }
+
+        private void SuppressMirroredHoleRelatedDuplicates(List<DeferredDim> primaryDims, List<DeferredDim> secondaryDims, bool isHorizontal)
+        {
+            for (int i = secondaryDims.Count - 1; i >= 0; i--)
+            {
+                var secondary = secondaryDims[i];
+                for (int j = primaryDims.Count - 1; j >= 0; j--)
+                {
+                    var primary = primaryDims[j];
+                    if (!CanSuppressMirroredHoleRelatedDimension(primary, secondary)
+                        || !IsSameMeasuredDimension(primary, secondary, isHorizontal))
+                    {
+                        continue;
+                    }
+
+                    if (CompareDuplicatePreference(secondary, primary) > 0)
+                    {
+                        primaryDims.RemoveAt(j);
+                    }
+                    else
+                    {
+                        secondaryDims.RemoveAt(i);
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        private static bool CanSuppressMirroredHoleRelatedDimension(DeferredDim a, DeferredDim b)
+        {
+            return !a.ForceOuterLevel
+                && !b.ForceOuterLevel
+                && (a.DimType == DimensionType.HoleLocation || b.DimType == DimensionType.HoleLocation);
         }
 
         private void FlushSide(List<DeferredDim> dims, DimSide side, OutlineFeature outline, double perLevelSpacing)
@@ -4061,6 +4653,8 @@ namespace AutoFixtureDim
 
             var firstOffset = Scale(_config.FirstDimOffset);
             var layers = new List<List<(DeferredDim Dim, double TxtA, double TxtB, double ArrA, double ArrB)>>();
+            var looseChainLevels = new Dictionary<int, int>();
+            int? looseSideLevel = null;
 
             foreach (var dim in dims)
             {
@@ -4079,7 +4673,20 @@ namespace AutoFixtureDim
                     }
                 }
 
+                int chainLevel;
                 int targetLevel = dim.ForceOuterLevel ? Math.Max(minLevel, layers.Count) : minLevel;
+                if (isHorizontal
+                    && !dim.ForceOuterLevel
+                    && dim.LooseChainId != 0
+                    && looseChainLevels.TryGetValue(dim.LooseChainId, out chainLevel))
+                {
+                    targetLevel = Math.Max(chainLevel, minLevel);
+                }
+                if (isHorizontal && !dim.ForceOuterLevel && dim.LooseChainId != 0 && looseSideLevel.HasValue)
+                {
+                    targetLevel = Math.Max(looseSideLevel.Value, minLevel);
+                }
+
                 while (true)
                 {
                     double offset = firstOffset + targetLevel * perLevelSpacing;
@@ -4094,6 +4701,18 @@ namespace AutoFixtureDim
                         bool textOk = true;
                         foreach (var existing in layers[targetLevel])
                         {
+                            if (isHorizontal && dim.LooseChainId != 0 && existing.Dim.LooseChainId != 0)
+                            {
+                                continue;
+                            }
+
+                            if (isHorizontal
+                                && CanIgnoreTextConflictWithLooseChain(dim, existing.Dim)
+                                && !HasStrictArrowConflict(arrow.A, arrow.B, existing.ArrA, existing.ArrB))
+                            {
+                                continue;
+                            }
+
                             if (!AreCompatible(existing.TxtA, existing.TxtB, textBox.A, textBox.B, gap))
                             {
                                 textOk = false;
@@ -4112,6 +4731,13 @@ namespace AutoFixtureDim
                         layers.Add(new List<(DeferredDim, double, double, double, double)>());
                     }
                     break;
+                }
+
+                if (isHorizontal && dim.LooseChainId != 0)
+                {
+                    PromoteLooseSideLevel(layers, targetLevel);
+                    looseChainLevels[dim.LooseChainId] = targetLevel;
+                    looseSideLevel = targetLevel;
                 }
 
                 layers[targetLevel].Add((dim, textBox.A, textBox.B, arrow.A, arrow.B));
@@ -4157,6 +4783,77 @@ namespace AutoFixtureDim
                     useSegmentedExtensionLines: false,
                     placed.HasCustomTextPosition,
                     placed.TextPosition);
+            }
+        }
+
+        private static bool CanIgnoreTextConflictWithLooseChain(DeferredDim candidate, DeferredDim existing)
+        {
+            return candidate.LooseChainId != 0 || existing.LooseChainId != 0;
+        }
+
+        private void PromoteLooseChainLevel(
+            List<List<(DeferredDim Dim, double TxtA, double TxtB, double ArrA, double ArrB)>> layers,
+            int chainId,
+            int targetLevel)
+        {
+            if (chainId == 0)
+            {
+                return;
+            }
+
+            while (layers.Count <= targetLevel)
+            {
+                layers.Add(new List<(DeferredDim, double, double, double, double)>());
+            }
+
+            for (int level = 0; level < layers.Count; level++)
+            {
+                if (level == targetLevel)
+                {
+                    continue;
+                }
+
+                for (int i = layers[level].Count - 1; i >= 0; i--)
+                {
+                    if (layers[level][i].Dim.LooseChainId != chainId)
+                    {
+                        continue;
+                    }
+
+                    var item = layers[level][i];
+                    layers[level].RemoveAt(i);
+                    layers[targetLevel].Add(item);
+                }
+            }
+        }
+
+        private void PromoteLooseSideLevel(
+            List<List<(DeferredDim Dim, double TxtA, double TxtB, double ArrA, double ArrB)>> layers,
+            int targetLevel)
+        {
+            while (layers.Count <= targetLevel)
+            {
+                layers.Add(new List<(DeferredDim, double, double, double, double)>());
+            }
+
+            for (int level = 0; level < layers.Count; level++)
+            {
+                if (level == targetLevel)
+                {
+                    continue;
+                }
+
+                for (int i = layers[level].Count - 1; i >= 0; i--)
+                {
+                    if (layers[level][i].Dim.LooseChainId == 0)
+                    {
+                        continue;
+                    }
+
+                    var item = layers[level][i];
+                    layers[level].RemoveAt(i);
+                    layers[targetLevel].Add(item);
+                }
             }
         }
 
@@ -4373,6 +5070,11 @@ namespace AutoFixtureDim
                 for (int i = layers[sourceLevel].Count - 1; i >= 0; i--)
                 {
                     var item = layers[sourceLevel][i];
+                    if (item.Dim.DimType == DimensionType.HoleLocation)
+                    {
+                        continue;
+                    }
+
                     if (HasArrowEndpointTouch(item, layers, sourceLevel, i, side, outline, firstOffset, perLevelSpacing, isHorizontal))
                     {
                         continue;
@@ -4549,16 +5251,196 @@ namespace AutoFixtureDim
             switch (side)
             {
                 case DimSide.Bottom:
-                    return new Point3d((dim.XLine1.X + dim.XLine2.X) / 2.0, outline.MinY - offset, 0.0);
+                    return new Point3d((dim.XLine1.X + dim.XLine2.X) / 2.0, GetDimLineCoordinate(dim, side, outline, offset), 0.0);
                 case DimSide.Top:
-                    return new Point3d((dim.XLine1.X + dim.XLine2.X) / 2.0, outline.MaxY + offset, 0.0);
+                    return new Point3d((dim.XLine1.X + dim.XLine2.X) / 2.0, GetDimLineCoordinate(dim, side, outline, offset), 0.0);
                 case DimSide.Left:
-                    return new Point3d(outline.MinX - offset, (dim.XLine1.Y + dim.XLine2.Y) / 2.0, 0.0);
+                    return new Point3d(GetDimLineCoordinate(dim, side, outline, offset), (dim.XLine1.Y + dim.XLine2.Y) / 2.0, 0.0);
                 case DimSide.Right:
-                    return new Point3d(outline.MaxX + offset, (dim.XLine1.Y + dim.XLine2.Y) / 2.0, 0.0);
+                    return new Point3d(GetDimLineCoordinate(dim, side, outline, offset), (dim.XLine1.Y + dim.XLine2.Y) / 2.0, 0.0);
                 default:
                     throw new ArgumentOutOfRangeException(nameof(side), side, null);
             }
+        }
+
+        private double GetDimLineCoordinate(DeferredDim dim, DimSide side, OutlineFeature outline, double offset)
+        {
+            double boundary;
+            if (TryGetDimensionLocalBoundary(dim, side, outline, out boundary))
+            {
+                switch (side)
+                {
+                    case DimSide.Bottom:
+                    case DimSide.Left:
+                    {
+                        var coordinate = boundary - offset;
+                        if (!DimensionLineEntersOutlineInterior(dim, side, coordinate, outline))
+                        {
+                            return coordinate;
+                        }
+                        break;
+                    }
+                    case DimSide.Top:
+                    case DimSide.Right:
+                    {
+                        var coordinate = boundary + offset;
+                        if (!DimensionLineEntersOutlineInterior(dim, side, coordinate, outline))
+                        {
+                            return coordinate;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            switch (side)
+            {
+                case DimSide.Bottom:
+                    return outline.MinY - offset;
+                case DimSide.Top:
+                    return outline.MaxY + offset;
+                case DimSide.Left:
+                    return outline.MinX - offset;
+                case DimSide.Right:
+                    return outline.MaxX + offset;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(side), side, null);
+            }
+        }
+
+        private bool TryGetDimensionLocalBoundary(DeferredDim dim, DimSide side, OutlineFeature outline, out double boundary)
+        {
+            boundary = 0.0;
+            if (!CanUseLocalDimensionBoundary(dim))
+            {
+                return false;
+            }
+
+            if (dim.LooseChainId != 0)
+            {
+                return false;
+            }
+
+            return TryGetLocalHoleLocationBoundary(dim, side, outline, out boundary);
+        }
+
+        private bool DimensionLineEntersOutlineInterior(DeferredDim dim, DimSide side, double coordinate, OutlineFeature outline)
+        {
+            var isHorizontal = side == DimSide.Bottom || side == DimSide.Top;
+            var min = isHorizontal
+                ? Math.Min(dim.XLine1.X, dim.XLine2.X)
+                : Math.Min(dim.XLine1.Y, dim.XLine2.Y);
+            var max = isHorizontal
+                ? Math.Max(dim.XLine1.X, dim.XLine2.X)
+                : Math.Max(dim.XLine1.Y, dim.XLine2.Y);
+            if (max - min <= _config.GeometryTolerance)
+            {
+                return false;
+            }
+
+            var samples = new[] { min, (min + max) / 2.0, max };
+            foreach (var sample in samples)
+            {
+                var x = isHorizontal ? sample : coordinate;
+                var y = isHorizontal ? coordinate : sample;
+                if (IsPointInsideOutlineByRayCast(x, y, outline)
+                    && !IsPointOnAnyOutlineSegment(new Point2d(x, y), outline))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsPointOnAnyOutlineSegment(Point2d point, OutlineFeature outline)
+        {
+            return outline != null
+                && outline.Segments.Any(segment => IsPointOnSegment(point, segment));
+        }
+
+        private bool TryGetLocalHoleLocationBoundary(DeferredDim dim, DimSide side, OutlineFeature outline, out double boundary)
+        {
+            boundary = 0.0;
+            if (outline == null || outline.Segments.Count == 0)
+            {
+                return false;
+            }
+
+            var tolerance = Math.Max(_config.GeometryTolerance, 0.05);
+            var midX = (dim.XLine1.X + dim.XLine2.X) / 2.0;
+            var midY = (dim.XLine1.Y + dim.XLine2.Y) / 2.0;
+            var minX = Math.Min(dim.XLine1.X, dim.XLine2.X);
+            var maxX = Math.Max(dim.XLine1.X, dim.XLine2.X);
+            var minY = Math.Min(dim.XLine1.Y, dim.XLine2.Y);
+            var maxY = Math.Max(dim.XLine1.Y, dim.XLine2.Y);
+
+            if (side == DimSide.Left || side == DimSide.Right)
+            {
+                var candidate = outline.Segments
+                    .Where(s => s.IsVertical(tolerance))
+                    .Where(s => s.LengthY > tolerance)
+                    .Where(s => side == DimSide.Left ? s.MinX <= minX + tolerance : s.MinX >= maxX - tolerance)
+                    .Select(s => new
+                    {
+                        Segment = s,
+                        Coordinate = (s.Start.X + s.End.X) / 2.0,
+                        Overlap = IntervalOverlap(minY, maxY, s.MinY, s.MaxY),
+                        CoversMid = midY >= s.MinY - tolerance && midY <= s.MaxY + tolerance
+                    })
+                    .Where(c => c.Overlap > tolerance || c.CoversMid)
+                    .OrderBy(c => Math.Abs(c.Coordinate - midX))
+                    .ThenByDescending(c => c.Overlap)
+                    .ThenByDescending(c => c.Segment.LengthY)
+                    .FirstOrDefault();
+                if (candidate == null)
+                {
+                    return false;
+                }
+
+                boundary = candidate.Coordinate;
+                return true;
+            }
+
+            if (side == DimSide.Bottom || side == DimSide.Top)
+            {
+                var candidate = outline.Segments
+                    .Where(s => s.IsHorizontal(tolerance))
+                    .Where(s => s.LengthX > tolerance)
+                    .Where(s => side == DimSide.Bottom ? s.MinY <= minY + tolerance : s.MinY >= maxY - tolerance)
+                    .Select(s => new
+                    {
+                        Segment = s,
+                        Coordinate = (s.Start.Y + s.End.Y) / 2.0,
+                        Overlap = IntervalOverlap(minX, maxX, s.MinX, s.MaxX),
+                        CoversMid = midX >= s.MinX - tolerance && midX <= s.MaxX + tolerance
+                    })
+                    .Where(c => c.Overlap > tolerance || c.CoversMid)
+                    .OrderBy(c => Math.Abs(c.Coordinate - midY))
+                    .ThenByDescending(c => c.Overlap)
+                    .ThenByDescending(c => c.Segment.LengthX)
+                    .FirstOrDefault();
+                if (candidate == null)
+                {
+                    return false;
+                }
+
+                boundary = candidate.Coordinate;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool CanUseLocalDimensionBoundary(DeferredDim dim)
+        {
+            return dim.DimType == DimensionType.PinDistance
+                || dim.DimType == DimensionType.PinGroupDistance;
+        }
+
+        private double IntervalOverlap(double firstMin, double firstMax, double secondMin, double secondMax)
+        {
+            return Math.Min(firstMax, secondMax) - Math.Max(firstMin, secondMin);
         }
 
         private (double A, double B) ComputeArrowInterval(DeferredDim dim, bool isHorizontal)
@@ -4988,6 +5870,19 @@ namespace AutoFixtureDim
 
         private bool TextCoversOutline(DeferredDim dim, DimSide side, double offset, double textHeight, OutlineFeature outline, bool isHorizontal)
         {
+            double localBoundary;
+            if (TryGetDimensionLocalBoundary(dim, side, outline, out localBoundary)
+                && !IsGlobalBoundaryCoordinate(localBoundary, side, outline))
+            {
+                var localCoordinate = (side == DimSide.Bottom || side == DimSide.Left)
+                    ? localBoundary - offset
+                    : localBoundary + offset;
+                if (!DimensionLineEntersOutlineInterior(dim, side, localCoordinate, outline))
+                {
+                    return false;
+                }
+            }
+
             var textBox = ComputeTextInterval(dim, isHorizontal, textHeight);
             var halfHeight = textHeight / 2.0;
 
@@ -5021,6 +5916,23 @@ namespace AutoFixtureDim
                     return textBox.A < outline.MaxY + _config.GeometryTolerance
                         && textBox.B > outline.MinY - _config.GeometryTolerance;
                 }
+                default:
+                    return false;
+            }
+        }
+
+        private bool IsGlobalBoundaryCoordinate(double coordinate, DimSide side, OutlineFeature outline)
+        {
+            switch (side)
+            {
+                case DimSide.Bottom:
+                    return Math.Abs(coordinate - outline.MinY) <= _config.GeometryTolerance;
+                case DimSide.Top:
+                    return Math.Abs(coordinate - outline.MaxY) <= _config.GeometryTolerance;
+                case DimSide.Left:
+                    return Math.Abs(coordinate - outline.MinX) <= _config.GeometryTolerance;
+                case DimSide.Right:
+                    return Math.Abs(coordinate - outline.MaxX) <= _config.GeometryTolerance;
                 default:
                     return false;
             }

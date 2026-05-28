@@ -6,7 +6,7 @@ Last synced: 2026-05-28
 
 ### 1. Current Project Goal
 - Maintain and iterate the AutoCAD 2020 .NET Framework plugin for semi-automatic fixture-part annotation.
-- Active command remains `ASD`; compatibility commands remain `AUTOFIXDIM`, `AUTOFIXDIMREGEN`, and `AUTOFIXDIMCLEAR`.
+- Active command remains `ASD`; compatibility command `AUTOFIXDIM` remains. Regenerate command is `ASD2`; clear command is `ASD3`.
 - Current development focus is loose/scatter non-pin hole position layout: grouping, chain dimensions, duplicate suppression, side selection, and interaction with pin-hole datum dimensions.
 
 ### 2. Completed Work
@@ -47,7 +47,7 @@ Last synced: 2026-05-28
 
 ### 6. Key Rules And Constraints
 - Do not create centerlines or a `CENTER` layer.
-- Generated objects must carry XData app name `AUTOFIXDIM` so `AUTOFIXDIMCLEAR` removes only plugin-generated annotations.
+- Generated objects must carry XData app name `AUTOFIXDIM` so `ASD3` removes only plugin-generated annotations.
 - Pin holes keep `H7`; same-group pin spacing uses `±0.02`; pin-group locating dimensions use `±0.05`.
 - Normal/thread loose-hole location dimensions must not inherit pin tolerance text.
 - `RuleConfig.cs` remains the preferred place for machining-rule constants and tolerance text.
@@ -63,8 +63,8 @@ Last synced: 2026-05-28
   `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB51.dll`
 - AutoCAD load command: `NETLOAD`, then select the current test DLL.
 - Main command: `ASD`
-- Regenerate command: `AUTOFIXDIMREGEN`
-- Clear generated annotations: `AUTOFIXDIMCLEAR`
+- Regenerate command: `ASD2`
+- Clear generated annotations: `ASD3`
 - Standard deploy script when explicitly needed:
   `powershell -ExecutionPolicy Bypass -File .\deploy_next_version.ps1`
 
@@ -117,8 +117,8 @@ It never creates centerlines or a `CENTER` layer.
 ## Commands
 - `ASD`: main command.
 - `AUTOFIXDIM`: same workflow.
-- `AUTOFIXDIMREGEN`: clear old plugin annotations first, then regenerate.
-- `AUTOFIXDIMCLEAR`: remove entities carrying XData app name `AUTOFIXDIM` from non-XRef, non-dependent block table records.
+- `ASD2`: clear old plugin annotations first, then regenerate.
+- `ASD3`: remove entities carrying XData app name `AUTOFIXDIM` from non-XRef, non-dependent block table records.
 
 ## Current Workflow
 1. Select outline on layer `DRAWING`.
@@ -362,4 +362,4 @@ It never creates centerlines or a `CENTER` layer.
 - Confirm the hole callout command line prints the full instruction once per group and uses the short `Pick point:` prompt during Jig movement.
 - Test Jig placement for corner callouts and diameter/thread callouts.
 - Confirm pin-hole roughness block appears only when block `CadAider_国标粗糙度16下` exists in the drawing.
-- Confirm `AUTOFIXDIMCLEAR` removes generated dimensions/callouts/roughness blocks only.
+- Confirm `ASD3` removes generated dimensions/callouts/roughness blocks only.

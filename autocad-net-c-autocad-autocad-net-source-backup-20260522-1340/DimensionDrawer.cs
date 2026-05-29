@@ -22,6 +22,7 @@ namespace AutoFixtureDim
         private readonly string _annotationLayer;
         private readonly bool _appendToDatabase;
         private readonly string _groupId;
+        private readonly bool _diagnosticsEnabled;
         private readonly IList<Entity> _previewEntities = new List<Entity>();
         private readonly List<DeferredDim> _bottomDims = new List<DeferredDim>();
         private readonly List<DeferredDim> _topDims = new List<DeferredDim>();
@@ -44,6 +45,9 @@ namespace AutoFixtureDim
             public bool ForceOuterLevel;
             public int LooseChainId;
             public bool PreferLocalBoundary;
+            public string DebugOwner;
+            public string DebugRole;
+            public int DebugIndex;
         }
 
         private struct PlacedDim
@@ -54,6 +58,7 @@ namespace AutoFixtureDim
             public TextBounds TextBounds;
             public bool HasCustomTextPosition;
             public Point3d TextPosition;
+            public bool UsesLocalBoundary;
         }
 
         private struct TextBounds
@@ -66,6 +71,7 @@ namespace AutoFixtureDim
 
         private sealed class PinGroupPlan
         {
+            public int GroupIndex { get; set; }
             public HoleFeature BasePin { get; set; }
             public List<HoleFeature> Pins { get; } = new List<HoleFeature>();
             public List<HoleFeature> MemberHoles { get; } = new List<HoleFeature>();
@@ -109,7 +115,8 @@ namespace AutoFixtureDim
             double dimScale,
             string annotationLayer,
             bool appendToDatabase,
-            string groupId)
+            string groupId,
+            bool diagnosticsEnabled = false)
         {
             _db = db;
             _tr = tr;
@@ -121,6 +128,7 @@ namespace AutoFixtureDim
             _annotationLayer = annotationLayer;
             _appendToDatabase = appendToDatabase;
             _groupId = groupId;
+            _diagnosticsEnabled = diagnosticsEnabled;
         }
 
         public IList<Entity> PreviewEntities
@@ -280,6 +288,11 @@ namespace AutoFixtureDim
                 var group = CreatePinPairGroup(seed, remaining, null, previousBase);
                 groups.Add(group);
                 RemoveGroupPins(remaining, group);
+            }
+
+            for (int i = 0; i < groups.Count; i++)
+            {
+                groups[i].GroupIndex = i + 1;
             }
 
             AssignNonPinHolesToNearestPinPair(allHoles, groups);
@@ -472,8 +485,22 @@ namespace AutoFixtureDim
             var yToleranceText = ShouldUseDatumHoleLocationTolerance(datum, isXDirection: false)
                 ? _config.DatumHoleLocationToleranceText ?? string.Empty
                 : string.Empty;
-            AddHorizontalDimFromPointToSide(new Point3d(xRef, basePin.Center.Y, 0.0), basePin.Center, xToleranceText, DimensionType.DatumHoleLocationX, group.HorizontalSide);
-            AddVerticalDimFromPointToSide(new Point3d(basePin.Center.X, yRef, 0.0), basePin.Center, yToleranceText, DimensionType.DatumHoleLocationY, group.VerticalSide);
+            AddHorizontalDimFromPointToSide(
+                new Point3d(xRef, basePin.Center.Y, 0.0),
+                basePin.Center,
+                xToleranceText,
+                DimensionType.DatumHoleLocationX,
+                group.HorizontalSide,
+                debugOwner: GetPinGroupDebugOwner(group),
+                debugRole: "DatumX");
+            AddVerticalDimFromPointToSide(
+                new Point3d(basePin.Center.X, yRef, 0.0),
+                basePin.Center,
+                yToleranceText,
+                DimensionType.DatumHoleLocationY,
+                group.VerticalSide,
+                debugOwner: GetPinGroupDebugOwner(group),
+                debugRole: "DatumY");
         }
 
         private static bool ShouldUseDatumHoleLocationTolerance(DatumDefinition datum, bool isXDirection)
@@ -509,7 +536,9 @@ namespace AutoFixtureDim
                         currentBase.Center,
                         _config.FormatPinGroupDistanceOverride(dx),
                         DimensionType.PinGroupDistance,
-                        groups[i].HorizontalSide);
+                        groups[i].HorizontalSide,
+                        debugOwner: GetPinGroupDebugOwner(groups[i]),
+                        debugRole: "PinGroupDistance");
                 }
 
                 if (dy > _config.GeometryTolerance)
@@ -519,7 +548,9 @@ namespace AutoFixtureDim
                         currentBase.Center,
                         _config.FormatPinGroupDistanceOverride(dy),
                         DimensionType.PinGroupDistance,
-                        groups[i].VerticalSide);
+                        groups[i].VerticalSide,
+                        debugOwner: GetPinGroupDebugOwner(groups[i]),
+                        debugRole: "PinGroupDistance");
                 }
             }
         }
@@ -545,7 +576,9 @@ namespace AutoFixtureDim
                             pin.Center,
                             _config.FormatPinCenterDistanceOverride(dx),
                             DimensionType.PinDistance,
-                            horizontalSide);
+                            horizontalSide,
+                            debugOwner: GetPinGroupDebugOwner(group),
+                            debugRole: "PinDistance");
                     }
 
                     if (dy > _config.GeometryTolerance)
@@ -556,7 +589,9 @@ namespace AutoFixtureDim
                             pin.Center,
                             _config.FormatPinCenterDistanceOverride(dy),
                             DimensionType.PinDistance,
-                            verticalSide);
+                            verticalSide,
+                            debugOwner: GetPinGroupDebugOwner(group),
+                            debugRole: "PinDistance");
                     }
                 }
             }
@@ -837,10 +872,36 @@ namespace AutoFixtureDim
 
                 foreach (var hole in functionalGroup.Holes)
                 {
-                    AddHorizontalDimToSide(reference.Center, hole.Center, string.Empty, DimensionType.HoleLocation, pinGroup.HorizontalSide, preferLocalBoundary: true);
-                    AddVerticalDimToSide(reference.Center, hole.Center, string.Empty, DimensionType.HoleLocation, pinGroup.VerticalSide, preferLocalBoundary: true);
+                    AddHorizontalDimToSide(
+                        reference.Center,
+                        hole.Center,
+                        string.Empty,
+                        DimensionType.HoleLocation,
+                        pinGroup.HorizontalSide,
+                        preferLocalBoundary: true,
+                        debugOwner: GetPinGroupDebugOwner(pinGroup),
+                        debugRole: "FunctionalHole");
+                    AddVerticalDimToSide(
+                        reference.Center,
+                        hole.Center,
+                        string.Empty,
+                        DimensionType.HoleLocation,
+                        pinGroup.VerticalSide,
+                        preferLocalBoundary: true,
+                        debugOwner: GetPinGroupDebugOwner(pinGroup),
+                        debugRole: "FunctionalHole");
                 }
             }
+        }
+
+        private static string GetPinGroupDebugOwner(PinGroupPlan group)
+        {
+            if (group == null || group.GroupIndex <= 0)
+            {
+                return string.Empty;
+            }
+
+            return "PG" + group.GroupIndex.ToString(CultureInfo.InvariantCulture);
         }
 
         private void EmitLooseNonPinHoleLocations(
@@ -1392,7 +1453,9 @@ namespace AutoFixtureDim
                 Span = span,
                 DimType = DimensionType.HoleLocation,
                 UseSegmentedExtensionLines = true,
-                LooseChainId = chainId
+                LooseChainId = chainId,
+                DebugOwner = chainId == 0 ? string.Empty : "L" + chainId.ToString(CultureInfo.InvariantCulture),
+                DebugRole = "LooseHole"
             };
         }
 
@@ -1548,10 +1611,10 @@ namespace AutoFixtureDim
             foreach (var group in GroupSlotAnchorsByCoordinate(slots, datum, p => p.Y))
             {
                 var ordered = UniquePointsByCoordinate(group.OrderBy(p => p.X), p => p.X);
-                AddHorizontalChainFromDatum(datum.BaseX, ordered);
+                AddHorizontalChainFromDatum(datum.BaseX, ordered, "SlotChainH");
                 if (ordered.Count > 0)
                 {
-                    AddVerticalDimFromY(datum.BaseY, PickNearestPointByX(ordered, datum.BaseX), string.Empty, DimensionType.Normal);
+                    AddVerticalDimFromY(datum.BaseY, PickNearestPointByX(ordered, datum.BaseX), string.Empty, DimensionType.Normal, "SlotDatumV");
                 }
             }
         }
@@ -1561,7 +1624,7 @@ namespace AutoFixtureDim
             foreach (var group in GroupSlotAnchorsByCoordinate(slots, datum, p => p.X))
             {
                 var ordered = UniquePointsByCoordinate(group.OrderBy(p => p.Y), p => p.Y);
-                AddVerticalChainFromDatum(datum.BaseY, ordered);
+                AddVerticalChainFromDatum(datum.BaseY, ordered, "SlotChainV");
                 if (ordered.Count > 0)
                 {
                     var target = PickNearestPointByY(ordered, datum.BaseY);
@@ -1572,37 +1635,37 @@ namespace AutoFixtureDim
                     }
                     else
                     {
-                        AddHorizontalDimFromX(datum.BaseX, target, string.Empty, DimensionType.Normal);
+                        AddHorizontalDimFromX(datum.BaseX, target, string.Empty, DimensionType.Normal, "SlotDatumH");
                     }
                 }
             }
         }
 
-        private void AddVerticalChainFromDatum(double datumY, IList<Point3d> ordered)
+        private void AddVerticalChainFromDatum(double datumY, IList<Point3d> ordered, string debugRole)
         {
             if (ordered == null || ordered.Count == 0)
             {
                 return;
             }
 
-            AddVerticalDimFromY(datumY, ordered[0], string.Empty, DimensionType.Normal);
+            AddVerticalDimFromY(datumY, ordered[0], string.Empty, DimensionType.Normal, debugRole);
             for (int i = 1; i < ordered.Count; i++)
             {
-                AddVerticalDimFromPoint(ordered[i - 1], ordered[i], string.Empty, DimensionType.Normal);
+                AddVerticalDimFromPoint(ordered[i - 1], ordered[i], string.Empty, DimensionType.Normal, debugRole);
             }
         }
 
-        private void AddHorizontalChainFromDatum(double datumX, IList<Point3d> ordered)
+        private void AddHorizontalChainFromDatum(double datumX, IList<Point3d> ordered, string debugRole)
         {
             if (ordered == null || ordered.Count == 0)
             {
                 return;
             }
 
-            AddHorizontalDimFromX(datumX, ordered[0], string.Empty, DimensionType.Normal);
+            AddHorizontalDimFromX(datumX, ordered[0], string.Empty, DimensionType.Normal, debugRole);
             for (int i = 1; i < ordered.Count; i++)
             {
-                AddHorizontalDimFromPoint(ordered[i - 1], ordered[i], string.Empty, DimensionType.Normal);
+                AddHorizontalDimFromPoint(ordered[i - 1], ordered[i], string.Empty, DimensionType.Normal, debugRole);
             }
         }
 
@@ -1696,7 +1759,7 @@ namespace AutoFixtureDim
                 return;
             }
 
-            AddHorizontalDimFromPoint(from, to, _config.FormatNumber(span), DimensionType.Normal);
+            AddHorizontalDimFromPoint(from, to, _config.FormatNumber(span), DimensionType.Normal, "SingleArcSlotDatum");
         }
 
         private Point3d FindOutlinePointAtX(OutlineFeature outline, double x, double preferredY)
@@ -1784,11 +1847,11 @@ namespace AutoFixtureDim
 
             if (dx >= dy)
             {
-                AddHorizontalDimFromPoint(first, second, string.Empty, DimensionType.Normal);
+                AddHorizontalDimFromPoint(first, second, string.Empty, DimensionType.Normal, "SlotCenter");
             }
             else
             {
-                AddVerticalDimFromPoint(first, second, string.Empty, DimensionType.Normal);
+                AddVerticalDimFromPoint(first, second, string.Empty, DimensionType.Normal, "SlotCenter");
             }
         }
 
@@ -1806,8 +1869,8 @@ namespace AutoFixtureDim
                 foreach (var slot in slots)
                 {
                     var anchor = PickSlotAnchorPoint(slot, datum);
-                    AddHorizontalDimFromX(datum.BaseX, anchor, string.Empty, DimensionType.Normal);
-                    AddVerticalDimFromY(datum.BaseY, anchor, string.Empty, DimensionType.Normal);
+                    AddHorizontalDimFromX(datum.BaseX, anchor, string.Empty, DimensionType.Normal, "SlotDatumH");
+                    AddVerticalDimFromY(datum.BaseY, anchor, string.Empty, DimensionType.Normal, "SlotDatumV");
                 }
 
                 return;
@@ -1829,8 +1892,8 @@ namespace AutoFixtureDim
                     continue;
                 }
 
-                AddHorizontalDim(reference.Pin.Center, anchor, string.Empty, DimensionType.Normal);
-                AddVerticalDim(reference.Pin.Center, anchor, string.Empty, DimensionType.Normal);
+                AddHorizontalDim(reference.Pin.Center, anchor, string.Empty, DimensionType.Normal, "SlotPinRef");
+                AddVerticalDim(reference.Pin.Center, anchor, string.Empty, DimensionType.Normal, "SlotPinRef");
             }
         }
 
@@ -1854,32 +1917,48 @@ namespace AutoFixtureDim
             return Math.Abs(first.Y - datum.BaseY) <= Math.Abs(second.Y - datum.BaseY) ? first : second;
         }
 
-        private void AddHorizontalDim(Point3d from, Point3d to, string overrideText, DimensionType dimType)
+        private void AddHorizontalDim(Point3d from, Point3d to, string overrideText, DimensionType dimType, string debugRole = null)
         {
-            AddHorizontalDimFromPoint(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType);
+            AddHorizontalDimFromPoint(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType, debugRole);
         }
 
-        private void AddHorizontalDimToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side, bool preferLocalBoundary = false)
+        private void AddHorizontalDimToSide(
+            Point3d from,
+            Point3d to,
+            string overrideText,
+            DimensionType dimType,
+            DimSide side,
+            bool preferLocalBoundary = false,
+            string debugOwner = null,
+            string debugRole = null)
         {
-            AddHorizontalDimFromPointToSide(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType, side, preferLocalBoundary);
+            AddHorizontalDimFromPointToSide(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType, side, preferLocalBoundary, debugOwner, debugRole);
         }
 
-        private void AddHorizontalDimFromX(double fromX, Point3d to, string overrideText, DimensionType dimType)
+        private void AddHorizontalDimFromX(double fromX, Point3d to, string overrideText, DimensionType dimType, string debugRole = null)
         {
-            AddHorizontalDimFromPoint(new Point3d(fromX, to.Y, 0.0), to, overrideText, dimType);
+            AddHorizontalDimFromPoint(new Point3d(fromX, to.Y, 0.0), to, overrideText, dimType, debugRole);
         }
 
-        private void AddHorizontalDimFromXToSide(double fromX, Point3d to, string overrideText, DimensionType dimType, DimSide side)
+        private void AddHorizontalDimFromXToSide(double fromX, Point3d to, string overrideText, DimensionType dimType, DimSide side, string debugRole = null)
         {
-            AddHorizontalDimFromPointToSide(new Point3d(fromX, to.Y, 0.0), to, overrideText, dimType, side);
+            AddHorizontalDimFromPointToSide(new Point3d(fromX, to.Y, 0.0), to, overrideText, dimType, side, debugRole: debugRole);
         }
 
-        private void AddHorizontalDimFromPoint(Point3d from, Point3d to, string overrideText, DimensionType dimType)
+        private void AddHorizontalDimFromPoint(Point3d from, Point3d to, string overrideText, DimensionType dimType, string debugRole = null)
         {
-            AddHorizontalDimFromPointToSide(from, to, overrideText, dimType, DimSide.Bottom);
+            AddHorizontalDimFromPointToSide(from, to, overrideText, dimType, DimSide.Bottom, debugRole: debugRole);
         }
 
-        private void AddHorizontalDimFromPointToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side, bool preferLocalBoundary = false)
+        private void AddHorizontalDimFromPointToSide(
+            Point3d from,
+            Point3d to,
+            string overrideText,
+            DimensionType dimType,
+            DimSide side,
+            bool preferLocalBoundary = false,
+            string debugOwner = null,
+            string debugRole = null)
         {
             var span = Math.Abs(to.X - from.X);
             if (span <= _config.GeometryTolerance)
@@ -1896,7 +1975,9 @@ namespace AutoFixtureDim
                 Span = span,
                 DimType = dimType,
                 UseSegmentedExtensionLines = true,
-                PreferLocalBoundary = preferLocalBoundary
+                PreferLocalBoundary = preferLocalBoundary,
+                DebugOwner = debugOwner ?? string.Empty,
+                DebugRole = debugRole ?? string.Empty
             };
 
             if (side == DimSide.Top)
@@ -1908,32 +1989,48 @@ namespace AutoFixtureDim
             _bottomDims.Add(dim);
         }
 
-        private void AddVerticalDim(Point3d from, Point3d to, string overrideText, DimensionType dimType)
+        private void AddVerticalDim(Point3d from, Point3d to, string overrideText, DimensionType dimType, string debugRole = null)
         {
-            AddVerticalDimFromPoint(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType);
+            AddVerticalDimFromPoint(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType, debugRole);
         }
 
-        private void AddVerticalDimToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side, bool preferLocalBoundary = false)
+        private void AddVerticalDimToSide(
+            Point3d from,
+            Point3d to,
+            string overrideText,
+            DimensionType dimType,
+            DimSide side,
+            bool preferLocalBoundary = false,
+            string debugOwner = null,
+            string debugRole = null)
         {
-            AddVerticalDimFromPointToSide(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType, side, preferLocalBoundary);
+            AddVerticalDimFromPointToSide(new Point3d(from.X, from.Y, from.Z), to, overrideText, dimType, side, preferLocalBoundary, debugOwner, debugRole);
         }
 
-        private void AddVerticalDimFromY(double fromY, Point3d to, string overrideText, DimensionType dimType)
+        private void AddVerticalDimFromY(double fromY, Point3d to, string overrideText, DimensionType dimType, string debugRole = null)
         {
-            AddVerticalDimFromPoint(new Point3d(to.X, fromY, 0.0), to, overrideText, dimType);
+            AddVerticalDimFromPoint(new Point3d(to.X, fromY, 0.0), to, overrideText, dimType, debugRole);
         }
 
-        private void AddVerticalDimFromYToSide(double fromY, Point3d to, string overrideText, DimensionType dimType, DimSide side)
+        private void AddVerticalDimFromYToSide(double fromY, Point3d to, string overrideText, DimensionType dimType, DimSide side, string debugRole = null)
         {
-            AddVerticalDimFromPointToSide(new Point3d(to.X, fromY, 0.0), to, overrideText, dimType, side);
+            AddVerticalDimFromPointToSide(new Point3d(to.X, fromY, 0.0), to, overrideText, dimType, side, debugRole: debugRole);
         }
 
-        private void AddVerticalDimFromPoint(Point3d from, Point3d to, string overrideText, DimensionType dimType)
+        private void AddVerticalDimFromPoint(Point3d from, Point3d to, string overrideText, DimensionType dimType, string debugRole = null)
         {
-            AddVerticalDimFromPointToSide(from, to, overrideText, dimType, DimSide.Left);
+            AddVerticalDimFromPointToSide(from, to, overrideText, dimType, DimSide.Left, debugRole: debugRole);
         }
 
-        private void AddVerticalDimFromPointToSide(Point3d from, Point3d to, string overrideText, DimensionType dimType, DimSide side, bool preferLocalBoundary = false)
+        private void AddVerticalDimFromPointToSide(
+            Point3d from,
+            Point3d to,
+            string overrideText,
+            DimensionType dimType,
+            DimSide side,
+            bool preferLocalBoundary = false,
+            string debugOwner = null,
+            string debugRole = null)
         {
             var span = Math.Abs(to.Y - from.Y);
             if (span <= _config.GeometryTolerance)
@@ -1950,7 +2047,9 @@ namespace AutoFixtureDim
                 Span = span,
                 DimType = dimType,
                 UseSegmentedExtensionLines = true,
-                PreferLocalBoundary = preferLocalBoundary
+                PreferLocalBoundary = preferLocalBoundary,
+                DebugOwner = debugOwner ?? string.Empty,
+                DebugRole = debugRole ?? string.Empty
             };
 
             side = ChooseVerticalNormalDimensionSide(dim, side);
@@ -2094,7 +2193,7 @@ namespace AutoFixtureDim
                     return;
                 }
 
-                candidates = BuildHorizontalWidthCandidates(points);
+                candidates = BuildHorizontalWidthCandidates(points, "TopStructWidth");
                 var crossingPoints = GetTopExtensionCrossingPoints(candidates, outline);
                 if (crossingPoints.Count == 0)
                 {
@@ -2131,7 +2230,7 @@ namespace AutoFixtureDim
                     return;
                 }
 
-                candidates = BuildHorizontalWidthCandidates(points);
+                candidates = BuildHorizontalWidthCandidates(points, "BottomStructWidth");
                 var crossingPoints = GetBottomExtensionCrossingPoints(candidates, outline);
                 if (crossingPoints.Count == 0)
                 {
@@ -2156,7 +2255,7 @@ namespace AutoFixtureDim
             }
         }
 
-        private List<DeferredDim> BuildHorizontalWidthCandidates(IList<Point2d> points)
+        private List<DeferredDim> BuildHorizontalWidthCandidates(IList<Point2d> points, string debugRole)
         {
             var candidates = new List<DeferredDim>();
             for (int i = 1; i < points.Count; i++)
@@ -2176,7 +2275,8 @@ namespace AutoFixtureDim
                     XLine2 = new Point3d(rightPoint.X, rightPoint.Y, 0.0),
                     OverrideText = string.Empty,
                     Span = span,
-                    DimType = DimensionType.Normal
+                    DimType = DimensionType.Normal,
+                    DebugRole = debugRole ?? string.Empty
                 });
             }
 
@@ -2452,7 +2552,7 @@ namespace AutoFixtureDim
                     return;
                 }
 
-                candidates = BuildLeftSideVerticalHeightCandidates(points);
+                candidates = BuildLeftSideVerticalHeightCandidates(points, "LeftStructHeight");
                 var crossingPoints = GetLeftExtensionCrossingPoints(candidates, outline);
                 if (crossingPoints.Count == 0)
                 {
@@ -2484,7 +2584,7 @@ namespace AutoFixtureDim
                     return;
                 }
 
-                candidates = BuildLeftSideVerticalHeightCandidates(points);
+                candidates = BuildLeftSideVerticalHeightCandidates(points, "RightStructHeight");
                 var crossingPoints = GetRightExtensionCrossingPoints(candidates, outline);
                 if (crossingPoints.Count == 0)
                 {
@@ -2509,7 +2609,7 @@ namespace AutoFixtureDim
             }
         }
 
-        private List<DeferredDim> BuildLeftSideVerticalHeightCandidates(IList<Point2d> points)
+        private List<DeferredDim> BuildLeftSideVerticalHeightCandidates(IList<Point2d> points, string debugRole)
         {
             var candidates = new List<DeferredDim>();
             for (int i = 1; i < points.Count; i++)
@@ -2529,7 +2629,8 @@ namespace AutoFixtureDim
                     XLine2 = new Point3d(upperPoint.X, upperPoint.Y, 0.0),
                     OverrideText = string.Empty,
                     Span = span,
-                    DimType = DimensionType.Normal
+                    DimType = DimensionType.Normal,
+                    DebugRole = debugRole ?? string.Empty
                 });
             }
 
@@ -4764,9 +4865,15 @@ namespace AutoFixtureDim
                         Dim = dim,
                         Side = side,
                         DimLinePoint = dimLinePoint,
-                        TextBounds = ComputePlacedTextBounds(dim, dimLinePoint, isHorizontal, textHeight)
+                        TextBounds = ComputePlacedTextBounds(dim, dimLinePoint, isHorizontal, textHeight),
+                        UsesLocalBoundary = TryGetLocalDimLineCoordinate(dim, side, outline, offset, out _)
                     });
                 }
+            }
+
+            if (_diagnosticsEnabled)
+            {
+                AssignDebugIndexes(placedDims);
             }
 
             AdjustVerticalHoleLocationTextPositions(placedDims, textHeight, gap);
@@ -4786,7 +4893,235 @@ namespace AutoFixtureDim
                     useSegmentedExtensionLines: false,
                     placed.HasCustomTextPosition,
                     placed.TextPosition);
+
+                if (_diagnosticsEnabled)
+                {
+                    AddDimensionDebugLabel(placed, isHorizontal, textHeight);
+                }
             }
+        }
+
+        private void AssignDebugIndexes(IList<PlacedDim> placedDims)
+        {
+            var groups = new Dictionary<string, List<int>>();
+            for (int i = 0; i < placedDims.Count; i++)
+            {
+                var placed = placedDims[i];
+                var key = GetDebugOwnerText(placed.Dim) + "|"
+                    + GetDebugRoleText(placed.Dim) + "|"
+                    + GetDebugBoundaryText(placed) + "|"
+                    + GetDebugSideText(placed.Side);
+
+                List<int> indexes;
+                if (!groups.TryGetValue(key, out indexes))
+                {
+                    indexes = new List<int>();
+                    groups[key] = indexes;
+                }
+
+                indexes.Add(i);
+            }
+
+            foreach (var indexes in groups.Values)
+            {
+                var ordered = indexes
+                    .OrderBy(i => GetDebugIndexSortKey(placedDims[i]))
+                    .ThenBy(i => placedDims[i].Dim.Span)
+                    .ThenBy(i => i)
+                    .ToList();
+
+                for (int order = 0; order < ordered.Count; order++)
+                {
+                    var placed = placedDims[ordered[order]];
+                    placed.Dim.DebugIndex = order + 1;
+                    placedDims[ordered[order]] = placed;
+                }
+            }
+        }
+
+        private static double GetDebugIndexSortKey(PlacedDim placed)
+        {
+            switch (placed.Side)
+            {
+                case DimSide.Left:
+                case DimSide.Right:
+                    return -placed.DimLinePoint.Y;
+                case DimSide.Bottom:
+                case DimSide.Top:
+                    return placed.DimLinePoint.X;
+                default:
+                    return 0.0;
+            }
+        }
+
+        private void AddDimensionDebugLabel(PlacedDim placed, bool isHorizontal, double textHeight)
+        {
+            var label = BuildDimensionDebugLabel(placed);
+            if (string.IsNullOrEmpty(label))
+            {
+                return;
+            }
+
+            var height = Math.Max(textHeight * 0.38, Scale(1.2));
+            var offset = height * 2.2;
+            var point = placed.DimLinePoint;
+            if (isHorizontal)
+            {
+                point = placed.Side == DimSide.Top
+                    ? new Point3d(point.X, point.Y + offset, 0.0)
+                    : new Point3d(point.X, point.Y - offset, 0.0);
+            }
+            else
+            {
+                point = placed.Side == DimSide.Right
+                    ? new Point3d(point.X + offset, point.Y, 0.0)
+                    : new Point3d(point.X - offset, point.Y, 0.0);
+            }
+
+            var mtext = new MText();
+            mtext.SetDatabaseDefaults(_db);
+            mtext.Contents = label;
+            mtext.TextHeight = height;
+            mtext.TextStyleId = GetDimStyleTextStyle(_dimStyleId);
+            mtext.Location = point;
+            mtext.Attachment = AttachmentPoint.MiddleCenter;
+            mtext.Layer = _annotationLayer;
+            mtext.Color = GetDebugLabelColor(placed.Dim);
+            Append(mtext);
+        }
+
+        private string BuildDimensionDebugLabel(PlacedDim placed)
+        {
+            var owner = GetDebugOwnerText(placed.Dim);
+            var role = GetDebugRoleText(placed.Dim);
+            if (placed.Dim.DebugIndex > 0)
+            {
+                role += placed.Dim.DebugIndex.ToString(CultureInfo.InvariantCulture);
+            }
+
+            return owner + "|" + role + "|" + GetDebugBoundaryText(placed) + "|" + GetDebugSideText(placed.Side);
+        }
+
+        private static string GetDebugBoundaryText(PlacedDim placed)
+        {
+            return placed.UsesLocalBoundary ? "LB" : "GB";
+        }
+
+        private string GetDebugOwnerText(DeferredDim dim)
+        {
+            if (!string.IsNullOrEmpty(dim.DebugOwner))
+            {
+                return dim.DebugOwner;
+            }
+
+            if (dim.DimType == DimensionType.DatumHoleLocationX || dim.DimType == DimensionType.DatumHoleLocationY)
+            {
+                return "DAT";
+            }
+
+            return "GEN";
+        }
+
+        private string GetDebugRoleText(DeferredDim dim)
+        {
+            var role = string.IsNullOrEmpty(dim.DebugRole) ? dim.DimType.ToString() : dim.DebugRole;
+            switch (role)
+            {
+                case "PinDistance":
+                    return "PD";
+                case "PinGroupDistance":
+                    return "GD";
+                case "FunctionalHole":
+                    return "FH";
+                case "LooseHole":
+                    return "LH";
+                case "DatumX":
+                    return "DX";
+                case "DatumY":
+                    return "DY";
+                case "DatumHoleLocationX":
+                    return "DX";
+                case "DatumHoleLocationY":
+                    return "DY";
+                case "OverallWidth":
+                    return "OW";
+                case "OverallHeight":
+                    return "OH";
+                case "HoleLocation":
+                    return "HL";
+                case "Normal":
+                    return "N";
+                case "TopStructWidth":
+                    return "TSW";
+                case "BottomStructWidth":
+                    return "BSW";
+                case "LeftStructHeight":
+                    return "LSH";
+                case "RightStructHeight":
+                    return "RSH";
+                case "SlotCenter":
+                    return "SC";
+                case "SlotChainH":
+                    return "SCH";
+                case "SlotChainV":
+                    return "SCV";
+                case "SlotDatumH":
+                    return "SDH";
+                case "SlotDatumV":
+                    return "SDV";
+                case "SlotPinRef":
+                    return "SPR";
+                case "SingleArcSlotDatum":
+                    return "SAS";
+                default:
+                    return role;
+            }
+        }
+
+        private static string GetDebugSideText(DimSide side)
+        {
+            switch (side)
+            {
+                case DimSide.Bottom:
+                    return "B";
+                case DimSide.Top:
+                    return "T";
+                case DimSide.Left:
+                    return "L";
+                case DimSide.Right:
+                    return "R";
+                default:
+                    return side.ToString();
+            }
+        }
+
+        private Autodesk.AutoCAD.Colors.Color GetDebugLabelColor(DeferredDim dim)
+        {
+            short colorIndex;
+            switch (GetDebugRoleText(dim))
+            {
+                case "PD":
+                    colorIndex = 1;
+                    break;
+                case "GD":
+                    colorIndex = 6;
+                    break;
+                case "FH":
+                    colorIndex = 4;
+                    break;
+                case "LH":
+                    colorIndex = 2;
+                    break;
+                case "OW":
+                case "OH":
+                    colorIndex = 3;
+                    break;
+                default:
+                    colorIndex = 8;
+                    break;
+            }
+
+            return Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, colorIndex);
         }
 
         private static bool CanIgnoreTextConflictWithLooseChain(DeferredDim candidate, DeferredDim existing)
@@ -5268,32 +5603,10 @@ namespace AutoFixtureDim
 
         private double GetDimLineCoordinate(DeferredDim dim, DimSide side, OutlineFeature outline, double offset)
         {
-            double boundary;
-            if (TryGetDimensionLocalBoundary(dim, side, outline, out boundary))
+            double localCoordinate;
+            if (TryGetLocalDimLineCoordinate(dim, side, outline, offset, out localCoordinate))
             {
-                switch (side)
-                {
-                    case DimSide.Bottom:
-                    case DimSide.Left:
-                    {
-                        var coordinate = boundary - offset;
-                        if (!DimensionLineEntersOutlineInterior(dim, side, coordinate, outline))
-                        {
-                            return coordinate;
-                        }
-                        break;
-                    }
-                    case DimSide.Top:
-                    case DimSide.Right:
-                    {
-                        var coordinate = boundary + offset;
-                        if (!DimensionLineEntersOutlineInterior(dim, side, coordinate, outline))
-                        {
-                            return coordinate;
-                        }
-                        break;
-                    }
-                }
+                return localCoordinate;
             }
 
             switch (side)
@@ -5309,6 +5622,40 @@ namespace AutoFixtureDim
                 default:
                     throw new ArgumentOutOfRangeException(nameof(side), side, null);
             }
+        }
+
+        private bool TryGetLocalDimLineCoordinate(DeferredDim dim, DimSide side, OutlineFeature outline, double offset, out double coordinate)
+        {
+            coordinate = 0.0;
+            double boundary;
+            if (TryGetDimensionLocalBoundary(dim, side, outline, out boundary))
+            {
+                switch (side)
+                {
+                    case DimSide.Bottom:
+                    case DimSide.Left:
+                    {
+                        coordinate = boundary - offset;
+                        if (!DimensionLineEntersOutlineInterior(dim, side, coordinate, outline))
+                        {
+                            return true;
+                        }
+                        break;
+                    }
+                    case DimSide.Top:
+                    case DimSide.Right:
+                    {
+                        coordinate = boundary + offset;
+                        if (!DimensionLineEntersOutlineInterior(dim, side, coordinate, outline))
+                        {
+                            return true;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            return false;
         }
 
         private bool TryGetDimensionLocalBoundary(DeferredDim dim, DimSide side, OutlineFeature outline, out double boundary)

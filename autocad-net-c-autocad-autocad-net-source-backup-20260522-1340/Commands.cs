@@ -27,6 +27,12 @@ namespace AutoFixtureDim
             RunAutoFixDim(clearExistingBeforeGenerate: true);
         }
 
+        [CommandMethod("ASD4")]
+        public void AsdDebug()
+        {
+            RunAutoFixDim(clearExistingBeforeGenerate: true, diagnosticsEnabled: true);
+        }
+
         [CommandMethod("ASD3")]
         public void Asd3()
         {
@@ -54,7 +60,7 @@ namespace AutoFixtureDim
             }
         }
 
-        private void RunAutoFixDim(bool clearExistingBeforeGenerate)
+        private void RunAutoFixDim(bool clearExistingBeforeGenerate, bool diagnosticsEnabled = false)
         {
             Document document = Application.DocumentManager.MdiActiveDocument;
             if (document == null)
@@ -182,7 +188,8 @@ namespace AutoFixtureDim
                         dimScale,
                         annotationLayer,
                         appendToDatabase: true,
-                        groupId: groupId);
+                        groupId: groupId,
+                        diagnosticsEnabled: diagnosticsEnabled);
 
                     DrawLinearDimensions(drawer, outline, datum, rows, slotFeatures, skipHoleDimensions);
                     outlineForInteractivePlacement = outline;

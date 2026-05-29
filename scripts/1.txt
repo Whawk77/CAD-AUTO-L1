@@ -1,0 +1,2 @@
+powershell -ExecutionPolicy Bypass -File .\scripts\run-cad-test.ps1                                cad已关
+powershell -ExecutionPolicy Bypass -File .\scripts\run-cad-test.ps1 -Restart                   cad未关

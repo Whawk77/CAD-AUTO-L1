@@ -18,6 +18,7 @@
 - Active source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340`
 - AutoCAD 2020 install path: `D:\Program Files\Autodesk\AutoCAD 2020`
 - Build command for local test DLLs: `dotnet msbuild AutoFixtureDim.csproj /p:Configuration=Debug /p:PostBuildEvent= /p:DebugType=None /p:DebugSymbols=false /v:minimal`
+- Codex must not proactively compile source code. Only run build commands when the user explicitly asks for compilation or test execution.
 - Use `/p:PostBuildEvent=` unless the user explicitly wants the project post-build copy to run.
 - If AutoCAD locks `bin\Debug\AutoFixtureDim.pdb`, keep `DebugSymbols=false` and `DebugType=None`.
 - Build output: `bin\Debug\AutoFixtureDim.dll`

@@ -215,12 +215,9 @@ if ([string]::IsNullOrWhiteSpace($DllPath)) {
 
 $scrDllPath = Convert-ToAutoCadScriptString -Value (Resolve-Path -LiteralPath $loadDllPath).Path
 $scriptLines = @(
-    "FILEDIA",
-    "0",
-    "CMDDIA",
-    "0",
-    "NETLOAD",
-    "`"$scrDllPath`"",
+    "(command `"_.NETLOAD`" `"$scrDllPath`")",
+    '(setvar "FILEDIA" 1)',
+    '(setvar "CMDDIA" 1)',
     $TestCommand
 )
 

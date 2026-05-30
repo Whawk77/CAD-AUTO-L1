@@ -1,0 +1,43 @@
+
+
+AutoCAD 荈\U+28EC\U+13E8\U+ED3E\U+48FF\U+C88B譈０萒\U+48C0\U+058D厒\U+00B8\U+0775赈儅\U+B853\U+4800\U+C483\U+C328\U+03E9 ()  文件: D:\work\AI\project\L1\acad.slg  5/30/2026 15:26:47.000
+用户: $USRNAME$
+平台: Microsoft Windows NT Version 10.0 (x64)  序列号: 666-69696969   
+755870 个对象在C:\Users\Administrator\Desktop\test.dwg中
+放弃文件大小:       6.8 MB
+执行目录: D:\Program Files\Autodesk\AutoCAD 2020\
+配置目录: C:\Users\Administrator\AppData\Local\Autodesk\AutoCAD 2020\R23.1\chs  当前目录: D:\work\AI\project\L1\
+模型空间图形界限      X:    0.0000   Y:    0.0000  (关)
+                      X:   17.0000   Y:   11.0000
+模型空间使用          X: 137042.5293   Y: -38711.6557 **超过
+                      X: 178711.7013   Y: 17714.9297 **超过
+显示范围              X: 141399.2021   Y: -17169.2043
+                      X: 141912.5976   Y: -16941.8665
+插入基点              X: 1571.9896   Y: 1054.4656   Z:    0.0000
+捕捉分辨率            X:    0.1250   Y:    0.1250
+栅格间距              X:    1.0000   Y:    1.0000
+
+当前空间:             模型空间
+当前布局:             Model
+当前图层:             JEE-DIM标注 
+当前颜色:             3 (绿)
+当前线型:             BYLAYER -- "CONTINUOUS"
+当前材质:             BYLAYER -- "Global"
+当前线宽:             BYLAYER
+当前标高:             0.0000  厚度:    0.0000
+填充 开  栅格 关  正交 关  快速文字 关  捕捉 关  数字化仪 关  
+对象捕捉模式:    圆心, 端点, 几何中心, 插入点, 交点, 中点, 最近点, 节点, 垂足, 象限点, 切点, 外观交点, 延伸, 平行
+AutoLISP 关  
+可用图形磁盘 (C:) 空间: 100929.1 MB
+可用临时磁盘 (C:) 空间: 100929.1 MB
+可用物理内存: 17853.5 MB (物理内存总量 32451.9 MB)。
+可用交换文件空间: 17097.2 MB (共 37315.9 MB)。
+
+
+打开文件 (不包括 ADS、ARX 和 LISP 文件)   大小模式
+D:\work\AI\project\L1\acad.slg           2154 ASCII Read/Write DenyAll
+C:\Users\Administrator\appdata\local\temp\REDO.ac$      0 Read/Write DenyAll
+C:\Users\Administrator\appdata\local\temp\UND9D433.ac$ 7146135 Read/Write DenyAll
+D:\program files\autodesk\autocad 2020\fonts\gbcbig.shx 902841 ReadOnly DenyWrite
+SH.ac$                                    141 InMem Read/Write DenyAll
+l

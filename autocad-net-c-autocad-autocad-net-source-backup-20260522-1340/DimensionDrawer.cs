@@ -193,6 +193,106 @@ namespace AutoFixtureDim
             DrawLowerRightStepWidth(outline);
             DrawRightStepHeight(outline);
             DrawRightSideStepHeight(outline);
+            SuppressRightStructureHeightsDuplicatingOverallHeight();
+            SuppressLeftStructureHeightsCoveredByRight();
+        }
+
+        private void SuppressRightStructureHeightsDuplicatingOverallHeight()
+        {
+            var overallHeights = _leftDims
+                .Where(dim => dim.DimType == DimensionType.OverallHeight)
+                .ToList();
+            if (overallHeights.Count == 0 || _rightDims.Count == 0)
+            {
+                return;
+            }
+
+            for (int i = _rightDims.Count - 1; i >= 0; i--)
+            {
+                var right = _rightDims[i];
+                if (!IsRightStructureHeight(right))
+                {
+                    continue;
+                }
+
+                if (overallHeights.Any(overall => IsSameVerticalInterval(right, overall)))
+                {
+                    _rightDims.RemoveAt(i);
+                }
+            }
+        }
+
+        private void SuppressLeftStructureHeightsCoveredByRight()
+        {
+            if (_leftDims.Count == 0 || _rightDims.Count == 0)
+            {
+                return;
+            }
+
+            var rightStructureHeights = _rightDims
+                .Where(IsRightStructureHeight)
+                .ToList();
+            if (rightStructureHeights.Count == 0)
+            {
+                return;
+            }
+
+            for (int i = _leftDims.Count - 1; i >= 0; i--)
+            {
+                var left = _leftDims[i];
+                if (!IsLeftStructureHeight(left))
+                {
+                    continue;
+                }
+
+                if (rightStructureHeights.Any(right => IsVerticalIntervalCoveredByRightStructure(left, right)))
+                {
+                    _leftDims.RemoveAt(i);
+                }
+            }
+        }
+
+        private static bool IsLeftStructureHeight(DeferredDim dim)
+        {
+            return dim.DimType == DimensionType.Normal
+                && !dim.PreferLocalBoundary
+                && string.Equals(dim.DebugRole, "LeftStructHeight", StringComparison.Ordinal);
+        }
+
+        private static bool IsRightStructureHeight(DeferredDim dim)
+        {
+            return dim.DimType == DimensionType.Normal
+                && !dim.PreferLocalBoundary
+                && string.Equals(dim.DebugRole, "RightStructHeight", StringComparison.Ordinal);
+        }
+
+        private bool IsVerticalIntervalCoveredByRightStructure(DeferredDim left, DeferredDim right)
+        {
+            var leftMin = Math.Min(left.XLine1.Y, left.XLine2.Y);
+            var leftMax = Math.Max(left.XLine1.Y, left.XLine2.Y);
+            var rightMin = Math.Min(right.XLine1.Y, right.XLine2.Y);
+            var rightMax = Math.Max(right.XLine1.Y, right.XLine2.Y);
+            var tolerance = _config.GeometryTolerance;
+
+            var sharesEndpoint = Math.Abs(leftMin - rightMin) <= tolerance
+                || Math.Abs(leftMin - rightMax) <= tolerance
+                || Math.Abs(leftMax - rightMin) <= tolerance
+                || Math.Abs(leftMax - rightMax) <= tolerance;
+            if (!sharesEndpoint)
+            {
+                return false;
+            }
+
+            return leftMin >= rightMin - tolerance
+                && leftMax <= rightMax + tolerance
+                && right.Span >= left.Span - tolerance;
+        }
+
+        private bool IsSameVerticalInterval(DeferredDim a, DeferredDim b)
+        {
+            return Math.Abs(Math.Min(a.XLine1.Y, a.XLine2.Y) - Math.Min(b.XLine1.Y, b.XLine2.Y)) <= _config.GeometryTolerance
+                && Math.Abs(Math.Max(a.XLine1.Y, a.XLine2.Y) - Math.Max(b.XLine1.Y, b.XLine2.Y)) <= _config.GeometryTolerance
+                && Math.Abs(a.Span - b.Span) <= _config.GeometryTolerance;
         }
 
         private OutlineSegment FindOverallWidthSegment(OutlineFeature outline)
@@ -3098,6 +3198,9 @@ namespace AutoFixtureDim
         {
             var point = new Point2d(featurePoint.X, featurePoint.Y);
             if (ContainsPoint(points, point)
+                // 保护全局左右外包络端点：如果斜边端点落在 outline.MinX / outline.MaxX，
+                // 当前 Top/Bottom 斜边忽略流程不会把它加入 ignoredPoints。
+                // 这会让靠近最左/最右边界的顶部斜边端点保留下来，避免误删外轮廓最大宽度端点。
                 || IsEnvelopeSidePoint(point, outline)
                 || !ShouldIgnoreDirectionalInclinedEndpoint(point, outline, invertDirection))
             {
@@ -3525,6 +3628,9 @@ namespace AutoFixtureDim
                 return false;
             }
 
+            // 只按 X 判断是否在全局左右外包络边界上。
+            // 注意：这不是判断点是否在顶部/底部边界；Top/Bottom 的斜边端点如果刚好在 MaxX，
+            // 也会被视为外包络端点，从而跳过 ignoredPoints。
             return point.X <= outline.MinX + _config.GeometryTolerance
                 || point.X >= outline.MaxX - _config.GeometryTolerance;
         }

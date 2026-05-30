@@ -1,0 +1,42 @@
+{
+  "name": "codex-screenshot",
+  "version": "0.1.0",
+  "description": "Capture, annotate, and paste screenshots into Codex from a global Windows hotkey.",
+  "author": {
+    "name": "Local User",
+    "email": "local@example.com",
+    "url": "https://openai.com/"
+  },
+  "homepage": "https://openai.com/",
+  "repository": "https://openai.com/",
+  "license": "MIT",
+  "keywords": [
+    "screenshot",
+    "annotation",
+    "windows",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex 截图标注",
+    "shortDescription": "启动截图热键并粘贴到 Codex",
+    "longDescription": "启动 Windows 常驻托盘截图标注工具，注册全局热键 Ctrl+Shift+S。截图后可进行基础标注，并复制粘贴到当前 Codex 对话。",
+    "developerName": "Local User",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://openai.com/",
+    "privacyPolicyURL": "https://openai.com/policies/row-privacy-policy/",
+    "termsOfServiceURL": "https://openai.com/policies/row-terms-of-use/",
+    "defaultPrompt": [
+      "启动截图热键",
+      "说明截图插件设置"
+    ],
+    "brandColor": "#2563EB",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/logo.svg",
+    "screenshots": []
+  }
+}

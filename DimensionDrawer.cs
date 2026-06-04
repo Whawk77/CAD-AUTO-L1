@@ -10,6 +10,15 @@ using Autodesk.AutoCAD.GraphicsInterface;
 
 namespace AutoFixtureDim
 {
+    public enum DiagnosticDimensionSide
+    {
+        All,
+        Bottom,
+        Top,
+        Left,
+        Right
+    }
+
     public sealed class DimensionDrawer
     {
         private readonly Database _db;
@@ -23,6 +32,7 @@ namespace AutoFixtureDim
         private readonly bool _appendToDatabase;
         private readonly string _groupId;
         private readonly bool _diagnosticsEnabled;
+        private readonly DiagnosticDimensionSide _diagnosticSide;
         private readonly IList<Entity> _previewEntities = new List<Entity>();
         private readonly List<DeferredDim> _bottomDims = new List<DeferredDim>();
         private readonly List<DeferredDim> _topDims = new List<DeferredDim>();
@@ -67,6 +77,30 @@ namespace AutoFixtureDim
             public double MaxX;
             public double MinY;
             public double MaxY;
+        }
+
+        private struct StructurePoint
+        {
+            public Point2d Point;
+            public string Source;
+        }
+
+        private struct IgnoredPoint
+        {
+            public Point2d Point;
+            public string Reason;
+        }
+
+        private struct PointDebugLabel
+        {
+            public Point2d Point;
+            public string Label;
+            public short ColorIndex;
+        }
+
+        private struct PointDebugLabelPlacement
+        {
+            public TextBounds Bounds;
         }
 
         private sealed class PinGroupPlan
@@ -116,7 +150,8 @@ namespace AutoFixtureDim
             string annotationLayer,
             bool appendToDatabase,
             string groupId,
-            bool diagnosticsEnabled = false)
+            bool diagnosticsEnabled = false,
+            DiagnosticDimensionSide diagnosticSide = DiagnosticDimensionSide.All)
         {
             _db = db;
             _tr = tr;
@@ -129,6 +164,7 @@ namespace AutoFixtureDim
             _appendToDatabase = appendToDatabase;
             _groupId = groupId;
             _diagnosticsEnabled = diagnosticsEnabled;
+            _diagnosticSide = diagnosticSide;
         }
 
         public IList<Entity> PreviewEntities
@@ -189,12 +225,46 @@ namespace AutoFixtureDim
                 return;
             }
 
-            DrawTopStepWidth(outline);
-            DrawLowerRightStepWidth(outline);
-            DrawRightStepHeight(outline);
-            DrawRightSideStepHeight(outline);
+            if (ShouldGenerateDiagnosticSide(DimSide.Top))
+            {
+                DrawTopStepWidth(outline);
+            }
+
+            if (ShouldGenerateDiagnosticSide(DimSide.Bottom))
+            {
+                DrawLowerRightStepWidth(outline);
+            }
+
+            if (ShouldGenerateDiagnosticSide(DimSide.Left))
+            {
+                DrawRightStepHeight(outline);
+            }
+
+            if (ShouldGenerateDiagnosticSide(DimSide.Right))
+            {
+                DrawRightSideStepHeight(outline);
+            }
+
             SuppressRightStructureHeightsDuplicatingOverallHeight();
             SuppressLeftStructureHeightsCoveredByRight();
+        }
+
+        private bool ShouldGenerateDiagnosticSide(DimSide side)
+        {
+            if (!_diagnosticsEnabled || _diagnosticSide == DiagnosticDimensionSide.All)
+            {
+                return true;
+            }
+
+            return MatchesDiagnosticSide(side);
+        }
+
+        private bool MatchesDiagnosticSide(DimSide side)
+        {
+            return (side == DimSide.Bottom && _diagnosticSide == DiagnosticDimensionSide.Bottom)
+                || (side == DimSide.Top && _diagnosticSide == DiagnosticDimensionSide.Top)
+                || (side == DimSide.Left && _diagnosticSide == DiagnosticDimensionSide.Left)
+                || (side == DimSide.Right && _diagnosticSide == DiagnosticDimensionSide.Right);
         }
 
         private void SuppressRightStructureHeightsDuplicatingOverallHeight()
@@ -2283,27 +2353,36 @@ namespace AutoFixtureDim
 
         private void DrawTopStepWidth(OutlineFeature outline)
         {
-            var ignoredPoints = new List<Point2d>();
+            var ignoredPoints = new List<IgnoredPoint>();
+            List<StructurePoint> structurePoints;
             List<DeferredDim> candidates;
             while (true)
             {
-                var points = BuildTopSideHorizontalStructurePoints(outline, ignoredPoints);
+                structurePoints = BuildTopSideHorizontalStructurePoints(outline, ignoredPoints);
+                var points = structurePoints
+                    .Select(p => p.Point)
+                    .ToList();
                 if (points.Count < 2)
                 {
                     return;
                 }
 
                 candidates = BuildHorizontalWidthCandidates(points, "TopStructWidth");
-                var crossingPoints = GetTopExtensionCrossingPoints(candidates, outline);
+                var crossingPoints = GetTopExtensionIgnoredPoints(candidates, outline);
                 if (crossingPoints.Count == 0)
                 {
                     break;
                 }
 
-                if (!AddIgnoredPoints(ignoredPoints, crossingPoints))
+                if (!AddIgnoredPointMetadata(ignoredPoints, crossingPoints))
                 {
                     return;
                 }
+            }
+
+            if (_diagnosticsEnabled)
+            {
+                AddTopPointDebugLabels(structurePoints, ignoredPoints);
             }
 
             RemoveLongestTopExtensionCandidate(candidates, outline);
@@ -2321,10 +2400,11 @@ namespace AutoFixtureDim
         private void DrawLowerRightStepWidth(OutlineFeature outline)
         {
             var ignoredPoints = new List<Point2d>();
+            List<Point2d> points;
             List<DeferredDim> candidates;
             while (true)
             {
-                var points = BuildBottomSideHorizontalStructurePoints(outline, ignoredPoints);
+                points = BuildBottomSideHorizontalStructurePoints(outline, ignoredPoints);
                 if (points.Count < 2)
                 {
                     return;
@@ -2341,6 +2421,11 @@ namespace AutoFixtureDim
                 {
                     return;
                 }
+            }
+
+            if (_diagnosticsEnabled && ShouldFlushDiagnosticSide(DimSide.Bottom))
+            {
+                AddDirectionalPointDebugLabels(points, ignoredPoints, "SP:VBM", "IG:UNK");
             }
 
             RemoveLongestBottomExtensionCandidate(candidates, outline);
@@ -2383,7 +2468,7 @@ namespace AutoFixtureDim
             return candidates;
         }
 
-        private List<Point2d> BuildTopSideHorizontalStructurePoints(OutlineFeature outline, IList<Point2d> ignoredPoints)
+        private List<StructurePoint> BuildTopSideHorizontalStructurePoints(OutlineFeature outline, IList<IgnoredPoint> ignoredPoints)
         {
             var tolerance = _config.GeometryTolerance;
             var groups = new List<List<OutlineSegment>>();
@@ -2403,15 +2488,16 @@ namespace AutoFixtureDim
             }
 
             var points = groups
-                .Select(g => GetTopMostPoint(g, ignoredPoints))
+                .Select(g => GetTopMostStructurePoint(g, ignoredPoints))
                 .Where(p => p.HasValue)
                 .Select(p => p.Value)
                 .ToList();
 
             AddTopInclinedEndpointStructurePoints(points, outline, ignoredPoints);
+            AddTopSlopeEndpointStructurePoints(points, outline, ignoredPoints);
 
             return points
-                .OrderBy(p => p.X)
+                .OrderBy(p => p.Point.X)
                 .ToList();
         }
 
@@ -2458,6 +2544,28 @@ namespace AutoFixtureDim
                 .FirstOrDefault();
 
             return point;
+        }
+
+        private StructurePoint? GetTopMostStructurePoint(IEnumerable<OutlineSegment> segments, IList<IgnoredPoint> ignoredPoints)
+        {
+            var point = segments
+                .SelectMany(s => new[] { s.Start, s.End })
+                .Where(p => !ContainsIgnoredPoint(ignoredPoints, p))
+                .OrderByDescending(p => p.Y)
+                .ThenBy(p => p.X)
+                .Select(p => (Point2d?)p)
+                .FirstOrDefault();
+
+            if (!point.HasValue)
+            {
+                return null;
+            }
+
+            return new StructurePoint
+            {
+                Point = point.Value,
+                Source = "VerticalTopMost"
+            };
         }
 
         private Point2d? GetBottomMostPoint(IEnumerable<OutlineSegment> segments, IList<Point2d> ignoredPoints)
@@ -2643,10 +2751,11 @@ namespace AutoFixtureDim
         private void DrawRightStepHeight(OutlineFeature outline)
         {
             var ignoredPoints = new List<Point2d>();
+            List<Point2d> points;
             List<DeferredDim> candidates;
             while (true)
             {
-                var points = BuildLeftSideVerticalStructurePoints(outline, ignoredPoints);
+                points = BuildLeftSideVerticalStructurePoints(outline, ignoredPoints);
                 if (points.Count < 2)
                 {
                     return;
@@ -2665,6 +2774,11 @@ namespace AutoFixtureDim
                 }
             }
 
+            if (_diagnosticsEnabled && ShouldFlushDiagnosticSide(DimSide.Left))
+            {
+                AddDirectionalPointDebugLabels(points, ignoredPoints, "SP:HLM", "IG:UNK");
+            }
+
             RemoveLongestExtensionCandidate(candidates, outline);
             foreach (var dim in candidates)
             {
@@ -2675,10 +2789,11 @@ namespace AutoFixtureDim
         private void DrawRightSideStepHeight(OutlineFeature outline)
         {
             var ignoredPoints = new List<Point2d>();
+            List<Point2d> points;
             List<DeferredDim> candidates;
             while (true)
             {
-                var points = BuildRightSideVerticalStructurePoints(outline, ignoredPoints);
+                points = BuildRightSideVerticalStructurePoints(outline, ignoredPoints);
                 if (points.Count < 2)
                 {
                     return;
@@ -2695,6 +2810,11 @@ namespace AutoFixtureDim
                 {
                     return;
                 }
+            }
+
+            if (_diagnosticsEnabled && ShouldFlushDiagnosticSide(DimSide.Right))
+            {
+                AddDirectionalPointDebugLabels(points, ignoredPoints, "SP:HRM", "IG:UNK");
             }
 
             RemoveLongestRightExtensionCandidate(candidates, outline);
@@ -2905,7 +3025,7 @@ namespace AutoFixtureDim
                 .Any(s => PointsEqual(point, s.Start) || PointsEqual(point, s.End));
         }
 
-        private bool IsTopSideHorizontalStructureCandidate(DeferredDim dim, OutlineFeature outline, IList<Point2d> ignoredPoints)
+        private bool IsTopSideHorizontalStructureCandidate(DeferredDim dim, OutlineFeature outline, IList<IgnoredPoint> ignoredPoints)
         {
             return IsCurrentTopSideStructurePoint(new Point2d(dim.XLine1.X, dim.XLine1.Y), outline, ignoredPoints)
                 && IsCurrentTopSideStructurePoint(new Point2d(dim.XLine2.X, dim.XLine2.Y), outline, ignoredPoints);
@@ -2917,7 +3037,7 @@ namespace AutoFixtureDim
                 && IsCurrentBottomSideStructurePoint(new Point2d(dim.XLine2.X, dim.XLine2.Y), outline, ignoredPoints);
         }
 
-        private bool IsCurrentTopSideStructurePoint(Point2d point, OutlineFeature outline, IList<Point2d> ignoredPoints)
+        private bool IsCurrentTopSideStructurePoint(Point2d point, OutlineFeature outline, IList<IgnoredPoint> ignoredPoints)
         {
             if (IsTopInclinedEndpointStructurePoint(point, outline, ignoredPoints))
             {
@@ -2936,11 +3056,11 @@ namespace AutoFixtureDim
                 return false;
             }
 
-            var topMost = GetTopMostPoint(levelSegments, ignoredPoints);
-            return topMost.HasValue && PointsEqual(topMost.Value, point);
+            var topMost = GetTopMostStructurePoint(levelSegments, ignoredPoints);
+            return topMost.HasValue && PointsEqual(topMost.Value.Point, point);
         }
 
-        private void AddTopInclinedEndpointStructurePoints(IList<Point2d> points, OutlineFeature outline, IList<Point2d> ignoredPoints)
+        private void AddTopInclinedEndpointStructurePoints(IList<StructurePoint> points, OutlineFeature outline, IList<IgnoredPoint> ignoredPoints)
         {
             var tolerance = _config.GeometryTolerance;
             foreach (var segment in outline.Segments
@@ -2955,24 +3075,28 @@ namespace AutoFixtureDim
         }
 
         private void AddTopInclinedEndpointStructurePoint(
-            IList<Point2d> points,
+            IList<StructurePoint> points,
             Point2d point,
             OutlineFeature outline,
-            IList<Point2d> ignoredPoints)
+            IList<IgnoredPoint> ignoredPoints)
         {
-            if (ContainsPoint(points, point)
-                || ContainsPoint(ignoredPoints, point)
+            if (ContainsStructurePoint(points, point)
+                || ContainsIgnoredPoint(ignoredPoints, point)
                 || IsEnvelopeSidePoint(point, outline))
             {
                 return;
             }
 
-            points.Add(point);
+            points.Add(new StructurePoint
+            {
+                Point = point,
+                Source = "TopInclinedEndpoint"
+            });
         }
 
-        private bool IsTopInclinedEndpointStructurePoint(Point2d point, OutlineFeature outline, IList<Point2d> ignoredPoints)
+        private bool IsTopInclinedEndpointStructurePoint(Point2d point, OutlineFeature outline, IList<IgnoredPoint> ignoredPoints)
         {
-            if (ContainsPoint(ignoredPoints, point) || IsEnvelopeSidePoint(point, outline))
+            if (ContainsIgnoredPoint(ignoredPoints, point) || IsEnvelopeSidePoint(point, outline))
             {
                 return false;
             }
@@ -2984,6 +3108,91 @@ namespace AutoFixtureDim
                 .Where(IsFortyFiveDegreeSegment)
                 .Where(s => IsInnerGrooveChamferSegment(s, outline, isTopSide: true))
                 .Any(s => PointsEqual(point, s.Start) || PointsEqual(point, s.End));
+        }
+
+        private void AddTopSlopeEndpointStructurePoints(IList<StructurePoint> points, OutlineFeature outline, IList<IgnoredPoint> ignoredPoints)
+        {
+            var tolerance = _config.GeometryTolerance;
+            foreach (var segment in outline.Segments
+                .Where(s => !s.IsHorizontal(tolerance))
+                .Where(s => !s.IsVertical(tolerance))
+                .Where(s => !s.IsArcChord))
+            {
+                var low = segment.Start.Y <= segment.End.Y ? segment.Start : segment.End;
+                var high = PointsEqual(low, segment.Start) ? segment.End : segment.Start;
+                if (!IsTopSlopeEndpointStructurePoint(low, high, segment, outline, ignoredPoints))
+                {
+                    continue;
+                }
+
+                AddTopSlopeEndpointStructurePoint(points, low, outline, ignoredPoints);
+            }
+        }
+
+        private bool IsTopSlopeEndpointStructurePoint(
+            Point2d low,
+            Point2d high,
+            OutlineSegment slope,
+            OutlineFeature outline,
+            IList<IgnoredPoint> ignoredPoints)
+        {
+            if (ContainsIgnoredPoint(ignoredPoints, low)
+                || IsEnvelopeSidePoint(low, outline)
+                || high.Y <= low.Y + _config.GeometryTolerance)
+            {
+                return false;
+            }
+
+            return EndpointConnectsHorizontalSegment(low, slope, outline)
+                && EndpointConnectsHigherHorizontalSegment(high, low.Y, slope, outline);
+        }
+
+        private void AddTopSlopeEndpointStructurePoint(
+            IList<StructurePoint> points,
+            Point2d point,
+            OutlineFeature outline,
+            IList<IgnoredPoint> ignoredPoints)
+        {
+            if (ContainsStructurePoint(points, point)
+                || ContainsIgnoredPoint(ignoredPoints, point)
+                || IsEnvelopeSidePoint(point, outline))
+            {
+                return;
+            }
+
+            points.Add(new StructurePoint
+            {
+                Point = point,
+                Source = "TopSlopeEndpoint"
+            });
+        }
+
+        private bool EndpointConnectsHorizontalSegment(Point2d point, OutlineSegment source, OutlineFeature outline)
+        {
+            return outline.Segments.Any(segment =>
+                !ReferenceEquals(segment, source)
+                && segment.IsHorizontal(_config.GeometryTolerance)
+                && !segment.IsArcChord
+                && IsPointOnHorizontalSegment(point, segment));
+        }
+
+        private bool EndpointConnectsHigherHorizontalSegment(Point2d point, double referenceY, OutlineSegment source, OutlineFeature outline)
+        {
+            return outline.Segments.Any(segment =>
+                !ReferenceEquals(segment, source)
+                && segment.IsHorizontal(_config.GeometryTolerance)
+                && !segment.IsArcChord
+                && segment.MinY > referenceY + _config.GeometryTolerance
+                && IsPointOnHorizontalSegment(point, segment));
+        }
+
+        private bool IsPointOnHorizontalSegment(Point2d point, OutlineSegment segment)
+        {
+            var tolerance = _config.GeometryTolerance;
+            return segment.IsHorizontal(tolerance)
+                && Math.Abs(segment.MinY - point.Y) <= tolerance
+                && point.X >= segment.MinX - tolerance
+                && point.X <= segment.MaxX + tolerance;
         }
 
         private bool IsCurrentBottomSideStructurePoint(Point2d point, OutlineFeature outline, IList<Point2d> ignoredPoints)
@@ -3097,6 +3306,20 @@ namespace AutoFixtureDim
             return points;
         }
 
+        private List<IgnoredPoint> GetTopExtensionIgnoredPoints(IList<DeferredDim> candidates, OutlineFeature outline)
+        {
+            var points = new List<IgnoredPoint>();
+            foreach (var dim in candidates)
+            {
+                AddTopCrossingIgnoredPoint(points, dim.XLine1, outline);
+                AddTopCrossingIgnoredPoint(points, dim.XLine2, outline);
+                AddDirectionalInclinedIgnoredPoint(points, dim.XLine1, outline, invertDirection: true);
+                AddDirectionalInclinedIgnoredPoint(points, dim.XLine2, outline, invertDirection: true);
+            }
+
+            return points;
+        }
+
         private List<Point2d> GetBottomExtensionCrossingPoints(IList<DeferredDim> candidates, OutlineFeature outline)
         {
             var points = new List<Point2d>();
@@ -3138,6 +3361,20 @@ namespace AutoFixtureDim
                 && !ContainsPoint(points, point))
             {
                 points.Add(point);
+            }
+        }
+
+        private void AddTopCrossingIgnoredPoint(IList<IgnoredPoint> points, Point3d featurePoint, OutlineFeature outline)
+        {
+            var point = new Point2d(featurePoint.X, featurePoint.Y);
+            if (TopExtensionCrossesOutline(featurePoint, outline)
+                && !ContainsIgnoredPoint(points, point))
+            {
+                points.Add(new IgnoredPoint
+                {
+                    Point = point,
+                    Reason = "TopExtensionCrossesOutline"
+                });
             }
         }
 
@@ -3210,6 +3447,28 @@ namespace AutoFixtureDim
             points.Add(point);
         }
 
+        private void AddDirectionalInclinedIgnoredPoint(
+            IList<IgnoredPoint> points,
+            Point3d featurePoint,
+            OutlineFeature outline,
+            bool invertDirection)
+        {
+            var point = new Point2d(featurePoint.X, featurePoint.Y);
+            var reason = GetDirectionalInclinedIgnoreReason(point, outline, invertDirection);
+            if (ContainsIgnoredPoint(points, point)
+                || IsEnvelopeSidePoint(point, outline)
+                || string.IsNullOrEmpty(reason))
+            {
+                return;
+            }
+
+            points.Add(new IgnoredPoint
+            {
+                Point = point,
+                Reason = reason
+            });
+        }
+
         private void AddSideInnerGrooveEndpoint(
             IList<Point2d> points,
             Point3d featurePoint,
@@ -3254,7 +3513,7 @@ namespace AutoFixtureDim
             return outline.Segments
                 .Where(s => !s.IsHorizontal(_config.GeometryTolerance))
                 .Where(s => !s.IsVertical(_config.GeometryTolerance))
-                .Where(IsFortyFiveDegreeSegment)
+                .Where(IsIgnorableFortyFiveDegreeSegment)
                 .Any(s =>
                     IsSideInnerGrooveChamferSegment(s, outline, side)
                         ? IsSideInnerGrooveIgnoredEndpoint(point, s, outline, side)
@@ -3299,35 +3558,62 @@ namespace AutoFixtureDim
             return outline.Segments
                 .Where(s => !s.IsHorizontal(_config.GeometryTolerance))
                 .Where(s => !s.IsVertical(_config.GeometryTolerance))
-                .Where(IsFortyFiveDegreeSegment)
+                .Where(IsIgnorableFortyFiveDegreeSegment)
                 .Where(s => IsSideInnerGrooveChamferSegment(s, outline, side))
                 .Any(s => IsSideInnerGrooveIgnoredEndpoint(point, s, outline, side));
         }
 
         private bool ShouldIgnoreDirectionalInclinedEndpoint(Point2d point, OutlineFeature outline, bool invertDirection)
         {
+            return !string.IsNullOrEmpty(GetDirectionalInclinedIgnoreReason(point, outline, invertDirection));
+        }
+
+        private string GetDirectionalInclinedIgnoreReason(Point2d point, OutlineFeature outline, bool invertDirection)
+        {
             if (outline == null)
             {
-                return false;
+                return string.Empty;
             }
 
             var segments = outline.Segments
                 .Where(s => !s.IsHorizontal(_config.GeometryTolerance))
                 .Where(s => !s.IsVertical(_config.GeometryTolerance))
-                .Where(IsFortyFiveDegreeSegment);
+                .Where(IsIgnorableFortyFiveDegreeSegment);
 
             if (invertDirection)
             {
-                return segments.Any(s =>
-                    IsInnerGrooveChamferSegment(s, outline, isTopSide: true)
-                        ? IsInnerGrooveIgnoredEndpoint(point, s, outline, isTopSide: true)
-                        : IsDirectionalIgnoredEndpoint(point, s, invertDirection: true));
+                foreach (var segment in segments)
+                {
+                    if (IsInnerGrooveChamferSegment(segment, outline, isTopSide: true)
+                        && IsInnerGrooveIgnoredEndpoint(point, segment, outline, isTopSide: true))
+                    {
+                        return "TopInnerGrooveSharedEndpoint";
+                    }
+
+                    if (IsDirectionalIgnoredEndpoint(point, segment, invertDirection: true))
+                    {
+                        return "TopDirectional45Endpoint";
+                    }
+                }
+
+                return string.Empty;
             }
 
-            return segments.Any(s =>
-                IsInnerGrooveChamferSegment(s, outline, isTopSide: false)
-                    ? IsInnerGrooveIgnoredEndpoint(point, s, outline, isTopSide: false)
-                    : IsDirectionalIgnoredEndpoint(point, s, invertDirection: false));
+            foreach (var segment in segments)
+            {
+                if (IsInnerGrooveChamferSegment(segment, outline, isTopSide: false)
+                    && IsInnerGrooveIgnoredEndpoint(point, segment, outline, isTopSide: false))
+                {
+                    return "BottomInnerGrooveSharedEndpoint";
+                }
+
+                if (IsDirectionalIgnoredEndpoint(point, segment, invertDirection: false))
+                {
+                    return "BottomDirectional45Endpoint";
+                }
+            }
+
+            return string.Empty;
         }
 
         private bool IsInnerGrooveChamferSegment(OutlineSegment chamfer, OutlineFeature outline, bool isTopSide)
@@ -3423,7 +3709,9 @@ namespace AutoFixtureDim
         private bool IsInnerGrooveIgnoredEndpoint(Point2d point, OutlineSegment chamfer, OutlineFeature outline, bool isTopSide)
         {
             var sharedPoint = GetInnerGrooveHorizontalSharedPoint(chamfer, outline, isTopSide);
-            return sharedPoint.HasValue && PointsEqual(point, sharedPoint.Value);
+            return sharedPoint.HasValue
+                && PointsEqual(point, sharedPoint.Value)
+                && IsDirectionalIgnoredEndpoint(point, chamfer, invertDirection: isTopSide);
         }
 
         private Point2d? GetInnerGrooveHorizontalSharedPoint(OutlineSegment chamfer, OutlineFeature outline, bool isTopSide)
@@ -3723,6 +4011,16 @@ namespace AutoFixtureDim
                 && Math.Abs(dx - dy) <= tolerance;
         }
 
+        private bool IsIgnorableFortyFiveDegreeSegment(OutlineSegment segment)
+        {
+            var dx = Math.Abs(segment.Start.X - segment.End.X);
+            var dy = Math.Abs(segment.Start.Y - segment.End.Y);
+            var tolerance = Math.Max(_config.GeometryTolerance, Math.Max(dx, dy) * 0.02);
+            return dx > _config.GeometryTolerance
+                && dy > _config.GeometryTolerance
+                && Math.Abs(dx - dy) <= tolerance;
+        }
+
         private bool IsPointXWithinSegmentXRange(Point2d point, OutlineSegment segment)
         {
             var tolerance = _config.GeometryTolerance;
@@ -3820,9 +4118,34 @@ namespace AutoFixtureDim
             return added;
         }
 
+        private bool AddIgnoredPointMetadata(IList<IgnoredPoint> ignoredPoints, IEnumerable<IgnoredPoint> crossingPoints)
+        {
+            var added = false;
+            foreach (var point in crossingPoints)
+            {
+                if (!ContainsIgnoredPoint(ignoredPoints, point.Point))
+                {
+                    ignoredPoints.Add(point);
+                    added = true;
+                }
+            }
+
+            return added;
+        }
+
         private bool ContainsPoint(IEnumerable<Point2d> points, Point2d point)
         {
             return points.Any(p => PointsEqual(p, point));
+        }
+
+        private bool ContainsStructurePoint(IEnumerable<StructurePoint> points, Point2d point)
+        {
+            return points.Any(p => PointsEqual(p.Point, point));
+        }
+
+        private bool ContainsIgnoredPoint(IEnumerable<IgnoredPoint> points, Point2d point)
+        {
+            return points.Any(p => PointsEqual(p.Point, point));
         }
 
         private bool LeftExtensionCrossesOutline(Point3d featurePoint, OutlineFeature outline)
@@ -4666,10 +4989,32 @@ namespace AutoFixtureDim
             SuppressMirroredHorizontalDuplicates();
             SuppressMirroredVerticalDuplicates();
 
-            FlushSide(_bottomDims, DimSide.Bottom, outline, perLevelSpacing);
-            FlushSide(_topDims, DimSide.Top, outline, perLevelSpacing);
-            FlushSide(_leftDims, DimSide.Left, outline, perLevelSpacing);
-            FlushSide(_rightDims, DimSide.Right, outline, perLevelSpacing);
+            if (ShouldFlushDiagnosticSide(DimSide.Bottom))
+            {
+                FlushSide(_bottomDims, DimSide.Bottom, outline, perLevelSpacing);
+            }
+
+            if (ShouldFlushDiagnosticSide(DimSide.Top))
+            {
+                FlushSide(_topDims, DimSide.Top, outline, perLevelSpacing);
+            }
+
+            if (ShouldFlushDiagnosticSide(DimSide.Left))
+            {
+                FlushSide(_leftDims, DimSide.Left, outline, perLevelSpacing);
+            }
+
+            if (ShouldFlushDiagnosticSide(DimSide.Right))
+            {
+                FlushSide(_rightDims, DimSide.Right, outline, perLevelSpacing);
+            }
+        }
+
+        private bool ShouldFlushDiagnosticSide(DimSide side)
+        {
+            return !_diagnosticsEnabled
+                || _diagnosticSide == DiagnosticDimensionSide.All
+                || MatchesDiagnosticSide(side);
         }
 
         private void RebalanceVerticalHoleLocationSides()
@@ -5094,6 +5439,199 @@ namespace AutoFixtureDim
             mtext.Layer = _annotationLayer;
             mtext.Color = GetDebugLabelColor(placed.Dim);
             Append(mtext);
+        }
+
+        private void AddTopPointDebugLabels(IEnumerable<StructurePoint> structurePoints, IEnumerable<IgnoredPoint> ignoredPoints)
+        {
+            var labels = new List<PointDebugLabel>();
+            labels.AddRange(structurePoints.Select(point => new PointDebugLabel
+            {
+                Point = point.Point,
+                Label = "SP:" + GetStructurePointSourceText(point.Source),
+                ColorIndex = 4
+            }));
+
+            labels.AddRange(ignoredPoints.Select(point => new PointDebugLabel
+            {
+                Point = point.Point,
+                Label = "IG:" + GetIgnoredPointReasonText(point.Reason),
+                ColorIndex = 1
+            }));
+
+            AddPointDebugLabels(labels);
+        }
+
+        private void AddDirectionalPointDebugLabels(
+            IEnumerable<Point2d> structurePoints,
+            IEnumerable<Point2d> ignoredPoints,
+            string structureLabel,
+            string ignoredLabel)
+        {
+            var labels = new List<PointDebugLabel>();
+            labels.AddRange(structurePoints.Select(point => new PointDebugLabel
+            {
+                Point = point,
+                Label = structureLabel,
+                ColorIndex = 4
+            }));
+            labels.AddRange(ignoredPoints.Select(point => new PointDebugLabel
+            {
+                Point = point,
+                Label = ignoredLabel,
+                ColorIndex = 1
+            }));
+
+            AddPointDebugLabels(labels);
+        }
+
+        private void AddPointDebugLabels(IEnumerable<PointDebugLabel> labels)
+        {
+            var ordered = labels
+                .OrderBy(label => label.Point.X)
+                .ThenBy(label => label.Point.Y)
+                .ThenBy(label => label.Label)
+                .ToList();
+            if (ordered.Count == 0)
+            {
+                return;
+            }
+
+            var placed = new List<PointDebugLabelPlacement>();
+            var textHeight = Math.Max(Scale(1.1), _dimScale * 1.1);
+
+            foreach (var label in ordered)
+            {
+                var offset = ChoosePointDebugLabelOffset(label, placed, textHeight);
+                var bounds = EstimatePointDebugLabelBounds(label.Point, label.Label, offset.X, offset.Y, textHeight);
+                placed.Add(new PointDebugLabelPlacement { Bounds = bounds });
+                AddPointDebugLabel(
+                    label.Point,
+                    label.Label,
+                    label.ColorIndex,
+                    offset.X,
+                    offset.Y,
+                    textHeight);
+            }
+        }
+
+        private Point2d ChoosePointDebugLabelOffset(PointDebugLabel label, IList<PointDebugLabelPlacement> placed, double textHeight)
+        {
+            foreach (var offset in BuildPointDebugLabelOffsetCandidates(textHeight))
+            {
+                var bounds = EstimatePointDebugLabelBounds(label.Point, label.Label, offset.X, offset.Y, textHeight);
+                if (!placed.Any(existing => PointDebugTextBoundsOverlap(existing.Bounds, bounds, Scale(0.8))))
+                {
+                    return offset;
+                }
+            }
+
+            var fallbackY = Scale(10.0) + placed.Count * Scale(4.5);
+            return new Point2d(Scale(18.0), fallbackY);
+        }
+
+        private IEnumerable<Point2d> BuildPointDebugLabelOffsetCandidates(double textHeight)
+        {
+            var horizontal = Math.Max(Scale(16.0), textHeight * 8.0);
+            var vertical = Math.Max(Scale(8.0), textHeight * 5.0);
+            var verticalStep = Math.Max(Scale(4.0), textHeight * 2.8);
+            var horizontalStep = Math.Max(Scale(5.0), textHeight * 3.0);
+            for (int level = 0; level < 6; level++)
+            {
+                var y = vertical + level * verticalStep;
+                var x = horizontal + (level % 2) * horizontalStep;
+                yield return new Point2d(-x, y);
+                yield return new Point2d(x, y);
+                yield return new Point2d(-x * 0.65, y + verticalStep * 0.5);
+                yield return new Point2d(x * 0.65, y + verticalStep * 0.5);
+            }
+        }
+
+        private TextBounds EstimatePointDebugLabelBounds(Point2d point, string label, double xOffset, double yOffset, double textHeight)
+        {
+            var width = Math.Max(textHeight * 4.0, (label ?? string.Empty).Length * textHeight * 0.75);
+            var centerX = point.X + xOffset;
+            var centerY = point.Y + yOffset;
+            return new TextBounds
+            {
+                MinX = centerX - width * 0.5,
+                MaxX = centerX + width * 0.5,
+                MinY = centerY - textHeight * 0.7,
+                MaxY = centerY + textHeight * 0.7
+            };
+        }
+
+        private static bool PointDebugTextBoundsOverlap(TextBounds a, TextBounds b, double gap)
+        {
+            return a.MinX <= b.MaxX + gap
+                && a.MaxX + gap >= b.MinX
+                && a.MinY <= b.MaxY + gap
+                && a.MaxY + gap >= b.MinY;
+        }
+
+        private void AddPointDebugLabel(Point2d point, string label, short colorIndex, double xOffset, double yOffset, double textHeight)
+        {
+            if (string.IsNullOrEmpty(label))
+            {
+                return;
+            }
+
+            var labelPoint = new Point3d(point.X + xOffset, point.Y + yOffset, 0.0);
+            var targetPoint = new Point3d(point.X, point.Y, 0.0);
+            AddDebugLine(labelPoint, targetPoint, colorIndex);
+
+            var mtext = new MText();
+            mtext.SetDatabaseDefaults(_db);
+            mtext.Contents = label;
+            mtext.TextHeight = textHeight;
+            mtext.TextStyleId = GetDimStyleTextStyle(_dimStyleId);
+            mtext.Location = labelPoint;
+            mtext.Attachment = AttachmentPoint.MiddleCenter;
+            mtext.Layer = _annotationLayer;
+            mtext.Color = Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, colorIndex);
+            Append(mtext);
+        }
+
+        private void AddDebugLine(Point3d start, Point3d end, short colorIndex)
+        {
+            var line = new Line(start, end);
+            line.SetDatabaseDefaults(_db);
+            line.Layer = _annotationLayer;
+            line.Color = Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, colorIndex);
+            Append(line);
+        }
+
+        private static string GetStructurePointSourceText(string source)
+        {
+            switch (source)
+            {
+                case "VerticalTopMost":
+                    return "VTM";
+                case "TopInclinedEndpoint":
+                    return "TIE";
+                case "TopSlopeEndpoint":
+                    return "TSE";
+                default:
+                    return string.IsNullOrEmpty(source) ? "UNK" : source;
+            }
+        }
+
+        private static string GetIgnoredPointReasonText(string reason)
+        {
+            switch (reason)
+            {
+                case "TopExtensionCrossesOutline":
+                    return "XOUT";
+                case "TopDirectional45Endpoint":
+                    return "D45";
+                case "TopInnerGrooveSharedEndpoint":
+                    return "IGR";
+                case "BottomDirectional45Endpoint":
+                    return "D45B";
+                case "BottomInnerGrooveSharedEndpoint":
+                    return "IGRB";
+                default:
+                    return string.IsNullOrEmpty(reason) ? "UNK" : reason;
+            }
         }
 
         private string BuildDimensionDebugLabel(PlacedDim placed)

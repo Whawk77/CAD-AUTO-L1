@@ -18,6 +18,7 @@ namespace CadAuto.Core.Tests
                 RectangularOutlineKeepsOverallDimensions();
                 ClosedPathRecognitionBuildsOutline();
                 ChamferedOutlineKeepsOverallDimensions();
+                OverallDimensionsUseBoundaryGripPoints();
                 ChamferSuppressesAdjacentLocalLinearDimensions();
                 NonFortyFiveSlopeIsNotChamfer();
                 HolesAreGroupedByHorizontalRows();
@@ -66,6 +67,38 @@ namespace CadAuto.Core.Tests
                 "right vertical local dimension adjacent to chamfer should be suppressed");
             Assert(!plan.Dimensions.Any(d => d.Kind == DimensionKind.Normal && d.SourceKey == "top-local"),
                 "top horizontal local dimension adjacent to chamfer should be suppressed");
+        }
+
+        private static void OverallDimensionsUseBoundaryGripPoints()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = new OutlineFeature2D
+            {
+                MinX = 0.0,
+                MinY = 0.0,
+                MaxX = 100.0,
+                MaxY = 50.0
+            };
+
+            AddSegment(outline, new Point2D(0.0, 10.0), new Point2D(0.0, 50.0), "left");
+            AddSegment(outline, new Point2D(0.0, 50.0), new Point2D(100.0, 50.0), "top");
+            AddSegment(outline, new Point2D(100.0, 50.0), new Point2D(100.0, 20.0), "right");
+            AddSegment(outline, new Point2D(100.0, 20.0), new Point2D(80.0, 0.0), "slope-right");
+            AddSegment(outline, new Point2D(80.0, 0.0), new Point2D(20.0, 0.0), "bottom");
+            AddSegment(outline, new Point2D(20.0, 0.0), new Point2D(0.0, 10.0), "slope-left");
+
+            var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+            var width = plan.Dimensions.Single(d => d.Kind == DimensionKind.OverallWidth);
+            var height = plan.Dimensions.Single(d => d.Kind == DimensionKind.OverallHeight);
+
+            Assert(Math.Abs(width.FirstPoint.X - 0.0) <= 0.001 && Math.Abs(width.FirstPoint.Y - 10.0) <= 0.001,
+                "overall width should use lowest left-boundary vertex");
+            Assert(Math.Abs(width.SecondPoint.X - 100.0) <= 0.001 && Math.Abs(width.SecondPoint.Y - 20.0) <= 0.001,
+                "overall width should use lowest right-boundary vertex");
+            Assert(Math.Abs(height.FirstPoint.X - 20.0) <= 0.001 && Math.Abs(height.FirstPoint.Y - 0.0) <= 0.001,
+                "overall height should use leftmost bottom-boundary vertex");
+            Assert(Math.Abs(height.SecondPoint.X - 0.0) <= 0.001 && Math.Abs(height.SecondPoint.Y - 50.0) <= 0.001,
+                "overall height should use leftmost top-boundary vertex");
         }
 
         private static void ClosedPathRecognitionBuildsOutline()

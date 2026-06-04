@@ -416,8 +416,8 @@ namespace CadAuto.Core.Planning
                 Kind = DimensionKind.OverallWidth,
                 Orientation = DimensionOrientation.Horizontal,
                 Side = DimensionSide.Bottom,
-                FirstPoint = new Point2D(outline.MinX, outline.MinY),
-                SecondPoint = new Point2D(outline.MaxX, outline.MinY),
+                FirstPoint = GetLeftBoundaryPoint(outline),
+                SecondPoint = GetRightBoundaryPoint(outline),
                 ForceOuterLevel = true,
                 DebugRole = "OverallWidth"
             });
@@ -435,8 +435,8 @@ namespace CadAuto.Core.Planning
                 Kind = DimensionKind.OverallHeight,
                 Orientation = DimensionOrientation.Vertical,
                 Side = DimensionSide.Left,
-                FirstPoint = new Point2D(outline.MinX, outline.MinY),
-                SecondPoint = new Point2D(outline.MinX, outline.MaxY),
+                FirstPoint = GetBottomBoundaryPoint(outline),
+                SecondPoint = GetTopBoundaryPoint(outline),
                 ForceOuterLevel = true,
                 DebugRole = "OverallHeight"
             });
@@ -522,6 +522,38 @@ namespace CadAuto.Core.Planning
         {
             return Math.Abs(a.X - b.X) <= _config.GeometryTolerance
                 && Math.Abs(a.Y - b.Y) <= _config.GeometryTolerance;
+        }
+
+        private Point2D GetLeftBoundaryPoint(OutlineFeature2D outline)
+        {
+            return outline.Vertices
+                .Where(v => Math.Abs(v.X - outline.MinX) <= _config.GeometryTolerance)
+                .OrderBy(v => v.Y)
+                .FirstOrDefault();
+        }
+
+        private Point2D GetRightBoundaryPoint(OutlineFeature2D outline)
+        {
+            return outline.Vertices
+                .Where(v => Math.Abs(v.X - outline.MaxX) <= _config.GeometryTolerance)
+                .OrderBy(v => v.Y)
+                .FirstOrDefault();
+        }
+
+        private Point2D GetBottomBoundaryPoint(OutlineFeature2D outline)
+        {
+            return outline.Vertices
+                .Where(v => Math.Abs(v.Y - outline.MinY) <= _config.GeometryTolerance)
+                .OrderBy(v => v.X)
+                .FirstOrDefault();
+        }
+
+        private Point2D GetTopBoundaryPoint(OutlineFeature2D outline)
+        {
+            return outline.Vertices
+                .Where(v => Math.Abs(v.Y - outline.MaxY) <= _config.GeometryTolerance)
+                .OrderBy(v => v.X)
+                .FirstOrDefault();
         }
 
         private void AddDimension(

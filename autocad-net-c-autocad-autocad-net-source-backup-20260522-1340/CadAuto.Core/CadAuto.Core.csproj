@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{0A29EBA4-7D4C-44EF-B9C8-7D5E25594F4C}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>CadAuto.Core</RootNamespace>
+    <AssemblyName>CadAuto.Core</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Geometry\Arc2D.cs" />
+    <Compile Include="Geometry\BoundingBox2D.cs" />
+    <Compile Include="Geometry\Circle2D.cs" />
+    <Compile Include="Geometry\Point2D.cs" />
+    <Compile Include="Geometry\Segment2D.cs" />
+    <Compile Include="Model\ChamferFeature2D.cs" />
+    <Compile Include="Model\Datum2D.cs" />
+    <Compile Include="Model\DrawingGeometry.cs" />
+    <Compile Include="Model\FilletFeature2D.cs" />
+    <Compile Include="Model\HoleFeature2D.cs" />
+    <Compile Include="Model\OutlineFeature2D.cs" />
+    <Compile Include="Model\SlotFeature2D.cs" />
+    <Compile Include="Planning\DimensionPlanner.cs" />
+    <Compile Include="Planning\DimensionPlan.cs" />
+    <Compile Include="Recognition\FeatureRecognizer2D.cs" />
+    <Compile Include="Rules\DimensionRuleConfig.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" Condition="Exists('$(MSBuildToolsPath)\Microsoft.CSharp.targets')" />
+</Project>

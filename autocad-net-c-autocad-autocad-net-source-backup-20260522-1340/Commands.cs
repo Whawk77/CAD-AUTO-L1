@@ -72,6 +72,9 @@ namespace AutoFixtureDim
             Editor editor = document.Editor;
             var config = DimensionRuleConfig.CreateDefault();
             var groupId = DateTime.Now.ToString("yyyyMMddHHmmssfff");
+            var diagnosticSide = diagnosticsEnabled
+                ? PromptForDiagnosticSide(editor)
+                : DiagnosticDimensionSide.All;
             System.Collections.Generic.IList<System.Collections.Generic.IList<HoleFeature>> diameterGroupsForPlacement = null;
             OutlineFeature outlineForInteractivePlacement = null;
             System.Collections.Generic.IList<SlotFeature> slotFeaturesForInteractivePlacement = null;
@@ -189,7 +192,8 @@ namespace AutoFixtureDim
                         annotationLayer,
                         appendToDatabase: true,
                         groupId: groupId,
-                        diagnosticsEnabled: diagnosticsEnabled);
+                        diagnosticsEnabled: diagnosticsEnabled,
+                        diagnosticSide: diagnosticSide);
 
                     DrawLinearDimensions(drawer, outline, datum, rows, slotFeatures, skipHoleDimensions);
                     outlineForInteractivePlacement = outline;
@@ -235,7 +239,7 @@ namespace AutoFixtureDim
                     }
                     }
 
-                    if (!skipHoleDimensions)
+                    if (!diagnosticsEnabled && !skipHoleDimensions)
                     {
                         diameterGroupsForPlacement = diameterGroups;
                         diameterCalloutDimStyleIdForPlacement = diameterCalloutDimStyleId;
@@ -245,16 +249,19 @@ namespace AutoFixtureDim
                     tr.Commit();
                 }
 
-                DrawPostLinearInteractiveAnnotations(
-                    document,
-                    config,
-                    dimStyleIdForInteractivePlacement,
-                    diameterCalloutDimStyleIdForPlacement,
-                    dimScaleForInteractivePlacement,
-                    annotationLayerForPlacement,
-                    groupId,
-                    outlineForInteractivePlacement,
-                    slotFeaturesForInteractivePlacement);
+                if (!diagnosticsEnabled)
+                {
+                    DrawPostLinearInteractiveAnnotations(
+                        document,
+                        config,
+                        dimStyleIdForInteractivePlacement,
+                        diameterCalloutDimStyleIdForPlacement,
+                        dimScaleForInteractivePlacement,
+                        annotationLayerForPlacement,
+                        groupId,
+                        outlineForInteractivePlacement,
+                        slotFeaturesForInteractivePlacement);
+                }
 
                 if (diameterGroupsForPlacement != null)
                 {
@@ -276,6 +283,32 @@ namespace AutoFixtureDim
             catch (System.Exception ex)
             {
                 editor.WriteMessage("\nAUTOFIXDIM 发生异常: {0}", ex.Message);
+            }
+        }
+
+        private static DiagnosticDimensionSide PromptForDiagnosticSide(Editor editor)
+        {
+            var options = new PromptKeywordOptions("\n选择诊断方向 [全部(A)/顶部(T)/底部(B)/左侧(L)/右侧(R)]", "All Top Bottom Left Right");
+            options.AllowNone = true;
+            options.Keywords.Default = "All";
+            var result = editor.GetKeywords(options);
+            if (result.Status != PromptStatus.OK)
+            {
+                return DiagnosticDimensionSide.All;
+            }
+
+            switch (result.StringResult)
+            {
+                case "Top":
+                    return DiagnosticDimensionSide.Top;
+                case "Bottom":
+                    return DiagnosticDimensionSide.Bottom;
+                case "Left":
+                    return DiagnosticDimensionSide.Left;
+                case "Right":
+                    return DiagnosticDimensionSide.Right;
+                default:
+                    return DiagnosticDimensionSide.All;
             }
         }
 

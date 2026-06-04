@@ -12,3 +12,5 @@ obj/
 *.exe
 
 _system~.ini
+
+plugins/codex-screenshot/

@@ -51,6 +51,7 @@
     <Compile Include="Commands.cs" />
     <Compile Include="AnnotationMetadata.cs" />
     <Compile Include="AnnotationPreview.cs" />
+    <Compile Include="CoreModelMapper.cs" />
     <Compile Include="DimensionDrawer.cs" />
     <Compile Include="DimStyleManager.cs" />
     <Compile Include="FeatureModels.cs" />
@@ -61,6 +62,16 @@
     <Compile Include="PluginEntry.cs" />
     <Compile Include="RuleConfig.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="CadAuto.Core\CadAuto.Core.csproj">
+      <Project>{0A29EBA4-7D4C-44EF-B9C8-7D5E25594F4C}</Project>
+      <Name>CadAuto.Core</Name>
+    </ProjectReference>
+    <ProjectReference Include="CadAuto.CadAdapter\CadAuto.CadAdapter.csproj">
+      <Project>{33CBB849-3665-4264-A101-C18F9EB8FB58}</Project>
+      <Name>CadAuto.CadAdapter</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" Condition="Exists('$(MSBuildToolsPath)\Microsoft.CSharp.targets')" />
 </Project>

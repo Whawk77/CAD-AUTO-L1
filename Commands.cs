@@ -33,6 +33,12 @@ namespace AutoFixtureDim
             RunAutoFixDim(clearExistingBeforeGenerate: true, diagnosticsEnabled: true);
         }
 
+        [CommandMethod("ASDCOREDBG")]
+        public void AsdCoreDebug()
+        {
+            RunCoreDebug();
+        }
+
         [CommandMethod("ASD3")]
         public void Asd3()
         {
@@ -57,6 +63,127 @@ namespace AutoFixtureDim
             catch (System.Exception ex)
             {
                 editor.WriteMessage("\nASD3 发生异常: {0}", ex.Message);
+            }
+        }
+
+        private void RunCoreDebug()
+        {
+            Document document = Application.DocumentManager.MdiActiveDocument;
+            if (document == null)
+            {
+                return;
+            }
+
+            Database db = document.Database;
+            Editor editor = document.Editor;
+            var config = DimensionRuleConfig.CreateDefault();
+
+            try
+            {
+                using (Transaction tr = db.TransactionManager.StartTransaction())
+                {
+                    ObjectId dimStyleId = DimStyleManager.ResolveDimStyle(db, tr);
+                    var collector = new GeometryCollector(editor);
+                    OutlineSelection outlineSelection = collector.PromptForOutlineSelection(tr);
+
+                    var recognizer = new FeatureRecognizer(config);
+                    OutlineFeature outline;
+                    if (outlineSelection.HasPrimaryPolyline)
+                    {
+                        var outlineEntity = (Entity)tr.GetObject(outlineSelection.PrimaryPolylineId, OpenMode.ForRead);
+                        outline = recognizer.RecognizeOutline(outlineEntity, tr);
+                    }
+                    else
+                    {
+                        outline = recognizer.RecognizeOutline(outlineSelection.EntityIds, tr);
+                    }
+
+                    DatumDefinition datum = collector.PromptForDatum(outline);
+                    var outlineSlotFeatures = recognizer.RecognizeOutlineSlotFeatures(outline);
+                    var holeSourceIds = collector.CollectHoleSourcesFromOutlineSelection(tr, outline, outlineSelection, config);
+                    bool skipHoleDimensions = false;
+                    if (holeSourceIds.Count == 0 && outlineSlotFeatures.Count > 0)
+                    {
+                        holeSourceIds = new System.Collections.Generic.List<ObjectId>();
+                        skipHoleDimensions = true;
+                    }
+
+                    if (holeSourceIds.Count == 0 && !skipHoleDimensions)
+                    {
+                        editor.WriteMessage("\nASDCOREDBG: no holes found in selection; select Circle holes manually or press Enter to skip holes.");
+                        holeSourceIds = collector.PromptForCircleHoles();
+                        if (holeSourceIds == null || holeSourceIds.Count == 0)
+                        {
+                            holeSourceIds = new System.Collections.Generic.List<ObjectId>();
+                            skipHoleDimensions = true;
+                        }
+                    }
+
+                    var holes = skipHoleDimensions
+                        ? new System.Collections.Generic.List<HoleFeature>()
+                        : recognizer.RecognizeHoles(holeSourceIds, tr, outlineSelection.SelectedIds);
+
+                    if (!skipHoleDimensions && holes.Count == 0)
+                    {
+                        skipHoleDimensions = true;
+                    }
+
+                    if (!skipHoleDimensions)
+                    {
+                        var pinHoles = holes.Where(h => h.IsPinHole).ToList();
+                        if (pinHoles.Count > 0)
+                        {
+                            var datumHole = collector.PromptForDatumHole(pinHoles, tr, outline);
+                            if (datumHole != null)
+                            {
+                                datum.DatumHole = datumHole;
+
+                                double? xBase, yBase;
+                                bool useToleranceX, useToleranceY;
+                                if (!collector.PromptForDatumHoleLocationPoints(config, out xBase, out yBase, out useToleranceX, out useToleranceY))
+                                {
+                                    editor.WriteMessage("\nASDCOREDBG: datum-hole base selection cancelled.");
+                                    return;
+                                }
+
+                                datum.DatumHoleLocationBaseX = xBase;
+                                datum.DatumHoleLocationBaseY = yBase;
+                                datum.DatumHoleLocationUseToleranceX = useToleranceX;
+                                datum.DatumHoleLocationUseToleranceY = useToleranceY;
+                            }
+                        }
+                    }
+
+                    var coreConfig = CoreModelMapper.ToCoreConfig(config);
+                    var coreOutline = CoreModelMapper.ToCoreOutline(outline);
+                    var coreDatum = CoreModelMapper.ToCoreDatum(datum);
+                    var coreHoles = CoreModelMapper.ToCoreHoles(holes);
+                    var planner = new CadAuto.Core.Planning.DimensionPlanner(coreConfig);
+                    var plan = planner.CreateDimensionPlan(coreOutline, coreDatum, coreHoles);
+                    var renderPlan = CreateCoreDebugRenderPlan(plan);
+
+                    string debugLayer = EnsureCoreDebugLayer(db, tr);
+                    var currentSpace = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
+                    var renderer = new CadAuto.CadAdapter.DimensionPlanRenderer(
+                        db,
+                        tr,
+                        currentSpace,
+                        dimStyleId,
+                        coreConfig.FirstDimOffset,
+                        debugLayer);
+                    renderer.Render(renderPlan, coreOutline);
+
+                    WriteCoreDebugSummary(editor, outline, holes, plan, renderPlan, debugLayer);
+                    tr.Commit();
+                }
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception ex)
+            {
+                editor.WriteMessage("\nASDCOREDBG cancelled or failed: {0}", ex.Message);
+            }
+            catch (System.Exception ex)
+            {
+                editor.WriteMessage("\nASDCOREDBG failed: {0}", ex.Message);
             }
         }
 
@@ -284,6 +411,102 @@ namespace AutoFixtureDim
             {
                 editor.WriteMessage("\nAUTOFIXDIM 发生异常: {0}", ex.Message);
             }
+        }
+
+        private static string EnsureCoreDebugLayer(Database db, Transaction tr)
+        {
+            const string layerName = "AUTOFIXDIM_COREDBG";
+            var layerTable = (LayerTable)tr.GetObject(db.LayerTableId, OpenMode.ForRead);
+            if (!layerTable.Has(layerName))
+            {
+                layerTable.UpgradeOpen();
+                var layer = new LayerTableRecord
+                {
+                    Name = layerName
+                };
+                layerTable.Add(layer);
+                tr.AddNewlyCreatedDBObject(layer, true);
+            }
+
+            return layerName;
+        }
+
+        private static void WriteCoreDebugSummary(
+            Editor editor,
+            OutlineFeature outline,
+            System.Collections.Generic.IList<HoleFeature> holes,
+            CadAuto.Core.Planning.DimensionPlan plan,
+            CadAuto.Core.Planning.DimensionPlan renderPlan,
+            string debugLayer)
+        {
+            editor.WriteMessage(
+                "\nASDCOREDBG: outline W={0:0.###}, H={1:0.###}; holes={2}; core dims={3}; rendered={4}; skipped={5}; pin groups={6}; layer={7}",
+                outline.Width,
+                outline.Height,
+                holes == null ? 0 : holes.Count,
+                plan.Dimensions.Count,
+                renderPlan.Dimensions.Count,
+                plan.Dimensions.Count - renderPlan.Dimensions.Count,
+                plan.PinGroups.Count,
+                debugLayer);
+
+            foreach (var group in plan.Dimensions
+                .GroupBy(d => d.Kind)
+                .OrderBy(g => g.Key.ToString()))
+            {
+                editor.WriteMessage("\n  {0}: {1}", group.Key, group.Count());
+            }
+
+            int index = 1;
+            foreach (var dim in plan.Dimensions
+                .OrderBy(d => d.Side)
+                .ThenBy(d => d.Kind)
+                .ThenBy(d => d.DebugRole ?? string.Empty))
+            {
+                editor.WriteMessage(
+                    "\n  #{0:00} {1}/{2}/{3} span={4:0.###} from=({5:0.###},{6:0.###}) to=({7:0.###},{8:0.###}) role={9} owner={10} text='{11}'",
+                    index,
+                    dim.Kind,
+                    dim.Side,
+                    dim.Orientation,
+                    GetCoreDebugSpan(dim),
+                    dim.FirstPoint.X,
+                    dim.FirstPoint.Y,
+                    dim.SecondPoint.X,
+                    dim.SecondPoint.Y,
+                    dim.DebugRole ?? string.Empty,
+                    dim.DebugOwner ?? string.Empty,
+                    dim.OverrideText ?? string.Empty);
+                index++;
+            }
+        }
+
+        private static double GetCoreDebugSpan(CadAuto.Core.Planning.PlannedDimension dim)
+        {
+            return dim.Orientation == CadAuto.Core.Planning.DimensionOrientation.Horizontal
+                ? Math.Abs(dim.SecondPoint.X - dim.FirstPoint.X)
+                : Math.Abs(dim.SecondPoint.Y - dim.FirstPoint.Y);
+        }
+
+        private static CadAuto.Core.Planning.DimensionPlan CreateCoreDebugRenderPlan(CadAuto.Core.Planning.DimensionPlan source)
+        {
+            var target = new CadAuto.Core.Planning.DimensionPlan();
+            foreach (var group in source.PinGroups)
+            {
+                target.PinGroups.Add(group);
+            }
+
+            foreach (var dim in source.Dimensions.Where(ShouldRenderCoreDebugDimension))
+            {
+                target.Dimensions.Add(dim);
+            }
+
+            return target;
+        }
+
+        private static bool ShouldRenderCoreDebugDimension(CadAuto.Core.Planning.PlannedDimension dim)
+        {
+            return true;
         }
 
         private static DiagnosticDimensionSide PromptForDiagnosticSide(Editor editor)

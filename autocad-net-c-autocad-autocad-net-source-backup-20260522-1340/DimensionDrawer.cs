@@ -6,6 +6,9 @@ using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
+using CadAuto.CadAdapter;
+using CadAuto.CadAdapter.Model;
+using CadAuto.Core.Rules;
 using Autodesk.AutoCAD.GraphicsInterface;
 
 namespace AutoFixtureDim

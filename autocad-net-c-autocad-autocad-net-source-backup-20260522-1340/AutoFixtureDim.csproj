@@ -49,18 +49,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Commands.cs" />
-    <Compile Include="AnnotationMetadata.cs" />
     <Compile Include="AnnotationPreview.cs" />
-    <Compile Include="CoreModelMapper.cs" />
     <Compile Include="DimensionDrawer.cs" />
-    <Compile Include="DimStyleManager.cs" />
-    <Compile Include="FeatureModels.cs" />
-    <Compile Include="FeatureRecognizer.cs" />
-    <Compile Include="GeometryCollector.cs" />
-    <Compile Include="LayerManager.cs" />
-    <Compile Include="NativeDiameterDimensioner.cs" />
     <Compile Include="PluginEntry.cs" />
-    <Compile Include="RuleConfig.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

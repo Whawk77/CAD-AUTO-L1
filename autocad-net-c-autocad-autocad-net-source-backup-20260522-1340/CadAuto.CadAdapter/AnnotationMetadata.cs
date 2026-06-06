@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Autodesk.AutoCAD.DatabaseServices;
 
-namespace AutoFixtureDim
+namespace CadAuto.CadAdapter
 {
     public static class AnnotationMetadata
     {

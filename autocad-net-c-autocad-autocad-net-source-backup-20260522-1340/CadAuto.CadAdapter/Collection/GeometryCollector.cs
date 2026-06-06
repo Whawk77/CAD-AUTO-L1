@@ -4,8 +4,10 @@ using System.Linq;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
+using CadAuto.CadAdapter.Model;
+using CadAuto.Core.Rules;
 
-namespace AutoFixtureDim
+namespace CadAuto.CadAdapter.Collection
 {
     public sealed class GeometryCollector
     {

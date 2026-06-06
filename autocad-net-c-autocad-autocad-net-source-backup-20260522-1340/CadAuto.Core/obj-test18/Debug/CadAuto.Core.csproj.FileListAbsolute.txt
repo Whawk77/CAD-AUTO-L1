@@ -1,0 +1,6 @@
+D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\CadAuto.Core\bin\TestBuild18\CadAuto.Core.dll
+D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\CadAuto.Core\bin\TestBuild18\CadAuto.Core.pdb
+D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\CadAuto.Core\obj-test18\Debug\CadAuto.Core.csproj.AssemblyReference.cache
+D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\CadAuto.Core\obj-test18\Debug\CadAuto.Core.csproj.CoreCompileInputs.cache
+D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\CadAuto.Core\obj-test18\Debug\CadAuto.Core.dll
+D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\CadAuto.Core\obj-test18\Debug\CadAuto.Core.pdb

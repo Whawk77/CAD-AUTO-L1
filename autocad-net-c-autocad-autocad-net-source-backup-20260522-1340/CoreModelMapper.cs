@@ -139,6 +139,37 @@ namespace AutoFixtureDim
             return holes;
         }
 
+        public static List<SlotFeature2D> ToCoreSlots(IEnumerable<SlotFeature> source)
+        {
+            var slots = new List<SlotFeature2D>();
+            if (source == null)
+            {
+                return slots;
+            }
+
+            foreach (var slot in source)
+            {
+                if (slot == null)
+                {
+                    continue;
+                }
+
+                slots.Add(new SlotFeature2D
+                {
+                    GroupId = slot.GroupId,
+                    FirstCenter = new Point2D(slot.FirstCenter.X, slot.FirstCenter.Y),
+                    SecondCenter = new Point2D(slot.SecondCenter.X, slot.SecondCenter.Y),
+                    Radius = slot.Radius,
+                    CenterDistance = slot.CenterDistance,
+                    IsSingleArcSlot = slot.IsSingleArcSlot,
+                    IsVertical = slot.IsVertical,
+                    ArcLeaderTarget = new Point2D(slot.ArcLeaderTarget.X, slot.ArcLeaderTarget.Y)
+                });
+            }
+
+            return slots;
+        }
+
         private static HoleFeature2D ToCoreHole(HoleFeature source)
         {
             return new HoleFeature2D

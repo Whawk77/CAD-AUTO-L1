@@ -71,6 +71,98 @@ namespace AutoFixtureDim
             }
         }
 
+        public static void PromptHoleCalloutPlans(
+            Document document,
+            IList<CadAuto.Core.Planning.HoleCalloutPlan> calloutPlans,
+            IList<HoleFeature> sourceHoles,
+            DimensionRuleConfig config,
+            string annotationLayer,
+            ObjectId diameterDimStyleId,
+            string groupId)
+        {
+            if (document == null || calloutPlans == null || calloutPlans.Count == 0 || sourceHoles == null)
+            {
+                return;
+            }
+
+            Database db = document.Database;
+            Editor editor = document.Editor;
+
+            foreach (var plan in calloutPlans.Where(p => p != null && p.Holes.Count > 0))
+            {
+                var representative = FindRepresentativeHole(plan, sourceHoles, config);
+                if (representative == null)
+                {
+                    continue;
+                }
+
+                var calloutText = plan.Text ?? string.Empty;
+                Point3d textPoint;
+                var jigResult = PromptCalloutPointWithJig(
+                    db,
+                    editor,
+                    representative,
+                    annotationLayer,
+                    diameterDimStyleId,
+                    calloutText,
+                    out textPoint);
+
+                if (jigResult == DiameterJigResult.Skip)
+                {
+                    editor.WriteMessage("\nSkipped hole callout {0}.", calloutText);
+                    continue;
+                }
+
+                if (jigResult == DiameterJigResult.Cancel)
+                {
+                    editor.WriteMessage("\nHole callout placement canceled.");
+                    break;
+                }
+
+                CreateCalloutDimension(
+                    db,
+                    representative,
+                    textPoint,
+                    annotationLayer,
+                    diameterDimStyleId,
+                    calloutText,
+                    groupId);
+            }
+        }
+
+        private static HoleFeature FindRepresentativeHole(
+            CadAuto.Core.Planning.HoleCalloutPlan plan,
+            IList<HoleFeature> sourceHoles,
+            DimensionRuleConfig config)
+        {
+            foreach (var coreHole in plan.Holes.OrderBy(h => h.Center.Y).ThenBy(h => h.Center.X))
+            {
+                var source = sourceHoles.FirstOrDefault(h => IsSameHoleForCallout(coreHole, h, config));
+                if (source != null)
+                {
+                    return source;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool IsSameHoleForCallout(
+            CadAuto.Core.Model.HoleFeature2D coreHole,
+            HoleFeature sourceHole,
+            DimensionRuleConfig config)
+        {
+            if (coreHole == null || sourceHole == null)
+            {
+                return false;
+            }
+
+            var dx = coreHole.Center.X - sourceHole.Center.X;
+            var dy = coreHole.Center.Y - sourceHole.Center.Y;
+            return dx * dx + dy * dy <= config.GeometryTolerance * config.GeometryTolerance
+                && Math.Abs(coreHole.Diameter - sourceHole.Diameter) <= config.GeometryTolerance;
+        }
+
         private enum DiameterJigResult
         {
             Picked,

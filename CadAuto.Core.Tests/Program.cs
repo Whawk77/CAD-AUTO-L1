@@ -21,9 +21,23 @@ namespace CadAuto.Core.Tests
                 OverallDimensionsUseBoundaryGripPoints();
                 ChamferSuppressesAdjacentLocalLinearDimensions();
                 NonFortyFiveSlopeIsNotChamfer();
+                VerticalStructurePointsCreateStepWidths();
+                HorizontalStructurePointsCreateStepHeights();
+                DiagonalFragmentsDoNotCreateStructureDimensions();
+                BottomInclinedStructurePointsRequireInnerGrooveChamfer();
+                SideInclinedStructurePointsRequireInnerGrooveChamfer();
+                RightStructureHeightDuplicatingOverallHeightIsSuppressed();
+                TwoArcSlotIsRecognized();
+                SingleArcSlotIsRecognized();
+                SlotDimensionsUseCenterAndDatumChainsWithoutPins();
                 HolesAreGroupedByHorizontalRows();
                 NormalHolesLocateFromOutlineDatum();
                 PinGroupsPlanBaseAndPairDistances();
+                FunctionalHolesAttachToPinGroup();
+                LooseHolesUseChainDimensions();
+                ConcentricLooseHolesShareOneLocationDimension();
+                HoleCalloutsGroupByRowsWithoutPins();
+                HoleCalloutsUsePinClustersAndFitText();
                 Console.WriteLine("CadAuto.Core.Tests passed.");
                 return 0;
             }
@@ -140,6 +154,294 @@ namespace CadAuto.Core.Tests
             Assert(outline.Chamfers.Count == 0, "non-45-degree slope should not be recognized as chamfer");
         }
 
+        private static void VerticalStructurePointsCreateStepWidths()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = new OutlineFeature2D
+            {
+                MinX = 0.0,
+                MinY = 0.0,
+                MaxX = 100.0,
+                MaxY = 50.0
+            };
+
+            AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(0.0, 50.0), "left");
+            AddSegment(outline, new Point2D(40.0, 10.0), new Point2D(40.0, 45.0), "middle");
+            AddSegment(outline, new Point2D(100.0, 0.0), new Point2D(100.0, 50.0), "right");
+
+            var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+            Assert(plan.Dimensions.Any(d =>
+                    (d.DebugRole == "TopStructWidth" || d.DebugRole == "BottomStructWidth")
+                    && d.Orientation == DimensionOrientation.Horizontal
+                    && Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 40.0) <= 0.001),
+                "expected structure width from left boundary to middle vertical");
+            Assert(plan.Dimensions.Any(d =>
+                    d.DebugRole == "BottomStructWidth"
+                    && d.Orientation == DimensionOrientation.Horizontal
+                    && Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 40.0) <= 0.001),
+                "expected bottom structure width to keep the non-removed candidate");
+            Assert(!plan.Dimensions.Any(d =>
+                    d.DebugRole == "BottomStructWidth"
+                    && d.Orientation == DimensionOrientation.Horizontal
+                    && Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 60.0) <= 0.001),
+                "bottom structure width should remove the longest extension candidate");
+        }
+
+        private static void HorizontalStructurePointsCreateStepHeights()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = new OutlineFeature2D
+            {
+                MinX = 0.0,
+                MinY = 0.0,
+                MaxX = 100.0,
+                MaxY = 50.0
+            };
+
+            AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(100.0, 0.0), "bottom");
+            AddSegment(outline, new Point2D(10.0, 30.0), new Point2D(80.0, 30.0), "middle");
+            AddSegment(outline, new Point2D(0.0, 50.0), new Point2D(100.0, 50.0), "top");
+
+            var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+            Assert(plan.Dimensions.Any(d =>
+                    (d.DebugRole == "LeftStructHeight" || d.DebugRole == "RightStructHeight")
+                    && d.Orientation == DimensionOrientation.Vertical
+                    && Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 20.0) <= 0.001),
+                "expected structure height from middle horizontal to top");
+            Assert(!plan.Dimensions.Any(d =>
+                    d.DebugRole == "LeftStructHeight"
+                    && d.Orientation == DimensionOrientation.Vertical
+                    && Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 30.0) <= 0.001),
+                "left structure height should remove the longest extension candidate");
+        }
+
+        private static void DiagonalFragmentsDoNotCreateStructureDimensions()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = new OutlineFeature2D
+            {
+                MinX = 0.0,
+                MinY = 0.0,
+                MaxX = 73.0,
+                MaxY = 29.038
+            };
+
+            AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(0.0, 20.0), "left");
+            AddSegment(outline, new Point2D(50.0, 0.0), new Point2D(50.0, 15.5), "right-step");
+            AddSegment(outline, new Point2D(53.0, 28.0), new Point2D(73.0, 27.0), "top-fragment");
+            AddSegment(outline, new Point2D(0.0, 20.0), new Point2D(35.0, 20.0), "upper-left");
+            AddSegment(outline, new Point2D(53.0, 28.0), new Point2D(73.0, 28.0), "upper-right");
+
+            var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+            Assert(!plan.Dimensions.Any(d => d.DebugRole == "BottomStructWidth" && Math.Abs(GetSpan(d) - 3.0) <= 0.001),
+                "small diagonal horizontal fragment should not create bottom structure width");
+        }
+
+        private static void BottomInclinedStructurePointsRequireInnerGrooveChamfer()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = new OutlineFeature2D
+            {
+                MinX = 0.0,
+                MinY = 0.0,
+                MaxX = 100.0,
+                MaxY = 50.0
+            };
+
+            AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(0.0, 50.0), "left");
+            AddSegment(outline, new Point2D(100.0, 0.0), new Point2D(100.0, 50.0), "right");
+            AddSegment(outline, new Point2D(30.0, 10.0), new Point2D(40.0, 20.0), "inner-chamfer-left");
+            AddSegment(outline, new Point2D(40.0, 20.0), new Point2D(60.0, 20.0), "inner-flat");
+            AddSegment(outline, new Point2D(60.0, 20.0), new Point2D(70.0, 10.0), "inner-chamfer-right");
+            AddSegment(outline, new Point2D(80.0, 5.0), new Point2D(90.0, 15.0), "isolated-slope");
+
+            var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+            Assert(plan.Dimensions.Any(d =>
+                    d.DebugRole == "BottomStructWidth"
+                    && (EndpointXEquals(d, 30.0) || EndpointXEquals(d, 40.0) || EndpointXEquals(d, 60.0) || EndpointXEquals(d, 70.0))),
+                "bottom inner groove chamfer endpoints should create bottom structure dimensions");
+            Assert(!plan.Dimensions.Any(d =>
+                    d.DebugRole == "BottomStructWidth"
+                    && (EndpointXEquals(d, 80.0) || EndpointXEquals(d, 90.0))),
+                "isolated 45-degree slope should not create bottom structure dimensions");
+        }
+
+        private static void SideInclinedStructurePointsRequireInnerGrooveChamfer()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var leftOutline = new OutlineFeature2D
+            {
+                MinX = 0.0,
+                MinY = 0.0,
+                MaxX = 100.0,
+                MaxY = 100.0
+            };
+
+            AddSegment(leftOutline, new Point2D(0.0, 0.0), new Point2D(100.0, 0.0), "bottom");
+            AddSegment(leftOutline, new Point2D(0.0, 100.0), new Point2D(100.0, 100.0), "top");
+            AddSegment(leftOutline, new Point2D(20.0, 30.0), new Point2D(30.0, 40.0), "left-groove-chamfer-lower");
+            AddSegment(leftOutline, new Point2D(30.0, 40.0), new Point2D(30.0, 60.0), "left-groove-vertical");
+            AddSegment(leftOutline, new Point2D(30.0, 60.0), new Point2D(20.0, 70.0), "left-groove-chamfer-upper");
+            AddSegment(leftOutline, new Point2D(50.0, 10.0), new Point2D(60.0, 20.0), "isolated-slope");
+
+            var leftPlan = new DimensionPlanner(config).CreateOutlinePlan(leftOutline);
+
+            Assert(leftPlan.Dimensions.Any(d =>
+                    d.DebugRole == "LeftStructHeight"
+                    && (EndpointYEquals(d, 30.0) || EndpointYEquals(d, 40.0) || EndpointYEquals(d, 60.0) || EndpointYEquals(d, 70.0))),
+                "left inner groove chamfer endpoints should create side structure dimensions");
+
+            var rightOutline = new OutlineFeature2D
+            {
+                MinX = 0.0,
+                MinY = 0.0,
+                MaxX = 100.0,
+                MaxY = 100.0
+            };
+
+            AddSegment(rightOutline, new Point2D(0.0, 0.0), new Point2D(100.0, 0.0), "bottom");
+            AddSegment(rightOutline, new Point2D(0.0, 100.0), new Point2D(100.0, 100.0), "top");
+            AddSegment(rightOutline, new Point2D(80.0, 30.0), new Point2D(70.0, 40.0), "right-groove-chamfer-lower");
+            AddSegment(rightOutline, new Point2D(70.0, 40.0), new Point2D(70.0, 60.0), "right-groove-vertical");
+            AddSegment(rightOutline, new Point2D(70.0, 60.0), new Point2D(80.0, 70.0), "right-groove-chamfer-upper");
+            AddSegment(rightOutline, new Point2D(50.0, 10.0), new Point2D(60.0, 20.0), "isolated-slope");
+
+            var rightPlan = new DimensionPlanner(config).CreateOutlinePlan(rightOutline);
+
+            Assert(rightPlan.Dimensions.Any(d =>
+                    d.DebugRole == "RightStructHeight"
+                    && (EndpointYEquals(d, 30.0) || EndpointYEquals(d, 40.0) || EndpointYEquals(d, 60.0) || EndpointYEquals(d, 70.0))),
+                "right inner groove chamfer endpoints should create side structure dimensions");
+            Assert(!leftPlan.Dimensions.Concat(rightPlan.Dimensions).Any(d =>
+                    (d.DebugRole == "LeftStructHeight" || d.DebugRole == "RightStructHeight")
+                    && (EndpointYEquals(d, 10.0) || EndpointYEquals(d, 20.0))),
+                "isolated 45-degree slope should not create side structure dimensions");
+        }
+
+        private static void RightStructureHeightDuplicatingOverallHeightIsSuppressed()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = new OutlineFeature2D
+            {
+                MinX = 0.0,
+                MinY = 0.0,
+                MaxX = 73.0,
+                MaxY = 29.038
+            };
+
+            AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(73.0, 0.0), "bottom");
+            AddSegment(outline, new Point2D(0.0, 29.038), new Point2D(73.0, 29.038), "top");
+            AddSegment(outline, new Point2D(50.0, 0.0), new Point2D(50.0, 15.5), "right-lower-step");
+            AddSegment(outline, new Point2D(72.5, 29.038), new Point2D(73.0, 29.038), "right-top-step");
+
+            var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+            Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallHeight),
+                "overall height should remain");
+            Assert(!plan.Dimensions.Any(d =>
+                    d.DebugRole == "RightStructHeight"
+                    && Math.Abs(GetSpan(d) - 29.038) <= 0.001),
+                "right structure height duplicating overall height should be suppressed");
+        }
+
+        private static void TwoArcSlotIsRecognized()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var geometry = new DrawingGeometry();
+            geometry.Arcs.Add(new Arc2D
+            {
+                SourceKey = "a1",
+                Center = new Point2D(20.0, 10.0),
+                Start = new Point2D(20.0, 5.0),
+                End = new Point2D(20.0, 15.0),
+                Radius = 5.0
+            });
+            geometry.Arcs.Add(new Arc2D
+            {
+                SourceKey = "a2",
+                Center = new Point2D(60.0, 10.0),
+                Start = new Point2D(60.0, 15.0),
+                End = new Point2D(60.0, 5.0),
+                Radius = 5.0
+            });
+            geometry.Segments.Add(new Segment2D(new Point2D(20.0, 15.0), new Point2D(60.0, 15.0)) { SourceKey = "l1" });
+            geometry.Segments.Add(new Segment2D(new Point2D(20.0, 5.0), new Point2D(60.0, 5.0)) { SourceKey = "l2" });
+
+            var slots = new FeatureRecognizer2D(config).RecognizeSlotFeatures(geometry);
+
+            Assert(slots.Count == 1, "expected one two-arc slot");
+            Assert(!slots[0].IsSingleArcSlot, "two-arc slot should not be single-arc");
+            Assert(!slots[0].IsVertical, "two-arc horizontal slot should be horizontal");
+            Assert(Math.Abs(slots[0].CenterDistance - 40.0) <= 0.001, "two-arc slot center distance should be recognized");
+        }
+
+        private static void SingleArcSlotIsRecognized()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var geometry = new DrawingGeometry();
+            geometry.Arcs.Add(new Arc2D
+            {
+                SourceKey = "a1",
+                Center = new Point2D(20.0, 20.0),
+                Start = new Point2D(20.0, 15.0),
+                End = new Point2D(20.0, 25.0),
+                Radius = 5.0
+            });
+            geometry.Segments.Add(new Segment2D(new Point2D(20.0, 15.0), new Point2D(40.0, 15.0)) { SourceKey = "l1" });
+            geometry.Segments.Add(new Segment2D(new Point2D(20.0, 25.0), new Point2D(40.0, 25.0)) { SourceKey = "l2" });
+
+            var slots = new FeatureRecognizer2D(config).RecognizeSlotFeatures(geometry);
+
+            Assert(slots.Count == 1, "expected one single-arc U slot");
+            Assert(slots[0].IsSingleArcSlot, "single-arc U slot should be marked");
+            Assert(!slots[0].IsVertical, "single-arc horizontal U slot should be horizontal");
+            Assert(Math.Abs(slots[0].Radius - 5.0) <= 0.001, "single-arc slot radius should be preserved");
+        }
+
+        private static void SlotDimensionsUseCenterAndDatumChainsWithoutPins()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = CreateRectangle(100.0, 50.0);
+            var datum = Datum2D.FromOutline(outline);
+            var slots = new[]
+            {
+                new SlotFeature2D
+                {
+                    GroupId = "SLOT1",
+                    FirstCenter = new Point2D(20.0, 20.0),
+                    SecondCenter = new Point2D(60.0, 20.0),
+                    Radius = 5.0,
+                    CenterDistance = 40.0
+                },
+                new SlotFeature2D
+                {
+                    GroupId = "SLOT2",
+                    FirstCenter = new Point2D(80.0, 30.0),
+                    SecondCenter = new Point2D(80.0, 40.0),
+                    Radius = 5.0,
+                    CenterDistance = 10.0,
+                    IsVertical = true
+                }
+            };
+
+            var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new HoleFeature2D[0], slots);
+
+            Assert(plan.Dimensions.Any(d => d.DebugRole == "SlotCenter" && Math.Abs(GetSpan(d) - 40.0) <= 0.001),
+                "horizontal slot center distance should be planned");
+            Assert(plan.Dimensions.Any(d => d.DebugRole == "SlotCenter" && Math.Abs(GetSpan(d) - 10.0) <= 0.001),
+                "vertical slot center distance should be planned");
+            Assert(plan.Dimensions.Any(d => d.DebugRole == "SlotDatumH"),
+                "horizontal slot datum location should be planned without pins");
+            Assert(plan.Dimensions.Any(d => d.DebugRole == "SlotDatumV"),
+                "vertical slot datum location should be planned without pins");
+            Assert(plan.Dimensions.Any(d => d.DebugRole == "SlotChainH" || d.DebugRole == "SlotChainV"),
+                "slot datum chain dimensions should be planned without pins");
+        }
+
         private static void HolesAreGroupedByHorizontalRows()
         {
             var config = DimensionRuleConfig.CreateDefault();
@@ -199,6 +501,121 @@ namespace CadAuto.Core.Tests
             Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.DatumHoleLocationY), "expected datum pin Y location");
             Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.PinDistance), "expected same-group pin distance");
             Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.PinGroupDistance), "expected pin group transfer distance");
+        }
+
+        private static void FunctionalHolesAttachToPinGroup()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = CreateRectangle(200.0, 100.0);
+            var datumPin = CreateHole(20.0, 20.0, 6.0, HoleKind2D.Pin);
+            var holes = new List<HoleFeature2D>
+            {
+                datumPin,
+                CreateHole(60.0, 20.0, 6.0, HoleKind2D.Pin),
+                CreateHole(20.0, 40.0, 8.0, HoleKind2D.Normal),
+                CreateHole(60.0, 40.0, 8.0, HoleKind2D.Normal)
+            };
+            var datum = Datum2D.FromOutline(outline);
+            datum.DatumHole = datumPin;
+
+            var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, holes);
+
+            Assert(plan.Dimensions.Any(d => d.DebugRole == "FunctionalHole" && d.DebugOwner == "PG1"),
+                "functional holes should attach to the pin group");
+        }
+
+        private static void LooseHolesUseChainDimensions()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = CreateRectangle(240.0, 120.0);
+            var datumPin = CreateHole(20.0, 20.0, 6.0, HoleKind2D.Pin);
+            var holes = new List<HoleFeature2D>
+            {
+                datumPin,
+                CreateHole(60.0, 20.0, 6.0, HoleKind2D.Pin),
+                CreateHole(100.0, 70.0, 8.0, HoleKind2D.Normal),
+                CreateHole(130.0, 70.0, 8.0, HoleKind2D.Normal),
+                CreateHole(160.0, 70.0, 8.0, HoleKind2D.Normal)
+            };
+            var datum = Datum2D.FromOutline(outline);
+            datum.DatumHole = datumPin;
+
+            var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, holes);
+
+            Assert(plan.Dimensions.Any(d => d.DebugRole == "LooseHole" && d.DebugOwner.StartsWith("L", StringComparison.Ordinal)),
+                "loose holes should use chained hole-location dimensions");
+            Assert(plan.Dimensions.Count(d => d.DebugRole == "LooseHole") >= 3,
+                "loose hole chain should include center distances and pin/location references");
+        }
+
+        private static void ConcentricLooseHolesShareOneLocationDimension()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = CreateRectangle(73.0, 20.0);
+            var datumPin = CreateHole(10.0, 10.0, 8.0, HoleKind2D.Pin);
+            var holes = new List<HoleFeature2D>
+            {
+                datumPin,
+                CreateHole(40.0, 10.0, 8.0, HoleKind2D.Pin),
+                CreateHole(25.0, 10.0, 14.0, HoleKind2D.Normal),
+                CreateHole(25.0, 10.0, 9.0, HoleKind2D.Normal)
+            };
+            var datum = Datum2D.FromOutline(outline);
+            datum.DatumHole = holes[1];
+            datum.DatumHoleLocationBaseX = 73.0;
+            datum.DatumHoleLocationBaseY = 20.0;
+
+            var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, holes);
+
+            Assert(plan.Dimensions.Count(d => d.DebugRole == "LooseHole") == 1,
+                "concentric loose holes should share a single hole-location dimension");
+            Assert(plan.Dimensions.Any(d => d.DebugRole == "LooseHole" && Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 15.0) <= 0.001),
+                "concentric loose hole location should be measured from the pin group base");
+        }
+
+        private static void HoleCalloutsGroupByRowsWithoutPins()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var holes = new List<HoleFeature2D>
+            {
+                CreateHole(10.0, 10.0, 6.0, HoleKind2D.Normal),
+                CreateHole(30.0, 10.0, 6.0, HoleKind2D.Normal),
+                CreateHole(10.0, 40.0, 8.0, HoleKind2D.Thread)
+            };
+            holes[2].ThreadCallout = "M8";
+
+            var plans = new HoleCalloutPlanner(config).CreatePlans(holes, null);
+
+            Assert(plans.Count == 2, "hole callouts without pins should group compatible holes by spatial rows");
+            Assert(plans.Any(p => p.Kind == HoleCalloutKind.Normal && p.Text == "2-%%c6"),
+                "two equal normal holes should share one diameter callout");
+            Assert(plans.Any(p => p.Kind == HoleCalloutKind.Thread && p.Text == "M8"),
+                "thread holes should use explicit thread callout text");
+        }
+
+        private static void HoleCalloutsUsePinClustersAndFitText()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var datumPin = CreateHole(10.0, 10.0, 8.0, HoleKind2D.Pin);
+            datumPin.FitTolerance = "H7";
+            var secondPin = CreateHole(40.0, 10.0, 8.0, HoleKind2D.Pin);
+            secondPin.FitTolerance = "H7";
+            var holes = new List<HoleFeature2D>
+            {
+                datumPin,
+                secondPin,
+                CreateHole(25.0, 10.0, 14.0, HoleKind2D.Normal),
+                CreateHole(25.0, 10.0, 9.0, HoleKind2D.Normal)
+            };
+
+            var plans = new HoleCalloutPlanner(config).CreatePlans(holes, secondPin);
+
+            Assert(plans.Any(p => p.Kind == HoleCalloutKind.Pin && p.DebugOwner == "PG1" && p.Text == "2-%%c8H7"),
+                "pin callout plan should include count and fit tolerance");
+            Assert(plans.Any(p => p.Kind == HoleCalloutKind.Normal && p.DebugOwner == "PG1" && p.Text == "%%c14"),
+                "counterbore outer diameter should stay as a separate normal callout");
+            Assert(plans.Any(p => p.Kind == HoleCalloutKind.Normal && p.DebugOwner == "PG1" && p.Text == "%%c9"),
+                "counterbore inner diameter should stay as a separate normal callout");
         }
 
         private static OutlineFeature2D CreateRectangle(double width, double height)
@@ -265,6 +682,25 @@ namespace CadAuto.Core.Tests
                 && Math.Abs(d.FirstPoint.DistanceTo(d.SecondPoint) - expectedSpan) <= 0.001);
 
             Assert(found, "missing " + message);
+        }
+
+        private static double GetSpan(PlannedDimension dimension)
+        {
+            return dimension.Orientation == DimensionOrientation.Horizontal
+                ? Math.Abs(dimension.SecondPoint.X - dimension.FirstPoint.X)
+                : Math.Abs(dimension.SecondPoint.Y - dimension.FirstPoint.Y);
+        }
+
+        private static bool EndpointXEquals(PlannedDimension dimension, double x)
+        {
+            return Math.Abs(dimension.FirstPoint.X - x) <= 0.001
+                || Math.Abs(dimension.SecondPoint.X - x) <= 0.001;
+        }
+
+        private static bool EndpointYEquals(PlannedDimension dimension, double y)
+        {
+            return Math.Abs(dimension.FirstPoint.Y - y) <= 0.001
+                || Math.Abs(dimension.SecondPoint.Y - y) <= 0.001;
         }
 
         private static void Assert(bool condition, string message)

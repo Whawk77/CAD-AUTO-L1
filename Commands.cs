@@ -158,8 +158,11 @@ namespace AutoFixtureDim
                     var coreOutline = CoreModelMapper.ToCoreOutline(outline);
                     var coreDatum = CoreModelMapper.ToCoreDatum(datum);
                     var coreHoles = CoreModelMapper.ToCoreHoles(holes);
+                    var coreSlots = CoreModelMapper.ToCoreSlots(recognizer.LastRecognizedSlots);
                     var planner = new CadAuto.Core.Planning.DimensionPlanner(coreConfig);
-                    var plan = planner.CreateDimensionPlan(coreOutline, coreDatum, coreHoles);
+                    var plan = planner.CreateDimensionPlan(coreOutline, coreDatum, coreHoles, coreSlots);
+                    var holeCalloutPlans = new CadAuto.Core.Planning.HoleCalloutPlanner(coreConfig)
+                        .CreatePlans(coreHoles, coreDatum.DatumHole);
                     var renderPlan = CreateCoreDebugRenderPlan(plan);
 
                     string debugLayer = EnsureCoreDebugLayer(db, tr);
@@ -173,7 +176,7 @@ namespace AutoFixtureDim
                         debugLayer);
                     renderer.Render(renderPlan, coreOutline);
 
-                    WriteCoreDebugSummary(editor, outline, holes, plan, renderPlan, debugLayer);
+                    WriteCoreDebugSummary(editor, outline, holes, coreSlots.Count, plan, renderPlan, holeCalloutPlans, debugLayer);
                     tr.Commit();
                 }
             }
@@ -202,7 +205,8 @@ namespace AutoFixtureDim
             var diagnosticSide = diagnosticsEnabled
                 ? PromptForDiagnosticSide(editor)
                 : DiagnosticDimensionSide.All;
-            System.Collections.Generic.IList<System.Collections.Generic.IList<HoleFeature>> diameterGroupsForPlacement = null;
+            System.Collections.Generic.IList<CadAuto.Core.Planning.HoleCalloutPlan> holeCalloutPlansForPlacement = null;
+            System.Collections.Generic.IList<HoleFeature> holeCalloutSourceHolesForPlacement = null;
             OutlineFeature outlineForInteractivePlacement = null;
             System.Collections.Generic.IList<SlotFeature> slotFeaturesForInteractivePlacement = null;
             ObjectId dimStyleIdForInteractivePlacement = ObjectId.Null;
@@ -304,7 +308,7 @@ namespace AutoFixtureDim
                         .Concat(outlineSlotFeatures)
                         .ToList();
                     var rows = recognizer.GroupHolesByHorizontalRow(holes);
-                    var diameterGroups = BuildDiameterGroupsForPlacement(holes, datum.DatumHole, config);
+                    var holeCalloutPlans = BuildHoleCalloutPlansForPlacement(holes, datum.DatumHole, config);
                     var currentSpace = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
                     AnnotationMetadata.EnsureRegApp(db, tr);
 
@@ -368,7 +372,8 @@ namespace AutoFixtureDim
 
                     if (!diagnosticsEnabled && !skipHoleDimensions)
                     {
-                        diameterGroupsForPlacement = diameterGroups;
+                        holeCalloutPlansForPlacement = holeCalloutPlans;
+                        holeCalloutSourceHolesForPlacement = holes;
                         diameterCalloutDimStyleIdForPlacement = diameterCalloutDimStyleId;
                         annotationLayerForPlacement = annotationLayer;
                     }
@@ -390,11 +395,12 @@ namespace AutoFixtureDim
                         slotFeaturesForInteractivePlacement);
                 }
 
-                if (diameterGroupsForPlacement != null)
+                if (holeCalloutPlansForPlacement != null)
                 {
-                    NativeDiameterDimensioner.PromptDiameterDimensions(
+                    NativeDiameterDimensioner.PromptHoleCalloutPlans(
                         document,
-                        diameterGroupsForPlacement,
+                        holeCalloutPlansForPlacement,
+                        holeCalloutSourceHolesForPlacement,
                         config,
                         annotationLayerForPlacement,
                         diameterCalloutDimStyleIdForPlacement,
@@ -435,15 +441,18 @@ namespace AutoFixtureDim
             Editor editor,
             OutlineFeature outline,
             System.Collections.Generic.IList<HoleFeature> holes,
+            int slotCount,
             CadAuto.Core.Planning.DimensionPlan plan,
             CadAuto.Core.Planning.DimensionPlan renderPlan,
+            System.Collections.Generic.IList<CadAuto.Core.Planning.HoleCalloutPlan> holeCalloutPlans,
             string debugLayer)
         {
             editor.WriteMessage(
-                "\nASDCOREDBG: outline W={0:0.###}, H={1:0.###}; holes={2}; core dims={3}; rendered={4}; skipped={5}; pin groups={6}; layer={7}",
+                "\nASDCOREDBG: outline W={0:0.###}, H={1:0.###}; holes={2}; slots={3}; core dims={4}; rendered={5}; skipped={6}; pin groups={7}; layer={8}",
                 outline.Width,
                 outline.Height,
                 holes == null ? 0 : holes.Count,
+                slotCount,
                 plan.Dimensions.Count,
                 renderPlan.Dimensions.Count,
                 plan.Dimensions.Count - renderPlan.Dimensions.Count,
@@ -455,6 +464,69 @@ namespace AutoFixtureDim
                 .OrderBy(g => g.Key.ToString()))
             {
                 editor.WriteMessage("\n  {0}: {1}", group.Key, group.Count());
+            }
+
+            if (holeCalloutPlans != null && holeCalloutPlans.Count > 0)
+            {
+                var calloutIndex = 1;
+                foreach (var callout in holeCalloutPlans)
+                {
+                    editor.WriteMessage(
+                        "\n  callout#{0:00} kind={1} holes={2} anchor=({3:0.###},{4:0.###}) owner={5} text='{6}'",
+                        calloutIndex,
+                        callout.Kind,
+                        callout.Holes.Count,
+                        callout.AnchorPoint.X,
+                        callout.AnchorPoint.Y,
+                        callout.DebugOwner ?? string.Empty,
+                        callout.Text ?? string.Empty);
+                    calloutIndex++;
+                }
+            }
+
+            if (holes != null && holes.Count > 0)
+            {
+                var holeIndex = 1;
+                foreach (var hole in holes
+                    .OrderBy(h => h.Center.X)
+                    .ThenBy(h => h.Center.Y))
+                {
+                    editor.WriteMessage(
+                        "\n  hole#{0:00} kind={1} dia={2:0.###} center=({3:0.###},{4:0.###}) fit='{5}' thread='{6}'",
+                        holeIndex,
+                        hole.HoleKind,
+                        hole.Diameter,
+                        hole.Center.X,
+                        hole.Center.Y,
+                        hole.FitTolerance ?? string.Empty,
+                        hole.ThreadCallout ?? string.Empty);
+                    holeIndex++;
+                }
+            }
+
+            foreach (var pinGroup in plan.PinGroups.OrderBy(g => g.GroupIndex))
+            {
+                editor.WriteMessage(
+                    "\n  pinGroup PG{0}: base=({1:0.###},{2:0.###}) pins={3} members={4} hSide={5} vSide={6}",
+                    pinGroup.GroupIndex,
+                    pinGroup.BasePin == null ? 0.0 : pinGroup.BasePin.Center.X,
+                    pinGroup.BasePin == null ? 0.0 : pinGroup.BasePin.Center.Y,
+                    pinGroup.Pins.Count,
+                    pinGroup.MemberHoles.Count,
+                    pinGroup.HorizontalSide,
+                    pinGroup.VerticalSide);
+
+                foreach (var member in pinGroup.MemberHoles
+                    .OrderBy(h => h.Center.X)
+                    .ThenBy(h => h.Center.Y))
+                {
+                    editor.WriteMessage(
+                        "\n    member kind={0} dia={1:0.###} center=({2:0.###},{3:0.###})",
+                        member.Kind,
+                        member.Diameter,
+                        member.Center.X,
+                        member.Center.Y);
+                }
             }
 
             int index = 1;
@@ -496,17 +568,12 @@ namespace AutoFixtureDim
                 target.PinGroups.Add(group);
             }
 
-            foreach (var dim in source.Dimensions.Where(ShouldRenderCoreDebugDimension))
+            foreach (var dim in source.Dimensions)
             {
                 target.Dimensions.Add(dim);
             }
 
             return target;
-        }
-
-        private static bool ShouldRenderCoreDebugDimension(CadAuto.Core.Planning.PlannedDimension dim)
-        {
-            return true;
         }
 
         private static DiagnosticDimensionSide PromptForDiagnosticSide(Editor editor)
@@ -616,6 +683,22 @@ namespace AutoFixtureDim
             public System.Collections.Generic.List<HoleFeature> Members { get; } = new System.Collections.Generic.List<HoleFeature>();
         }
 
+        private static System.Collections.Generic.IList<CadAuto.Core.Planning.HoleCalloutPlan> BuildHoleCalloutPlansForPlacement(
+            System.Collections.Generic.IEnumerable<HoleFeature> holes,
+            HoleFeature datumPin,
+            DimensionRuleConfig config)
+        {
+            var holeList = holes == null
+                ? new System.Collections.Generic.List<HoleFeature>()
+                : holes.Where(h => h != null && !h.IsSlotPoint).ToList();
+            var coreConfig = CoreModelMapper.ToCoreConfig(config);
+            var coreHoles = CoreModelMapper.ToCoreHoles(holeList);
+            var coreDatumPin = datumPin == null
+                ? null
+                : coreHoles.FirstOrDefault(h => IsSameHoleForCallout(h, datumPin, config)) ?? CoreModelMapper.ToCoreHoles(new[] { datumPin }).FirstOrDefault();
+            return new CadAuto.Core.Planning.HoleCalloutPlanner(coreConfig).CreatePlans(coreHoles, coreDatumPin);
+        }
+
         private static System.Collections.Generic.IList<System.Collections.Generic.IList<HoleFeature>> BuildDiameterGroupsForPlacement(
             System.Collections.Generic.IEnumerable<HoleFeature> holes,
             HoleFeature datumPin,
@@ -624,18 +707,37 @@ namespace AutoFixtureDim
             var holeList = holes == null
                 ? new System.Collections.Generic.List<HoleFeature>()
                 : holes.Where(h => h != null && !h.IsSlotPoint).ToList();
-            var pinHoles = holeList.Where(h => h.IsPinHole).ToList();
-            if (pinHoles.Count == 0)
-            {
-                return BuildDiameterGroupsBySpatialRows(holeList, config);
-            }
+            var coreConfig = CoreModelMapper.ToCoreConfig(config);
+            var coreHoles = CoreModelMapper.ToCoreHoles(holeList);
+            var coreDatumPin = datumPin == null
+                ? null
+                : coreHoles.FirstOrDefault(h => IsSameHoleForCallout(h, datumPin, config)) ?? CoreModelMapper.ToCoreHoles(new[] { datumPin }).FirstOrDefault();
+            var plans = new CadAuto.Core.Planning.HoleCalloutPlanner(coreConfig).CreatePlans(coreHoles, coreDatumPin);
+            return ConvertHoleCalloutPlansToDiameterGroups(plans, holeList, config);
+        }
 
-            var clusters = BuildPinCalloutClusters(pinHoles, datumPin, config);
-            AssignNonPinHolesToCalloutClusters(holeList, clusters);
+        private static System.Collections.Generic.IList<System.Collections.Generic.IList<HoleFeature>> ConvertHoleCalloutPlansToDiameterGroups(
+            System.Collections.Generic.IEnumerable<CadAuto.Core.Planning.HoleCalloutPlan> plans,
+            System.Collections.Generic.IList<HoleFeature> sourceHoles,
+            DimensionRuleConfig config)
+        {
             var result = new System.Collections.Generic.List<System.Collections.Generic.IList<HoleFeature>>();
-            foreach (var cluster in clusters)
+            foreach (var plan in plans ?? Enumerable.Empty<CadAuto.Core.Planning.HoleCalloutPlan>())
             {
-                result.AddRange(GroupCalloutClusterMembers(cluster.Members, config));
+                var group = new System.Collections.Generic.List<HoleFeature>();
+                foreach (var coreHole in plan.Holes)
+                {
+                    var source = sourceHoles.FirstOrDefault(h => IsSameHoleForCallout(coreHole, h, config) && !group.Any(existing => IsSameHoleForCallout(existing, h, config)));
+                    if (source != null)
+                    {
+                        group.Add(source);
+                    }
+                }
+
+                if (group.Count > 0)
+                {
+                    result.Add(group);
+                }
             }
 
             return result;
@@ -854,6 +956,19 @@ namespace AutoFixtureDim
             }
 
             return a.Center.DistanceTo(b.Center) <= config.GeometryTolerance
+                && System.Math.Abs(a.Diameter - b.Diameter) <= config.GeometryTolerance;
+        }
+
+        private static bool IsSameHoleForCallout(CadAuto.Core.Model.HoleFeature2D a, HoleFeature b, DimensionRuleConfig config)
+        {
+            if (a == null || b == null)
+            {
+                return false;
+            }
+
+            var dx = a.Center.X - b.Center.X;
+            var dy = a.Center.Y - b.Center.Y;
+            return dx * dx + dy * dy <= config.GeometryTolerance * config.GeometryTolerance
                 && System.Math.Abs(a.Diameter - b.Diameter) <= config.GeometryTolerance;
         }
 

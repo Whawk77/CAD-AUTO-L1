@@ -47,6 +47,8 @@
     <Compile Include="Model\SlotFeature2D.cs" />
     <Compile Include="Planning\DimensionPlanner.cs" />
     <Compile Include="Planning\DimensionPlan.cs" />
+    <Compile Include="Planning\HoleCalloutPlan.cs" />
+    <Compile Include="Planning\HoleCalloutPlanner.cs" />
     <Compile Include="Recognition\FeatureRecognizer2D.cs" />
     <Compile Include="Rules\DimensionRuleConfig.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

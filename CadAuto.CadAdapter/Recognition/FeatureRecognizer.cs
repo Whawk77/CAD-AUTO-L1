@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
+using CadAuto.CadAdapter.Model;
+using CadAuto.Core.Rules;
 
-namespace AutoFixtureDim
+namespace CadAuto.CadAdapter.Recognition
 {
     public sealed class FeatureRecognizer
     {

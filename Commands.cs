@@ -4,6 +4,14 @@ using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Runtime;
+using CadAuto.CadAdapter;
+using CadAuto.CadAdapter.Collection;
+using CadAuto.CadAdapter.Environment;
+using CadAuto.CadAdapter.Mapping;
+using CadAuto.CadAdapter.Model;
+using CadAuto.CadAdapter.Recognition;
+using CadAuto.CadAdapter.Rendering;
+using CadAuto.Core.Rules;
 
 namespace AutoFixtureDim
 {
@@ -154,11 +162,11 @@ namespace AutoFixtureDim
                         }
                     }
 
-                    var coreConfig = CoreModelMapper.ToCoreConfig(config);
-                    var coreOutline = CoreModelMapper.ToCoreOutline(outline);
-                    var coreDatum = CoreModelMapper.ToCoreDatum(datum);
-                    var coreHoles = CoreModelMapper.ToCoreHoles(holes);
-                    var coreSlots = CoreModelMapper.ToCoreSlots(recognizer.LastRecognizedSlots);
+                    var coreConfig = config;
+                    var coreOutline = CadToCoreModelMapper.ToCoreOutline(outline);
+                    var coreDatum = CadToCoreModelMapper.ToCoreDatum(datum);
+                    var coreHoles = CadToCoreModelMapper.ToCoreHoles(holes);
+                    var coreSlots = CadToCoreModelMapper.ToCoreSlots(recognizer.LastRecognizedSlots);
                     var planner = new CadAuto.Core.Planning.DimensionPlanner(coreConfig);
                     var plan = planner.CreateDimensionPlan(coreOutline, coreDatum, coreHoles, coreSlots);
                     var holeCalloutPlans = new CadAuto.Core.Planning.HoleCalloutPlanner(coreConfig)
@@ -691,11 +699,11 @@ namespace AutoFixtureDim
             var holeList = holes == null
                 ? new System.Collections.Generic.List<HoleFeature>()
                 : holes.Where(h => h != null && !h.IsSlotPoint).ToList();
-            var coreConfig = CoreModelMapper.ToCoreConfig(config);
-            var coreHoles = CoreModelMapper.ToCoreHoles(holeList);
+            var coreConfig = config;
+            var coreHoles = CadToCoreModelMapper.ToCoreHoles(holeList);
             var coreDatumPin = datumPin == null
                 ? null
-                : coreHoles.FirstOrDefault(h => IsSameHoleForCallout(h, datumPin, config)) ?? CoreModelMapper.ToCoreHoles(new[] { datumPin }).FirstOrDefault();
+                : coreHoles.FirstOrDefault(h => IsSameHoleForCallout(h, datumPin, config)) ?? CadToCoreModelMapper.ToCoreHoles(new[] { datumPin }).FirstOrDefault();
             return new CadAuto.Core.Planning.HoleCalloutPlanner(coreConfig).CreatePlans(coreHoles, coreDatumPin);
         }
 
@@ -707,11 +715,11 @@ namespace AutoFixtureDim
             var holeList = holes == null
                 ? new System.Collections.Generic.List<HoleFeature>()
                 : holes.Where(h => h != null && !h.IsSlotPoint).ToList();
-            var coreConfig = CoreModelMapper.ToCoreConfig(config);
-            var coreHoles = CoreModelMapper.ToCoreHoles(holeList);
+            var coreConfig = config;
+            var coreHoles = CadToCoreModelMapper.ToCoreHoles(holeList);
             var coreDatumPin = datumPin == null
                 ? null
-                : coreHoles.FirstOrDefault(h => IsSameHoleForCallout(h, datumPin, config)) ?? CoreModelMapper.ToCoreHoles(new[] { datumPin }).FirstOrDefault();
+                : coreHoles.FirstOrDefault(h => IsSameHoleForCallout(h, datumPin, config)) ?? CadToCoreModelMapper.ToCoreHoles(new[] { datumPin }).FirstOrDefault();
             var plans = new CadAuto.Core.Planning.HoleCalloutPlanner(coreConfig).CreatePlans(coreHoles, coreDatumPin);
             return ConvertHoleCalloutPlansToDiameterGroups(plans, holeList, config);
         }

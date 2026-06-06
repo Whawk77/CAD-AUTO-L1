@@ -1,6 +1,6 @@
 using Autodesk.AutoCAD.DatabaseServices;
 
-namespace AutoFixtureDim
+namespace CadAuto.CadAdapter.Environment
 {
     public static class LayerManager
     {

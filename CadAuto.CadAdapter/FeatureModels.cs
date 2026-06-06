@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
 
-namespace AutoFixtureDim
+namespace CadAuto.CadAdapter.Model
 {
     public enum HoleKind
     {

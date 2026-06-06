@@ -55,8 +55,16 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AutoCadGeometryConverter.cs" />
+    <Compile Include="AnnotationMetadata.cs" />
+    <Compile Include="Collection\GeometryCollector.cs" />
     <Compile Include="DimensionPlanRenderer.cs" />
+    <Compile Include="Environment\DimStyleManager.cs" />
+    <Compile Include="Environment\LayerManager.cs" />
+    <Compile Include="FeatureModels.cs" />
+    <Compile Include="Mapping\CadToCoreModelMapper.cs" />
+    <Compile Include="NativeDiameterDimensioner.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Recognition\FeatureRecognizer.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" Condition="Exists('$(MSBuildToolsPath)\Microsoft.CSharp.targets')" />
 </Project>

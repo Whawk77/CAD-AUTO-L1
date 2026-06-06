@@ -6,8 +6,11 @@ using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.GraphicsInterface;
+using CadAuto.CadAdapter;
+using CadAuto.CadAdapter.Model;
+using CadAuto.Core.Rules;
 
-namespace AutoFixtureDim
+namespace CadAuto.CadAdapter.Rendering
 {
     public static class NativeDiameterDimensioner
     {
@@ -17,7 +20,7 @@ namespace AutoFixtureDim
         public static void PromptDiameterDimensions(
             Document document,
             IList<IList<HoleFeature>> diameterGroups,
-            DimensionRuleConfig config,
+            CadAuto.Core.Rules.DimensionRuleConfig config,
             string annotationLayer,
             ObjectId diameterDimStyleId,
             string groupId)
@@ -75,7 +78,7 @@ namespace AutoFixtureDim
             Document document,
             IList<CadAuto.Core.Planning.HoleCalloutPlan> calloutPlans,
             IList<HoleFeature> sourceHoles,
-            DimensionRuleConfig config,
+            CadAuto.Core.Rules.DimensionRuleConfig config,
             string annotationLayer,
             ObjectId diameterDimStyleId,
             string groupId)
@@ -133,7 +136,7 @@ namespace AutoFixtureDim
         private static HoleFeature FindRepresentativeHole(
             CadAuto.Core.Planning.HoleCalloutPlan plan,
             IList<HoleFeature> sourceHoles,
-            DimensionRuleConfig config)
+            CadAuto.Core.Rules.DimensionRuleConfig config)
         {
             foreach (var coreHole in plan.Holes.OrderBy(h => h.Center.Y).ThenBy(h => h.Center.X))
             {
@@ -150,7 +153,7 @@ namespace AutoFixtureDim
         private static bool IsSameHoleForCallout(
             CadAuto.Core.Model.HoleFeature2D coreHole,
             HoleFeature sourceHole,
-            DimensionRuleConfig config)
+            CadAuto.Core.Rules.DimensionRuleConfig config)
         {
             if (coreHole == null || sourceHole == null)
             {

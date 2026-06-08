@@ -1,0 +1,6 @@
+C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\63204e87a69a5183\CadAuto.Core\bin\TestBuild27\CadAuto.Core.dll
+C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\63204e87a69a5183\CadAuto.Core\bin\TestBuild27\CadAuto.Core.pdb
+C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\63204e87a69a5183\CadAuto.Core\obj-test27\Debug\CadAuto.Core.csproj.AssemblyReference.cache
+C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\63204e87a69a5183\CadAuto.Core\obj-test27\Debug\CadAuto.Core.csproj.CoreCompileInputs.cache
+C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\63204e87a69a5183\CadAuto.Core\obj-test27\Debug\CadAuto.Core.dll
+C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\63204e87a69a5183\CadAuto.Core\obj-test27\Debug\CadAuto.Core.pdb

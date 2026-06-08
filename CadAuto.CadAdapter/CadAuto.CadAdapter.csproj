@@ -63,8 +63,41 @@
     <Compile Include="FeatureModels.cs" />
     <Compile Include="Mapping\CadToCoreModelMapper.cs" />
     <Compile Include="NativeDiameterDimensioner.cs" />
+    <Compile Include="Preview\AnnotationPreview.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Recognition\FeatureRecognizer.cs" />
+    <Compile Include="Rendering\CadEntityWriter.cs" />
+    <Compile Include="Rendering\CornerCalloutRenderer.cs" />
+    <Compile Include="Rendering\DebugAnnotationRenderer.cs" />
+    <Compile Include="Rendering\DimensionPlanCadMapper.cs" />
+    <Compile Include="Rendering\DimensionDrawer.Alignment.cs" />
+    <Compile Include="Rendering\DimensionDrawer.DuplicateSuppression.cs" />
+    <Compile Include="Rendering\DimensionDrawer.DebugLabels.cs" />
+    <Compile Include="Rendering\DimensionDrawer.LocalBoundary.cs" />
+    <Compile Include="Rendering\DimensionDrawer.SegmentedExtensions.cs" />
+    <Compile Include="Rendering\DimensionDrawer.Stacking.cs" />
+    <Compile Include="Rendering\DimensionDrawer.TextLayout.cs" />
+    <Compile Include="Rendering\DimensionDrawer.StructureEndpointRules.cs" />
+    <Compile Include="Rendering\DimensionDrawer.StructureFiltering.cs" />
+    <Compile Include="Rendering\DimensionDrawer.StructureInclinedRules.cs" />
+    <Compile Include="Rendering\DimensionDrawer.StructureSuppression.cs" />
+    <Compile Include="Rendering\DimensionDrawer.cs" />
+    <Compile Include="Rendering\DimensionDrawer.VerticalLayout.cs" />
+    <Compile Include="Rendering\DimensionExtensionLineRenderer.cs" />
+    <Compile Include="Rendering\DimensionDrawer.CornerCallouts.cs" />
+    <Compile Include="Rendering\DimensionDrawer.CornerCalloutLayout.cs" />
+    <Compile Include="Rendering\DimensionDrawer.Geometry.cs" />
+    <Compile Include="Rendering\DimensionDrawer.LegacyFunctionalHole.cs" />
+    <Compile Include="Rendering\DimensionDrawer.LegacyHole.cs" />
+    <Compile Include="Rendering\DimensionDrawer.LegacyLooseHole.cs" />
+    <Compile Include="Rendering\DimensionDrawer.LegacyOutline.cs" />
+    <Compile Include="Rendering\DimensionDrawer.LegacySlot.cs" />
+    <Compile Include="Rendering\DimensionDrawer.LegacyStructure.cs" />
+    <Compile Include="Rendering\DimensionDrawer.LegacyStructureHorizontal.cs" />
+    <Compile Include="Rendering\DimensionDrawer.LegacyStructureVertical.cs" />
+    <Compile Include="Rendering\DimensionDrawer.LinearDimEmit.cs" />
+    <Compile Include="Rendering\HoleDiameterLeaderRenderer.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" Condition="Exists('$(MSBuildToolsPath)\Microsoft.CSharp.targets')" />
 </Project>
+

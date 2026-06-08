@@ -9,6 +9,7 @@ using CadAuto.CadAdapter.Collection;
 using CadAuto.CadAdapter.Environment;
 using CadAuto.CadAdapter.Mapping;
 using CadAuto.CadAdapter.Model;
+using CadAuto.CadAdapter.Preview;
 using CadAuto.CadAdapter.Recognition;
 using CadAuto.CadAdapter.Rendering;
 using CadAuto.Core.Rules;
@@ -315,7 +316,6 @@ namespace AutoFixtureDim
                     var slotFeatures = recognizer.LastRecognizedSlots
                         .Concat(outlineSlotFeatures)
                         .ToList();
-                    var rows = recognizer.GroupHolesByHorizontalRow(holes);
                     var holeCalloutPlans = BuildHoleCalloutPlansForPlacement(holes, datum.DatumHole, config);
                     var currentSpace = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
                     AnnotationMetadata.EnsureRegApp(db, tr);
@@ -334,7 +334,7 @@ namespace AutoFixtureDim
                         diagnosticsEnabled: diagnosticsEnabled,
                         diagnosticSide: diagnosticSide);
 
-                    DrawLinearDimensions(drawer, outline, datum, rows, slotFeatures, skipHoleDimensions);
+                    DrawLinearDimensions(drawer, outline, datum, holes, slotFeatures, skipHoleDimensions, config);
                     outlineForInteractivePlacement = outline;
                     slotFeaturesForInteractivePlacement = slotFeatures;
                     dimStyleIdForInteractivePlacement = dimStyleId;
@@ -991,17 +991,22 @@ namespace AutoFixtureDim
             DimensionDrawer drawer,
             OutlineFeature outline,
             DatumDefinition datum,
-            System.Collections.Generic.IList<System.Collections.Generic.IList<HoleFeature>> rows,
+            System.Collections.Generic.IEnumerable<HoleFeature> holes,
             System.Collections.Generic.IEnumerable<SlotFeature> slots,
-            bool skipHoleDimensions)
+            bool skipHoleDimensions,
+            DimensionRuleConfig config)
         {
-            drawer.DrawOutlineDimensions(outline);
-            drawer.DrawStepOutlineDimensions(outline);
-            if (!skipHoleDimensions)
-            {
-                drawer.DrawHolePositionDimensions(outline, datum, rows);
-            }
-            drawer.DrawSlotDimensions(outline, datum, rows, slots);
+            var coreOutline = CadToCoreModelMapper.ToCoreOutline(outline);
+            var coreDatum = CadToCoreModelMapper.ToCoreDatum(datum);
+            var effectiveHoles = skipHoleDimensions
+                ? new System.Collections.Generic.List<HoleFeature>()
+                : (holes ?? new System.Collections.Generic.List<HoleFeature>()).Where(hole => hole != null).ToList();
+            var coreHoles = CadToCoreModelMapper.ToCoreHoles(effectiveHoles);
+            var coreSlots = CadToCoreModelMapper.ToCoreSlots(slots);
+            var plan = new CadAuto.Core.Planning.DimensionPlanner(config)
+                .CreateDimensionPlan(coreOutline, coreDatum, coreHoles, coreSlots);
+
+            drawer.DrawDimensionPlan(plan);
             drawer.FlushStackedDimensions(outline);
         }
 

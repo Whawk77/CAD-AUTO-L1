@@ -3712,7 +3712,9 @@ namespace CadAuto.Core.Planning
                 SecondPoint = secondPoint,
                 OverrideText = overrideText ?? string.Empty,
                 DebugRole = debugRole,
-                DebugOwner = debugOwner
+                DebugOwner = debugOwner,
+                UseSegmentedExtensionLines = kind != DimensionKind.OverallWidth
+                    && kind != DimensionKind.OverallHeight
             });
         }
 

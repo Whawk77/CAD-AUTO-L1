@@ -36,6 +36,7 @@ namespace CadAuto.Core.Tests
                 FunctionalHolesAttachToPinGroup();
                 LooseHolesUseChainDimensions();
                 ConcentricLooseHolesShareOneLocationDimension();
+                HoleLocationDimensionsUseSegmentedExtensionLines();
                 HoleCalloutsGroupByRowsWithoutPins();
                 HoleCalloutsUsePinClustersAndFitText();
                 Console.WriteLine("CadAuto.Core.Tests passed.");
@@ -571,6 +572,24 @@ namespace CadAuto.Core.Tests
                 "concentric loose holes should share a single hole-location dimension");
             Assert(plan.Dimensions.Any(d => d.DebugRole == "LooseHole" && Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 15.0) <= 0.001),
                 "concentric loose hole location should be measured from the pin group base");
+        }
+
+        private static void HoleLocationDimensionsUseSegmentedExtensionLines()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = CreateRectangle(100.0, 50.0);
+            var datum = Datum2D.FromOutline(outline);
+            var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new[]
+            {
+                CreateHole(25.0, 20.0, 8.0, HoleKind2D.Normal)
+            });
+
+            Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth && !d.UseSegmentedExtensionLines),
+                "overall width should not use segmented extension lines");
+            Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallHeight && !d.UseSegmentedExtensionLines),
+                "overall height should not use segmented extension lines");
+            Assert(plan.Dimensions.Count(d => d.Kind == DimensionKind.HoleLocation && d.UseSegmentedExtensionLines) == 2,
+                "hole location dimensions should use segmented extension lines");
         }
 
         private static void HoleCalloutsGroupByRowsWithoutPins()

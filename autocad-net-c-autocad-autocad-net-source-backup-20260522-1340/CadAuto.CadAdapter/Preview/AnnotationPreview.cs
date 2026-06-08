@@ -4,7 +4,7 @@ using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.GraphicsInterface;
 using Autodesk.AutoCAD.Geometry;
 
-namespace AutoFixtureDim
+namespace CadAuto.CadAdapter.Preview
 {
     public sealed class AnnotationPreview : IDisposable
     {

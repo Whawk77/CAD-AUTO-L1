@@ -49,8 +49,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Commands.cs" />
-    <Compile Include="AnnotationPreview.cs" />
-    <Compile Include="DimensionDrawer.cs" />
     <Compile Include="PluginEntry.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

@@ -46,6 +46,7 @@ namespace CadAuto.Core.Planning
         public string OverrideText { get; set; }
         public string SourceKey { get; set; }
         public bool ForceOuterLevel { get; set; }
+        public bool UseSegmentedExtensionLines { get; set; }
         public bool PreferLocalBoundary { get; set; }
         public int ChainId { get; set; }
         public string DebugOwner { get; set; }

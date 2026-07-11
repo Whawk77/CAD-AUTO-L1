@@ -1,0 +1,9 @@
+D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\CadAuto.Core.Tests\bin\TestBuild130\CadAuto.Core.Tests.exe
+D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\CadAuto.Core.Tests\bin\TestBuild130\CadAuto.Core.Tests.pdb
+D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\CadAuto.Core.Tests\bin\TestBuild130\CadAuto.Core.dll
+D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\CadAuto.Core.Tests\bin\TestBuild130\CadAuto.Core.pdb
+D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\CadAuto.Core.Tests\obj-test130\Debug\CadAuto.Core.Tests.csproj.AssemblyReference.cache
+D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\CadAuto.Core.Tests\obj-test130\Debug\CadAuto.Core.Tests.csproj.CoreCompileInputs.cache
+D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\CadAuto.Core.Tests\obj-test130\Debug\CadAuto..246D6116.Up2Date
+D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\CadAuto.Core.Tests\obj-test130\Debug\CadAuto.Core.Tests.exe
+D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\CadAuto.Core.Tests\obj-test130\Debug\CadAuto.Core.Tests.pdb

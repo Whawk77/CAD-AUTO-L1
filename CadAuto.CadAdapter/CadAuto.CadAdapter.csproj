@@ -10,6 +10,7 @@
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
+    <LangVersion>latest</LangVersion>
     <AutoCAD2020Dir Condition="'$(AutoCAD2020Dir)' == ''">D:\Program Files\Autodesk\AutoCAD 2020</AutoCAD2020Dir>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -18,7 +19,6 @@
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
@@ -27,77 +27,21 @@
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="AcCoreMgd">
-      <HintPath>$(AutoCAD2020Dir)\AcCoreMgd.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="AcDbMgd">
-      <HintPath>$(AutoCAD2020Dir)\AcDbMgd.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="AcMgd">
-      <HintPath>$(AutoCAD2020Dir)\AcMgd.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
+    <Reference Include="AcCoreMgd"><HintPath>$(AutoCAD2020Dir)\AcCoreMgd.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="AcDbMgd"><HintPath>$(AutoCAD2020Dir)\AcDbMgd.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="AcMgd"><HintPath>$(AutoCAD2020Dir)\AcMgd.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\CadAuto.Core\CadAuto.Core.csproj">
-      <Project>{0A29EBA4-7D4C-44EF-B9C8-7D5E25594F4C}</Project>
-      <Name>CadAuto.Core</Name>
-    </ProjectReference>
+    <ProjectReference Include="..\CadAuto.Core\CadAuto.Core.csproj"><Project>{0A29EBA4-7D4C-44EF-B9C8-7D5E25594F4C}</Project><Name>CadAuto.Core</Name></ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AutoCadGeometryConverter.cs" />
-    <Compile Include="AnnotationMetadata.cs" />
-    <Compile Include="Collection\GeometryCollector.cs" />
-    <Compile Include="DimensionPlanRenderer.cs" />
-    <Compile Include="Environment\DimStyleManager.cs" />
-    <Compile Include="Environment\LayerManager.cs" />
-    <Compile Include="FeatureModels.cs" />
-    <Compile Include="Mapping\CadToCoreModelMapper.cs" />
-    <Compile Include="NativeDiameterDimensioner.cs" />
-    <Compile Include="Preview\AnnotationPreview.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Recognition\FeatureRecognizer.cs" />
-    <Compile Include="Rendering\CadEntityWriter.cs" />
-    <Compile Include="Rendering\CornerCalloutRenderer.cs" />
-    <Compile Include="Rendering\DebugAnnotationRenderer.cs" />
-    <Compile Include="Rendering\DimensionPlanCadMapper.cs" />
-    <Compile Include="Rendering\DimensionDrawer.Alignment.cs" />
-    <Compile Include="Rendering\DimensionDrawer.DuplicateSuppression.cs" />
-    <Compile Include="Rendering\DimensionDrawer.DebugLabels.cs" />
-    <Compile Include="Rendering\DimensionDrawer.LocalBoundary.cs" />
-    <Compile Include="Rendering\DimensionDrawer.SegmentedExtensions.cs" />
-    <Compile Include="Rendering\DimensionDrawer.Stacking.cs" />
-    <Compile Include="Rendering\DimensionDrawer.TextLayout.cs" />
-    <Compile Include="Rendering\DimensionDrawer.StructureEndpointRules.cs" />
-    <Compile Include="Rendering\DimensionDrawer.StructureFiltering.cs" />
-    <Compile Include="Rendering\DimensionDrawer.StructureInclinedRules.cs" />
-    <Compile Include="Rendering\DimensionDrawer.StructureSuppression.cs" />
-    <Compile Include="Rendering\DimensionDrawer.cs" />
-    <Compile Include="Rendering\DimensionDrawer.VerticalLayout.cs" />
-    <Compile Include="Rendering\DimensionExtensionLineRenderer.cs" />
-    <Compile Include="Rendering\DimensionDrawer.CornerCallouts.cs" />
-    <Compile Include="Rendering\DimensionDrawer.CornerCalloutLayout.cs" />
-    <Compile Include="Rendering\DimensionDrawer.Geometry.cs" />
-    <Compile Include="Rendering\DimensionDrawer.LegacyFunctionalHole.cs" />
-    <Compile Include="Rendering\DimensionDrawer.LegacyHole.cs" />
-    <Compile Include="Rendering\DimensionDrawer.LegacyLooseHole.cs" />
-    <Compile Include="Rendering\DimensionDrawer.LegacyOutline.cs" />
-    <Compile Include="Rendering\DimensionDrawer.LegacySlot.cs" />
-    <Compile Include="Rendering\DimensionDrawer.LegacyStructure.cs" />
-    <Compile Include="Rendering\DimensionDrawer.LegacyStructureHorizontal.cs" />
-    <Compile Include="Rendering\DimensionDrawer.LegacyStructureVertical.cs" />
-    <Compile Include="Rendering\DimensionDrawer.LinearDimEmit.cs" />
-    <Compile Include="Rendering\HoleDiameterLeaderRenderer.cs" />
+    <Compile Include="V177Source\**\*.cs" />
   </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" Condition="Exists('$(MSBuildToolsPath)\Microsoft.CSharp.targets')" />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
-

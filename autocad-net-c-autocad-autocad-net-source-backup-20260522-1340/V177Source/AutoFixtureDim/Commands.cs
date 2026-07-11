@@ -1,0 +1,1170 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text;
+using Autodesk.AutoCAD.ApplicationServices;
+using Autodesk.AutoCAD.Colors;
+using Autodesk.AutoCAD.DatabaseServices;
+using Autodesk.AutoCAD.EditorInput;
+using Autodesk.AutoCAD.Geometry;
+using Autodesk.AutoCAD.Runtime;
+using CadAuto.CadAdapter;
+using CadAuto.CadAdapter.Collection;
+using CadAuto.CadAdapter.Environment;
+using CadAuto.CadAdapter.Mapping;
+using CadAuto.CadAdapter.Model;
+using CadAuto.CadAdapter.Recognition;
+using CadAuto.CadAdapter.Rendering;
+using CadAuto.Core.Model;
+using CadAuto.Core.Planning;
+using CadAuto.Core.Rules;
+
+namespace AutoFixtureDim;
+
+public sealed class Commands
+{
+	private enum AutoFixDimOutputScope
+	{
+		All,
+		OutlineOnly,
+		HoleOnly,
+		CornerOnly
+	}
+
+	private static readonly string Ag1RoughnessBlockName = "CadAider_国标粗糙度16下";
+
+	[CommandMethod("ASD")]
+	public void Asd()
+	{
+		RunAutoFixDim(clearExistingBeforeGenerate: false);
+	}
+
+	[CommandMethod("AUTOFIXDIM")]
+	public void AutoFixDim()
+	{
+		RunAutoFixDim(clearExistingBeforeGenerate: false);
+	}
+
+	[CommandMethod("ASD4")]
+	public void AsdDebug()
+	{
+		RunAutoFixDim(clearExistingBeforeGenerate: true, diagnosticsEnabled: true);
+	}
+
+	[CommandMethod("ASD5")]
+	public void Asd5()
+	{
+		RunAutoFixDim(clearExistingBeforeGenerate: false, diagnosticsEnabled: false, AutoFixDimOutputScope.OutlineOnly);
+	}
+
+	[CommandMethod("ASD6")]
+	public void Asd6()
+	{
+		RunAutoFixDim(clearExistingBeforeGenerate: false, diagnosticsEnabled: false, AutoFixDimOutputScope.HoleOnly);
+	}
+
+	[CommandMethod("ASD7")]
+	public void Asd7()
+	{
+		RunAutoFixDim(clearExistingBeforeGenerate: false, diagnosticsEnabled: false, AutoFixDimOutputScope.CornerOnly);
+	}
+
+	[CommandMethod("ASDCOREDBG")]
+	public void AsdCoreDebug()
+	{
+		RunCoreDebug();
+	}
+
+	[CommandMethod("ASD3")]
+	public void Asd3()
+	{
+		Document mdiActiveDocument = Application.DocumentManager.MdiActiveDocument;
+		if (mdiActiveDocument == null)
+		{
+			return;
+		}
+		Database database = mdiActiveDocument.Database;
+		Editor editor = mdiActiveDocument.Editor;
+		try
+		{
+			using Transaction transaction = database.TransactionManager.StartTransaction();
+			int num = AnnotationMetadata.ClearLatestGeneratedAnnotations(database, transaction);
+			transaction.Commit();
+			editor.WriteMessage("\nAUTOFIXDIM 已清除最近一次插件标注 {0} 个。", num);
+		}
+		catch (System.Exception ex)
+		{
+			editor.WriteMessage("\nASD3 发生异常: {0}", ex.Message);
+		}
+	}
+
+	[CommandMethod("AG1")]
+	public void Ag1()
+	{
+		Document mdiActiveDocument = Application.DocumentManager.MdiActiveDocument;
+		if (mdiActiveDocument == null)
+		{
+			return;
+		}
+		Database database = mdiActiveDocument.Database;
+		Editor editor = mdiActiveDocument.Editor;
+		DimensionRuleConfig dimensionRuleConfig = DimensionRuleConfig.CreateDefault();
+		string groupId = DateTime.Now.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
+		try
+		{
+			using (Transaction transaction = database.TransactionManager.StartTransaction())
+			{
+				PromptEntityOptions options = new PromptEntityOptions("\n选择需要 AG1 处理的线段: ");
+				PromptEntityResult entity = editor.GetEntity(options);
+				if (entity.Status != PromptStatus.OK)
+				{
+					return;
+				}
+				Entity entity2 = transaction.GetObject(entity.ObjectId, OpenMode.ForRead, openErased: false) as Entity;
+				if (!TryGetAg1SourceSegment(transaction, entity2, entity.PickedPoint, out var startPoint, out var endPoint))
+				{
+					editor.WriteMessage("\nAG1 请选择 Line、二维/三维多段线直线段。");
+					return;
+				}
+				Point3d point3d = Midpoint(startPoint, endPoint);
+				bool flag = !IsAg1HorizontalLine(startPoint, endPoint);
+				double num = ((entity.PickedPoint.X >= point3d.X) ? 1.0 : (-1.0));
+				Vector3d vector3d = (flag ? new Vector3d(num * 2.0, 0.0, 0.0) : new Vector3d(0.0, 2.0, 0.0));
+				Line line = new Line(startPoint + vector3d, endPoint + vector3d);
+				line.SetDatabaseDefaults(database);
+				CopyEntityDisplayProperties(entity2, line);
+				line.LayerId = database.Clayer;
+				line.Color = Color.FromColorIndex(ColorMethod.ByAci, 6);
+				AnnotationMetadata.EnsureRegApp(database, transaction);
+				BlockTableRecord blockTableRecord = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
+				blockTableRecord.AppendEntity(line);
+				transaction.AddNewlyCreatedDBObject(line, add: true);
+				AnnotationMetadata.Mark(line, groupId);
+				double num2 = ((database.Dimscale <= 0.0) ? 1.0 : database.Dimscale);
+				double num3 = dimensionRuleConfig.LeaderOffset * num2;
+				ObjectId dimStyleId = DimStyleManager.ResolveDimStyle(database, transaction);
+				double ag1DimStyleTextHeight = GetAg1DimStyleTextHeight(database, transaction, dimStyleId);
+				Point3d point3d2;
+				Point3d point3d3;
+				Point3d textPoint;
+				Point3d textPoint2;
+				if (flag)
+				{
+					point3d2 = point3d + new Vector3d(0.0, 3.0, 0.0);
+					point3d3 = Midpoint(line.StartPoint, line.EndPoint) + new Vector3d(0.0, -3.0, 0.0);
+					textPoint = point3d2 + new Vector3d(num * num3, num3, 0.0);
+					textPoint2 = point3d3 + new Vector3d(num * num3, 0.0 - num3, 0.0);
+				}
+				else
+				{
+					point3d2 = point3d + new Vector3d(-3.0, 0.0, 0.0);
+					point3d3 = Midpoint(line.StartPoint, line.EndPoint) + new Vector3d(3.0, 0.0, 0.0);
+					textPoint = point3d2 + new Vector3d(0.0 - num3, num3, 0.0);
+					textPoint2 = point3d3 + new Vector3d(num3, num3, 0.0);
+				}
+				Point3d ag1TextLandingMidpoint = GetAg1TextLandingMidpoint(textPoint, point3d2, "CNC加工", ag1DimStyleTextHeight);
+				AddAg1Leader(database, transaction, blockTableRecord, point3d2, textPoint, "CNC加工", dimStyleId, groupId);
+				AddAg1Leader(database, transaction, blockTableRecord, point3d3, textPoint2, "淬火", dimStyleId, groupId);
+				InsertAg1RoughnessBlock(database, transaction, blockTableRecord, ag1TextLandingMidpoint, entity2.Layer, dimStyleId, groupId);
+				transaction.Commit();
+			}
+			editor.WriteMessage("\nAG1 已生成洋红偏移线、CNC加工/淬火引出标注和粗糙度块。");
+		}
+		catch (Autodesk.AutoCAD.Runtime.Exception ex)
+		{
+			editor.WriteMessage("\nAG1 取消或失败: {0}", ex.Message);
+		}
+		catch (System.Exception ex2)
+		{
+			editor.WriteMessage("\nAG1 发生异常: {0}", ex2.Message);
+		}
+	}
+
+	private static void CopyEntityDisplayProperties(Entity source, Line target)
+	{
+		target.Layer = source.Layer;
+		target.LinetypeId = source.LinetypeId;
+		target.LinetypeScale = source.LinetypeScale;
+		target.LineWeight = source.LineWeight;
+		target.Transparency = source.Transparency;
+		Line line = source as Line;
+		if (line != null)
+		{
+			target.Normal = line.Normal;
+			target.Thickness = line.Thickness;
+		}
+	}
+
+	private static bool TryGetAg1SourceSegment(Transaction tr, Entity entity, Point3d pickedPoint, out Point3d startPoint, out Point3d endPoint)
+	{
+		startPoint = Point3d.Origin;
+		endPoint = Point3d.Origin;
+		Line line = entity as Line;
+		if (line != null)
+		{
+			startPoint = line.StartPoint;
+			endPoint = line.EndPoint;
+			return true;
+		}
+		Polyline polyline = entity as Polyline;
+		if (polyline != null)
+		{
+			return TryGetAg1PolylineSegment(polyline, pickedPoint, out startPoint, out endPoint);
+		}
+		Polyline2d polyline2d = entity as Polyline2d;
+		if (polyline2d != null)
+		{
+			return TryGetAg1Polyline2dSegment(tr, polyline2d, pickedPoint, out startPoint, out endPoint);
+		}
+		Polyline3d polyline3d = entity as Polyline3d;
+		if (polyline3d != null)
+		{
+			return TryGetAg1Polyline3dSegment(tr, polyline3d, pickedPoint, out startPoint, out endPoint);
+		}
+		return false;
+	}
+
+	private static bool TryGetAg1PolylineSegment(Polyline polyline, Point3d pickedPoint, out Point3d startPoint, out Point3d endPoint)
+	{
+		startPoint = Point3d.Origin;
+		endPoint = Point3d.Origin;
+		if (polyline == null || polyline.NumberOfVertices < 2)
+		{
+			return false;
+		}
+		int num = (polyline.Closed ? polyline.NumberOfVertices : (polyline.NumberOfVertices - 1));
+		double num2 = double.MaxValue;
+		bool result = false;
+		for (int i = 0; i < num; i++)
+		{
+			if (polyline.GetSegmentType(i) == SegmentType.Line)
+			{
+				Point3d point3dAt = polyline.GetPoint3dAt(i);
+				Point3d point3dAt2 = polyline.GetPoint3dAt((i + 1) % polyline.NumberOfVertices);
+				double num3 = DistancePointToSegment2D(pickedPoint, point3dAt, point3dAt2);
+				if (!(num3 >= num2))
+				{
+					num2 = num3;
+					startPoint = point3dAt;
+					endPoint = point3dAt2;
+					result = true;
+				}
+			}
+		}
+		return result;
+	}
+
+	private static bool TryGetAg1Polyline2dSegment(Transaction tr, Polyline2d polyline, Point3d pickedPoint, out Point3d startPoint, out Point3d endPoint)
+	{
+		List<Point3d> list = new List<Point3d>();
+		foreach (ObjectId item in polyline)
+		{
+			Vertex2d vertex2d = tr.GetObject(item, OpenMode.ForRead, openErased: false) as Vertex2d;
+			if (vertex2d != null)
+			{
+				list.Add(vertex2d.Position);
+			}
+		}
+		return TryGetNearestAg1Segment(list, polyline.Closed, pickedPoint, out startPoint, out endPoint);
+	}
+
+	private static bool TryGetAg1Polyline3dSegment(Transaction tr, Polyline3d polyline, Point3d pickedPoint, out Point3d startPoint, out Point3d endPoint)
+	{
+		List<Point3d> list = new List<Point3d>();
+		foreach (ObjectId item in polyline)
+		{
+			PolylineVertex3d polylineVertex3d = tr.GetObject(item, OpenMode.ForRead, openErased: false) as PolylineVertex3d;
+			if (polylineVertex3d != null)
+			{
+				list.Add(polylineVertex3d.Position);
+			}
+		}
+		return TryGetNearestAg1Segment(list, polyline.Closed, pickedPoint, out startPoint, out endPoint);
+	}
+
+	private static bool TryGetNearestAg1Segment(IList<Point3d> points, bool closed, Point3d pickedPoint, out Point3d startPoint, out Point3d endPoint)
+	{
+		startPoint = Point3d.Origin;
+		endPoint = Point3d.Origin;
+		if (points == null || points.Count < 2)
+		{
+			return false;
+		}
+		int num = (closed ? points.Count : (points.Count - 1));
+		double num2 = double.MaxValue;
+		bool result = false;
+		for (int i = 0; i < num; i++)
+		{
+			Point3d point3d = points[i];
+			Point3d point3d2 = points[(i + 1) % points.Count];
+			if (!(DistanceSquared2D(point3d, point3d2) <= 1E-12))
+			{
+				double num3 = DistancePointToSegment2D(pickedPoint, point3d, point3d2);
+				if (!(num3 >= num2))
+				{
+					num2 = num3;
+					startPoint = point3d;
+					endPoint = point3d2;
+					result = true;
+				}
+			}
+		}
+		return result;
+	}
+
+	private static double DistanceSquared2D(Point3d first, Point3d second)
+	{
+		double num = second.X - first.X;
+		double num2 = second.Y - first.Y;
+		return num * num + num2 * num2;
+	}
+
+	private static double DistancePointToSegment2D(Point3d point, Point3d startPoint, Point3d endPoint)
+	{
+		double num = endPoint.X - startPoint.X;
+		double num2 = endPoint.Y - startPoint.Y;
+		double num3 = num * num + num2 * num2;
+		if (num3 <= 1E-12)
+		{
+			double num4 = point.X - startPoint.X;
+			double num5 = point.Y - startPoint.Y;
+			return Math.Sqrt(num4 * num4 + num5 * num5);
+		}
+		double val = ((point.X - startPoint.X) * num + (point.Y - startPoint.Y) * num2) / num3;
+		val = Math.Max(0.0, Math.Min(1.0, val));
+		double num6 = startPoint.X + val * num;
+		double num7 = startPoint.Y + val * num2;
+		double num8 = point.X - num6;
+		double num9 = point.Y - num7;
+		return Math.Sqrt(num8 * num8 + num9 * num9);
+	}
+
+	private static Point3d Midpoint(Point3d first, Point3d second)
+	{
+		return new Point3d((first.X + second.X) * 0.5, (first.Y + second.Y) * 0.5, (first.Z + second.Z) * 0.5);
+	}
+
+	private static bool IsAg1HorizontalLine(Point3d startPoint, Point3d endPoint)
+	{
+		Vector3d vector3d = endPoint - startPoint;
+		double num = Math.Sqrt(vector3d.X * vector3d.X + vector3d.Y * vector3d.Y);
+		double num2 = Math.Max(1E-06, num * 0.0001);
+		return Math.Abs(vector3d.Y) <= num2 && Math.Abs(vector3d.X) > num2;
+	}
+
+	private static Point3d GetAg1TextLandingMidpoint(Point3d textPoint, Point3d arrowPoint, string text, double textHeight)
+	{
+		double num = EstimateAg1TextWidth(text, textHeight);
+		double num2 = ((textPoint.X < arrowPoint.X) ? (-1.0) : 1.0);
+		return textPoint + new Vector3d(num2 * num * 0.5, (0.0 - textHeight) * 0.5, 0.0);
+	}
+
+	private static double EstimateAg1TextWidth(string text, double textHeight)
+	{
+		if (string.IsNullOrEmpty(text))
+		{
+			return textHeight;
+		}
+		double num = 0.0;
+		foreach (char c in text)
+		{
+			num += ((c <= '\u007f') ? 0.7 : 1.0);
+		}
+		return Math.Max(textHeight, num * textHeight);
+	}
+
+	private static void AddAg1Leader(Database db, Transaction tr, BlockTableRecord space, Point3d arrowPoint, Point3d textPoint, string text, ObjectId dimStyleId, string groupId)
+	{
+		MText mText = new MText();
+		mText.SetDatabaseDefaults(db);
+		mText.Contents = text ?? string.Empty;
+		mText.Location = textPoint;
+		mText.TextHeight = GetAg1DimStyleTextHeight(db, tr, dimStyleId);
+		mText.TextStyleId = GetAg1DimStyleTextStyle(db, tr, dimStyleId);
+		mText.Attachment = ((textPoint.X < arrowPoint.X) ? AttachmentPoint.MiddleRight : AttachmentPoint.MiddleLeft);
+		space.AppendEntity(mText);
+		tr.AddNewlyCreatedDBObject(mText, add: true);
+		AnnotationMetadata.Mark(mText, groupId);
+		Leader leader = new Leader();
+		leader.SetDatabaseDefaults(db);
+		leader.DimensionStyle = dimStyleId;
+		leader.AppendVertex(arrowPoint);
+		leader.AppendVertex(textPoint);
+		space.AppendEntity(leader);
+		tr.AddNewlyCreatedDBObject(leader, add: true);
+		leader.Annotation = mText.ObjectId;
+		leader.EvaluateLeader();
+		AnnotationMetadata.Mark(leader, groupId);
+	}
+
+	private static void InsertAg1RoughnessBlock(Database db, Transaction tr, BlockTableRecord space, Point3d insertPoint, string layerName, ObjectId dimStyleId, string groupId)
+	{
+		BlockTable blockTable = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
+		if (blockTable.Has(Ag1RoughnessBlockName))
+		{
+			BlockReference blockReference = new BlockReference(insertPoint, blockTable[Ag1RoughnessBlockName]);
+			blockReference.SetDatabaseDefaults(db);
+			blockReference.Layer = (string.IsNullOrEmpty(layerName) ? blockReference.Layer : layerName);
+			double ag1DimStyleGlobalScale = GetAg1DimStyleGlobalScale(db, tr, dimStyleId);
+			blockReference.ScaleFactors = new Scale3d(ag1DimStyleGlobalScale);
+			blockReference.Rotation = Math.PI;
+			space.AppendEntity(blockReference);
+			tr.AddNewlyCreatedDBObject(blockReference, add: true);
+			AnnotationMetadata.Mark(blockReference, groupId);
+		}
+	}
+
+	private static double GetAg1DimStyleGlobalScale(Database db, Transaction tr, ObjectId dimStyleId)
+	{
+		DimStyleTableRecord dimStyleTableRecord = tr.GetObject(dimStyleId, OpenMode.ForRead) as DimStyleTableRecord;
+		if (dimStyleTableRecord != null && dimStyleTableRecord.Dimscale > 1E-09)
+		{
+			return dimStyleTableRecord.Dimscale;
+		}
+		return (db.Dimscale <= 0.0) ? 1.0 : db.Dimscale;
+	}
+
+	private static double GetAg1DimStyleTextHeight(Database db, Transaction tr, ObjectId dimStyleId)
+	{
+		DimStyleTableRecord dimStyleTableRecord = tr.GetObject(dimStyleId, OpenMode.ForRead) as DimStyleTableRecord;
+		double num = ((db.Dimscale <= 0.0) ? 1.0 : db.Dimscale);
+		if (dimStyleTableRecord != null && dimStyleTableRecord.Dimtxt > 1E-09)
+		{
+			return dimStyleTableRecord.Dimtxt * num;
+		}
+		return 2.5 * num;
+	}
+
+	private static ObjectId GetAg1DimStyleTextStyle(Database db, Transaction tr, ObjectId dimStyleId)
+	{
+		DimStyleTableRecord dimStyleTableRecord = tr.GetObject(dimStyleId, OpenMode.ForRead) as DimStyleTableRecord;
+		if (dimStyleTableRecord != null && !dimStyleTableRecord.Dimtxsty.IsNull)
+		{
+			return dimStyleTableRecord.Dimtxsty;
+		}
+		return db.Textstyle;
+	}
+
+	private void RunCoreDebug()
+	{
+		Document mdiActiveDocument = Application.DocumentManager.MdiActiveDocument;
+		if (mdiActiveDocument == null)
+		{
+			return;
+		}
+		Database database = mdiActiveDocument.Database;
+		Editor editor = mdiActiveDocument.Editor;
+		DimensionRuleConfig dimensionRuleConfig = DimensionRuleConfig.CreateDefault();
+		try
+		{
+			using Transaction transaction = database.TransactionManager.StartTransaction();
+			ObjectId objectId = DimStyleManager.ResolveDimStyle(database, transaction);
+			GeometryCollector geometryCollector = new GeometryCollector(editor);
+			OutlineSelection outlineSelection = geometryCollector.PromptForOutlineSelection(transaction);
+			FeatureRecognizer featureRecognizer = new FeatureRecognizer(dimensionRuleConfig);
+			OutlineFeature outlineFeature;
+			if (outlineSelection.HasPrimaryPolyline)
+			{
+				Entity entity = (Entity)transaction.GetObject(outlineSelection.PrimaryPolylineId, OpenMode.ForRead);
+				outlineFeature = featureRecognizer.RecognizeOutline(entity, transaction);
+			}
+			else
+			{
+				outlineFeature = featureRecognizer.RecognizeOutline(outlineSelection.EntityIds, transaction);
+			}
+			DatumDefinition datumDefinition = DatumDefinition.FromOutline(outlineFeature);
+			IList<SlotFeature> list = featureRecognizer.RecognizeOutlineSlotFeatures(outlineFeature);
+			IList<ObjectId> list2 = geometryCollector.CollectHoleSourcesFromOutlineSelection(transaction, outlineFeature, outlineSelection, dimensionRuleConfig);
+			bool flag = false;
+			if (list2.Count == 0 && list.Count > 0)
+			{
+				list2 = new List<ObjectId>();
+				flag = true;
+			}
+			if (list2.Count == 0 && !flag)
+			{
+				editor.WriteMessage("\nASDCOREDBG: no holes found in selection; select Circle holes manually or press Enter to skip holes.");
+				list2 = geometryCollector.PromptForCircleHoles();
+				if (list2 == null || list2.Count == 0)
+				{
+					list2 = new List<ObjectId>();
+					flag = true;
+				}
+			}
+			IList<HoleFeature> list3;
+			if (!flag)
+			{
+				list3 = featureRecognizer.RecognizeHoles(list2, transaction, outlineSelection.SelectedIds);
+			}
+			else
+			{
+				IList<HoleFeature> list4 = new List<HoleFeature>();
+				list3 = list4;
+			}
+			IList<HoleFeature> list5 = list3;
+			if (!flag && list5.Count == 0)
+			{
+				flag = true;
+			}
+			if (!flag)
+			{
+				List<HoleFeature> list6 = list5.Where((HoleFeature h) => h.IsPinHole).ToList();
+				if (list6.Count > 0)
+				{
+					HoleFeature holeFeature = geometryCollector.PromptForDatumHole(list6, transaction, outlineFeature);
+					if (holeFeature != null)
+					{
+						datumDefinition.DatumHole = holeFeature;
+						if (!geometryCollector.PromptForDatumHoleLocationPoints(dimensionRuleConfig, out var xBase, out var yBase, out var useToleranceX, out var useToleranceY))
+						{
+							editor.WriteMessage("\nASDCOREDBG: datum-hole base selection cancelled.");
+							return;
+						}
+						datumDefinition.DatumHoleLocationBaseX = xBase;
+						datumDefinition.DatumHoleLocationBaseY = yBase;
+						datumDefinition.DatumHoleLocationUseToleranceX = useToleranceX;
+						datumDefinition.DatumHoleLocationUseToleranceY = useToleranceY;
+					}
+				}
+			}
+			DimensionRuleConfig config = dimensionRuleConfig;
+			OutlineFeature2D outline = CadToCoreModelMapper.ToCoreOutline(outlineFeature);
+			Datum2D datum2D = CadToCoreModelMapper.ToCoreDatum(datumDefinition);
+			List<HoleFeature2D> holes = CadToCoreModelMapper.ToCoreHoles(list5);
+			List<SlotFeature2D> list7 = CadToCoreModelMapper.ToCoreSlots(featureRecognizer.LastRecognizedSlots);
+			DimensionPlanner dimensionPlanner = new DimensionPlanner(config);
+			DimensionPlan dimensionPlan = dimensionPlanner.CreateDimensionPlan(outline, datum2D, holes, list7);
+			IList<HoleCalloutPlan> holeCalloutPlans = new HoleCalloutPlanner(config).CreatePlans(holes, datum2D.DatumHole);
+			DimensionPlan dimensionPlan2 = CreateCoreDebugRenderPlan(dimensionPlan);
+			string text = EnsureCoreDebugLayer(database, transaction);
+			BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
+			DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, objectId, DimStyleManager.ResolveDiameterCalloutDimStyle(database, transaction, objectId), (database.Dimscale <= 0.0) ? 1.0 : database.Dimscale, text, "ASDCOREDBG");
+			dimensionDrawer.DrawDimensionPlan(dimensionPlan2);
+			dimensionDrawer.FlushStackedDimensions(outlineFeature);
+			WriteCoreDebugSummary(editor, outlineFeature, list5, list7.Count, dimensionPlan, dimensionPlan2, holeCalloutPlans, text);
+			transaction.Commit();
+		}
+		catch (Autodesk.AutoCAD.Runtime.Exception ex)
+		{
+			editor.WriteMessage("\nASDCOREDBG cancelled or failed: {0}", ex.Message);
+		}
+		catch (System.Exception ex2)
+		{
+			editor.WriteMessage("\nASDCOREDBG failed: {0}", ex2.Message);
+		}
+	}
+
+	private void RunAutoFixDim(bool clearExistingBeforeGenerate, bool diagnosticsEnabled = false, AutoFixDimOutputScope outputScope = AutoFixDimOutputScope.All)
+	{
+		Document mdiActiveDocument = Application.DocumentManager.MdiActiveDocument;
+		if (mdiActiveDocument == null)
+		{
+			return;
+		}
+		Database database = mdiActiveDocument.Database;
+		Editor editor = mdiActiveDocument.Editor;
+		DimensionRuleConfig config = DimensionRuleConfig.CreateDefault();
+		string groupId = DateTime.Now.ToString("yyyyMMddHHmmssfff");
+		DiagnosticDimensionSide diagnosticSide = (diagnosticsEnabled ? PromptForDiagnosticSide(editor) : DiagnosticDimensionSide.All);
+		bool flag = outputScope != AutoFixDimOutputScope.CornerOnly;
+		bool flag2 = outputScope == AutoFixDimOutputScope.All || outputScope == AutoFixDimOutputScope.HoleOnly;
+		bool flag3 = outputScope == AutoFixDimOutputScope.All || outputScope == AutoFixDimOutputScope.CornerOnly;
+		bool flag4 = outputScope == AutoFixDimOutputScope.All || outputScope == AutoFixDimOutputScope.HoleOnly;
+		bool flag5 = flag4;
+		IList<HoleCalloutPlan> list = null;
+		IList<HoleFeature> sourceHoles = null;
+		OutlineFeature outline = null;
+		IList<SlotFeature> slotFeatures = null;
+		ObjectId dimStyleId = ObjectId.Null;
+		ObjectId objectId = ObjectId.Null;
+		string annotationLayer = string.Empty;
+		double dimScale = 1.0;
+		try
+		{
+			using (Transaction transaction = database.TransactionManager.StartTransaction())
+			{
+				string text = LayerManager.ResolveAnnotationLayer(database, transaction);
+				double num = ((database.Dimscale <= 0.0) ? 1.0 : database.Dimscale);
+				ObjectId objectId2 = DimStyleManager.ResolveDimStyle(database, transaction);
+				ObjectId objectId3 = DimStyleManager.ResolveDiameterCalloutDimStyle(database, transaction, objectId2);
+				GeometryCollector geometryCollector = new GeometryCollector(editor);
+				OutlineSelection outlineSelection = geometryCollector.PromptForOutlineSelection(transaction);
+				FeatureRecognizer featureRecognizer = new FeatureRecognizer(config);
+				OutlineFeature outlineFeature;
+				if (outlineSelection.HasPrimaryPolyline)
+				{
+					Entity entity = (Entity)transaction.GetObject(outlineSelection.PrimaryPolylineId, OpenMode.ForRead);
+					outlineFeature = featureRecognizer.RecognizeOutline(entity, transaction);
+				}
+				else
+				{
+					outlineFeature = featureRecognizer.RecognizeOutline(outlineSelection.EntityIds, transaction);
+				}
+				DatumDefinition datumDefinition = DatumDefinition.FromOutline(outlineFeature);
+				IList<SlotFeature> list3;
+				if (!flag4)
+				{
+					IList<SlotFeature> list2 = new List<SlotFeature>();
+					list3 = list2;
+				}
+				else
+				{
+					list3 = featureRecognizer.RecognizeOutlineSlotFeatures(outlineFeature);
+				}
+				IList<SlotFeature> list4 = list3;
+				IList<ObjectId> list5 = new List<ObjectId>();
+				bool flag6 = !flag2;
+				if (flag2)
+				{
+					list5 = geometryCollector.CollectHoleSourcesFromOutlineSelection(transaction, outlineFeature, outlineSelection, config);
+					if (list5.Count == 0 && list4.Count > 0)
+					{
+						list5 = new List<ObjectId>();
+						flag6 = true;
+					}
+					if (list5.Count == 0 && !flag6)
+					{
+						editor.WriteMessage("\n本次框选对象中未识别到孔，请手动选择需要标注的圆孔。");
+						list5 = geometryCollector.PromptForCircleHoles();
+						if (list5 == null || list5.Count == 0)
+						{
+							editor.WriteMessage("\n未选择孔，已跳过孔标注，继续外轮廓标注。");
+							list5 = new List<ObjectId>();
+							flag6 = true;
+						}
+					}
+				}
+				IList<HoleFeature> list6;
+				if (!flag6)
+				{
+					list6 = featureRecognizer.RecognizeHoles(list5, transaction, outlineSelection.SelectedIds);
+				}
+				else
+				{
+					IList<HoleFeature> list7 = new List<HoleFeature>();
+					list6 = list7;
+				}
+				IList<HoleFeature> list8 = list6;
+				if (!flag6 && list8.Count == 0)
+				{
+					editor.WriteMessage("\n未识别到有效圆孔，已跳过孔标注，继续外轮廓标注。");
+					flag6 = true;
+				}
+				if (!flag6)
+				{
+					List<HoleFeature> list9 = list8.Where((HoleFeature h) => h.IsPinHole).ToList();
+					if (list9.Count > 0)
+					{
+						HoleFeature holeFeature = geometryCollector.PromptForDatumHole(list9, transaction, outlineFeature);
+						if (holeFeature != null)
+						{
+							datumDefinition.DatumHole = holeFeature;
+							editor.WriteMessage("\n已设置基准孔: X={0:0.###}, Y={1:0.###}", holeFeature.Center.X, holeFeature.Center.Y);
+							if (!geometryCollector.PromptForDatumHoleLocationPoints(config, out var xBase, out var yBase, out var useToleranceX, out var useToleranceY))
+							{
+								editor.WriteMessage("\n用户取消基准点选择，命令结束。");
+								return;
+							}
+							datumDefinition.DatumHoleLocationBaseX = xBase;
+							datumDefinition.DatumHoleLocationBaseY = yBase;
+							datumDefinition.DatumHoleLocationUseToleranceX = useToleranceX;
+							datumDefinition.DatumHoleLocationUseToleranceY = useToleranceY;
+							editor.WriteMessage("\n基准孔定位基准: X基准={0:0.###}, Y基准={1:0.###}", xBase, yBase);
+						}
+					}
+				}
+				if (clearExistingBeforeGenerate)
+				{
+					AnnotationMetadata.EnsureRegApp(database, transaction);
+					int num2 = AnnotationMetadata.ClearGeneratedAnnotations(database, transaction);
+					editor.WriteMessage("\n已清除旧插件标注 {0} 个。", num2);
+				}
+				List<SlotFeature> list10 = (flag4 ? featureRecognizer.LastRecognizedSlots.Concat(list4).ToList() : new List<SlotFeature>());
+				IList<HoleCalloutPlan> list12;
+				if (!flag2)
+				{
+					IList<HoleCalloutPlan> list11 = new List<HoleCalloutPlan>();
+					list12 = list11;
+				}
+				else
+				{
+					list12 = BuildHoleCalloutPlansForPlacement(list8, datumDefinition.DatumHole, config);
+				}
+				IList<HoleCalloutPlan> list13 = list12;
+				BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
+				AnnotationMetadata.EnsureRegApp(database, transaction);
+				DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, objectId2, objectId3, num, text, groupId, diagnosticsEnabled, diagnosticSide);
+				if (flag)
+				{
+					DimensionPlan dimensionPlan = DrawLinearDimensions(dimensionDrawer, outlineFeature, datumDefinition, list8, list10, flag6, config, outputScope);
+					if (diagnosticsEnabled && dimensionPlan != null)
+					{
+						string text2 = WriteDimensionDiagnosticReport(dimensionPlan, outlineFeature, list8, list10, outputScope);
+						editor.WriteMessage("\n诊断报告已输出: {0}", text2);
+					}
+				}
+				outline = outlineFeature;
+				slotFeatures = list10;
+				dimStyleId = objectId2;
+				objectId = objectId3;
+				annotationLayer = text;
+				dimScale = num;
+				if (EnableInlineInteractiveCallouts() && (flag3 || flag5))
+				{
+					if (flag3)
+					{
+						try
+						{
+							DrawCornerFeatureLeadersWithPreview(editor, dimensionDrawer, outlineFeature);
+						}
+						catch (System.Exception ex)
+						{
+							editor.WriteMessage("\n倒角/圆角标注已跳过: {0}", ex.Message);
+						}
+					}
+					if (flag5 && list10.Count > 0)
+					{
+						try
+						{
+							dimensionDrawer.DrawSlotRadiusLeadersWithJig(editor, list10);
+						}
+						catch (System.Exception ex2)
+						{
+							editor.WriteMessage("\nU slot radius callouts skipped: {0}", ex2.Message);
+						}
+					}
+				}
+				if (!diagnosticsEnabled && flag2 && !flag6)
+				{
+					list = list13;
+					sourceHoles = list8;
+					objectId = objectId3;
+					annotationLayer = text;
+				}
+				transaction.Commit();
+			}
+			if (!diagnosticsEnabled && (flag3 || flag5))
+			{
+				DrawPostLinearInteractiveAnnotations(mdiActiveDocument, config, dimStyleId, objectId, dimScale, annotationLayer, groupId, outline, slotFeatures, flag3, flag5);
+			}
+			if (list != null)
+			{
+				NativeDiameterDimensioner.PromptHoleCalloutPlans(mdiActiveDocument, list, sourceHoles, config, annotationLayer, objectId, groupId);
+			}
+			editor.WriteMessage("\nAUTOFIXDIM 标注完成。");
+		}
+		catch (Autodesk.AutoCAD.Runtime.Exception ex3)
+		{
+			editor.WriteMessage("\nAUTOFIXDIM 取消或失败: {0}", ex3.Message);
+		}
+		catch (System.Exception ex4)
+		{
+			editor.WriteMessage("\nAUTOFIXDIM 发生异常: {0}", ex4.Message);
+		}
+	}
+
+	private static string EnsureCoreDebugLayer(Database db, Transaction tr)
+	{
+		LayerTable layerTable = (LayerTable)tr.GetObject(db.LayerTableId, OpenMode.ForRead);
+		if (!layerTable.Has("AUTOFIXDIM_COREDBG"))
+		{
+			layerTable.UpgradeOpen();
+			LayerTableRecord layerTableRecord = new LayerTableRecord
+			{
+				Name = "AUTOFIXDIM_COREDBG"
+			};
+			layerTable.Add(layerTableRecord);
+			tr.AddNewlyCreatedDBObject(layerTableRecord, add: true);
+		}
+		return "AUTOFIXDIM_COREDBG";
+	}
+
+	private static void WriteCoreDebugSummary(Editor editor, OutlineFeature outline, IList<HoleFeature> holes, int slotCount, DimensionPlan plan, DimensionPlan renderPlan, IList<HoleCalloutPlan> holeCalloutPlans, string debugLayer)
+	{
+		editor.WriteMessage("\nASDCOREDBG: outline W={0:0.###}, H={1:0.###}; holes={2}; slots={3}; core dims={4}; rendered={5}; skipped={6}; pin groups={7}; layer={8}", outline.Width, outline.Height, holes?.Count ?? 0, slotCount, plan.Dimensions.Count, renderPlan.Dimensions.Count, plan.Dimensions.Count - renderPlan.Dimensions.Count, plan.PinGroups.Count, debugLayer);
+		foreach (IGrouping<DimensionKind, PlannedDimension> item in from d in plan.Dimensions
+			group d by d.Kind into g
+			orderby g.Key.ToString()
+			select g)
+		{
+			editor.WriteMessage("\n  {0}: {1}", item.Key, item.Count());
+		}
+		if (holeCalloutPlans != null && holeCalloutPlans.Count > 0)
+		{
+			int num = 1;
+			foreach (HoleCalloutPlan holeCalloutPlan in holeCalloutPlans)
+			{
+				editor.WriteMessage("\n  callout#{0:00} kind={1} holes={2} anchor=({3:0.###},{4:0.###}) owner={5} text='{6}'", num, holeCalloutPlan.Kind, holeCalloutPlan.Holes.Count, holeCalloutPlan.AnchorPoint.X, holeCalloutPlan.AnchorPoint.Y, holeCalloutPlan.DebugOwner ?? string.Empty, holeCalloutPlan.Text ?? string.Empty);
+				num++;
+			}
+		}
+		if (holes != null && holes.Count > 0)
+		{
+			int num2 = 1;
+			foreach (HoleFeature item2 in from h in holes
+				orderby h.Center.X, h.Center.Y
+				select h)
+			{
+				editor.WriteMessage("\n  hole#{0:00} kind={1} dia={2:0.###} center=({3:0.###},{4:0.###}) fit='{5}' thread='{6}'", num2, item2.HoleKind, item2.Diameter, item2.Center.X, item2.Center.Y, item2.FitTolerance ?? string.Empty, item2.ThreadCallout ?? string.Empty);
+				num2++;
+			}
+		}
+		foreach (PinGroupPlan item3 in plan.PinGroups.OrderBy((PinGroupPlan g) => g.GroupIndex))
+		{
+			editor.WriteMessage("\n  pinGroup PG{0}: base=({1:0.###},{2:0.###}) pins={3} members={4} hSide={5} vSide={6}", item3.GroupIndex, (item3.BasePin == null) ? 0.0 : item3.BasePin.Center.X, (item3.BasePin == null) ? 0.0 : item3.BasePin.Center.Y, item3.Pins.Count, item3.MemberHoles.Count, item3.HorizontalSide, item3.VerticalSide);
+			foreach (HoleFeature2D item4 in from h in item3.MemberHoles
+				orderby h.Center.X, h.Center.Y
+				select h)
+			{
+				editor.WriteMessage("\n    member kind={0} dia={1:0.###} center=({2:0.###},{3:0.###})", item4.Kind, item4.Diameter, item4.Center.X, item4.Center.Y);
+			}
+		}
+		int num3 = 1;
+		foreach (PlannedDimension item5 in from d in plan.Dimensions
+			orderby d.Side, d.Kind, d.DebugRole ?? string.Empty
+			select d)
+		{
+			editor.WriteMessage("\n  #{0:00} {1}/{2}/{3} span={4:0.###} from=({5:0.###},{6:0.###}) to=({7:0.###},{8:0.###}) role={9} owner={10} text='{11}'", num3, item5.Kind, item5.Side, item5.Orientation, GetCoreDebugSpan(item5), item5.FirstPoint.X, item5.FirstPoint.Y, item5.SecondPoint.X, item5.SecondPoint.Y, item5.DebugRole ?? string.Empty, item5.DebugOwner ?? string.Empty, item5.OverrideText ?? string.Empty);
+			num3++;
+		}
+	}
+
+	private static double GetCoreDebugSpan(PlannedDimension dim)
+	{
+		return (dim.Orientation == DimensionOrientation.Horizontal) ? Math.Abs(dim.SecondPoint.X - dim.FirstPoint.X) : Math.Abs(dim.SecondPoint.Y - dim.FirstPoint.Y);
+	}
+
+	private static DimensionPlan CreateCoreDebugRenderPlan(DimensionPlan source)
+	{
+		DimensionPlan dimensionPlan = new DimensionPlan();
+		foreach (PinGroupPlan pinGroup in source.PinGroups)
+		{
+			dimensionPlan.PinGroups.Add(pinGroup);
+		}
+		foreach (PlannedDimension dimension in source.Dimensions)
+		{
+			dimensionPlan.Dimensions.Add(dimension);
+		}
+		return dimensionPlan;
+	}
+
+	private static DiagnosticDimensionSide PromptForDiagnosticSide(Editor editor)
+	{
+		PromptKeywordOptions promptKeywordOptions = new PromptKeywordOptions("\n选择诊断方向 [全部(A)/顶部(T)/底部(B)/左侧(L)/右侧(R)]", "All Top Bottom Left Right");
+		promptKeywordOptions.AllowNone = true;
+		promptKeywordOptions.Keywords.Default = "All";
+		PromptResult keywords = editor.GetKeywords(promptKeywordOptions);
+		if (keywords.Status != PromptStatus.OK)
+		{
+			return DiagnosticDimensionSide.All;
+		}
+		return keywords.StringResult switch
+		{
+			"Top" => DiagnosticDimensionSide.Top,
+			"Bottom" => DiagnosticDimensionSide.Bottom,
+			"Left" => DiagnosticDimensionSide.Left,
+			"Right" => DiagnosticDimensionSide.Right,
+			_ => DiagnosticDimensionSide.All,
+		};
+	}
+
+	private static void DrawPostLinearInteractiveAnnotations(Document document, DimensionRuleConfig config, ObjectId dimStyleId, ObjectId diameterCalloutDimStyleId, double dimScale, string annotationLayer, string groupId, OutlineFeature outline, IEnumerable<SlotFeature> slotFeatures, bool includeCornerCallouts, bool includeSlotRadiusCallouts)
+	{
+		if (document == null || outline == null)
+		{
+			return;
+		}
+		Database database = document.Database;
+		Editor editor = document.Editor;
+		try
+		{
+			using Transaction transaction = database.TransactionManager.StartTransaction();
+			BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
+			AnnotationMetadata.EnsureRegApp(database, transaction);
+			DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, dimStyleId, diameterCalloutDimStyleId, dimScale, annotationLayer, groupId);
+			if (includeCornerCallouts)
+			{
+				try
+				{
+					dimensionDrawer.DrawCornerFeatureLeadersWithJig(editor, outline);
+				}
+				catch (System.Exception ex)
+				{
+					editor.WriteMessage("\nChamfer/fillet callouts skipped: {0}", ex.Message);
+				}
+			}
+			List<SlotFeature> list = ((slotFeatures == null) ? new List<SlotFeature>() : slotFeatures.Where((SlotFeature s) => s != null).ToList());
+			if (includeSlotRadiusCallouts && list.Count > 0)
+			{
+				try
+				{
+					dimensionDrawer.DrawSlotRadiusLeadersWithJig(editor, list);
+				}
+				catch (System.Exception ex2)
+				{
+					editor.WriteMessage("\nU slot radius callouts skipped: {0}", ex2.Message);
+				}
+			}
+			transaction.Commit();
+		}
+		catch (System.Exception ex3)
+		{
+			editor.WriteMessage("\nInteractive corner/slot callouts skipped: {0}", ex3.Message);
+		}
+	}
+
+	private static bool EnableInlineInteractiveCallouts()
+	{
+		return false;
+	}
+
+	private static IList<HoleCalloutPlan> BuildHoleCalloutPlansForPlacement(IEnumerable<HoleFeature> holes, HoleFeature datumPin, DimensionRuleConfig config)
+	{
+		List<HoleFeature> source = ((holes == null) ? new List<HoleFeature>() : holes.Where((HoleFeature h) => h != null && !h.IsSlotPoint).ToList());
+		DimensionRuleConfig config2 = config;
+		List<HoleFeature2D> list = CadToCoreModelMapper.ToCoreHoles(source);
+		HoleFeature2D datumPin2 = ((datumPin == null) ? null : (list.FirstOrDefault((HoleFeature2D h) => IsSameHoleForCallout(h, datumPin, config)) ?? CadToCoreModelMapper.ToCoreHoles(new HoleFeature[1] { datumPin }).FirstOrDefault()));
+		return new HoleCalloutPlanner(config2).CreatePlans(list, datumPin2);
+	}
+
+	private static bool IsSameHoleForCallout(HoleFeature2D a, HoleFeature b, DimensionRuleConfig config)
+	{
+		if (a == null || b == null)
+		{
+			return false;
+		}
+		double num = a.Center.X - b.Center.X;
+		double num2 = a.Center.Y - b.Center.Y;
+		return num * num + num2 * num2 <= config.GeometryTolerance * config.GeometryTolerance && Math.Abs(a.Diameter - b.Diameter) <= config.GeometryTolerance;
+	}
+
+	private static DimensionPlan DrawLinearDimensions(DimensionDrawer drawer, OutlineFeature outline, DatumDefinition datum, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, bool skipHoleDimensions, DimensionRuleConfig config, AutoFixDimOutputScope outputScope)
+	{
+		OutlineFeature2D outline2 = CadToCoreModelMapper.ToCoreOutline(outline);
+		Datum2D datum2 = CadToCoreModelMapper.ToCoreDatum(datum);
+		List<HoleFeature> source = (skipHoleDimensions ? new List<HoleFeature>() : (holes ?? new List<HoleFeature>()).Where((HoleFeature hole) => hole != null).ToList());
+		List<HoleFeature2D> holes2 = CadToCoreModelMapper.ToCoreHoles(source);
+		List<SlotFeature2D> slots2 = CadToCoreModelMapper.ToCoreSlots(slots);
+		DimensionPlan dimensionPlan = new DimensionPlanner(config).CreateDimensionPlan(outline2, datum2, holes2, slots2);
+		drawer.DrawDimensionPlan(FilterDimensionPlan(dimensionPlan, outputScope));
+		drawer.FlushStackedDimensions(outline);
+		return dimensionPlan;
+	}
+
+	private static string WriteDimensionDiagnosticReport(DimensionPlan plan, OutlineFeature outline, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, AutoFixDimOutputScope outputScope)
+	{
+		DimensionDiagnosticReport diagnostics = plan.Diagnostics;
+		List<HoleFeature> source = (holes ?? Enumerable.Empty<HoleFeature>()).Where((HoleFeature h) => h != null).ToList();
+		diagnostics.Features.OutlineCount = ((outline != null) ? 1 : 0);
+		diagnostics.Features.HoleCount = source.Count((HoleFeature h) => !h.IsPinHole && !h.IsThreadHole && !h.IsSlotPoint);
+		diagnostics.Features.PinHoleCount = source.Count((HoleFeature h) => h.IsPinHole);
+		diagnostics.Features.ThreadHoleCount = source.Count((HoleFeature h) => h.IsThreadHole);
+		diagnostics.Features.SlotCount = (slots ?? Enumerable.Empty<SlotFeature>()).Count((SlotFeature s) => s != null);
+		diagnostics.Features.ChamferCount = outline?.Chamfers.Count ?? 0;
+		diagnostics.Features.FilletCount = outline?.Fillets.Count ?? 0;
+		string text = Path.Combine(GetProjectRootOrAssemblyDirectory(), "diagnostics");
+		Directory.CreateDirectory(text);
+		string text2 = Path.Combine(text, "last-run.json");
+		File.WriteAllText(text2, SerializeDimensionDiagnosticReport(diagnostics, outputScope), Encoding.UTF8);
+		return text2;
+	}
+
+	private static string GetProjectRootOrAssemblyDirectory()
+	{
+		string location = typeof(Commands).Assembly.Location;
+		string text = (string.IsNullOrEmpty(location) ? Environment.CurrentDirectory : Path.GetDirectoryName(location));
+		string text2 = text;
+		while (!string.IsNullOrEmpty(text2))
+		{
+			if (File.Exists(Path.Combine(text2, "AutoFixtureDim.csproj")))
+			{
+				return text2;
+			}
+			text2 = Directory.GetParent(text2)?.FullName;
+		}
+		return text ?? Environment.CurrentDirectory;
+	}
+
+	private static string SerializeDimensionDiagnosticReport(DimensionDiagnosticReport report, AutoFixDimOutputScope outputScope)
+	{
+		StringBuilder stringBuilder = new StringBuilder();
+		stringBuilder.AppendLine("{");
+		AppendJsonProperty(stringBuilder, 1, "generatedAt", DateTime.Now.ToString("o", CultureInfo.InvariantCulture), comma: true);
+		AppendJsonProperty(stringBuilder, 1, "commandScope", outputScope.ToString(), comma: true);
+		AppendFeatureCounts(stringBuilder, report.Features, comma: true);
+		AppendDimensionDiagnostics(stringBuilder, 1, "dimensionCandidates", report.DimensionCandidates, comma: true);
+		AppendDimensionDiagnostics(stringBuilder, 1, "finalDimensions", report.FinalDimensions, comma: false);
+		stringBuilder.AppendLine("}");
+		return stringBuilder.ToString();
+	}
+
+	private static void AppendFeatureCounts(StringBuilder builder, FeatureDiagnosticCounts counts, bool comma)
+	{
+		AppendIndent(builder, 1);
+		builder.AppendLine("\"features\": {");
+		AppendJsonProperty(builder, 2, "outlineCount", counts.OutlineCount, comma: true);
+		AppendJsonProperty(builder, 2, "holeCount", counts.HoleCount, comma: true);
+		AppendJsonProperty(builder, 2, "pinHoleCount", counts.PinHoleCount, comma: true);
+		AppendJsonProperty(builder, 2, "threadHoleCount", counts.ThreadHoleCount, comma: true);
+		AppendJsonProperty(builder, 2, "slotCount", counts.SlotCount, comma: true);
+		AppendJsonProperty(builder, 2, "chamferCount", counts.ChamferCount, comma: true);
+		AppendJsonProperty(builder, 2, "filletCount", counts.FilletCount, comma: false);
+		AppendIndent(builder, 1);
+		builder.Append("}");
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendDimensionDiagnostics(StringBuilder builder, int indent, string name, IEnumerable<DimensionCandidateDiagnostic> candidates, bool comma)
+	{
+		AppendIndent(builder, indent);
+		builder.Append('"').Append(JsonEscape(name)).AppendLine("\": [");
+		List<DimensionCandidateDiagnostic> list = (candidates ?? Enumerable.Empty<DimensionCandidateDiagnostic>()).ToList();
+		for (int i = 0; i < list.Count; i++)
+		{
+			DimensionCandidateDiagnostic dimensionCandidateDiagnostic = list[i];
+			AppendIndent(builder, indent + 1);
+			builder.AppendLine("{");
+			AppendJsonProperty(builder, indent + 2, "id", dimensionCandidateDiagnostic.Id, comma: true);
+			AppendJsonProperty(builder, indent + 2, "kind", dimensionCandidateDiagnostic.Kind, comma: true);
+			AppendJsonProperty(builder, indent + 2, "sourceFeatureId", dimensionCandidateDiagnostic.SourceFeatureId, comma: true);
+			AppendJsonProperty(builder, indent + 2, "value", dimensionCandidateDiagnostic.Value, comma: true);
+			AppendJsonProperty(builder, indent + 2, "placementSide", dimensionCandidateDiagnostic.PlacementSide, comma: true);
+			AppendJsonProperty(builder, indent + 2, "priority", dimensionCandidateDiagnostic.Priority, comma: true);
+			AppendJsonProperty(builder, indent + 2, "isSuppressed", dimensionCandidateDiagnostic.IsSuppressed, comma: true);
+			AppendJsonProperty(builder, indent + 2, "suppressedReason", dimensionCandidateDiagnostic.SuppressedReason, comma: true);
+			AppendJsonProperty(builder, indent + 2, "orientation", dimensionCandidateDiagnostic.Orientation, comma: true);
+			AppendJsonProperty(builder, indent + 2, "debugRole", dimensionCandidateDiagnostic.DebugRole, comma: true);
+			AppendJsonProperty(builder, indent + 2, "overrideText", dimensionCandidateDiagnostic.OverrideText, comma: false);
+			AppendIndent(builder, indent + 1);
+			builder.Append("}");
+			builder.AppendLine((i == list.Count - 1) ? string.Empty : ",");
+		}
+		AppendIndent(builder, indent);
+		builder.Append("]");
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendJsonProperty(StringBuilder builder, int indent, string name, string value, bool comma)
+	{
+		AppendIndent(builder, indent);
+		builder.Append('"').Append(JsonEscape(name)).Append("\": \"")
+			.Append(JsonEscape(value ?? string.Empty))
+			.Append('"');
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendJsonProperty(StringBuilder builder, int indent, string name, int value, bool comma)
+	{
+		AppendIndent(builder, indent);
+		builder.Append('"').Append(JsonEscape(name)).Append("\": ")
+			.Append(value.ToString(CultureInfo.InvariantCulture));
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendJsonProperty(StringBuilder builder, int indent, string name, double value, bool comma)
+	{
+		AppendIndent(builder, indent);
+		builder.Append('"').Append(JsonEscape(name)).Append("\": ")
+			.Append(value.ToString("0.########", CultureInfo.InvariantCulture));
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendJsonProperty(StringBuilder builder, int indent, string name, bool value, bool comma)
+	{
+		AppendIndent(builder, indent);
+		builder.Append('"').Append(JsonEscape(name)).Append("\": ")
+			.Append(value ? "true" : "false");
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendIndent(StringBuilder builder, int indent)
+	{
+		builder.Append(new string(' ', indent * 2));
+	}
+
+	private static string JsonEscape(string value)
+	{
+		if (string.IsNullOrEmpty(value))
+		{
+			return string.Empty;
+		}
+		return value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r")
+			.Replace("\n", "\\n")
+			.Replace("\t", "\\t");
+	}
+
+	private static DimensionPlan FilterDimensionPlan(DimensionPlan source, AutoFixDimOutputScope outputScope)
+	{
+		if (source == null || outputScope == AutoFixDimOutputScope.All)
+		{
+			return source;
+		}
+		DimensionPlan dimensionPlan = new DimensionPlan();
+		foreach (PinGroupPlan pinGroup in source.PinGroups)
+		{
+			dimensionPlan.PinGroups.Add(pinGroup);
+		}
+		foreach (PlannedDimension dimension in source.Dimensions)
+		{
+			if (ShouldRenderPlannedDimension(dimension, outputScope))
+			{
+				dimensionPlan.Dimensions.Add(dimension);
+			}
+		}
+		return dimensionPlan;
+	}
+
+	private static bool ShouldRenderPlannedDimension(PlannedDimension dimension, AutoFixDimOutputScope outputScope)
+	{
+		if (dimension == null)
+		{
+			return false;
+		}
+		return outputScope switch
+		{
+			AutoFixDimOutputScope.OutlineOnly => IsOutlineDimension(dimension),
+			AutoFixDimOutputScope.HoleOnly => IsHoleDimension(dimension) || IsSlotDimension(dimension),
+			_ => outputScope == AutoFixDimOutputScope.All,
+		};
+	}
+
+	private static bool IsOutlineDimension(PlannedDimension dimension)
+	{
+		switch (dimension.Kind)
+		{
+		case DimensionKind.OverallWidth:
+		case DimensionKind.OverallHeight:
+			return true;
+		case DimensionKind.Normal:
+			return !IsSlotDimension(dimension);
+		default:
+			return false;
+		}
+	}
+
+	private static bool IsHoleDimension(PlannedDimension dimension)
+	{
+		DimensionKind kind = dimension.Kind;
+		DimensionKind dimensionKind = kind;
+		if ((uint)(dimensionKind - 3) <= 5u)
+		{
+			return true;
+		}
+		return false;
+	}
+
+	private static bool IsSlotDimension(PlannedDimension dimension)
+	{
+		return !string.IsNullOrEmpty(dimension.DebugRole) && dimension.DebugRole.IndexOf("Slot", StringComparison.OrdinalIgnoreCase) >= 0;
+	}
+
+	private static void DrawCornerFeatureLeadersWithPreview(Editor editor, DimensionDrawer drawer, OutlineFeature outline)
+	{
+		if (outline.Chamfers.Count != 0 || outline.Fillets.Count != 0)
+		{
+			drawer.DrawCornerFeatureLeadersWithJig(editor, outline);
+		}
+	}
+}

@@ -179,26 +179,18 @@ public sealed class StructureEndpointRules
 	{
 		if (outline == null)
 		{
-			return default(Point2D);
+			throw new ArgumentNullException("outline");
+		}
+		if (!OutlineGeometryQuery.TryGetEnvelope(outline, _config.GeometryTolerance, out var envelope))
+		{
+			throw new InvalidOperationException("Unable to resolve a real outline envelope point.");
 		}
 		return side switch
 		{
-			DimensionSide.Left => (from v in outline.Vertices
-				where Math.Abs(v.X - outline.MinX) <= _config.GeometryTolerance
-				orderby v.Y
-				select v).FirstOrDefault(),
-			DimensionSide.Right => (from v in outline.Vertices
-				where Math.Abs(v.X - outline.MaxX) <= _config.GeometryTolerance
-				orderby v.Y
-				select v).FirstOrDefault(),
-			DimensionSide.Top => (from v in outline.Vertices
-				where Math.Abs(v.Y - outline.MaxY) <= _config.GeometryTolerance
-				orderby v.X
-				select v).FirstOrDefault(),
-			_ => (from v in outline.Vertices
-				where Math.Abs(v.Y - outline.MinY) <= _config.GeometryTolerance
-				orderby v.X
-				select v).FirstOrDefault(),
+			DimensionSide.Left => envelope.LeftGrip,
+			DimensionSide.Right => envelope.RightGrip,
+			DimensionSide.Top => envelope.TopGrip,
+			_ => envelope.BottomGrip,
 		};
 	}
 

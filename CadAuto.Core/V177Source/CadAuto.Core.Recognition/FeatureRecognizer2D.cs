@@ -167,31 +167,28 @@ public sealed class FeatureRecognizer2D
 		{
 			throw new InvalidOperationException("Outline needs at least one segment.");
 		}
-		List<Point2D> list2 = list.SelectMany((Segment2D s) => new Point2D[2] { s.Start, s.End }).ToList();
-		if (arcs != null)
-		{
-			list2.AddRange(arcs.Where((Arc2D a) => a != null).SelectMany((Arc2D a) => new Point2D[3] { a.Start, a.End, a.Center }));
-		}
-		OutlineFeature2D outlineFeature2D = new OutlineFeature2D
-		{
-			MinX = list2.Min((Point2D p) => p.X),
-			MaxX = list2.Max((Point2D p) => p.X),
-			MinY = list2.Min((Point2D p) => p.Y),
-			MaxY = list2.Max((Point2D p) => p.Y)
-		};
+		List<Arc2D> list2 = (arcs ?? new Arc2D[0]).Where((Arc2D a) => a != null).ToList();
+		OutlineFeature2D outlineFeature2D = new OutlineFeature2D();
 		foreach (Segment2D item in list)
 		{
 			outlineFeature2D.Segments.Add(item);
 			AddUniqueVertex(outlineFeature2D, item.Start);
 			AddUniqueVertex(outlineFeature2D, item.End);
 		}
-		if (arcs != null)
+		foreach (Arc2D item2 in list2)
 		{
-			foreach (Arc2D item2 in arcs.Where((Arc2D a) => a != null))
-			{
-				outlineFeature2D.Arcs.Add(item2);
-			}
+			outlineFeature2D.Arcs.Add(item2);
+			AddUniqueVertex(outlineFeature2D, item2.Start);
+			AddUniqueVertex(outlineFeature2D, item2.End);
 		}
+		if (!OutlineGeometryQuery.TryGetEnvelope(outlineFeature2D, _config.GeometryTolerance, out var envelope))
+		{
+			throw new InvalidOperationException("Outline needs valid line or arc geometry.");
+		}
+		outlineFeature2D.MinX = envelope.MinX;
+		outlineFeature2D.MaxX = envelope.MaxX;
+		outlineFeature2D.MinY = envelope.MinY;
+		outlineFeature2D.MaxY = envelope.MaxY;
 		RecognizeOutlineCornerFeatures(outlineFeature2D);
 		return outlineFeature2D;
 	}

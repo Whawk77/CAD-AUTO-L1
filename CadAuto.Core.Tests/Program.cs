@@ -19,6 +19,12 @@ namespace CadAuto.Core.Tests
                 ClosedPathRecognitionBuildsOutline();
                 ChamferedOutlineKeepsOverallDimensions();
                 OverallDimensionsUseBoundaryGripPoints();
+				ArcEnvelopeUsesRealInteriorGripPoint();
+				DisconnectedOutlineCanUseVerifiedRealGrips();
+				ConcaveHoleDatumUsesRealOutlineIntersections();
+				OverallWinsDuplicatePreferenceEvenAgainstTolerance();
+				OverallRemainsOutermostAfterLayoutAlignment();
+				InvalidDatumCoordinateDoesNotSilentlyDropDimension();
                 ChamferSuppressesAdjacentLocalLinearDimensions();
                 NonFortyFiveSlopeIsNotChamfer();
                 VerticalStructurePointsCreateStepWidths();
@@ -44,7 +50,7 @@ namespace CadAuto.Core.Tests
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine(ex.Message);
+                Console.Error.WriteLine(ex);
                 return 1;
             }
         }
@@ -115,6 +121,179 @@ namespace CadAuto.Core.Tests
             Assert(Math.Abs(height.SecondPoint.X - 0.0) <= 0.001 && Math.Abs(height.SecondPoint.Y - 50.0) <= 0.001,
                 "overall height should use leftmost top-boundary vertex");
         }
+
+		private static void ArcEnvelopeUsesRealInteriorGripPoint()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 100.0,
+				MinY = 200.0,
+				MaxX = 140.0,
+				MaxY = 240.0
+			};
+			AddSegment(outline, new Point2D(100.0, 200.0), new Point2D(140.0, 200.0), "bottom");
+			AddSegment(outline, new Point2D(140.0, 200.0), new Point2D(140.0, 220.0), "right");
+			AddSegment(outline, new Point2D(100.0, 220.0), new Point2D(100.0, 200.0), "left");
+			outline.Arcs.Add(new Arc2D
+			{
+				Start = new Point2D(140.0, 220.0),
+				End = new Point2D(100.0, 220.0),
+				Center = new Point2D(120.0, 220.0),
+				Radius = 20.0,
+				Bulge = 1.0,
+				SourceKey = "top-arc"
+			});
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			var height = plan.Dimensions.Single(d => d.Kind == DimensionKind.OverallHeight);
+			var topGrip = height.FirstPoint.Y > height.SecondPoint.Y ? height.FirstPoint : height.SecondPoint;
+
+			Assert(Math.Abs(topGrip.X - 120.0) <= 0.001 && Math.Abs(topGrip.Y - 240.0) <= 0.001,
+				"overall height should use the real interior arc extremum");
+			Assert(OutlineGeometryQuery.IsPointOnBoundary(topGrip, outline, config.GeometryTolerance),
+				"arc extremum should be verified on the real outline arc");
+		}
+
+		private static void DisconnectedOutlineCanUseVerifiedRealGrips()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 100.0,
+				MinY = 100.0,
+				MaxX = 200.0,
+				MaxY = 200.0
+			};
+			AddSegment(outline, new Point2D(100.0, 110.0), new Point2D(100.0, 180.0), "left-fragment");
+			AddSegment(outline, new Point2D(200.0, 120.0), new Point2D(200.0, 190.0), "right-fragment");
+			AddSegment(outline, new Point2D(120.0, 100.0), new Point2D(180.0, 100.0), "bottom-fragment");
+			AddSegment(outline, new Point2D(110.0, 200.0), new Point2D(190.0, 200.0), "top-fragment");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Count(d => d.Kind == DimensionKind.OverallWidth) == 1,
+				"verified disconnected geometry should retain one overall width");
+			Assert(plan.Dimensions.Count(d => d.Kind == DimensionKind.OverallHeight) == 1,
+				"verified disconnected geometry should retain one overall height");
+		}
+
+		private static void ConcaveHoleDatumUsesRealOutlineIntersections()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 100.0,
+				MinY = 100.0,
+				MaxX = 200.0,
+				MaxY = 200.0
+			};
+			AddSegment(outline, new Point2D(100.0, 100.0), new Point2D(200.0, 100.0), "bottom");
+			AddSegment(outline, new Point2D(200.0, 100.0), new Point2D(200.0, 200.0), "right");
+			AddSegment(outline, new Point2D(200.0, 200.0), new Point2D(160.0, 200.0), "top");
+			AddSegment(outline, new Point2D(160.0, 200.0), new Point2D(160.0, 140.0), "inner-right");
+			AddSegment(outline, new Point2D(160.0, 140.0), new Point2D(100.0, 140.0), "shoulder");
+			AddSegment(outline, new Point2D(100.0, 140.0), new Point2D(100.0, 100.0), "left");
+			var datum = Datum2D.FromOutline(outline);
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new[]
+			{
+				CreateHole(180.0, 170.0, 8.0, HoleKind2D.Normal)
+			});
+			var horizontal = plan.Dimensions.Single(d => d.DebugRole == "HoleDatumX");
+			var vertical = plan.Dimensions.Single(d => d.DebugRole == "HoleDatumY");
+
+			Assert(Math.Abs(horizontal.FirstPoint.X - 100.0) <= 0.001 && Math.Abs(horizontal.FirstPoint.Y - 140.0) <= 0.001,
+				"horizontal datum should preserve its X datum and use the nearest real outline point on that datum line");
+			Assert(Math.Abs(vertical.FirstPoint.X - 180.0) <= 0.001 && Math.Abs(vertical.FirstPoint.Y - 100.0) <= 0.001,
+				"vertical datum should preserve its Y datum and use the real bottom outline intersection");
+			Assert(Math.Abs(horizontal.SecondPoint.X - horizontal.FirstPoint.X - 80.0) <= 0.001,
+				"real grip correction must not change the horizontal datum measurement");
+			Assert(horizontal.FirstPointMustLieOnOutline && vertical.FirstPointMustLieOnOutline,
+				"outline-referenced hole dimensions should carry post-validation metadata");
+		}
+
+		private static void OverallWinsDuplicatePreferenceEvenAgainstTolerance()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionDeduplicationRules(config);
+			var overall = new DimensionDeduplicationItem
+			{
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(100.0, 0.0),
+				Kind = DimensionKind.OverallWidth,
+				ForceOuterLevel = true
+			};
+			var functional = new DimensionDeduplicationItem
+			{
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(100.0, 0.0),
+				Kind = DimensionKind.DatumHoleLocationX,
+				OverrideText = config.DatumHoleLocationToleranceText
+			};
+
+			Assert(rules.CompareDuplicatePreference(overall, functional) > 0,
+				"overall width must outrank a toleranced functional dimension");
+			Assert(rules.CompareDuplicatePreference(functional, overall) < 0,
+				"duplicate preference must be symmetric for overall protection");
+		}
+
+		private static void OverallRemainsOutermostAfterLayoutAlignment()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 50.0);
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem
+				{
+					FirstPoint = new Point2D(0.0, 0.0),
+					SecondPoint = new Point2D(100.0, 0.0),
+					Span = 100.0,
+					Kind = DimensionKind.OverallWidth,
+					ForceOuterLevel = true
+				},
+				new DimensionLayoutItem
+				{
+					FirstPoint = new Point2D(-25.0, -100.0),
+					SecondPoint = new Point2D(125.0, -100.0),
+					Span = 150.0,
+					Kind = DimensionKind.HoleLocation,
+					PreferFeatureLocalPlacement = true
+				}
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Bottom, outline, 2.5, 1.0, 5.0, 5.0, isHorizontal: true);
+			var overall = placements.Single(item => item.Index == 0);
+			var local = placements.Single(item => item.Index == 1);
+
+			Assert(overall.Level > local.Level, "overall dimension must remain on the outermost stacking level");
+			double overallCoordinate = new DimensionLayoutRules(config).GetDimLineCoordinate(dimensions[0], DimensionSide.Bottom, outline, overall.Offset);
+			double localCoordinate = new DimensionLayoutRules(config).GetDimLineCoordinate(dimensions[1], DimensionSide.Bottom, outline, local.Offset);
+			Assert(overallCoordinate < localCoordinate, "overall dimension must remain physically outside feature-local dimensions");
+		}
+
+		private static void InvalidDatumCoordinateDoesNotSilentlyDropDimension()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 50.0);
+			var datumPin = CreateHole(20.0, 20.0, 6.0, HoleKind2D.Pin);
+			var datum = Datum2D.FromOutline(outline);
+			datum.DatumHole = datumPin;
+			datum.DatumHoleLocationBaseX = 150.0;
+			bool rejected = false;
+			try
+			{
+				new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new[]
+				{
+					datumPin,
+					CreateHole(60.0, 20.0, 6.0, HoleKind2D.Pin)
+				});
+			}
+			catch (InvalidOperationException ex)
+			{
+				rejected = ex.Message.IndexOf("DatumX", StringComparison.Ordinal) >= 0;
+			}
+
+			Assert(rejected, "an invalid datum coordinate must fail explicitly instead of silently dropping DatumX");
+		}
 
         private static void ClosedPathRecognitionBuildsOutline()
         {
@@ -226,7 +405,7 @@ namespace CadAuto.Core.Tests
                 MinX = 0.0,
                 MinY = 0.0,
                 MaxX = 73.0,
-                MaxY = 29.038
+                MaxY = 28.0
             };
 
             AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(0.0, 20.0), "left");
@@ -489,18 +668,24 @@ namespace CadAuto.Core.Tests
                 CreateHole(140.0, 80.0, 6.0, HoleKind2D.Pin),
                 CreateHole(170.0, 80.0, 6.0, HoleKind2D.Pin)
             };
-            var datum = Datum2D.FromOutline(outline);
-            datum.DatumHole = datumPin;
-            datum.DatumHoleLocationUseToleranceX = true;
-            datum.DatumHoleLocationUseToleranceY = true;
+			var datum = Datum2D.FromOutline(outline);
+			datum.DatumHole = datumPin;
+			datum.DatumHoleLocationBaseX = 200.0;
+			datum.DatumHoleLocationBaseY = 100.0;
+			datum.DatumHoleLocationUseToleranceX = true;
+			datum.DatumHoleLocationUseToleranceY = true;
 
             var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, holes);
 
-            Assert(plan.PinGroups.Count == 2, "expected two pin groups");
-            Assert(plan.PinGroups[0].BasePin == datumPin, "first pin group should keep user datum pin as base");
-            Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.DatumHoleLocationX), "expected datum pin X location");
-            Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.DatumHoleLocationY), "expected datum pin Y location");
-            Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.PinDistance), "expected same-group pin distance");
+			Assert(plan.PinGroups.Count == 2, "expected two pin groups");
+			Assert(plan.PinGroups[0].BasePin == datumPin, "first pin group should keep user datum pin as base");
+			var datumX = plan.Dimensions.Single(d => d.Kind == DimensionKind.DatumHoleLocationX);
+			var datumY = plan.Dimensions.Single(d => d.Kind == DimensionKind.DatumHoleLocationY);
+			Assert(Math.Abs(datumX.FirstPoint.X - 200.0) <= 0.001 && datumX.FirstPointMustLieOnOutline,
+				"datum pin X location should preserve the selected real X datum");
+			Assert(Math.Abs(datumY.FirstPoint.Y - 100.0) <= 0.001 && datumY.FirstPointMustLieOnOutline,
+				"datum pin Y location should preserve the selected real Y datum");
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.PinDistance), "expected same-group pin distance");
             Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.PinGroupDistance), "expected pin group transfer distance");
         }
 
@@ -698,7 +883,7 @@ namespace CadAuto.Core.Tests
             var found = plan.Dimensions.Any(d =>
                 d.Kind == kind
                 && d.Orientation == orientation
-                && Math.Abs(d.FirstPoint.DistanceTo(d.SecondPoint) - expectedSpan) <= 0.001);
+                && Math.Abs(GetSpan(d) - expectedSpan) <= 0.001);
 
             Assert(found, "missing " + message);
         }

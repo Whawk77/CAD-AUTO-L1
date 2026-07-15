@@ -149,6 +149,7 @@ public sealed class DimensionLayoutRules
 			});
 		}
 		AlignDimensionsBySharedExtensionLines(list2, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
+		PromoteOverallDimensionsToOutermostLayer(list2);
 		for (int k = 0; k < list2.Count; k++)
 		{
 			double offset2 = firstOffset + (double)k * perLevelSpacing;
@@ -162,7 +163,77 @@ public sealed class DimensionLayoutRules
 				});
 			}
 		}
+		EnsureOverallPhysicalOutermostOffset(list, dimensions, side, outline, perLevelSpacing);
 		return list;
+	}
+
+	private void EnsureOverallPhysicalOutermostOffset(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, DimensionSide side, OutlineFeature2D outline, double perLevelSpacing)
+	{
+		if (outline == null || placements == null || placements.Count < 2)
+		{
+			return;
+		}
+		double clearance = Math.Max(Math.Abs(perLevelSpacing), _config.GeometryTolerance);
+		foreach (DimensionStackingPlacement placement in placements)
+		{
+			if (placement.Index < 0 || placement.Index >= dimensions.Count)
+			{
+				continue;
+			}
+			DimensionLayoutItem dimensionLayoutItem = dimensions[placement.Index];
+			if (!dimensionLayoutItem.ForceOuterLevel || (dimensionLayoutItem.Kind != DimensionKind.OverallWidth && dimensionLayoutItem.Kind != DimensionKind.OverallHeight))
+			{
+				continue;
+			}
+			List<double> list = new List<double>();
+			foreach (DimensionStackingPlacement item in placements)
+			{
+				if (item != placement && item.Index >= 0 && item.Index < dimensions.Count)
+				{
+					double dimLineCoordinate = GetDimLineCoordinate(dimensions[item.Index], side, outline, item.Offset);
+					if (!double.IsNaN(dimLineCoordinate) && !double.IsInfinity(dimLineCoordinate))
+					{
+						list.Add(dimLineCoordinate);
+					}
+				}
+			}
+			if (list.Count == 0)
+			{
+				continue;
+			}
+			double val = side switch
+			{
+				DimensionSide.Bottom => outline.MinY - list.Min() + clearance,
+				DimensionSide.Top => list.Max() - outline.MaxY + clearance,
+				DimensionSide.Left => outline.MinX - list.Min() + clearance,
+				DimensionSide.Right => list.Max() - outline.MaxX + clearance,
+				_ => placement.Offset,
+			};
+			placement.Offset = Math.Max(placement.Offset, val);
+		}
+	}
+
+	private static void PromoteOverallDimensionsToOutermostLayer(List<List<StackingLayerItem>> layers)
+	{
+		List<StackingLayerItem> list = new List<StackingLayerItem>();
+		for (int i = 0; i < layers.Count; i++)
+		{
+			for (int num = layers[i].Count - 1; num >= 0; num--)
+			{
+				StackingLayerItem stackingLayerItem = layers[i][num];
+				if (stackingLayerItem.Dimension.ForceOuterLevel && (stackingLayerItem.Dimension.Kind == DimensionKind.OverallWidth || stackingLayerItem.Dimension.Kind == DimensionKind.OverallHeight))
+				{
+					layers[i].RemoveAt(num);
+					list.Add(stackingLayerItem);
+				}
+			}
+		}
+		if (list.Count == 0)
+		{
+			return;
+		}
+		layers.RemoveAll((List<StackingLayerItem> layer) => layer.Count == 0);
+		layers.Add(list);
 	}
 
 	public bool TryGetLocalDimLineCoordinate(DimensionLayoutItem dim, DimensionSide side, OutlineFeature2D outline, double offset, out double coordinate)

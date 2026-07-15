@@ -20,6 +20,10 @@ public sealed class PlannedDimension
 
 	public bool ForceOuterLevel { get; set; }
 
+	public bool FirstPointMustLieOnOutline { get; set; }
+
+	public double? RequiredOutlineReferenceCoordinate { get; set; }
+
 	public bool UseSegmentedExtensionLines { get; set; }
 
 	public bool PreferLocalBoundary { get; set; }

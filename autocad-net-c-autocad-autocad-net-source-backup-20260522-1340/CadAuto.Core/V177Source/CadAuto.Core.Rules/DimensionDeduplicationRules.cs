@@ -98,6 +98,12 @@ public sealed class DimensionDeduplicationRules
 
 	public int CompareDuplicatePreference(DimensionDeduplicationItem first, DimensionDeduplicationItem second)
 	{
+		bool flag = IsOverall(first.Kind);
+		bool flag2 = IsOverall(second.Kind);
+		if (flag != flag2)
+		{
+			return flag ? 1 : (-1);
+		}
 		double? num = TryExtractTolerance(first.OverrideText);
 		double? num2 = TryExtractTolerance(second.OverrideText);
 		if (num.HasValue && !num2.HasValue)
@@ -125,11 +131,11 @@ public sealed class DimensionDeduplicationRules
 		{
 			return first.ForceOuterLevel ? 1 : (-1);
 		}
-		bool flag = !string.IsNullOrWhiteSpace(first.OverrideText);
-		bool flag2 = !string.IsNullOrWhiteSpace(second.OverrideText);
-		if (flag != flag2)
+		bool flag3 = !string.IsNullOrWhiteSpace(first.OverrideText);
+		bool flag4 = !string.IsNullOrWhiteSpace(second.OverrideText);
+		if (flag3 != flag4)
 		{
-			return flag ? 1 : (-1);
+			return flag3 ? 1 : (-1);
 		}
 		int num5 = GetDebugRolePreferenceRank(second.DebugRole).CompareTo(GetDebugRolePreferenceRank(first.DebugRole));
 		if (num5 != 0)
@@ -137,6 +143,11 @@ public sealed class DimensionDeduplicationRules
 			return num5;
 		}
 		return 0;
+	}
+
+	private static bool IsOverall(DimensionKind kind)
+	{
+		return kind == DimensionKind.OverallWidth || kind == DimensionKind.OverallHeight;
 	}
 
 	private static int GetDebugRolePreferenceRank(string debugRole)

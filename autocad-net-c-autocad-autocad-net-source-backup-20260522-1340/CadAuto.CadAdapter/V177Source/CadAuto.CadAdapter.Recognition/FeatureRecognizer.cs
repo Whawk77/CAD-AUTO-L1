@@ -55,6 +55,8 @@ public sealed class FeatureRecognizer
 		public string Callout { get; set; }
 	}
 
+	private const double BulgeEpsilon = 1E-12;
+
 	private static readonly bool DiagnosticsEnabled;
 
 	private readonly DimensionRuleConfig _config;
@@ -750,7 +752,7 @@ public sealed class FeatureRecognizer
 		{
 			int index = (j + 1) % list.Count;
 			double bulgeAt = polyline.GetBulgeAt(j);
-			if (Math.Abs(bulgeAt) > _config.GeometryTolerance)
+			if (Math.Abs(bulgeAt) > BulgeEpsilon)
 			{
 				AddArcChord(outlineFeature, list[j], list[index], ObjectId.Null, bulgeAt);
 			}
@@ -767,6 +769,7 @@ public sealed class FeatureRecognizer
 		OutlineFeature outlineFeature = CreateEmptyOutline();
 		AddEntityExtents(outlineFeature, polyline);
 		List<Point2d> list = new List<Point2d>();
+		List<double> list2 = new List<double>();
 		foreach (ObjectId item in polyline)
 		{
 			Vertex2d vertex2d = tr.GetObject(item, OpenMode.ForRead) as Vertex2d;
@@ -774,12 +777,23 @@ public sealed class FeatureRecognizer
 			{
 				Point2d point2d = new Point2d(vertex2d.Position.X, vertex2d.Position.Y);
 				list.Add(point2d);
+				list2.Add(vertex2d.Bulge);
 				AddVertex(outlineFeature, point2d);
 			}
 		}
 		for (int i = 0; i < list.Count; i++)
 		{
-			AddSegment(outlineFeature, list[i], list[(i + 1) % list.Count], ObjectId.Null);
+			Point2d start = list[i];
+			Point2d end = list[(i + 1) % list.Count];
+			double bulge = list2[i];
+			if (Math.Abs(bulge) > BulgeEpsilon)
+			{
+				AddArcChord(outlineFeature, start, end, ObjectId.Null, bulge);
+			}
+			else
+			{
+				AddSegment(outlineFeature, start, end, ObjectId.Null);
+			}
 		}
 		if (outlineFeature.Vertices.Count == 0)
 		{
@@ -867,7 +881,7 @@ public sealed class FeatureRecognizer
 			for (int j = 0; j < list.Count - 1; j++)
 			{
 				double bulgeAt = polyline.GetBulgeAt(j);
-				if (Math.Abs(bulgeAt) > _config.GeometryTolerance)
+				if (Math.Abs(bulgeAt) > BulgeEpsilon)
 				{
 					AddArcChord(outline, list[j], list[j + 1], entity.ObjectId, bulgeAt);
 				}
@@ -879,7 +893,7 @@ public sealed class FeatureRecognizer
 			if (polyline.Closed && list.Count > 1)
 			{
 				double bulgeAt2 = polyline.GetBulgeAt(polyline.NumberOfVertices - 1);
-				if (Math.Abs(bulgeAt2) > _config.GeometryTolerance)
+				if (Math.Abs(bulgeAt2) > BulgeEpsilon)
 				{
 					AddArcChord(outline, list[list.Count - 1], list[0], entity.ObjectId, bulgeAt2);
 				}
@@ -895,24 +909,41 @@ public sealed class FeatureRecognizer
 		{
 			return;
 		}
-		List<Point2d> list2 = new List<Point2d>();
+		List<Point2d> list3 = new List<Point2d>();
+		List<double> list4 = new List<double>();
 		foreach (ObjectId item in polyline2d)
 		{
 			Vertex2d vertex2d = tr.GetObject(item, OpenMode.ForRead) as Vertex2d;
 			if (!(vertex2d == null))
 			{
 				Point2d point2d5 = new Point2d(vertex2d.Position.X, vertex2d.Position.Y);
-				list2.Add(point2d5);
+				list3.Add(point2d5);
+				list4.Add(vertex2d.Bulge);
 				AddVertex(outline, point2d5);
 			}
 		}
-		for (int k = 0; k < list2.Count - 1; k++)
+		for (int k = 0; k < list3.Count - 1; k++)
 		{
-			AddSegment(outline, list2[k], list2[k + 1], entity.ObjectId);
+			if (Math.Abs(list4[k]) > BulgeEpsilon)
+			{
+				AddArcChord(outline, list3[k], list3[k + 1], entity.ObjectId, list4[k]);
+			}
+			else
+			{
+				AddSegment(outline, list3[k], list3[k + 1], entity.ObjectId);
+			}
 		}
-		if (polyline2d.Closed && list2.Count > 1)
+		if (polyline2d.Closed && list3.Count > 1)
 		{
-			AddSegment(outline, list2[list2.Count - 1], list2[0], entity.ObjectId);
+			double bulge2 = list4[list4.Count - 1];
+			if (Math.Abs(bulge2) > BulgeEpsilon)
+			{
+				AddArcChord(outline, list3[list3.Count - 1], list3[0], entity.ObjectId, bulge2);
+			}
+			else
+			{
+				AddSegment(outline, list3[list3.Count - 1], list3[0], entity.ObjectId);
+			}
 		}
 	}
 
@@ -938,31 +969,44 @@ public sealed class FeatureRecognizer
 
 	private void AddArcChord(OutlineFeature outline, Point2d start, Point2d end, ObjectId sourceId, double bulge)
 	{
-		AddSegment(outline, start, end, sourceId, isArcChord: true);
 		double distanceTo = start.GetDistanceTo(end);
-		if (!(distanceTo <= _config.GeometryTolerance))
+		double num = Math.Abs(bulge);
+		double num2 = num * distanceTo / 2.0;
+		if (!IsFinite(distanceTo) || !IsFinite(bulge) || !IsFinite(num2) || distanceTo <= BulgeEpsilon || num2 <= Math.Max(_config.GeometryTolerance, BulgeEpsilon))
 		{
-			double num = distanceTo * (1.0 + bulge * bulge) / (4.0 * Math.Abs(bulge));
-			Point2d point2d = new Point2d((start.X + end.X) / 2.0, (start.Y + end.Y) / 2.0);
-			double num2 = (end.X - start.X) / distanceTo;
-			double num3 = (end.Y - start.Y) / distanceTo;
-			double num4 = 0.0 - num3;
-			double num5 = num2;
-			double value = bulge * distanceTo / 2.0;
-			double num6 = num - Math.Abs(value);
-			double num7 = ((bulge >= 0.0) ? 1.0 : (-1.0));
-			Point2d center = new Point2d(point2d.X + num4 * num6 * num7, point2d.Y + num5 * num6 * num7);
-			outline.Arcs.Add(new OutlineArc
-			{
-				Start = start,
-				End = end,
-				Center = center,
-				Radius = num,
-				SourceId = sourceId,
-				Bulge = bulge
-			});
-			AddArcEnvelopePoints(outline, start, end, center, num, bulge);
+			AddSegment(outline, start, end, sourceId);
+			return;
 		}
+		double num3 = distanceTo * (num + 1.0 / num) / 4.0;
+		Point2d point2d = new Point2d((start.X + end.X) / 2.0, (start.Y + end.Y) / 2.0);
+		double num4 = (end.X - start.X) / distanceTo;
+		double num5 = (end.Y - start.Y) / distanceTo;
+		double num6 = 0.0 - num5;
+		double num7 = num4;
+		double num8 = num3 - num2;
+		double num9 = ((bulge >= 0.0) ? 1.0 : (-1.0));
+		Point2d center = new Point2d(point2d.X + num6 * num8 * num9, point2d.Y + num7 * num8 * num9);
+		if (!IsFinite(num3) || !IsFinite(center.X) || !IsFinite(center.Y))
+		{
+			AddSegment(outline, start, end, sourceId);
+			return;
+		}
+		AddSegment(outline, start, end, sourceId, isArcChord: true);
+		outline.Arcs.Add(new OutlineArc
+		{
+			Start = start,
+			End = end,
+			Center = center,
+			Radius = num3,
+			SourceId = sourceId,
+			Bulge = bulge
+		});
+		AddArcEnvelopePoints(outline, start, end, center, num3, bulge);
+	}
+
+	private static bool IsFinite(double value)
+	{
+		return !double.IsNaN(value) && !double.IsInfinity(value);
 	}
 
 	private void AddArcEnvelopePoints(OutlineFeature outline, Point2d start, Point2d end, Point2d center, double radius, double bulge)

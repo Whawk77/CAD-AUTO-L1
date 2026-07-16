@@ -22,4 +22,6 @@ public sealed class DimensionLayoutItem
 	public bool ForceOuterLevel { get; set; }
 
 	public bool PreferFeatureLocalPlacement { get; set; }
+
+	public bool PreservePreferredSide { get; set; }
 }

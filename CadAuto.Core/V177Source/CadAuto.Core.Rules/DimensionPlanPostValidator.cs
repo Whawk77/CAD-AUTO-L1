@@ -33,7 +33,32 @@ public sealed class DimensionPlanPostValidator
 		ValidateStoredEnvelope(outline, envelope);
 		ValidateOverallDimension(plan, outline, DimensionKind.OverallWidth, DimensionOrientation.Horizontal, DimensionSide.Bottom, envelope.MinX, envelope.MaxX);
 		ValidateOverallDimension(plan, outline, DimensionKind.OverallHeight, DimensionOrientation.Vertical, DimensionSide.Left, envelope.MinY, envelope.MaxY);
+		ValidateNoZeroLengthLinearDimensions(plan.Dimensions);
 		ValidateRequiredOutlineAttachments(plan.Dimensions, outline);
+	}
+
+	private void ValidateNoZeroLengthLinearDimensions(IEnumerable<PlannedDimension> dimensions)
+	{
+		foreach (PlannedDimension dimension in dimensions.Where((PlannedDimension item) => item != null))
+		{
+			double span;
+			if (dimension.Orientation == DimensionOrientation.Horizontal)
+			{
+				span = Math.Abs(dimension.SecondPoint.X - dimension.FirstPoint.X);
+			}
+			else if (dimension.Orientation == DimensionOrientation.Vertical)
+			{
+				span = Math.Abs(dimension.SecondPoint.Y - dimension.FirstPoint.Y);
+			}
+			else
+			{
+				continue;
+			}
+			if (span <= _config.GeometryTolerance)
+			{
+				throw new InvalidOperationException("Dimension " + (dimension.DebugRole ?? dimension.Kind.ToString()) + " has zero or sub-tolerance length.");
+			}
+		}
 	}
 
 	private void ValidateStoredEnvelope(OutlineFeature2D outline, OutlineEnvelope2D envelope)

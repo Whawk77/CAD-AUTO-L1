@@ -30,6 +30,8 @@ public sealed class PlannedDimension
 
 	public bool PreferFeatureLocalPlacement { get; set; }
 
+	public bool PreservePreferredSide { get; set; }
+
 	public int ChainId { get; set; }
 
 	public string DebugOwner { get; set; }

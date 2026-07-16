@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CadAuto.Core.Geometry;
 
 namespace CadAuto.Core.Planning;
 
@@ -43,18 +44,62 @@ public sealed class DimensionPlan
 			}
 			value.IsSuppressed = true;
 			value.SuppressedReason = reason ?? string.Empty;
+			value.IsSelected = false;
+			value.DecisionStatus = "Suppressed";
+			value.DecisionReason = reason ?? string.Empty;
 		}
+	}
+
+	public void AddSkippedDimension(DimensionKind kind, DimensionOrientation orientation, DimensionSide side, Point2D requestedFirstPoint, Point2D secondPoint, string reason, string debugRole, string debugOwner = null)
+	{
+		string text = reason ?? string.Empty;
+		Diagnostics.DimensionCandidates.Add(new DimensionCandidateDiagnostic
+		{
+			Id = _nextDiagnosticId++,
+			Kind = kind.ToString(),
+			SourceFeatureId = debugOwner ?? debugRole ?? string.Empty,
+			Value = GetDiagnosticValue(orientation, requestedFirstPoint, secondPoint),
+			FirstPointX = requestedFirstPoint.X,
+			FirstPointY = requestedFirstPoint.Y,
+			SecondPointX = secondPoint.X,
+			SecondPointY = secondPoint.Y,
+			MeasurementMinimum = GetMeasurementMinimum(orientation, requestedFirstPoint, secondPoint),
+			MeasurementMaximum = GetMeasurementMaximum(orientation, requestedFirstPoint, secondPoint),
+			PlacementSide = side.ToString(),
+			Priority = GetDiagnosticPriority(kind),
+			IsSuppressed = false,
+			IsSelected = false,
+			IsAttachmentValid = false,
+			DecisionStatus = "Skipped",
+			DecisionReason = text,
+			SuppressedReason = string.Empty,
+			Orientation = orientation.ToString(),
+			DebugRole = debugRole ?? string.Empty,
+			OverrideText = string.Empty
+		});
 	}
 
 	public void CaptureFinalDimensions()
 	{
 		Diagnostics.FinalDimensions.Clear();
+		foreach (DimensionCandidateDiagnostic candidate in Diagnostics.DimensionCandidates)
+		{
+			if (!candidate.IsSuppressed && !string.Equals(candidate.DecisionStatus, "Skipped", StringComparison.Ordinal))
+			{
+				candidate.IsSelected = false;
+				candidate.DecisionStatus = "NotSelected";
+				candidate.DecisionReason = "NotPresentInFinalPlan";
+			}
+		}
 		foreach (PlannedDimension dimension in Dimensions)
 		{
 			if (!_diagnosticByDimension.TryGetValue(dimension, out var value))
 			{
 				value = AddDiagnosticCandidate(dimension);
 			}
+			value.IsSelected = true;
+			value.DecisionStatus = "Selected";
+			value.DecisionReason = IsOverall(dimension.Kind) ? "RequiredOverallDimension" : "RetainedAfterSuppression";
 			Diagnostics.FinalDimensions.Add(CloneDiagnostic(value));
 		}
 	}
@@ -67,9 +112,19 @@ public sealed class DimensionPlan
 			Kind = dimension.Kind.ToString(),
 			SourceFeatureId = (dimension.SourceKey ?? dimension.DebugOwner ?? dimension.DebugRole ?? string.Empty),
 			Value = GetDiagnosticValue(dimension),
+			FirstPointX = dimension.FirstPoint.X,
+			FirstPointY = dimension.FirstPoint.Y,
+			SecondPointX = dimension.SecondPoint.X,
+			SecondPointY = dimension.SecondPoint.Y,
+			MeasurementMinimum = GetMeasurementMinimum(dimension),
+			MeasurementMaximum = GetMeasurementMaximum(dimension),
 			PlacementSide = dimension.Side.ToString(),
 			Priority = GetDiagnosticPriority(dimension),
 			IsSuppressed = false,
+			IsSelected = false,
+			IsAttachmentValid = true,
+			DecisionStatus = "Candidate",
+			DecisionReason = "Generated",
 			SuppressedReason = string.Empty,
 			Orientation = dimension.Orientation.ToString(),
 			DebugRole = (dimension.DebugRole ?? string.Empty),
@@ -88,9 +143,19 @@ public sealed class DimensionPlan
 			Kind = source.Kind,
 			SourceFeatureId = source.SourceFeatureId,
 			Value = source.Value,
+			FirstPointX = source.FirstPointX,
+			FirstPointY = source.FirstPointY,
+			SecondPointX = source.SecondPointX,
+			SecondPointY = source.SecondPointY,
+			MeasurementMinimum = source.MeasurementMinimum,
+			MeasurementMaximum = source.MeasurementMaximum,
 			PlacementSide = source.PlacementSide,
 			Priority = source.Priority,
 			IsSuppressed = source.IsSuppressed,
+			IsSelected = source.IsSelected,
+			IsAttachmentValid = source.IsAttachmentValid,
+			DecisionStatus = source.DecisionStatus,
+			DecisionReason = source.DecisionReason,
 			SuppressedReason = source.SuppressedReason,
 			Orientation = source.Orientation,
 			DebugRole = source.DebugRole,
@@ -98,22 +163,57 @@ public sealed class DimensionPlan
 		};
 	}
 
+	private static double GetMeasurementMinimum(PlannedDimension dimension)
+	{
+		return GetMeasurementMinimum(dimension.Orientation, dimension.FirstPoint, dimension.SecondPoint);
+	}
+
+	private static double GetMeasurementMaximum(PlannedDimension dimension)
+	{
+		return GetMeasurementMaximum(dimension.Orientation, dimension.FirstPoint, dimension.SecondPoint);
+	}
+
+	private static double GetMeasurementMinimum(DimensionOrientation orientation, Point2D firstPoint, Point2D secondPoint)
+	{
+		return orientation == DimensionOrientation.Vertical ? Math.Min(firstPoint.Y, secondPoint.Y) : Math.Min(firstPoint.X, secondPoint.X);
+	}
+
+	private static double GetMeasurementMaximum(DimensionOrientation orientation, Point2D firstPoint, Point2D secondPoint)
+	{
+		return orientation == DimensionOrientation.Vertical ? Math.Max(firstPoint.Y, secondPoint.Y) : Math.Max(firstPoint.X, secondPoint.X);
+	}
+
+	private static bool IsOverall(DimensionKind kind)
+	{
+		return kind == DimensionKind.OverallWidth || kind == DimensionKind.OverallHeight;
+	}
+
 	private static double GetDiagnosticValue(PlannedDimension dimension)
 	{
-		if (dimension.Orientation == DimensionOrientation.Vertical)
+		return GetDiagnosticValue(dimension.Orientation, dimension.FirstPoint, dimension.SecondPoint);
+	}
+
+	private static double GetDiagnosticValue(DimensionOrientation orientation, Point2D firstPoint, Point2D secondPoint)
+	{
+		if (orientation == DimensionOrientation.Vertical)
 		{
-			return Math.Abs(dimension.SecondPoint.Y - dimension.FirstPoint.Y);
+			return Math.Abs(secondPoint.Y - firstPoint.Y);
 		}
-		if (dimension.Orientation == DimensionOrientation.Horizontal)
+		if (orientation == DimensionOrientation.Horizontal)
 		{
-			return Math.Abs(dimension.SecondPoint.X - dimension.FirstPoint.X);
+			return Math.Abs(secondPoint.X - firstPoint.X);
 		}
-		return dimension.FirstPoint.DistanceTo(dimension.SecondPoint);
+		return firstPoint.DistanceTo(secondPoint);
 	}
 
 	private static int GetDiagnosticPriority(PlannedDimension dimension)
 	{
-		switch (dimension.Kind)
+		return GetDiagnosticPriority(dimension.Kind);
+	}
+
+	private static int GetDiagnosticPriority(DimensionKind kind)
+	{
+		switch (kind)
 		{
 		case DimensionKind.OverallWidth:
 		case DimensionKind.OverallHeight:

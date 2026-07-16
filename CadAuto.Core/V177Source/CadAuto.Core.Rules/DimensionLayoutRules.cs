@@ -496,12 +496,16 @@ public sealed class DimensionLayoutRules
 
 	public bool CanRebalanceVerticalHoleLocation(DimensionLayoutItem dim, double dimScale)
 	{
-		return dim.Kind == DimensionKind.HoleLocation && dim.LooseChainId == 0 && IsShortVerticalDimension(dim, dimScale) && !dim.ForceOuterLevel;
+		return dim.Kind == DimensionKind.HoleLocation && dim.LooseChainId == 0 && IsShortVerticalDimension(dim, dimScale) && !dim.ForceOuterLevel && !dim.PreferFeatureLocalPlacement && !dim.PreservePreferredSide;
 	}
 
 	public DimensionSide ChooseVerticalHoleLocationSide(DimensionLayoutItem dim, DimensionSide preferredSide, IEnumerable<DimensionLayoutItem> preferredDims, IEnumerable<DimensionLayoutItem> oppositeDims, double dimScale)
 	{
 		if (dim.Kind != DimensionKind.HoleLocation)
+		{
+			return preferredSide;
+		}
+		if (dim.PreferFeatureLocalPlacement || dim.PreservePreferredSide)
 		{
 			return preferredSide;
 		}

@@ -760,8 +760,8 @@ public sealed class DimensionPlanner
 		double y = datum.DatumHoleLocationBaseY ?? datum.BaseY;
 		string overrideText = (ShouldUseDatumHoleLocationTolerance(datum, isXDirection: true) ? (_config.DatumHoleLocationToleranceText ?? string.Empty) : string.Empty);
 		string overrideText2 = (ShouldUseDatumHoleLocationTolerance(datum, isXDirection: false) ? (_config.DatumHoleLocationToleranceText ?? string.Empty) : string.Empty);
-		AddHorizontalOutlineReferenceDimension(plan, outline, x, basePin.Center, DimensionKind.DatumHoleLocationX, group.HorizontalSide, overrideText, "DatumX", GetPinGroupDebugOwner(group));
-		AddVerticalOutlineReferenceDimension(plan, outline, y, basePin.Center, DimensionKind.DatumHoleLocationY, group.VerticalSide, overrideText2, "DatumY", GetPinGroupDebugOwner(group));
+		AddHorizontalOutlineReferenceDimension(plan, outline, x, basePin.Center, DimensionKind.DatumHoleLocationX, group.HorizontalSide, overrideText, "DatumX", GetPinGroupDebugOwner(group), alignmentKey: GetPinDatumAlignmentKey(group, horizontal: true), alignmentPriority: 120);
+		AddVerticalOutlineReferenceDimension(plan, outline, y, basePin.Center, DimensionKind.DatumHoleLocationY, group.VerticalSide, overrideText2, "DatumY", GetPinGroupDebugOwner(group), alignmentKey: GetPinDatumAlignmentKey(group, horizontal: false), alignmentPriority: 120);
 	}
 
 	private void AddPinGroupBaseTransfers(DimensionPlan plan, IList<PinGroupPlan> groups)
@@ -774,23 +774,28 @@ public sealed class DimensionPlanner
 		for (int i = 1; i < groups.Count; i++)
 		{
 			HoleFeature2D basePin2 = groups[i].BasePin;
+			string horizontalAlignmentKey = GetPinDatumAlignmentKey(groups[0], horizontal: true);
+			string verticalAlignmentKey = GetPinDatumAlignmentKey(groups[0], horizontal: false);
 			double num = Math.Abs(basePin2.Center.X - basePin.Center.X);
 			double num2 = Math.Abs(basePin2.Center.Y - basePin.Center.Y);
 			if (num > _config.GeometryTolerance)
 			{
-				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Horizontal, groups[i].HorizontalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]));
+				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Horizontal, groups[i].HorizontalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: horizontalAlignmentKey, alignmentPriority: 110);
 			}
 			if (num2 > _config.GeometryTolerance)
 			{
-				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Vertical, groups[i].VerticalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num2), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]));
+				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Vertical, groups[i].VerticalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num2), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: verticalAlignmentKey, alignmentPriority: 110);
 			}
 		}
 	}
 
 	private void AddSameGroupPinDistances(DimensionPlan plan, OutlineFeature2D outline, IList<PinGroupPlan> groups)
 	{
-		foreach (PinGroupPlan group in groups)
+		for (int groupIndex = 0; groupIndex < groups.Count; groupIndex++)
 		{
+			PinGroupPlan group = groups[groupIndex];
+			string horizontalAlignmentKey = GetPinDatumAlignmentKey(groups[0], horizontal: true);
+			string verticalAlignmentKey = GetPinDatumAlignmentKey(groups[0], horizontal: false);
 			foreach (HoleFeature2D pin in group.Pins)
 			{
 				if (!IsSameHole(pin, group.BasePin))
@@ -799,11 +804,11 @@ public sealed class DimensionPlanner
 					double num2 = Math.Abs(pin.Center.Y - group.BasePin.Center.Y);
 					if (num > _config.GeometryTolerance)
 					{
-						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Horizontal, group.HorizontalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num), "PinDistance", GetPinGroupDebugOwner(group));
+						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Horizontal, group.HorizontalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: horizontalAlignmentKey, alignmentPriority: 100);
 					}
 					if (num2 > _config.GeometryTolerance)
 					{
-						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Vertical, group.VerticalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num2), "PinDistance", GetPinGroupDebugOwner(group));
+						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Vertical, group.VerticalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num2), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: verticalAlignmentKey, alignmentPriority: 100);
 					}
 				}
 			}
@@ -2886,25 +2891,25 @@ public sealed class DimensionPlanner
 		return _structureEndpointRules.GetBoundaryPoint(outline, DimensionSide.Top);
 	}
 
-	private bool AddHorizontalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredX, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false)
+	private bool AddHorizontalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredX, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0)
 	{
 		if (!OutlineGeometryQuery.TryFindVerticalBoundaryPoint(outline, preferredX, target.Y, _config.GeometryTolerance, out var point))
 		{
 			plan.AddSkippedDimension(kind, DimensionOrientation.Horizontal, side, new Point2D(preferredX, target.Y), target, "NoRealOutlineAttachment:XDatum=" + preferredX.ToString("0.########", CultureInfo.InvariantCulture), debugRole, debugOwner);
 			return false;
 		}
-		AddDimension(plan, kind, DimensionOrientation.Horizontal, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredX);
+		AddDimension(plan, kind, DimensionOrientation.Horizontal, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredX, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority);
 		return true;
 	}
 
-	private bool AddVerticalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredY, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false)
+	private bool AddVerticalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredY, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0)
 	{
 		if (!OutlineGeometryQuery.TryFindHorizontalBoundaryPoint(outline, preferredY, target.X, _config.GeometryTolerance, out var point))
 		{
 			plan.AddSkippedDimension(kind, DimensionOrientation.Vertical, side, new Point2D(target.X, preferredY), target, "NoRealOutlineAttachment:YDatum=" + preferredY.ToString("0.########", CultureInfo.InvariantCulture), debugRole, debugOwner);
 			return false;
 		}
-		AddDimension(plan, kind, DimensionOrientation.Vertical, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredY);
+		AddDimension(plan, kind, DimensionOrientation.Vertical, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredY, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority);
 		return true;
 	}
 
@@ -2934,7 +2939,7 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	private void AddDimension(DimensionPlan plan, DimensionKind kind, DimensionOrientation orientation, DimensionSide side, Point2D firstPoint, Point2D secondPoint, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, bool firstPointMustLieOnOutline = false, double? requiredOutlineReferenceCoordinate = null, bool preservePreferredSide = false)
+	private void AddDimension(DimensionPlan plan, DimensionKind kind, DimensionOrientation orientation, DimensionSide side, Point2D firstPoint, Point2D secondPoint, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, bool firstPointMustLieOnOutline = false, double? requiredOutlineReferenceCoordinate = null, bool preservePreferredSide = false, string alignmentKey = null, int alignmentPriority = 0)
 	{
 		if (!(GetSpan(firstPoint, secondPoint, orientation) <= _config.GeometryTolerance))
 		{
@@ -2948,6 +2953,8 @@ public sealed class DimensionPlanner
 				OverrideText = (overrideText ?? string.Empty),
 				DebugRole = debugRole,
 				DebugOwner = debugOwner,
+				AlignmentKey = (alignmentKey ?? string.Empty),
+				AlignmentPriority = alignmentPriority,
 				PreferFeatureLocalPlacement = preferFeatureLocalPlacement,
 				PreservePreferredSide = preservePreferredSide,
 				FirstPointMustLieOnOutline = firstPointMustLieOnOutline,
@@ -3250,5 +3257,15 @@ public sealed class DimensionPlanner
 	private string GetPinGroupDebugOwner(PinGroupPlan group)
 	{
 		return (group == null) ? string.Empty : ("PG" + group.GroupIndex.ToString(CultureInfo.InvariantCulture));
+	}
+
+	private static string GetPinDatumAlignmentKey(PinGroupPlan firstGroup, bool horizontal)
+	{
+		if (firstGroup == null)
+		{
+			return string.Empty;
+		}
+		return "PG" + firstGroup.GroupIndex.ToString(CultureInfo.InvariantCulture)
+			+ ":DatumChain:" + (horizontal ? "H" : "V");
 	}
 }

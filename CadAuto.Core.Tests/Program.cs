@@ -51,6 +51,10 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(HolesAreGroupedByHorizontalRows), HolesAreGroupedByHorizontalRows);
                 RunTest(nameof(NormalHolesLocateFromOutlineDatum), NormalHolesLocateFromOutlineDatum);
                 RunTest(nameof(PinGroupsPlanBaseAndPairDistances), PinGroupsPlanBaseAndPairDistances);
+				RunTest(nameof(PinAlignmentGroupsRespectSideAndOrientation), PinAlignmentGroupsRespectSideAndOrientation);
+				RunTest(nameof(PinAlignmentAnchorFallsBackWithStableOrdering), PinAlignmentAnchorFallsBackWithStableOrdering);
+				RunTest(nameof(PinAlignmentGroupMovesTogetherOnConflict), PinAlignmentGroupMovesTogetherOnConflict);
+				RunTest(nameof(PinAlignmentGroupAvoidsResolvedCoordinateConflicts), PinAlignmentGroupAvoidsResolvedCoordinateConflicts);
                 RunTest(nameof(FunctionalHolesAttachToPinGroup), FunctionalHolesAttachToPinGroup);
                 RunTest(nameof(PreferredSideLockedHoleLocationKeepsGlobalAlignment), PreferredSideLockedHoleLocationKeepsGlobalAlignment);
                 RunTest(nameof(LooseHolesUseChainDimensions), LooseHolesUseChainDimensions);
@@ -971,7 +975,187 @@ namespace CadAuto.Core.Tests
 				"datum pin Y location should preserve the selected real Y datum");
 			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.PinDistance), "expected same-group pin distance");
             Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.PinGroupDistance), "expected pin group transfer distance");
+			var horizontalTransfer = plan.Dimensions.Single(d => d.Kind == DimensionKind.PinGroupDistance && d.Orientation == DimensionOrientation.Horizontal);
+			var horizontalPg2Direct = plan.Dimensions.Single(d => d.Kind == DimensionKind.PinDistance && d.DebugOwner == "PG2" && d.Orientation == DimensionOrientation.Horizontal);
+			var verticalTransfer = plan.Dimensions.Single(d => d.Kind == DimensionKind.PinGroupDistance && d.Orientation == DimensionOrientation.Vertical);
+			Assert(!string.IsNullOrEmpty(horizontalTransfer.AlignmentKey)
+				&& datumX.AlignmentKey == horizontalTransfer.AlignmentKey
+				&& horizontalTransfer.AlignmentKey == horizontalPg2Direct.AlignmentKey,
+				"PG1 datum, PG1-to-PG2 transfer, and PG2 direct dimensions must share one rooted datum chain");
+			Assert(datumX.AlignmentPriority > horizontalTransfer.AlignmentPriority
+				&& horizontalTransfer.AlignmentPriority > horizontalPg2Direct.AlignmentPriority,
+				"the rooted chain must fall back from PG1 datum to transfer and then to PG2 direct dimensions");
+			Assert(horizontalTransfer.AlignmentKey != verticalTransfer.AlignmentKey,
+				"horizontal and vertical transfer dimensions must never share an alignment key");
         }
+
+		private static void PinAlignmentGroupsRespectSideAndOrientation()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var horizontal = new[]
+			{
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.PinGroupDistance,
+					FirstPoint = new Point2D(0.0, 30.0),
+					SecondPoint = new Point2D(40.0, 30.0),
+					Span = 40.0,
+					PreferFeatureLocalPlacement = true,
+					AlignmentKey = "PG1-PG2:H",
+					AlignmentPriority = 100
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.PinDistance,
+					FirstPoint = new Point2D(40.0, 10.0),
+					SecondPoint = new Point2D(60.0, 10.0),
+					Span = 20.0,
+					PreferFeatureLocalPlacement = true,
+					AlignmentKey = "PG1-PG2:H",
+					AlignmentPriority = 90
+				}
+			};
+			var top = rules.CreateStackingPlan(horizontal, DimensionSide.Top, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: true);
+			var bottom = rules.CreateStackingPlan(horizontal, DimensionSide.Bottom, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: true);
+			var vertical = new[]
+			{
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.PinGroupDistance,
+					FirstPoint = new Point2D(80.0, 0.0),
+					SecondPoint = new Point2D(80.0, 40.0),
+					Span = 40.0,
+					PreferFeatureLocalPlacement = true,
+					AlignmentKey = "PG1-PG2:H",
+					AlignmentPriority = 100
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.PinDistance,
+					FirstPoint = new Point2D(60.0, 40.0),
+					SecondPoint = new Point2D(60.0, 60.0),
+					Span = 20.0,
+					PreferFeatureLocalPlacement = true,
+					AlignmentKey = "PG1-PG2:H",
+					AlignmentPriority = 90
+				}
+			};
+			var left = rules.CreateStackingPlan(vertical, DimensionSide.Left, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: false);
+
+			Assert(top.All(p => p.DimLineCoordinateOverride.HasValue)
+				&& top.Select(p => p.DimLineCoordinateOverride.Value).Distinct().Count() == 1,
+				"same-key dimensions on the same side and orientation must align");
+			Assert(Math.Abs(top[0].DimLineCoordinateOverride.Value - bottom[0].DimLineCoordinateOverride.Value) > config.GeometryTolerance,
+				"same keys on different sides must be resolved independently");
+			Assert(Math.Abs(top[0].DimLineCoordinateOverride.Value - left[0].DimLineCoordinateOverride.Value) > config.GeometryTolerance,
+				"same keys in different orientations must be resolved independently");
+		}
+
+		private static void PinAlignmentAnchorFallsBackWithStableOrdering()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var fallbackMembers = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(0.0, 40.0), SecondPoint = new Point2D(10.0, 40.0), Span = 10.0, PreferFeatureLocalPlacement = true, AlignmentKey = "fallback", AlignmentPriority = 90 },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(10.0, 20.0), SecondPoint = new Point2D(20.0, 20.0), Span = 10.0, PreferFeatureLocalPlacement = true, AlignmentKey = "fallback", AlignmentPriority = 80 }
+			};
+			var fallback = rules.CreateStackingPlan(fallbackMembers, DimensionSide.Top, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: true);
+			double fallbackExpected = rules.GetDimLineCoordinate(fallbackMembers[0], DimensionSide.Top, null, fallback.Single(p => p.Index == 0).Offset);
+
+			var equalPriority = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(0.0, 10.0), SecondPoint = new Point2D(40.0, 10.0), Span = 40.0, PreferFeatureLocalPlacement = true, AlignmentKey = "stable-span", AlignmentPriority = 90 },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(40.0, 30.0), SecondPoint = new Point2D(60.0, 30.0), Span = 20.0, PreferFeatureLocalPlacement = true, AlignmentKey = "stable-span", AlignmentPriority = 90 }
+			};
+			var bySpan = rules.CreateStackingPlan(equalPriority, DimensionSide.Top, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: true);
+			double spanExpected = rules.GetDimLineCoordinate(equalPriority[1], DimensionSide.Top, null, bySpan.Single(p => p.Index == 1).Offset);
+
+			var equalSpan = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(0.0, 50.0), SecondPoint = new Point2D(20.0, 50.0), Span = 20.0, PreferFeatureLocalPlacement = true, AlignmentKey = "stable-order", AlignmentPriority = 90 },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(20.0, 30.0), SecondPoint = new Point2D(40.0, 30.0), Span = 20.0, PreferFeatureLocalPlacement = true, AlignmentKey = "stable-order", AlignmentPriority = 90 }
+			};
+			var byOrder = rules.CreateStackingPlan(equalSpan, DimensionSide.Top, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: true);
+			double orderExpected = rules.GetDimLineCoordinate(equalSpan[0], DimensionSide.Top, null, byOrder.Single(p => p.Index == 0).Offset);
+
+			Assert(fallback.All(p => Math.Abs(p.DimLineCoordinateOverride.Value - fallbackExpected) <= config.GeometryTolerance),
+				"when the preferred anchor is suppressed, the next-highest-priority remaining member must anchor the group");
+			Assert(bySpan.All(p => Math.Abs(p.DimLineCoordinateOverride.Value - spanExpected) <= config.GeometryTolerance),
+				"equal-priority members must choose the smaller span as the stable anchor");
+			Assert(byOrder.All(p => Math.Abs(p.DimLineCoordinateOverride.Value - orderExpected) <= config.GeometryTolerance),
+				"equal-priority equal-span members must choose the earlier generated member as the stable anchor");
+		}
+
+		private static void PinAlignmentGroupMovesTogetherOnConflict()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.Normal, FirstPoint = new Point2D(40.0, 0.0), SecondPoint = new Point2D(50.0, 0.0), Span = 10.0 },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(0.0, 20.0), SecondPoint = new Point2D(35.0, 20.0), Span = 35.0, PreferFeatureLocalPlacement = true, AlignmentKey = "move-together", AlignmentPriority = 100 },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(35.0, 10.0), SecondPoint = new Point2D(70.0, 10.0), Span = 35.0, PreferFeatureLocalPlacement = true, AlignmentKey = "move-together", AlignmentPriority = 90 }
+			};
+			var placements = rules.CreateStackingPlan(dimensions, DimensionSide.Top, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: true);
+			var anchor = placements.Single(p => p.Index == 1);
+			var follower = placements.Single(p => p.Index == 2);
+
+			Assert(anchor.Level == follower.Level && Math.Abs(anchor.Offset - follower.Offset) <= config.GeometryTolerance,
+				"a conflict affecting one member must move the entire alignment group to the same layer");
+			Assert(anchor.Level > 0,
+				"the aligned group must move outward when a member conflicts with an existing dimension");
+			Assert(Math.Abs(anchor.DimLineCoordinateOverride.Value - follower.DimLineCoordinateOverride.Value) <= config.GeometryTolerance,
+				"moving an alignment group must preserve its unbroken shared dimension line");
+		}
+
+		private static void PinAlignmentGroupAvoidsResolvedCoordinateConflicts()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.Normal,
+					FirstPoint = new Point2D(0.0, 30.0),
+					SecondPoint = new Point2D(20.0, 30.0),
+					Span = 20.0,
+					PreferFeatureLocalPlacement = true
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.DatumHoleLocationX,
+					FirstPoint = new Point2D(0.0, 25.0),
+					SecondPoint = new Point2D(20.0, 25.0),
+					Span = 20.0,
+					PreferFeatureLocalPlacement = true,
+					AlignmentKey = "resolved-conflict",
+					AlignmentPriority = 120
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.PinGroupDistance,
+					FirstPoint = new Point2D(20.0, 10.0),
+					SecondPoint = new Point2D(40.0, 10.0),
+					Span = 20.0,
+					PreferFeatureLocalPlacement = true,
+					AlignmentKey = "resolved-conflict",
+					AlignmentPriority = 110
+				}
+			};
+			var placements = rules.CreateStackingPlan(dimensions, DimensionSide.Top, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: true);
+			var external = placements.Single(p => p.Index == 0);
+			var anchor = placements.Single(p => p.Index == 1);
+			var follower = placements.Single(p => p.Index == 2);
+			double externalCoordinate = rules.GetDimLineCoordinate(dimensions[0], DimensionSide.Top, null, external.Offset);
+
+			Assert(anchor.Level == follower.Level && anchor.Level >= 2,
+				"a group must move again when different abstract levels resolve to the same physical dimension line");
+			Assert(Math.Abs(anchor.DimLineCoordinateOverride.Value - externalCoordinate) >= 5.0 - config.GeometryTolerance,
+				"resolved group coordinates must retain one full stacking interval from overlapping external dimensions");
+		}
 
         private static void FunctionalHolesAttachToPinGroup()
         {

@@ -45,6 +45,10 @@ public sealed class DimensionDrawer
 
 		public int LooseChainId;
 
+		public string AlignmentKey;
+
+		public int AlignmentPriority;
+
 		public bool PreferLocalBoundary;
 
 		public bool PreferFeatureLocalPlacement;
@@ -574,7 +578,14 @@ public sealed class DimensionDrawer
 
 	private IList<DimensionStackingPlacement> CreateSideStackingPlacements(List<DeferredDim> dims, DimSide side, OutlineFeature outline, double textHeight, double gap, double perLevelSpacing, bool isHorizontal)
 	{
-		dims.Sort((DeferredDim a, DeferredDim b) => a.Span.CompareTo(b.Span));
+		List<DeferredDim> stableSpanOrder = dims
+			.Select((DeferredDim dim, int generationOrder) => new { Dim = dim, GenerationOrder = generationOrder })
+			.OrderBy(item => item.Dim.Span)
+			.ThenBy(item => item.GenerationOrder)
+			.Select(item => item.Dim)
+			.ToList();
+		dims.Clear();
+		dims.AddRange(stableSpanOrder);
 		SuppressDuplicateMeasuredDimensions(dims, isHorizontal);
 		double num = Scale(_config.FirstDimOffset);
 		num += GetExistingGeneratedDimensionReservedOffset(side, outline, num, perLevelSpacing, isHorizontal);
@@ -670,6 +681,12 @@ public sealed class DimensionDrawer
 		{
 			DeferredDim dim = dims[placement.Index];
 			Point3d dimLinePoint = GetDimLinePoint(dim, side, outline, placement.Offset);
+			if (placement.DimLineCoordinateOverride.HasValue)
+			{
+				dimLinePoint = isHorizontal
+					? new Point3d(dimLinePoint.X, placement.DimLineCoordinateOverride.Value, 0.0)
+					: new Point3d(placement.DimLineCoordinateOverride.Value, dimLinePoint.Y, 0.0);
+			}
 			list.Add(new PlacedDim
 			{
 				Dim = dim,
@@ -759,6 +776,8 @@ public sealed class DimensionDrawer
 				ForceOuterLevel = dimension.ForceOuterLevel,
 				UseSegmentedExtensionLines = dimension.UseSegmentedExtensionLines,
 				LooseChainId = dimension.ChainId,
+				AlignmentKey = dimension.AlignmentKey,
+				AlignmentPriority = dimension.AlignmentPriority,
 				PreferLocalBoundary = dimension.PreferLocalBoundary,
 				PreferFeatureLocalPlacement = dimension.PreferFeatureLocalPlacement,
 				PreservePreferredSide = dimension.PreservePreferredSide,
@@ -1066,6 +1085,8 @@ public sealed class DimensionDrawer
 			Span = dim.Span,
 			Kind = ToDimensionKind(dim.DimType),
 			LooseChainId = dim.LooseChainId,
+			AlignmentKey = dim.AlignmentKey,
+			AlignmentPriority = dim.AlignmentPriority,
 			PreferLocalBoundary = dim.PreferLocalBoundary,
 			ForceOuterLevel = dim.ForceOuterLevel,
 			PreferFeatureLocalPlacement = dim.PreferFeatureLocalPlacement,

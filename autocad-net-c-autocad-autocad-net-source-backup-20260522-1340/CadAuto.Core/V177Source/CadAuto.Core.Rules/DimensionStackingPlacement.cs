@@ -7,4 +7,6 @@ public sealed class DimensionStackingPlacement
 	public int Level { get; set; }
 
 	public double Offset { get; set; }
+
+	public double? DimLineCoordinateOverride { get; set; }
 }

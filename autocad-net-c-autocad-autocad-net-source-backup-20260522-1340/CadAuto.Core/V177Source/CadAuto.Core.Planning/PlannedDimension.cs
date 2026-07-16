@@ -34,6 +34,10 @@ public sealed class PlannedDimension
 
 	public int ChainId { get; set; }
 
+	public string AlignmentKey { get; set; }
+
+	public int AlignmentPriority { get; set; }
+
 	public string DebugOwner { get; set; }
 
 	public string DebugRole { get; set; }

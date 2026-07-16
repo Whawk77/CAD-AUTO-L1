@@ -149,6 +149,7 @@ public sealed class DimensionLayoutRules
 			});
 		}
 		AlignDimensionsBySharedExtensionLines(list2, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
+		MoveAlignmentGroupsTogether(list2, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
 		PromoteOverallDimensionsToOutermostLayer(list2);
 		for (int k = 0; k < list2.Count; k++)
 		{
@@ -164,7 +165,136 @@ public sealed class DimensionLayoutRules
 			}
 		}
 		EnsureOverallPhysicalOutermostOffset(list, dimensions, side, outline, perLevelSpacing);
+		ApplyAlignmentCoordinateOverrides(list, dimensions, side, outline);
 		return list;
+	}
+
+	private void MoveAlignmentGroupsTogether(List<List<StackingLayerItem>> layers, DimensionSide side, OutlineFeature2D outline, double textHeight, double gap, double firstOffset, double perLevelSpacing, bool isHorizontal)
+	{
+		var groups = layers.SelectMany((layer, level) => layer.Select(item => new
+		{
+			Item = item,
+			Level = level
+		}))
+			.Where(entry => !string.IsNullOrEmpty(entry.Item.Dimension.AlignmentKey))
+			.GroupBy(entry => entry.Item.Dimension.AlignmentKey, StringComparer.Ordinal)
+			.Where(group => group.Count() > 1)
+			.OrderBy(group => group.Min(entry => entry.Item.Index))
+			.ToList();
+
+		foreach (var group in groups)
+		{
+			List<StackingLayerItem> members = group.Select(entry => entry.Item).OrderBy(item => item.Index).ToList();
+			StackingLayerItem anchor = members
+				.OrderByDescending(item => item.Dimension.AlignmentPriority)
+				.ThenBy(item => item.Dimension.Span)
+				.ThenBy(item => item.Index)
+				.First();
+			int targetLevel = group.Max(entry => entry.Level);
+			foreach (List<StackingLayerItem> layer in layers)
+			{
+				layer.RemoveAll(item => members.Contains(item));
+			}
+
+			for (int level = 0; level < layers.Count; level++)
+			{
+				foreach (StackingLayerItem existing in layers[level])
+				{
+					if (members.Any(member => HasStrictArrowConflict(member.ArrA, member.ArrB, existing.ArrA, existing.ArrB)))
+					{
+						targetLevel = Math.Max(targetLevel, level + 1);
+					}
+				}
+			}
+
+			while (true)
+			{
+				while (layers.Count <= targetLevel)
+				{
+					layers.Add(new List<StackingLayerItem>());
+				}
+				double offset = firstOffset + (double)targetLevel * perLevelSpacing;
+				bool coversOutline = members.Any(member => TextCoversOutline(member.Dimension, side, offset, textHeight, outline, isHorizontal));
+				bool conflictsAtLevel = layers[targetLevel].Any(existing => members.Any(member =>
+					HasStrictArrowConflict(member.ArrA, member.ArrB, existing.ArrA, existing.ArrB)
+					|| !AreCompatible(existing.TxtA, existing.TxtB, member.TxtA, member.TxtB, gap)));
+				bool physicalConflict = HasPhysicalAlignmentGroupConflict(members, anchor, targetLevel, layers, side, outline, textHeight, gap, firstOffset, perLevelSpacing);
+				if (!coversOutline && !conflictsAtLevel && !physicalConflict)
+				{
+					break;
+				}
+				targetLevel++;
+			}
+
+			layers[targetLevel].AddRange(members);
+		}
+	}
+
+	private bool HasPhysicalAlignmentGroupConflict(IList<StackingLayerItem> members, StackingLayerItem anchor, int targetLevel, IList<List<StackingLayerItem>> layers, DimensionSide side, OutlineFeature2D outline, double textHeight, double gap, double firstOffset, double perLevelSpacing)
+	{
+		double targetOffset = firstOffset + (double)targetLevel * perLevelSpacing;
+		double targetCoordinate = GetDimLineCoordinate(anchor.Dimension, side, outline, targetOffset);
+		double minimumSeparation = Math.Max(Math.Abs(perLevelSpacing), textHeight + gap);
+		for (int level = 0; level < layers.Count; level++)
+		{
+			foreach (StackingLayerItem existing in layers[level])
+			{
+				double existingCoordinate = GetResolvedStackingCoordinate(existing, level, layers, side, outline, firstOffset, perLevelSpacing);
+				if (Math.Abs(targetCoordinate - existingCoordinate) >= minimumSeparation - _config.GeometryTolerance)
+				{
+					continue;
+				}
+				if (members.Any(member => HasStrictArrowConflict(member.ArrA, member.ArrB, existing.ArrA, existing.ArrB)
+					|| !AreCompatible(existing.TxtA, existing.TxtB, member.TxtA, member.TxtB, gap)))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private double GetResolvedStackingCoordinate(StackingLayerItem item, int itemLevel, IList<List<StackingLayerItem>> layers, DimensionSide side, OutlineFeature2D outline, double firstOffset, double perLevelSpacing)
+	{
+		if (string.IsNullOrEmpty(item.Dimension.AlignmentKey))
+		{
+			return GetDimLineCoordinate(item.Dimension, side, outline, firstOffset + (double)itemLevel * perLevelSpacing);
+		}
+		var alignedItems = layers.SelectMany((layer, level) => layer
+			.Where(candidate => string.Equals(candidate.Dimension.AlignmentKey, item.Dimension.AlignmentKey, StringComparison.Ordinal))
+			.Select(candidate => new { Item = candidate, Level = level }))
+			.ToList();
+		if (alignedItems.Count == 0)
+		{
+			return GetDimLineCoordinate(item.Dimension, side, outline, firstOffset + (double)itemLevel * perLevelSpacing);
+		}
+		var anchor = alignedItems
+			.OrderByDescending(entry => entry.Item.Dimension.AlignmentPriority)
+			.ThenBy(entry => entry.Item.Dimension.Span)
+			.ThenBy(entry => entry.Item.Index)
+			.First();
+		return GetDimLineCoordinate(anchor.Item.Dimension, side, outline, firstOffset + (double)anchor.Level * perLevelSpacing);
+	}
+
+	private void ApplyAlignmentCoordinateOverrides(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, DimensionSide side, OutlineFeature2D outline)
+	{
+		var groups = placements
+			.Where(placement => placement.Index >= 0 && placement.Index < dimensions.Count && !string.IsNullOrEmpty(dimensions[placement.Index].AlignmentKey))
+			.GroupBy(placement => dimensions[placement.Index].AlignmentKey, StringComparer.Ordinal);
+
+		foreach (var group in groups)
+		{
+			DimensionStackingPlacement anchor = group
+				.OrderByDescending(placement => dimensions[placement.Index].AlignmentPriority)
+				.ThenBy(placement => dimensions[placement.Index].Span)
+				.ThenBy(placement => placement.Index)
+				.First();
+			double coordinate = GetDimLineCoordinate(dimensions[anchor.Index], side, outline, anchor.Offset);
+			foreach (DimensionStackingPlacement placement in group)
+			{
+				placement.DimLineCoordinateOverride = coordinate;
+			}
+		}
 	}
 
 	private void EnsureOverallPhysicalOutermostOffset(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, DimensionSide side, OutlineFeature2D outline, double perLevelSpacing)

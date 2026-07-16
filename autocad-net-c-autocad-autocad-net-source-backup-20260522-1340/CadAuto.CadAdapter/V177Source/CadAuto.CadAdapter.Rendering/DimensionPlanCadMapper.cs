@@ -45,6 +45,8 @@ internal sealed class DimensionPlanCadMapper
 			ForceOuterLevel = dimension.ForceOuterLevel,
 			UseSegmentedExtensionLines = dimension.UseSegmentedExtensionLines,
 			ChainId = dimension.ChainId,
+			AlignmentKey = dimension.AlignmentKey,
+			AlignmentPriority = dimension.AlignmentPriority,
 			PreferLocalBoundary = dimension.PreferLocalBoundary,
 			PreferFeatureLocalPlacement = dimension.PreferFeatureLocalPlacement,
 			PreservePreferredSide = dimension.PreservePreferredSide,

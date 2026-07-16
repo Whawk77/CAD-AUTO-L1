@@ -17,6 +17,10 @@ public sealed class DimensionLayoutItem
 
 	public int LooseChainId { get; set; }
 
+	public string AlignmentKey { get; set; }
+
+	public int AlignmentPriority { get; set; }
+
 	public bool PreferLocalBoundary { get; set; }
 
 	public bool ForceOuterLevel { get; set; }

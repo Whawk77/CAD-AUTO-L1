@@ -49,6 +49,8 @@ public sealed class DimensionDrawer
 
 		public bool PreferFeatureLocalPlacement;
 
+		public bool PreservePreferredSide;
+
 		public string DebugOwner;
 
 		public string DebugRole;
@@ -759,6 +761,7 @@ public sealed class DimensionDrawer
 				LooseChainId = dimension.ChainId,
 				PreferLocalBoundary = dimension.PreferLocalBoundary,
 				PreferFeatureLocalPlacement = dimension.PreferFeatureLocalPlacement,
+				PreservePreferredSide = dimension.PreservePreferredSide,
 				DebugOwner = dimension.DebugOwner,
 				DebugRole = dimension.DebugRole
 			};
@@ -1065,7 +1068,8 @@ public sealed class DimensionDrawer
 			LooseChainId = dim.LooseChainId,
 			PreferLocalBoundary = dim.PreferLocalBoundary,
 			ForceOuterLevel = dim.ForceOuterLevel,
-			PreferFeatureLocalPlacement = dim.PreferFeatureLocalPlacement
+			PreferFeatureLocalPlacement = dim.PreferFeatureLocalPlacement,
+			PreservePreferredSide = dim.PreservePreferredSide
 		};
 	}
 

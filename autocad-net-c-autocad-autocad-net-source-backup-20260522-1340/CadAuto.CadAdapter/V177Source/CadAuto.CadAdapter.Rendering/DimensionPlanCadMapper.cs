@@ -47,6 +47,7 @@ internal sealed class DimensionPlanCadMapper
 			ChainId = dimension.ChainId,
 			PreferLocalBoundary = dimension.PreferLocalBoundary,
 			PreferFeatureLocalPlacement = dimension.PreferFeatureLocalPlacement,
+			PreservePreferredSide = dimension.PreservePreferredSide,
 			DebugOwner = dimension.DebugOwner,
 			DebugRole = dimension.DebugRole,
 			Side = dimension.Side

@@ -11,41 +11,54 @@ namespace CadAuto.Core.Tests
 {
     internal static class Program
     {
+        private static int _passedTests;
+
         private static int Main()
         {
             try
             {
-                RectangularOutlineKeepsOverallDimensions();
-                ClosedPathRecognitionBuildsOutline();
-                ChamferedOutlineKeepsOverallDimensions();
-                OverallDimensionsUseBoundaryGripPoints();
-				ArcEnvelopeUsesRealInteriorGripPoint();
-				DisconnectedOutlineCanUseVerifiedRealGrips();
-				ConcaveHoleDatumUsesRealOutlineIntersections();
-				OverallWinsDuplicatePreferenceEvenAgainstTolerance();
-				OverallRemainsOutermostAfterLayoutAlignment();
-				InvalidDatumCoordinateDoesNotSilentlyDropDimension();
-                ChamferSuppressesAdjacentLocalLinearDimensions();
-                NonFortyFiveSlopeIsNotChamfer();
-                VerticalStructurePointsCreateStepWidths();
-                HorizontalStructurePointsCreateStepHeights();
-                DiagonalFragmentsDoNotCreateStructureDimensions();
-                BottomInclinedStructurePointsRequireInnerGrooveChamfer();
-                SideInclinedStructurePointsRequireInnerGrooveChamfer();
-                RightStructureHeightDuplicatingOverallHeightIsSuppressed();
-                TwoArcSlotIsRecognized();
-                SingleArcSlotIsRecognized();
-                SlotDimensionsUseCenterAndDatumChainsWithoutPins();
-                HolesAreGroupedByHorizontalRows();
-                NormalHolesLocateFromOutlineDatum();
-                PinGroupsPlanBaseAndPairDistances();
-                FunctionalHolesAttachToPinGroup();
-                LooseHolesUseChainDimensions();
-                ConcentricLooseHolesShareOneLocationDimension();
-                HoleLocationDimensionsUseSegmentedExtensionLines();
-                HoleCalloutsGroupByRowsWithoutPins();
-                HoleCalloutsUsePinClustersAndFitText();
-                Console.WriteLine("CadAuto.Core.Tests passed.");
+                RunTest(nameof(RectangularOutlineKeepsOverallDimensions), RectangularOutlineKeepsOverallDimensions);
+                RunTest(nameof(ClosedPathRecognitionBuildsOutline), ClosedPathRecognitionBuildsOutline);
+                RunTest(nameof(ChamferedOutlineKeepsOverallDimensions), ChamferedOutlineKeepsOverallDimensions);
+                RunTest(nameof(MultipleChamfersKeepOverallDimensions), MultipleChamfersKeepOverallDimensions);
+                RunTest(nameof(MirroredChamferPreservesRecognition), MirroredChamferPreservesRecognition);
+                RunTest(nameof(FilletedOutlineKeepsOverallDimensions), FilletedOutlineKeepsOverallDimensions);
+                RunTest(nameof(OverallDimensionsUseBoundaryGripPoints), OverallDimensionsUseBoundaryGripPoints);
+                RunTest(nameof(ArcEnvelopeUsesRealInteriorGripPoint), ArcEnvelopeUsesRealInteriorGripPoint);
+                RunTest(nameof(NegativeBulgeArcUsesRealInteriorGripPoint), NegativeBulgeArcUsesRealInteriorGripPoint);
+                RunTest(nameof(DisconnectedOutlineCanUseVerifiedRealGrips), DisconnectedOutlineCanUseVerifiedRealGrips);
+                RunTest(nameof(TranslatedOutlinePreservesOverallSemantics), TranslatedOutlinePreservesOverallSemantics);
+                RunTest(nameof(RotatedOutlineUsesRealEnvelopeGrips), RotatedOutlineUsesRealEnvelopeGrips);
+                RunTest(nameof(DuplicateSegmentsAreSuppressedWithDiagnostic), DuplicateSegmentsAreSuppressedWithDiagnostic);
+                RunTest(nameof(ZeroAndMicroSegmentsDoNotEmitDimensions), ZeroAndMicroSegmentsDoNotEmitDimensions);
+                RunTest(nameof(GeometryToleranceControlsMicroSegments), GeometryToleranceControlsMicroSegments);
+                RunTest(nameof(ConcaveHoleDatumUsesRealOutlineIntersections), ConcaveHoleDatumUsesRealOutlineIntersections);
+                RunTest(nameof(OverallWinsDuplicatePreferenceEvenAgainstTolerance), OverallWinsDuplicatePreferenceEvenAgainstTolerance);
+                RunTest(nameof(OverallRemainsOutermostAfterLayoutAlignment), OverallRemainsOutermostAfterLayoutAlignment);
+                RunTest(nameof(InvalidDatumCoordinateIsSkippedWithDiagnostic), InvalidDatumCoordinateIsSkippedWithDiagnostic);
+                RunTest(nameof(InvalidSlotDatumIsSkippedWithDiagnostic), InvalidSlotDatumIsSkippedWithDiagnostic);
+                RunTest(nameof(ChamferSuppressesAdjacentLocalLinearDimensions), ChamferSuppressesAdjacentLocalLinearDimensions);
+                RunTest(nameof(NonFortyFiveSlopeIsNotChamfer), NonFortyFiveSlopeIsNotChamfer);
+                RunTest(nameof(VerticalStructurePointsCreateStepWidths), VerticalStructurePointsCreateStepWidths);
+                RunTest(nameof(HorizontalStructurePointsCreateStepHeights), HorizontalStructurePointsCreateStepHeights);
+                RunTest(nameof(DiagonalFragmentsDoNotCreateStructureDimensions), DiagonalFragmentsDoNotCreateStructureDimensions);
+                RunTest(nameof(BottomInclinedStructurePointsRequireInnerGrooveChamfer), BottomInclinedStructurePointsRequireInnerGrooveChamfer);
+                RunTest(nameof(SideInclinedStructurePointsRequireInnerGrooveChamfer), SideInclinedStructurePointsRequireInnerGrooveChamfer);
+                RunTest(nameof(RightStructureHeightDuplicatingOverallHeightIsSuppressed), RightStructureHeightDuplicatingOverallHeightIsSuppressed);
+                RunTest(nameof(TwoArcSlotIsRecognized), TwoArcSlotIsRecognized);
+                RunTest(nameof(SingleArcSlotIsRecognized), SingleArcSlotIsRecognized);
+                RunTest(nameof(SlotDimensionsUseCenterAndDatumChainsWithoutPins), SlotDimensionsUseCenterAndDatumChainsWithoutPins);
+                RunTest(nameof(HolesAreGroupedByHorizontalRows), HolesAreGroupedByHorizontalRows);
+                RunTest(nameof(NormalHolesLocateFromOutlineDatum), NormalHolesLocateFromOutlineDatum);
+                RunTest(nameof(PinGroupsPlanBaseAndPairDistances), PinGroupsPlanBaseAndPairDistances);
+                RunTest(nameof(FunctionalHolesAttachToPinGroup), FunctionalHolesAttachToPinGroup);
+                RunTest(nameof(PreferredSideLockedHoleLocationKeepsGlobalAlignment), PreferredSideLockedHoleLocationKeepsGlobalAlignment);
+                RunTest(nameof(LooseHolesUseChainDimensions), LooseHolesUseChainDimensions);
+                RunTest(nameof(ConcentricLooseHolesShareOneLocationDimension), ConcentricLooseHolesShareOneLocationDimension);
+                RunTest(nameof(HoleLocationDimensionsUseSegmentedExtensionLines), HoleLocationDimensionsUseSegmentedExtensionLines);
+                RunTest(nameof(HoleCalloutsGroupByRowsWithoutPins), HoleCalloutsGroupByRowsWithoutPins);
+                RunTest(nameof(HoleCalloutsUsePinClustersAndFitText), HoleCalloutsUsePinClustersAndFitText);
+                Console.WriteLine("CadAuto.Core.Tests passed: " + _passedTests + ".");
                 return 0;
             }
             catch (Exception ex)
@@ -53,6 +66,13 @@ namespace CadAuto.Core.Tests
                 Console.Error.WriteLine(ex);
                 return 1;
             }
+        }
+
+        private static void RunTest(string name, Action test)
+        {
+            test();
+            _passedTests++;
+            Console.WriteLine("PASS " + name);
         }
 
         private static void RectangularOutlineKeepsOverallDimensions()
@@ -75,6 +95,89 @@ namespace CadAuto.Core.Tests
             Assert(outline.Chamfers.Count == 1, "expected one chamfer");
             AssertHasDimension(plan, DimensionKind.OverallWidth, DimensionOrientation.Horizontal, 100.0, "chamfer overall width");
             AssertHasDimension(plan, DimensionKind.OverallHeight, DimensionOrientation.Vertical, 50.0, "chamfer overall height");
+        }
+
+        private static void MultipleChamfersKeepOverallDimensions()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = new OutlineFeature2D
+            {
+                MinX = 0.0,
+                MinY = 0.0,
+                MaxX = 100.0,
+                MaxY = 50.0
+            };
+            AddSegment(outline, new Point2D(10.0, 0.0), new Point2D(100.0, 0.0), "bottom");
+            AddSegment(outline, new Point2D(100.0, 0.0), new Point2D(100.0, 40.0), "right");
+            AddSegment(outline, new Point2D(100.0, 40.0), new Point2D(90.0, 50.0), "top-right-chamfer");
+            AddSegment(outline, new Point2D(90.0, 50.0), new Point2D(0.0, 50.0), "top");
+            AddSegment(outline, new Point2D(0.0, 50.0), new Point2D(0.0, 10.0), "left");
+            AddSegment(outline, new Point2D(0.0, 10.0), new Point2D(10.0, 0.0), "bottom-left-chamfer");
+            new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+
+            var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+            Assert(outline.Chamfers.Count == 2, "expected two recognized outer chamfers");
+            Assert(plan.Dimensions.Count(d => d.Kind == DimensionKind.OverallWidth) == 1,
+                "multiple chamfers must retain exactly one overall width");
+            Assert(plan.Dimensions.Count(d => d.Kind == DimensionKind.OverallHeight) == 1,
+                "multiple chamfers must retain exactly one overall height");
+            AssertHasDimension(plan, DimensionKind.OverallWidth, DimensionOrientation.Horizontal, 100.0, "multiple-chamfer overall width");
+            AssertHasDimension(plan, DimensionKind.OverallHeight, DimensionOrientation.Vertical, 50.0, "multiple-chamfer overall height");
+        }
+
+        private static void MirroredChamferPreservesRecognition()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = new OutlineFeature2D
+            {
+                MinX = -100.0,
+                MinY = 25.0,
+                MaxX = 0.0,
+                MaxY = 75.0
+            };
+            AddSegment(outline, new Point2D(-100.0, 25.0), new Point2D(0.0, 25.0), "bottom");
+            AddSegment(outline, new Point2D(0.0, 25.0), new Point2D(0.0, 75.0), "right");
+            AddSegment(outline, new Point2D(0.0, 75.0), new Point2D(-90.0, 75.0), "top");
+            AddSegment(outline, new Point2D(-90.0, 75.0), new Point2D(-100.0, 65.0), "mirrored-chamfer");
+            AddSegment(outline, new Point2D(-100.0, 65.0), new Point2D(-100.0, 25.0), "left");
+            new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+
+            var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+            Assert(outline.Chamfers.Count == 1, "mirroring must not change chamfer recognition");
+            AssertHasDimension(plan, DimensionKind.OverallWidth, DimensionOrientation.Horizontal, 100.0, "mirrored overall width");
+            AssertHasDimension(plan, DimensionKind.OverallHeight, DimensionOrientation.Vertical, 50.0, "mirrored overall height");
+        }
+
+        private static void FilletedOutlineKeepsOverallDimensions()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var segments = new[]
+            {
+                new Segment2D(new Point2D(0.0, 0.0), new Point2D(100.0, 0.0)) { SourceKey = "bottom" },
+                new Segment2D(new Point2D(100.0, 0.0), new Point2D(100.0, 40.0)) { SourceKey = "right" },
+                new Segment2D(new Point2D(90.0, 50.0), new Point2D(0.0, 50.0)) { SourceKey = "top" },
+                new Segment2D(new Point2D(0.0, 50.0), new Point2D(0.0, 0.0)) { SourceKey = "left" }
+            };
+            var arcs = new[]
+            {
+                new Arc2D
+                {
+                    Start = new Point2D(100.0, 40.0),
+                    End = new Point2D(90.0, 50.0),
+                    Center = new Point2D(90.0, 40.0),
+                    Radius = 10.0,
+                    Bulge = Math.Tan(Math.PI / 8.0),
+                    SourceKey = "top-right-fillet"
+                }
+            };
+            var outline = new FeatureRecognizer2D(config).RecognizeOutlineFromSegments(segments, arcs);
+            var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+            Assert(outline.Fillets.Count == 1, "expected one connected outline fillet");
+            AssertHasDimension(plan, DimensionKind.OverallWidth, DimensionOrientation.Horizontal, 100.0, "filleted overall width");
+            AssertHasDimension(plan, DimensionKind.OverallHeight, DimensionOrientation.Vertical, 50.0, "filleted overall height");
         }
 
         private static void ChamferSuppressesAdjacentLocalLinearDimensions()
@@ -155,6 +258,39 @@ namespace CadAuto.Core.Tests
 				"arc extremum should be verified on the real outline arc");
 		}
 
+        private static void NegativeBulgeArcUsesRealInteriorGripPoint()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = new OutlineFeature2D
+            {
+                MinX = 100.0,
+                MinY = 200.0,
+                MaxX = 140.0,
+                MaxY = 240.0
+            };
+            AddSegment(outline, new Point2D(100.0, 200.0), new Point2D(140.0, 200.0), "bottom");
+            AddSegment(outline, new Point2D(140.0, 200.0), new Point2D(140.0, 220.0), "right");
+            AddSegment(outline, new Point2D(100.0, 220.0), new Point2D(100.0, 200.0), "left");
+            outline.Arcs.Add(new Arc2D
+            {
+                Start = new Point2D(100.0, 220.0),
+                End = new Point2D(140.0, 220.0),
+                Center = new Point2D(120.0, 220.0),
+                Radius = 20.0,
+                Bulge = -1.0,
+                SourceKey = "clockwise-top-arc"
+            });
+
+            var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+            var height = plan.Dimensions.Single(d => d.Kind == DimensionKind.OverallHeight);
+            var topGrip = height.FirstPoint.Y > height.SecondPoint.Y ? height.FirstPoint : height.SecondPoint;
+
+            Assert(Math.Abs(topGrip.X - 120.0) <= 0.001 && Math.Abs(topGrip.Y - 240.0) <= 0.001,
+                "negative bulge must preserve the real clockwise arc extremum");
+            Assert(OutlineGeometryQuery.IsPointOnBoundary(topGrip, outline, config.GeometryTolerance),
+                "negative-bulge extremum must lie on the real arc");
+        }
+
 		private static void DisconnectedOutlineCanUseVerifiedRealGrips()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -177,6 +313,125 @@ namespace CadAuto.Core.Tests
 			Assert(plan.Dimensions.Count(d => d.Kind == DimensionKind.OverallHeight) == 1,
 				"verified disconnected geometry should retain one overall height");
 		}
+
+        private static void TranslatedOutlinePreservesOverallSemantics()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = CreateRectangleAt(1000.0, -500.0, 120.0, 70.0);
+            var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+            var width = plan.Dimensions.Single(d => d.Kind == DimensionKind.OverallWidth);
+            var height = plan.Dimensions.Single(d => d.Kind == DimensionKind.OverallHeight);
+
+            Assert(width.Side == DimensionSide.Bottom && Math.Abs(GetSpan(width) - 120.0) <= 0.001,
+                "translated overall width must keep bottom-side full-envelope semantics");
+            Assert(height.Side == DimensionSide.Left && Math.Abs(GetSpan(height) - 70.0) <= 0.001,
+                "translated overall height must keep left-side full-envelope semantics");
+            Assert(Math.Abs(Math.Min(width.FirstPoint.X, width.SecondPoint.X) - 1000.0) <= 0.001
+                && Math.Abs(Math.Max(width.FirstPoint.X, width.SecondPoint.X) - 1120.0) <= 0.001,
+                "translated overall width must use translated MinX and MaxX");
+            Assert(OutlineGeometryQuery.IsPointOnBoundary(width.FirstPoint, outline, config.GeometryTolerance)
+                && OutlineGeometryQuery.IsPointOnBoundary(width.SecondPoint, outline, config.GeometryTolerance)
+                && OutlineGeometryQuery.IsPointOnBoundary(height.FirstPoint, outline, config.GeometryTolerance)
+                && OutlineGeometryQuery.IsPointOnBoundary(height.SecondPoint, outline, config.GeometryTolerance),
+                "translated overall grips must remain on real geometry");
+        }
+
+        private static void RotatedOutlineUsesRealEnvelopeGrips()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            double angle = Math.PI / 6.0;
+            var localPoints = new[]
+            {
+                new Point2D(0.0, 0.0),
+                new Point2D(100.0, 0.0),
+                new Point2D(100.0, 50.0),
+                new Point2D(0.0, 50.0)
+            };
+            var points = localPoints.Select(point => new Point2D(
+                300.0 + point.X * Math.Cos(angle) - point.Y * Math.Sin(angle),
+                -200.0 + point.X * Math.Sin(angle) + point.Y * Math.Cos(angle))).ToArray();
+            var outline = new FeatureRecognizer2D(config).RecognizeOutlineFromClosedPath(points);
+            var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+            var width = plan.Dimensions.Single(d => d.Kind == DimensionKind.OverallWidth);
+            var height = plan.Dimensions.Single(d => d.Kind == DimensionKind.OverallHeight);
+            double expectedWidth = points.Max(point => point.X) - points.Min(point => point.X);
+            double expectedHeight = points.Max(point => point.Y) - points.Min(point => point.Y);
+
+            Assert(Math.Abs(GetSpan(width) - expectedWidth) <= 0.001,
+                "rotated overall width must equal the WCS real envelope");
+            Assert(Math.Abs(GetSpan(height) - expectedHeight) <= 0.001,
+                "rotated overall height must equal the WCS real envelope");
+            Assert(OutlineGeometryQuery.IsPointOnBoundary(width.FirstPoint, outline, config.GeometryTolerance)
+                && OutlineGeometryQuery.IsPointOnBoundary(width.SecondPoint, outline, config.GeometryTolerance)
+                && OutlineGeometryQuery.IsPointOnBoundary(height.FirstPoint, outline, config.GeometryTolerance)
+                && OutlineGeometryQuery.IsPointOnBoundary(height.SecondPoint, outline, config.GeometryTolerance),
+                "rotated overall grips must use actual rotated edges or endpoints");
+        }
+
+        private static void DuplicateSegmentsAreSuppressedWithDiagnostic()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = CreateRectangle(100.0, 50.0);
+            AddSegment(outline, new Point2D(40.0, 10.0), new Point2D(40.0, 30.0), "duplicate-a");
+            AddSegment(outline, new Point2D(40.0, 10.0), new Point2D(40.0, 30.0), "duplicate-b");
+
+            var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+            var matching = plan.Dimensions.Where(d => d.Orientation == DimensionOrientation.Vertical
+                && Math.Abs(Math.Min(d.FirstPoint.Y, d.SecondPoint.Y) - 10.0) <= 0.001
+                && Math.Abs(Math.Max(d.FirstPoint.Y, d.SecondPoint.Y) - 30.0) <= 0.001).ToList();
+
+            Assert(matching.Count == 1, "overlapping duplicate segments must emit only one measured dimension");
+            var suppressed = plan.Diagnostics.DimensionCandidates.Single(candidate => candidate.IsSuppressed
+                && candidate.SuppressedReason == "DuplicateMeasuredDimension"
+                && (candidate.SourceFeatureId == "duplicate-a" || candidate.SourceFeatureId == "duplicate-b"));
+            Assert(!suppressed.IsSelected && suppressed.DecisionStatus == "Suppressed"
+                && suppressed.DecisionReason == "DuplicateMeasuredDimension",
+                "duplicate suppression must retain an explicit diagnostic decision");
+            Assert(Math.Abs(suppressed.MeasurementMinimum - 10.0) <= 0.001
+                && Math.Abs(suppressed.MeasurementMaximum - 30.0) <= 0.001,
+                "suppressed diagnostic must preserve its measured interval");
+            var finalWidth = plan.Diagnostics.FinalDimensions.Single(candidate => candidate.Kind == DimensionKind.OverallWidth.ToString());
+            var finalHeight = plan.Diagnostics.FinalDimensions.Single(candidate => candidate.Kind == DimensionKind.OverallHeight.ToString());
+            Assert(finalWidth.IsSelected && finalHeight.IsSelected
+                && finalWidth.DecisionStatus == "Selected" && finalHeight.DecisionStatus == "Selected"
+                && finalWidth.DecisionReason == "RequiredOverallDimension"
+                && finalHeight.DecisionReason == "RequiredOverallDimension",
+                "diagnostic final dimensions must retain exactly one width and height overall");
+            Assert(plan.Diagnostics.DimensionCandidates.Where(candidate => !candidate.IsSuppressed)
+                .All(candidate => candidate.IsSelected && candidate.DecisionStatus == "Selected" && !string.IsNullOrEmpty(candidate.DecisionReason)),
+                "every unsuppressed candidate must have an explicit selected decision");
+        }
+
+        private static void ZeroAndMicroSegmentsDoNotEmitDimensions()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var outline = CreateRectangle(100.0, 50.0);
+            AddSegment(outline, new Point2D(10.0, 10.0), new Point2D(10.0, 10.0), "zero-length");
+            AddSegment(outline, new Point2D(20.0, 10.0), new Point2D(20.0, 10.0005), "micro-length");
+
+            var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+            Assert(!plan.Dimensions.Any(d => d.SourceKey == "zero-length" || d.SourceKey == "micro-length"),
+                "zero and sub-tolerance segments must not emit dimensions");
+            Assert(plan.Dimensions.All(d => GetSpan(d) > config.GeometryTolerance),
+                "final dimension plan must not contain zero or sub-tolerance dimensions");
+        }
+
+        private static void GeometryToleranceControlsMicroSegments()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            config.GeometryTolerance = 0.01;
+            var outline = CreateRectangle(100.0, 50.0);
+            AddSegment(outline, new Point2D(20.0, 10.0), new Point2D(20.0, 10.005), "below-tolerance");
+            AddSegment(outline, new Point2D(30.0, 10.0), new Point2D(30.0, 10.02), "above-tolerance");
+
+            var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+            Assert(!plan.Dimensions.Any(d => d.SourceKey == "below-tolerance"),
+                "segment below configured precision must be ignored");
+            Assert(plan.Dimensions.Any(d => d.SourceKey == "above-tolerance"),
+                "segment above configured precision must remain dimensionable");
+        }
 
 		private static void ConcaveHoleDatumUsesRealOutlineIntersections()
 		{
@@ -270,7 +525,7 @@ namespace CadAuto.Core.Tests
 			Assert(overallCoordinate < localCoordinate, "overall dimension must remain physically outside feature-local dimensions");
 		}
 
-		private static void InvalidDatumCoordinateDoesNotSilentlyDropDimension()
+		private static void InvalidDatumCoordinateIsSkippedWithDiagnostic()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
 			var outline = CreateRectangle(100.0, 50.0);
@@ -278,21 +533,50 @@ namespace CadAuto.Core.Tests
 			var datum = Datum2D.FromOutline(outline);
 			datum.DatumHole = datumPin;
 			datum.DatumHoleLocationBaseX = 150.0;
-			bool rejected = false;
-			try
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new[]
 			{
-				new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new[]
-				{
-					datumPin,
-					CreateHole(60.0, 20.0, 6.0, HoleKind2D.Pin)
-				});
-			}
-			catch (InvalidOperationException ex)
-			{
-				rejected = ex.Message.IndexOf("DatumX", StringComparison.Ordinal) >= 0;
-			}
+				datumPin,
+				CreateHole(60.0, 20.0, 6.0, HoleKind2D.Pin)
+			});
+			var skipped = plan.Diagnostics.DimensionCandidates.Single(candidate => candidate.DebugRole == "DatumX"
+				&& candidate.DecisionStatus == "Skipped");
 
-			Assert(rejected, "an invalid datum coordinate must fail explicitly instead of silently dropping DatumX");
+			Assert(!skipped.IsAttachmentValid && !skipped.IsSelected && !skipped.IsSuppressed,
+				"an invalid datum coordinate must be skipped without pretending it was selected or suppressed");
+			Assert(skipped.DecisionReason.StartsWith("NoRealOutlineAttachment:XDatum=", StringComparison.Ordinal),
+				"an invalid datum coordinate must retain a machine-readable skip reason");
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "DatumY"),
+				"a bad X datum must not discard the valid Y datum dimension");
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth)
+				&& plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallHeight),
+				"a skipped datum dimension must not discard valid overall dimensions");
+		}
+
+		private static void InvalidSlotDatumIsSkippedWithDiagnostic()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 50.0);
+			var datum = Datum2D.FromOutline(outline);
+			datum.BaseX = 150.0;
+			var slot = new SlotFeature2D
+			{
+				GroupId = "INVALID-SLOT-DATUM",
+				FirstCenter = new Point2D(20.0, 25.0),
+				SecondCenter = new Point2D(60.0, 25.0),
+				Radius = 5.0,
+				CenterDistance = 40.0
+			};
+
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new HoleFeature2D[0], new[] { slot });
+			var skipped = plan.Diagnostics.DimensionCandidates.Where(candidate => candidate.DecisionStatus == "Skipped").ToList();
+
+			Assert(skipped.Any(candidate => candidate.DebugRole == "SlotDatumH" || candidate.DebugRole == "SlotChainH"),
+				"an invalid slot datum must create an explicit skipped diagnostic");
+			Assert(skipped.All(candidate => !candidate.IsAttachmentValid
+				&& candidate.DecisionReason.StartsWith("NoRealOutlineAttachment:", StringComparison.Ordinal)),
+				"every skipped slot datum must report an invalid real-outline attachment");
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "SlotCenter" && Math.Abs(GetSpan(d) - 40.0) <= 0.001),
+				"an invalid slot datum must not discard a valid slot center dimension");
 		}
 
         private static void ClosedPathRecognitionBuildsOutline()
@@ -708,7 +992,58 @@ namespace CadAuto.Core.Tests
 
             Assert(plan.Dimensions.Any(d => d.DebugRole == "FunctionalHole" && d.DebugOwner == "PG1"),
                 "functional holes should attach to the pin group");
+			var verticalFunctionalHoles = plan.Dimensions.Where(d => d.DebugRole == "FunctionalHole"
+				&& d.Orientation == DimensionOrientation.Vertical).ToList();
+			Assert(verticalFunctionalHoles.Count > 0
+				&& verticalFunctionalHoles.All(d => d.PreservePreferredSide && !d.PreferFeatureLocalPlacement),
+				"functional-hole dimensions must lock their side without enabling feature-local coordinates");
+			Assert(verticalFunctionalHoles.All(d => d.Side == plan.PinGroups[0].VerticalSide),
+				"functional-hole dimensions must inherit their pin group's vertical side");
         }
+
+		private static void PreferredSideLockedHoleLocationKeepsGlobalAlignment()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var functionalHole = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.HoleLocation,
+				FirstPoint = new Point2D(20.0, 20.0),
+				SecondPoint = new Point2D(20.0, 40.0),
+				Span = 20.0,
+				PreservePreferredSide = true
+			};
+			var crowdedLeft = Enumerable.Range(0, 4).Select(index => new DimensionLayoutItem
+			{
+				Kind = DimensionKind.HoleLocation,
+				FirstPoint = new Point2D(10.0 + index, 20.0),
+				SecondPoint = new Point2D(10.0 + index, 40.0),
+				Span = 20.0
+			}).ToList();
+
+			var selectedSide = rules.ChooseVerticalHoleLocationSide(functionalHole, DimensionSide.Left, crowdedLeft, new DimensionLayoutItem[0], 1.0);
+			var moves = rules.SelectVerticalHoleLocationRebalanceMoves(new[] { functionalHole }, new DimensionLayoutItem[0], 1.0);
+			var outline = CreateRectangle(200.0, 100.0);
+			var datumY = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.DatumHoleLocationY,
+				FirstPoint = new Point2D(20.0, 0.0),
+				SecondPoint = new Point2D(20.0, 20.0),
+				Span = 20.0
+			};
+			double functionalCoordinate = rules.GetDimLineCoordinate(functionalHole, DimensionSide.Left, outline, 5.0);
+			double datumCoordinate = rules.GetDimLineCoordinate(datumY, DimensionSide.Left, outline, 5.0);
+			var placements = rules.CreateStackingPlan(new[] { datumY, functionalHole }, DimensionSide.Left, outline, 2.5, 1.0, 5.0, 5.0, isHorizontal: false);
+
+			Assert(selectedSide == DimensionSide.Left,
+				"side-locked functional holes must keep the pin group's preferred vertical side during initial placement");
+			Assert(!rules.CanRebalanceVerticalHoleLocation(functionalHole, 1.0) && moves.Count == 0,
+				"side-locked functional holes must not move during later vertical-side rebalancing");
+			Assert(Math.Abs(functionalCoordinate - datumCoordinate) <= config.GeometryTolerance,
+				"side locking must not opt functional holes into feature-local coordinates or break DatumY alignment");
+			Assert(placements.Count == 2 && Math.Abs(placements[0].Offset - placements[1].Offset) <= config.GeometryTolerance,
+				"touching DatumY and functional-hole dimensions must form one aligned left-side chain");
+		}
 
         private static void LooseHolesUseChainDimensions()
         {
@@ -824,18 +1159,23 @@ namespace CadAuto.Core.Tests
 
         private static OutlineFeature2D CreateRectangle(double width, double height)
         {
+            return CreateRectangleAt(0.0, 0.0, width, height);
+        }
+
+        private static OutlineFeature2D CreateRectangleAt(double minX, double minY, double width, double height)
+        {
             var outline = new OutlineFeature2D
             {
-                MinX = 0.0,
-                MinY = 0.0,
-                MaxX = width,
-                MaxY = height
+                MinX = minX,
+                MinY = minY,
+                MaxX = minX + width,
+                MaxY = minY + height
             };
 
-            AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(width, 0.0), "bottom");
-            AddSegment(outline, new Point2D(width, 0.0), new Point2D(width, height), "right");
-            AddSegment(outline, new Point2D(width, height), new Point2D(0.0, height), "top");
-            AddSegment(outline, new Point2D(0.0, height), new Point2D(0.0, 0.0), "left");
+            AddSegment(outline, new Point2D(minX, minY), new Point2D(minX + width, minY), "bottom");
+            AddSegment(outline, new Point2D(minX + width, minY), new Point2D(minX + width, minY + height), "right");
+            AddSegment(outline, new Point2D(minX + width, minY + height), new Point2D(minX, minY + height), "top");
+            AddSegment(outline, new Point2D(minX, minY + height), new Point2D(minX, minY), "left");
             return outline;
         }
 

@@ -28,6 +28,8 @@ internal sealed class DimensionPlanCadItem
 
 	public bool PreferFeatureLocalPlacement { get; set; }
 
+	public bool PreservePreferredSide { get; set; }
+
 	public string DebugOwner { get; set; }
 
 	public string DebugRole { get; set; }

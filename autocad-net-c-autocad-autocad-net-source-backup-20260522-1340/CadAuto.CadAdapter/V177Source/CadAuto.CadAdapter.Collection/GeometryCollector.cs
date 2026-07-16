@@ -257,7 +257,18 @@ public sealed class GeometryCollector
 
 	public HoleFeature PromptForDatumHole(List<HoleFeature> pinHoles, Transaction tr, OutlineFeature outline)
 	{
-		_editor.WriteMessage("\n自动识别销孔数量: {0}", pinHoles.Count);
+		int count = pinHoles?.Count ?? 0;
+		_editor.WriteMessage("\n自动识别销孔数量: {0}", count);
+		if (count == 0)
+		{
+			return null;
+		}
+		if (count == 1)
+		{
+			HoleFeature holeFeature = pinHoles[0];
+			_editor.WriteMessage("\n仅有一个合法销孔候选，已自动设为基准孔: X={0:0.###}, Y={1:0.###}", holeFeature.Center.X, holeFeature.Center.Y);
+			return holeFeature;
+		}
 		PromptEntityOptions promptEntityOptions = new PromptEntityOptions("\n请选择一个销孔作为基准孔: ");
 		promptEntityOptions.SetRejectMessage("\n所选对象不是 Circle，请重新选择销孔。");
 		promptEntityOptions.AddAllowedClass(typeof(Circle), exactMatch: true);

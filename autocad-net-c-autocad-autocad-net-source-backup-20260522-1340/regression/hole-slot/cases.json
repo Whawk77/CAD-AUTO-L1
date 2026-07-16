@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "HS01-normal-hole",
+      "fixture": "fixtures/HS01-normal-hole.dwg",
+      "fixtureReady": false,
+      "description": "单个普通孔从外轮廓 BaseX/BaseY 定位",
+      "requiredFinal": [
+        { "debugRole": "HoleDatumX", "minCount": 1 },
+        { "debugRole": "HoleDatumY", "minCount": 1 }
+      ],
+      "manualChecks": ["两个外形基准夹点都落在真实轮廓上", "无重复孔定位尺寸"]
+    },
+    {
+      "id": "HS02-concentric-holes",
+      "fixture": "fixtures/HS02-concentric-holes.dwg",
+      "fixtureReady": false,
+      "description": "两个同心普通孔共享一组位置尺寸",
+      "requiredFinal": [
+        { "debugRole": "HoleDatumX", "minCount": 1, "maxCount": 1 },
+        { "debugRole": "HoleDatumY", "minCount": 1, "maxCount": 1 }
+      ],
+      "manualChecks": ["同心孔没有重复定位", "直径标注与位置标注互不替代"]
+    },
+    {
+      "id": "HS03-loose-hole-chain",
+      "fixture": "fixtures/HS03-loose-hole-chain.dwg",
+      "fixtureReady": false,
+      "description": "多个松散孔形成连续位置链",
+      "requiredFinal": [
+        { "debugRole": "LooseHole", "minCount": 3 }
+      ],
+      "manualChecks": ["松散孔链保持全局外形基准", "链条没有被拆到无关方向"]
+    },
+    {
+      "id": "HS04-unique-pin-datum",
+      "fixture": "fixtures/HS04-unique-pin-datum.dwg",
+      "fixtureReady": false,
+      "description": "唯一合法销孔候选自动成为基准孔",
+      "requiredFinal": [
+        { "debugRole": "DatumX", "minCount": 1 },
+        { "debugRole": "DatumY", "minCount": 1 }
+      ],
+      "manualChecks": ["不提示选择基准销孔", "命令行显示已自动选择唯一候选"]
+    },
+    {
+      "id": "HS05-multiple-pin-datum",
+      "fixture": "fixtures/HS05-multiple-pin-datum.dwg",
+      "fixtureReady": false,
+      "description": "多个合法销孔候选要求用户确认基准孔",
+      "requiredFinal": [
+        { "debugRole": "DatumX", "minCount": 1 },
+        { "debugRole": "DatumY", "minCount": 1 },
+        { "debugRole": "PinDistance", "minCount": 1 }
+      ],
+      "manualChecks": ["必须提示选择基准销孔", "最终基准与用户选择一致"]
+    },
+    {
+      "id": "HS06-functional-hole",
+      "fixture": "fixtures/HS06-functional-hole.dwg",
+      "fixtureReady": false,
+      "description": "功能孔归属最近的销孔组",
+      "requiredFinal": [
+        { "debugRole": "FunctionalHole", "minCount": 1 }
+      ],
+      "manualChecks": ["功能孔 DebugOwner 与销孔组一致", "局部布局仍位于真实外轮廓之外"]
+    },
+    {
+      "id": "HS07-vertical-waist-slot",
+      "fixture": "fixtures/HS07-vertical-waist-slot.dwg",
+      "fixtureReady": false,
+      "description": "竖向腰槽使用外轮廓基准且无重复定位",
+      "requiredFinal": [
+        { "debugRole": "SlotCenter", "minCount": 1 },
+        { "debugRole": "SlotChainH", "minCount": 1 },
+        { "debugRole": "SlotDatumV", "minCount": 1 }
+      ],
+      "manualChecks": ["槽定位端点落在真实边或真实槽点上", "BaseX/BaseY 不漂移", "槽方向被识别为竖向"]
+    },
+    {
+      "id": "HS08-transformed-waist-slot",
+      "fixture": "fixtures/HS08-transformed-waist-slot.dwg",
+      "fixtureReady": false,
+      "description": "平移并旋转的腰槽保持 WCS 基准与真实夹点",
+      "requiredFinal": [
+        { "debugRole": "SlotCenter", "minCount": 1 },
+        { "debugRole": "SlotDatumH", "minCount": 1 },
+        { "debugRole": "SlotChainV", "minCount": 1 }
+      ],
+      "manualChecks": ["中心距正确", "WCS 外包基准正确", "没有理论交点或浮空夹点"]
+    }
+  ]
+}

@@ -240,7 +240,7 @@ public sealed class DimensionPlanner
 		}
 		else
 		{
-			AddSlotAnchorLocations(plan, datum, list2, list);
+			AddSlotAnchorLocations(plan, outline, datum, list2, list);
 		}
 	}
 
@@ -250,20 +250,21 @@ public sealed class DimensionPlanner
 		{
 			List<SlotFeature2D> slots2 = slots.Where(IsVerticalSlot).ToList();
 			List<SlotFeature2D> slots3 = slots.Where((SlotFeature2D s) => !IsVerticalSlot(s)).ToList();
-			AddVerticalSlotContinuousDimensions(plan, datum, slots2);
+			AddVerticalSlotContinuousDimensions(plan, outline, datum, slots2);
 			AddHorizontalSlotContinuousDimensions(plan, outline, datum, slots3);
 		}
 	}
 
-	private void AddVerticalSlotContinuousDimensions(DimensionPlan plan, Datum2D datum, IList<SlotFeature2D> slots)
+	private void AddVerticalSlotContinuousDimensions(DimensionPlan plan, OutlineFeature2D outline, Datum2D datum, IList<SlotFeature2D> slots)
 	{
 		foreach (List<Point2D> item in GroupSlotAnchorsByCoordinate(slots, datum, (Point2D p) => p.Y))
 		{
 			List<Point2D> list = UniquePointsByCoordinate(item.OrderBy((Point2D p) => p.X), (Point2D p) => p.X);
-			AddHorizontalChainFromDatum(plan, datum.BaseX, list, "SlotChainH");
+			AddHorizontalChainFromOutlineDatum(plan, outline, datum.BaseX, list, "SlotChainH");
 			if (list.Count > 0)
 			{
-				AddVerticalDimFromY(plan, datum.BaseY, PickNearestPointByX(list, datum.BaseX), "SlotDatumV");
+				Point2D target = PickNearestPointByX(list, datum.BaseX);
+				AddVerticalOutlineReferenceDimension(plan, outline, datum.BaseY, target, DimensionKind.Normal, DimensionSide.Left, string.Empty, "SlotDatumV");
 			}
 		}
 	}
@@ -273,7 +274,7 @@ public sealed class DimensionPlanner
 		foreach (List<Point2D> item in GroupSlotAnchorsByCoordinate(slots, datum, (Point2D p) => p.X))
 		{
 			List<Point2D> list = UniquePointsByCoordinate(item.OrderBy((Point2D p) => p.Y), (Point2D p) => p.Y);
-			AddVerticalChainFromDatum(plan, datum.BaseY, list, "SlotChainV");
+			AddVerticalChainFromOutlineDatum(plan, outline, datum.BaseY, list, "SlotChainV");
 			if (list.Count != 0)
 			{
 				Point2D point2D = PickNearestPointByY(list, datum.BaseY);
@@ -284,7 +285,7 @@ public sealed class DimensionPlanner
 				}
 				else
 				{
-					AddHorizontalDimFromX(plan, datum.BaseX, point2D, "SlotDatumH");
+					AddHorizontalOutlineReferenceDimension(plan, outline, datum.BaseX, point2D, DimensionKind.Normal, DimensionSide.Bottom, string.Empty, "SlotDatumH");
 				}
 			}
 		}
@@ -313,7 +314,7 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	private void AddSlotAnchorLocations(DimensionPlan plan, Datum2D datum, IList<IList<HoleFeature2D>> rows, IList<SlotFeature2D> slots)
+	private void AddSlotAnchorLocations(DimensionPlan plan, OutlineFeature2D outline, Datum2D datum, IList<IList<HoleFeature2D>> rows, IList<SlotFeature2D> slots)
 	{
 		if (datum == null || rows == null || slots == null || slots.Count == 0)
 		{
@@ -328,8 +329,8 @@ public sealed class DimensionPlanner
 			foreach (SlotFeature2D slot in slots)
 			{
 				Point2D target = PickSlotAnchorPoint(slot, datum);
-				AddHorizontalDimFromX(plan, datum.BaseX, target, "SlotDatumH");
-				AddVerticalDimFromY(plan, datum.BaseY, target, "SlotDatumV");
+				AddHorizontalOutlineReferenceDimension(plan, outline, datum.BaseX, target, DimensionKind.Normal, DimensionSide.Bottom, string.Empty, "SlotDatumH", slot.GroupId);
+				AddVerticalOutlineReferenceDimension(plan, outline, datum.BaseY, target, DimensionKind.Normal, DimensionSide.Left, string.Empty, "SlotDatumV", slot.GroupId);
 			}
 			return;
 		}
@@ -1049,8 +1050,8 @@ public sealed class DimensionPlanner
 			}
 			foreach (HoleFeature2D hole in functionalGroup.Holes)
 			{
-				AddDimension(plan, DimensionKind.HoleLocation, DimensionOrientation.Horizontal, pinGroup.HorizontalSide, holeFeature2D.Center, hole.Center, string.Empty, "FunctionalHole", GetPinGroupDebugOwner(pinGroup));
-				AddDimension(plan, DimensionKind.HoleLocation, DimensionOrientation.Vertical, pinGroup.VerticalSide, holeFeature2D.Center, hole.Center, string.Empty, "FunctionalHole", GetPinGroupDebugOwner(pinGroup));
+				AddDimension(plan, DimensionKind.HoleLocation, DimensionOrientation.Horizontal, pinGroup.HorizontalSide, holeFeature2D.Center, hole.Center, string.Empty, "FunctionalHole", GetPinGroupDebugOwner(pinGroup), preservePreferredSide: true);
+				AddDimension(plan, DimensionKind.HoleLocation, DimensionOrientation.Vertical, pinGroup.VerticalSide, holeFeature2D.Center, hole.Center, string.Empty, "FunctionalHole", GetPinGroupDebugOwner(pinGroup), preservePreferredSide: true);
 			}
 		}
 	}
@@ -1616,7 +1617,7 @@ public sealed class DimensionPlanner
 	{
 		foreach (Segment2D segment in outline.Segments)
 		{
-			if (segment.IsArcChord || IsOverallBoundarySegment(segment, outline))
+			if (segment == null || segment.Length <= _config.GeometryTolerance || segment.IsArcChord || IsOverallBoundarySegment(segment, outline))
 			{
 				continue;
 			}
@@ -2885,25 +2886,55 @@ public sealed class DimensionPlanner
 		return _structureEndpointRules.GetBoundaryPoint(outline, DimensionSide.Top);
 	}
 
-	private void AddHorizontalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredX, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false)
+	private bool AddHorizontalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredX, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false)
 	{
 		if (!OutlineGeometryQuery.TryFindVerticalBoundaryPoint(outline, preferredX, target.Y, _config.GeometryTolerance, out var point))
 		{
-			throw new InvalidOperationException("Dimension " + (debugRole ?? kind.ToString()) + " cannot attach to real outline geometry at X datum " + preferredX + ".");
+			plan.AddSkippedDimension(kind, DimensionOrientation.Horizontal, side, new Point2D(preferredX, target.Y), target, "NoRealOutlineAttachment:XDatum=" + preferredX.ToString("0.########", CultureInfo.InvariantCulture), debugRole, debugOwner);
+			return false;
 		}
 		AddDimension(plan, kind, DimensionOrientation.Horizontal, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredX);
+		return true;
 	}
 
-	private void AddVerticalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredY, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false)
+	private bool AddVerticalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredY, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false)
 	{
 		if (!OutlineGeometryQuery.TryFindHorizontalBoundaryPoint(outline, preferredY, target.X, _config.GeometryTolerance, out var point))
 		{
-			throw new InvalidOperationException("Dimension " + (debugRole ?? kind.ToString()) + " cannot attach to real outline geometry at Y datum " + preferredY + ".");
+			plan.AddSkippedDimension(kind, DimensionOrientation.Vertical, side, new Point2D(target.X, preferredY), target, "NoRealOutlineAttachment:YDatum=" + preferredY.ToString("0.########", CultureInfo.InvariantCulture), debugRole, debugOwner);
+			return false;
 		}
 		AddDimension(plan, kind, DimensionOrientation.Vertical, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredY);
+		return true;
 	}
 
-	private void AddDimension(DimensionPlan plan, DimensionKind kind, DimensionOrientation orientation, DimensionSide side, Point2D firstPoint, Point2D secondPoint, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, bool firstPointMustLieOnOutline = false, double? requiredOutlineReferenceCoordinate = null)
+	private void AddHorizontalChainFromOutlineDatum(DimensionPlan plan, OutlineFeature2D outline, double datumX, IList<Point2D> ordered, string debugRole)
+	{
+		if (ordered == null || ordered.Count == 0)
+		{
+			return;
+		}
+		AddHorizontalOutlineReferenceDimension(plan, outline, datumX, ordered[0], DimensionKind.Normal, DimensionSide.Bottom, string.Empty, debugRole);
+		for (int i = 1; i < ordered.Count; i++)
+		{
+			AddHorizontalDim(plan, ordered[i - 1], ordered[i], debugRole);
+		}
+	}
+
+	private void AddVerticalChainFromOutlineDatum(DimensionPlan plan, OutlineFeature2D outline, double datumY, IList<Point2D> ordered, string debugRole)
+	{
+		if (ordered == null || ordered.Count == 0)
+		{
+			return;
+		}
+		AddVerticalOutlineReferenceDimension(plan, outline, datumY, ordered[0], DimensionKind.Normal, DimensionSide.Left, string.Empty, debugRole);
+		for (int i = 1; i < ordered.Count; i++)
+		{
+			AddVerticalDim(plan, ordered[i - 1], ordered[i], debugRole);
+		}
+	}
+
+	private void AddDimension(DimensionPlan plan, DimensionKind kind, DimensionOrientation orientation, DimensionSide side, Point2D firstPoint, Point2D secondPoint, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, bool firstPointMustLieOnOutline = false, double? requiredOutlineReferenceCoordinate = null, bool preservePreferredSide = false)
 	{
 		if (!(GetSpan(firstPoint, secondPoint, orientation) <= _config.GeometryTolerance))
 		{
@@ -2918,6 +2949,7 @@ public sealed class DimensionPlanner
 				DebugRole = debugRole,
 				DebugOwner = debugOwner,
 				PreferFeatureLocalPlacement = preferFeatureLocalPlacement,
+				PreservePreferredSide = preservePreferredSide,
 				FirstPointMustLieOnOutline = firstPointMustLieOnOutline,
 				RequiredOutlineReferenceCoordinate = requiredOutlineReferenceCoordinate,
 				UseSegmentedExtensionLines = (kind != DimensionKind.OverallWidth && kind != DimensionKind.OverallHeight)
@@ -3019,7 +3051,11 @@ public sealed class DimensionPlanner
 
 	private void AddSingleArcSlotHorizontalDatumDimension(DimensionPlan plan, OutlineFeature2D outline, Datum2D datum, SlotFeature2D slot, Point2D center)
 	{
-		Point2D firstPoint = FindOutlinePointAtX(outline, datum.BaseX, center.Y);
+		if (!OutlineGeometryQuery.TryFindVerticalBoundaryPoint(outline, datum.BaseX, center.Y, _config.GeometryTolerance, out var firstPoint))
+		{
+			plan.AddSkippedDimension(DimensionKind.Normal, DimensionOrientation.Horizontal, DimensionSide.Bottom, new Point2D(datum.BaseX, center.Y), center, "NoRealOutlineAttachment:XDatum=" + datum.BaseX.ToString("0.########", CultureInfo.InvariantCulture), "SingleArcSlotDatum", slot.GroupId);
+			return;
+		}
 		Point2D singleArcSlotHorizontalGripPoint = GetSingleArcSlotHorizontalGripPoint(slot, firstPoint.Y);
 		double num = Math.Abs(center.X - datum.BaseX);
 		if (!(num <= _config.GeometryTolerance))

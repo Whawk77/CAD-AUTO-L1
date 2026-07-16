@@ -581,6 +581,8 @@ public sealed class Commands
 		ObjectId objectId = ObjectId.Null;
 		string annotationLayer = string.Empty;
 		double dimScale = 1.0;
+		DimensionPlan completedLinearPlan = null;
+		IList<HoleFeature> recognizedHoles = null;
 		try
 		{
 			using (Transaction transaction = database.TransactionManager.StartTransaction())
@@ -699,11 +701,8 @@ public sealed class Commands
 				if (flag)
 				{
 					DimensionPlan dimensionPlan = DrawLinearDimensions(dimensionDrawer, outlineFeature, datumDefinition, list8, list10, flag6, config, outputScope);
-					if (diagnosticsEnabled && dimensionPlan != null)
-					{
-						string text2 = WriteDimensionDiagnosticReport(dimensionPlan, outlineFeature, list8, list10, outputScope);
-						editor.WriteMessage("\n诊断报告已输出: {0}", text2);
-					}
+					completedLinearPlan = dimensionPlan;
+					recognizedHoles = list8;
 				}
 				outline = outlineFeature;
 				slotFeatures = list10;
@@ -745,6 +744,7 @@ public sealed class Commands
 				}
 				transaction.Commit();
 			}
+			WriteDimensionRunSummary(editor, completedLinearPlan, outline, recognizedHoles, slotFeatures, outputScope);
 			if (!diagnosticsEnabled && (flag3 || flag5))
 			{
 				DrawPostLinearInteractiveAnnotations(mdiActiveDocument, config, dimStyleId, objectId, dimScale, annotationLayer, groupId, outline, slotFeatures, flag3, flag5);
@@ -762,6 +762,33 @@ public sealed class Commands
 		catch (System.Exception ex4)
 		{
 			editor.WriteMessage("\nAUTOFIXDIM 发生异常: {0}", ex4.Message);
+		}
+	}
+
+	private static void WriteDimensionRunSummary(Editor editor, DimensionPlan plan, OutlineFeature outline, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, AutoFixDimOutputScope outputScope)
+	{
+		if (editor == null || plan == null)
+		{
+			return;
+		}
+		List<DimensionCandidateDiagnostic> skipped = plan.Diagnostics.DimensionCandidates.Where((DimensionCandidateDiagnostic item) => string.Equals(item.DecisionStatus, "Skipped", StringComparison.Ordinal)).ToList();
+		editor.WriteMessage("\nAUTOFIXDIM 线性尺寸汇总: 已生成 {0}，已跳过 {1}，失败 0。", plan.Diagnostics.FinalDimensions.Count, skipped.Count);
+		foreach (DimensionCandidateDiagnostic item in skipped.Take(10))
+		{
+			editor.WriteMessage("\n  已跳过 {0}/{1}: {2}", item.Kind, item.DebugRole, item.DecisionReason);
+		}
+		if (skipped.Count > 10)
+		{
+			editor.WriteMessage("\n  另有 {0} 条跳过记录，请查看诊断 JSON。", skipped.Count - 10);
+		}
+		try
+		{
+			string path = WriteDimensionDiagnosticReport(plan, outline, holes, slots, outputScope);
+			editor.WriteMessage("\n诊断报告已输出: {0}", path);
+		}
+		catch (System.Exception ex)
+		{
+			editor.WriteMessage("\n诊断报告写入失败，标注结果已保留: {0}", ex.Message);
 		}
 	}
 
@@ -1030,9 +1057,19 @@ public sealed class Commands
 			AppendJsonProperty(builder, indent + 2, "kind", dimensionCandidateDiagnostic.Kind, comma: true);
 			AppendJsonProperty(builder, indent + 2, "sourceFeatureId", dimensionCandidateDiagnostic.SourceFeatureId, comma: true);
 			AppendJsonProperty(builder, indent + 2, "value", dimensionCandidateDiagnostic.Value, comma: true);
+			AppendJsonProperty(builder, indent + 2, "firstPointX", dimensionCandidateDiagnostic.FirstPointX, comma: true);
+			AppendJsonProperty(builder, indent + 2, "firstPointY", dimensionCandidateDiagnostic.FirstPointY, comma: true);
+			AppendJsonProperty(builder, indent + 2, "secondPointX", dimensionCandidateDiagnostic.SecondPointX, comma: true);
+			AppendJsonProperty(builder, indent + 2, "secondPointY", dimensionCandidateDiagnostic.SecondPointY, comma: true);
+			AppendJsonProperty(builder, indent + 2, "measurementMinimum", dimensionCandidateDiagnostic.MeasurementMinimum, comma: true);
+			AppendJsonProperty(builder, indent + 2, "measurementMaximum", dimensionCandidateDiagnostic.MeasurementMaximum, comma: true);
 			AppendJsonProperty(builder, indent + 2, "placementSide", dimensionCandidateDiagnostic.PlacementSide, comma: true);
 			AppendJsonProperty(builder, indent + 2, "priority", dimensionCandidateDiagnostic.Priority, comma: true);
 			AppendJsonProperty(builder, indent + 2, "isSuppressed", dimensionCandidateDiagnostic.IsSuppressed, comma: true);
+			AppendJsonProperty(builder, indent + 2, "isSelected", dimensionCandidateDiagnostic.IsSelected, comma: true);
+			AppendJsonProperty(builder, indent + 2, "isAttachmentValid", dimensionCandidateDiagnostic.IsAttachmentValid, comma: true);
+			AppendJsonProperty(builder, indent + 2, "decisionStatus", dimensionCandidateDiagnostic.DecisionStatus, comma: true);
+			AppendJsonProperty(builder, indent + 2, "decisionReason", dimensionCandidateDiagnostic.DecisionReason, comma: true);
 			AppendJsonProperty(builder, indent + 2, "suppressedReason", dimensionCandidateDiagnostic.SuppressedReason, comma: true);
 			AppendJsonProperty(builder, indent + 2, "orientation", dimensionCandidateDiagnostic.Orientation, comma: true);
 			AppendJsonProperty(builder, indent + 2, "debugRole", dimensionCandidateDiagnostic.DebugRole, comma: true);

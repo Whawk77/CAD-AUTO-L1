@@ -167,8 +167,8 @@ public sealed class DimensionLayoutRules
 				});
 			}
 		}
-		EnsureOverallPhysicalOutermostOffset(list, dimensions, side, outline, perLevelSpacing);
 		ApplyAlignmentCoordinateOverrides(list, dimensions, alignmentLanes, side, outline);
+		EnsureOverallPhysicalOutermostOffset(list, dimensions, side, outline, perLevelSpacing);
 		return list;
 	}
 
@@ -367,7 +367,7 @@ public sealed class DimensionLayoutRules
 			{
 				if (item != placement && item.Index >= 0 && item.Index < dimensions.Count)
 				{
-					double dimLineCoordinate = GetDimLineCoordinate(dimensions[item.Index], side, outline, item.Offset);
+					double dimLineCoordinate = item.DimLineCoordinateOverride ?? GetDimLineCoordinate(dimensions[item.Index], side, outline, item.Offset);
 					if (!double.IsNaN(dimLineCoordinate) && !double.IsInfinity(dimLineCoordinate))
 					{
 						list.Add(dimLineCoordinate);
@@ -386,7 +386,7 @@ public sealed class DimensionLayoutRules
 				DimensionSide.Right => list.Max() - outline.MaxX + clearance,
 				_ => placement.Offset,
 			};
-			placement.Offset = Math.Max(placement.Offset, val);
+			placement.Offset = Math.Max(clearance, val);
 		}
 	}
 

@@ -35,6 +35,7 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(ConcaveHoleDatumUsesRealOutlineIntersections), ConcaveHoleDatumUsesRealOutlineIntersections);
                 RunTest(nameof(OverallWinsDuplicatePreferenceEvenAgainstTolerance), OverallWinsDuplicatePreferenceEvenAgainstTolerance);
                 RunTest(nameof(OverallRemainsOutermostAfterLayoutAlignment), OverallRemainsOutermostAfterLayoutAlignment);
+				RunTest(nameof(OverallCompactsToOnePhysicalSpacing), OverallCompactsToOnePhysicalSpacing);
                 RunTest(nameof(InvalidDatumCoordinateIsSkippedWithDiagnostic), InvalidDatumCoordinateIsSkippedWithDiagnostic);
                 RunTest(nameof(InvalidSlotDatumIsSkippedWithDiagnostic), InvalidSlotDatumIsSkippedWithDiagnostic);
                 RunTest(nameof(ChamferSuppressesAdjacentLocalLinearDimensions), ChamferSuppressesAdjacentLocalLinearDimensions);
@@ -531,6 +532,43 @@ namespace CadAuto.Core.Tests
 			double overallCoordinate = new DimensionLayoutRules(config).GetDimLineCoordinate(dimensions[0], DimensionSide.Bottom, outline, overall.Offset);
 			double localCoordinate = new DimensionLayoutRules(config).GetDimLineCoordinate(dimensions[1], DimensionSide.Bottom, outline, local.Offset);
 			Assert(overallCoordinate < localCoordinate, "overall dimension must remain physically outside feature-local dimensions");
+		}
+
+		private static void OverallCompactsToOnePhysicalSpacing()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 50.0);
+			var dimensions = new List<DimensionLayoutItem>();
+			for (int i = 0; i < 4; i++)
+			{
+				dimensions.Add(new DimensionLayoutItem
+				{
+					FirstPoint = new Point2D(0.0, i * 5.0),
+					SecondPoint = new Point2D(50.0, i * 5.0),
+					Span = 50.0,
+					Kind = DimensionKind.HoleLocation,
+					PreferFeatureLocalPlacement = true
+				});
+			}
+			dimensions.Add(new DimensionLayoutItem
+			{
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(100.0, 0.0),
+				Span = 100.0,
+				Kind = DimensionKind.OverallWidth,
+				ForceOuterLevel = true
+			});
+			var rules = new DimensionLayoutRules(config);
+			var placements = rules.CreateStackingPlan(dimensions, DimensionSide.Bottom, outline, 2.5, 1.0, 5.0, 5.0, isHorizontal: true);
+			var overall = placements.Single(item => item.Index == 4);
+			var otherCoordinates = placements
+				.Where(item => item.Index != 4)
+				.Select(item => item.DimLineCoordinateOverride ?? rules.GetDimLineCoordinate(dimensions[item.Index], DimensionSide.Bottom, outline, item.Offset))
+				.ToList();
+			double overallCoordinate = rules.GetDimLineCoordinate(dimensions[4], DimensionSide.Bottom, outline, overall.Offset);
+
+			Assert(Math.Abs((otherCoordinates.Min() - overallCoordinate) - 5.0) <= config.GeometryTolerance,
+				"overall dimensions must compact to exactly one physical stacking interval beyond the actual outermost dimension");
 		}
 
 		private static void InvalidDatumCoordinateIsSkippedWithDiagnostic()

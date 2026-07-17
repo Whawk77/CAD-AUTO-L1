@@ -55,8 +55,12 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(PinAlignmentAnchorFallsBackWithStableOrdering), PinAlignmentAnchorFallsBackWithStableOrdering);
 				RunTest(nameof(PinAlignmentGroupMovesTogetherOnConflict), PinAlignmentGroupMovesTogetherOnConflict);
 				RunTest(nameof(PinAlignmentGroupAvoidsResolvedCoordinateConflicts), PinAlignmentGroupAvoidsResolvedCoordinateConflicts);
+				RunTest(nameof(PinAlignmentKeySplitsStrictHorizontalOverlapsIntoLanes), PinAlignmentKeySplitsStrictHorizontalOverlapsIntoLanes);
+				RunTest(nameof(PinAlignmentKeySplitsStrictVerticalOverlapsIntoLanes), PinAlignmentKeySplitsStrictVerticalOverlapsIntoLanes);
+				RunTest(nameof(EquivalentPinGroupTransfersSuppressAcrossDebugOwners), EquivalentPinGroupTransfersSuppressAcrossDebugOwners);
                 RunTest(nameof(FunctionalHolesAttachToPinGroup), FunctionalHolesAttachToPinGroup);
-                RunTest(nameof(PreferredSideLockedHoleLocationKeepsGlobalAlignment), PreferredSideLockedHoleLocationKeepsGlobalAlignment);
+                RunTest(nameof(PreferredSideLockedHoleLocationUsesLocalBoundary), PreferredSideLockedHoleLocationUsesLocalBoundary);
+                RunTest(nameof(ExplicitLocalLooseChainUsesNearbyConcaveBoundary), ExplicitLocalLooseChainUsesNearbyConcaveBoundary);
                 RunTest(nameof(LooseHolesUseChainDimensions), LooseHolesUseChainDimensions);
                 RunTest(nameof(ConcentricLooseHolesShareOneLocationDimension), ConcentricLooseHolesShareOneLocationDimension);
                 RunTest(nameof(HoleLocationDimensionsUseSegmentedExtensionLines), HoleLocationDimensionsUseSegmentedExtensionLines);
@@ -1157,6 +1161,79 @@ namespace CadAuto.Core.Tests
 				"resolved group coordinates must retain one full stacking interval from overlapping external dimensions");
 		}
 
+		private static void PinAlignmentKeySplitsStrictHorizontalOverlapsIntoLanes()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.DatumHoleLocationX, FirstPoint = new Point2D(205.0, 40.0), SecondPoint = new Point2D(265.0, 40.0), Span = 60.0, AlignmentKey = "multi-group:H", AlignmentPriority = 120 },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(81.0, 30.0), SecondPoint = new Point2D(205.0, 30.0), Span = 124.0, AlignmentKey = "multi-group:H", AlignmentPriority = 110 },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(31.0, 20.0), SecondPoint = new Point2D(81.0, 20.0), Span = 50.0, AlignmentKey = "multi-group:H", AlignmentPriority = 100 },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(31.0, 10.0), SecondPoint = new Point2D(205.0, 10.0), Span = 174.0, AlignmentKey = "multi-group:H", AlignmentPriority = 110 }
+			};
+			var placements = rules.CreateStackingPlan(dimensions, DimensionSide.Bottom, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: true);
+			double chainCoordinate = placements.Single(p => p.Index == 0).DimLineCoordinateOverride.Value;
+
+			Assert(placements.Where(p => p.Index < 3).All(p => Math.Abs(p.DimLineCoordinateOverride.Value - chainCoordinate) <= config.GeometryTolerance),
+				"endpoint-connected horizontal dimensions must remain on one continuous lane");
+			Assert(Math.Abs(placements.Single(p => p.Index == 3).DimLineCoordinateOverride.Value - chainCoordinate) >= 5.0 - config.GeometryTolerance,
+				"a strictly overlapping horizontal dimension must move to a separate lane");
+		}
+
+		private static void PinAlignmentKeySplitsStrictVerticalOverlapsIntoLanes()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.DatumHoleLocationY, FirstPoint = new Point2D(40.0, 205.0), SecondPoint = new Point2D(40.0, 265.0), Span = 60.0, AlignmentKey = "multi-group:V", AlignmentPriority = 120 },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(30.0, 81.0), SecondPoint = new Point2D(30.0, 205.0), Span = 124.0, AlignmentKey = "multi-group:V", AlignmentPriority = 110 },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(20.0, 31.0), SecondPoint = new Point2D(20.0, 81.0), Span = 50.0, AlignmentKey = "multi-group:V", AlignmentPriority = 100 },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(10.0, 31.0), SecondPoint = new Point2D(10.0, 205.0), Span = 174.0, AlignmentKey = "multi-group:V", AlignmentPriority = 110 }
+			};
+			var placements = rules.CreateStackingPlan(dimensions, DimensionSide.Left, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: false);
+			double chainCoordinate = placements.Single(p => p.Index == 0).DimLineCoordinateOverride.Value;
+
+			Assert(placements.Where(p => p.Index < 3).All(p => Math.Abs(p.DimLineCoordinateOverride.Value - chainCoordinate) <= config.GeometryTolerance),
+				"endpoint-connected vertical dimensions must remain on one continuous lane");
+			Assert(Math.Abs(placements.Single(p => p.Index == 3).DimLineCoordinateOverride.Value - chainCoordinate) >= 5.0 - config.GeometryTolerance,
+				"a strictly overlapping vertical dimension must move to a separate lane");
+		}
+
+		private static void EquivalentPinGroupTransfersSuppressAcrossDebugOwners()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(200.0, 100.0);
+			var datumPin = CreateHole(180.0, 10.0, 6.0, HoleKind2D.Pin);
+			var holes = new[]
+			{
+				datumPin,
+				CreateHole(190.0, 10.0, 6.0, HoleKind2D.Pin),
+				CreateHole(100.0, 10.0, 7.0, HoleKind2D.Pin),
+				CreateHole(110.0, 10.0, 7.0, HoleKind2D.Pin),
+				CreateHole(50.0, 10.0, 8.0, HoleKind2D.Pin),
+				CreateHole(60.0, 10.0, 8.0, HoleKind2D.Pin),
+				CreateHole(50.0, 30.0, 9.0, HoleKind2D.Pin),
+				CreateHole(60.0, 30.0, 9.0, HoleKind2D.Pin)
+			};
+			var datum = Datum2D.FromOutline(outline);
+			datum.DatumHole = datumPin;
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, holes);
+			var equivalentTransfers = plan.Diagnostics.DimensionCandidates
+				.Where(candidate => candidate.Kind == DimensionKind.PinGroupDistance.ToString()
+					&& candidate.Orientation == DimensionOrientation.Horizontal.ToString()
+					&& Math.Abs(candidate.MeasurementMinimum - 60.0) <= config.GeometryTolerance
+					&& Math.Abs(candidate.MeasurementMaximum - 180.0) <= config.GeometryTolerance)
+				.ToList();
+
+			Assert(equivalentTransfers.Count == 2 && equivalentTransfers.Select(candidate => candidate.SourceFeatureId).Distinct().Count() == 2,
+				"the fixture must generate equivalent transfers owned by two different pin groups");
+			Assert(equivalentTransfers.Count(candidate => candidate.IsSelected) == 1
+				&& equivalentTransfers.Count(candidate => candidate.IsSuppressed && candidate.SuppressedReason == "DuplicateMeasuredDimension") == 1,
+				"equivalent pin-group coordinates must retain one stable member and diagnose the other as suppressed regardless of DebugOwner");
+		}
+
         private static void FunctionalHolesAttachToPinGroup()
         {
             var config = DimensionRuleConfig.CreateDefault();
@@ -1176,57 +1253,100 @@ namespace CadAuto.Core.Tests
 
             Assert(plan.Dimensions.Any(d => d.DebugRole == "FunctionalHole" && d.DebugOwner == "PG1"),
                 "functional holes should attach to the pin group");
-			var verticalFunctionalHoles = plan.Dimensions.Where(d => d.DebugRole == "FunctionalHole"
-				&& d.Orientation == DimensionOrientation.Vertical).ToList();
-			Assert(verticalFunctionalHoles.Count > 0
-				&& verticalFunctionalHoles.All(d => d.PreservePreferredSide && !d.PreferFeatureLocalPlacement),
-				"functional-hole dimensions must lock their side without enabling feature-local coordinates");
+			var functionalHoles = plan.Dimensions.Where(d => d.DebugRole == "FunctionalHole").ToList();
+			var verticalFunctionalHoles = functionalHoles.Where(d => d.Orientation == DimensionOrientation.Vertical).ToList();
+			Assert(functionalHoles.Count > 0
+				&& functionalHoles.All(d => d.PreservePreferredSide && !d.PreferFeatureLocalPlacement && d.PreferLocalBoundary),
+				"functional-hole dimensions must stay with their pin group and prefer a nearby local boundary");
 			Assert(verticalFunctionalHoles.All(d => d.Side == plan.PinGroups[0].VerticalSide),
 				"functional-hole dimensions must inherit their pin group's vertical side");
         }
 
-		private static void PreferredSideLockedHoleLocationKeepsGlobalAlignment()
+		private static void PreferredSideLockedHoleLocationUsesLocalBoundary()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
 			var rules = new DimensionLayoutRules(config);
 			var functionalHole = new DimensionLayoutItem
 			{
 				Kind = DimensionKind.HoleLocation,
-				FirstPoint = new Point2D(20.0, 20.0),
-				SecondPoint = new Point2D(20.0, 40.0),
-				Span = 20.0,
+				FirstPoint = new Point2D(20.0, 30.0),
+				SecondPoint = new Point2D(20.0, 70.0),
+				Span = 40.0,
+				PreferLocalBoundary = true,
 				PreservePreferredSide = true
 			};
-			var crowdedLeft = Enumerable.Range(0, 4).Select(index => new DimensionLayoutItem
+			var crowdedRight = Enumerable.Range(0, 4).Select(index => new DimensionLayoutItem
 			{
 				Kind = DimensionKind.HoleLocation,
-				FirstPoint = new Point2D(10.0 + index, 20.0),
-				SecondPoint = new Point2D(10.0 + index, 40.0),
-				Span = 20.0
+				FirstPoint = new Point2D(10.0 + index, 30.0),
+				SecondPoint = new Point2D(10.0 + index, 70.0),
+				Span = 40.0
 			}).ToList();
 
-			var selectedSide = rules.ChooseVerticalHoleLocationSide(functionalHole, DimensionSide.Left, crowdedLeft, new DimensionLayoutItem[0], 1.0);
+			var selectedSide = rules.ChooseVerticalHoleLocationSide(functionalHole, DimensionSide.Right, crowdedRight, new DimensionLayoutItem[0], 10.0);
 			var moves = rules.SelectVerticalHoleLocationRebalanceMoves(new[] { functionalHole }, new DimensionLayoutItem[0], 1.0);
-			var outline = CreateRectangle(200.0, 100.0);
+			var outline = CreateRightNotchOutline();
 			var datumY = new DimensionLayoutItem
 			{
 				Kind = DimensionKind.DatumHoleLocationY,
-				FirstPoint = new Point2D(20.0, 0.0),
-				SecondPoint = new Point2D(20.0, 20.0),
-				Span = 20.0
+				FirstPoint = new Point2D(20.0, 30.0),
+				SecondPoint = new Point2D(20.0, 70.0),
+				Span = 40.0
 			};
-			double functionalCoordinate = rules.GetDimLineCoordinate(functionalHole, DimensionSide.Left, outline, 5.0);
-			double datumCoordinate = rules.GetDimLineCoordinate(datumY, DimensionSide.Left, outline, 5.0);
-			var placements = rules.CreateStackingPlan(new[] { datumY, functionalHole }, DimensionSide.Left, outline, 2.5, 1.0, 5.0, 5.0, isHorizontal: false);
+			double functionalCoordinate = rules.GetDimLineCoordinate(functionalHole, DimensionSide.Right, outline, 5.0);
+			double datumCoordinate = rules.GetDimLineCoordinate(datumY, DimensionSide.Right, outline, 5.0);
 
-			Assert(selectedSide == DimensionSide.Left,
+			Assert(selectedSide == DimensionSide.Right,
 				"side-locked functional holes must keep the pin group's preferred vertical side during initial placement");
 			Assert(!rules.CanRebalanceVerticalHoleLocation(functionalHole, 1.0) && moves.Count == 0,
 				"side-locked functional holes must not move during later vertical-side rebalancing");
-			Assert(Math.Abs(functionalCoordinate - datumCoordinate) <= config.GeometryTolerance,
-				"side locking must not opt functional holes into feature-local coordinates or break DatumY alignment");
-			Assert(placements.Count == 2 && Math.Abs(placements[0].Offset - placements[1].Offset) <= config.GeometryTolerance,
-				"touching DatumY and functional-hole dimensions must form one aligned left-side chain");
+			Assert(Math.Abs(functionalCoordinate - 65.0) <= config.GeometryTolerance
+				&& Math.Abs(datumCoordinate - 205.0) <= config.GeometryTolerance,
+				"local functional-hole dimensions must use the nearby notch while global datum dimensions remain outside the full outline");
+		}
+
+		private static void ExplicitLocalLooseChainUsesNearbyConcaveBoundary()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var outline = CreateRightNotchOutline();
+			var loose = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.HoleLocation,
+				FirstPoint = new Point2D(20.0, 30.0),
+				SecondPoint = new Point2D(22.0, 70.0),
+				Span = 40.0,
+				LooseChainId = 6,
+				PreferLocalBoundary = true
+			};
+			var legacyGlobalLoose = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.HoleLocation,
+				FirstPoint = loose.FirstPoint,
+				SecondPoint = loose.SecondPoint,
+				Span = loose.Span,
+				LooseChainId = loose.LooseChainId
+			};
+			var crowdedSource = new List<DimensionLayoutItem> { loose };
+			crowdedSource.AddRange(Enumerable.Range(0, 3).Select(index => new DimensionLayoutItem
+			{
+				Kind = DimensionKind.Normal,
+				FirstPoint = new Point2D(10.0 + index, 30.0),
+				SecondPoint = new Point2D(10.0 + index, 70.0),
+				Span = 40.0
+			}));
+			var moves = rules.SelectVerticalHoleLocationRebalanceMoves(crowdedSource, new DimensionLayoutItem[0], 10.0);
+
+			Assert(rules.TryGetDimensionLocalBoundary(loose, DimensionSide.Right, outline, out var boundary)
+				&& Math.Abs(boundary - 60.0) <= config.GeometryTolerance,
+				"an explicitly local loose chain must find the nearby concave boundary");
+			Assert(Math.Abs(rules.GetDimLineCoordinate(loose, DimensionSide.Right, outline, 5.0) - 65.0) <= config.GeometryTolerance,
+				"a rebalanced loose chain must stay beside its holes instead of using the distant global side");
+			Assert(!rules.TryGetDimensionLocalBoundary(legacyGlobalLoose, DimensionSide.Right, outline, out _)
+				&& Math.Abs(rules.GetDimLineCoordinate(legacyGlobalLoose, DimensionSide.Right, outline, 5.0) - 205.0) <= config.GeometryTolerance,
+				"unmarked legacy loose chains must still fall back to the global boundary");
+			Assert(moves.Any(move => move.SourceIndex == 0),
+				"local placement must remain compatible with moving a crowded loose chain to the nearer notch side");
 		}
 
         private static void LooseHolesUseChainDimensions()
@@ -1251,6 +1371,8 @@ namespace CadAuto.Core.Tests
                 "loose holes should use chained hole-location dimensions");
             Assert(plan.Dimensions.Count(d => d.DebugRole == "LooseHole") >= 3,
                 "loose hole chain should include center distances and pin/location references");
+			Assert(plan.Dimensions.Where(d => d.DebugRole == "LooseHole").All(d => d.PreferLocalBoundary),
+				"loose hole chains must prefer a nearby valid boundary to avoid full-part extension lines");
         }
 
         private static void ConcentricLooseHolesShareOneLocationDimension()
@@ -1362,6 +1484,34 @@ namespace CadAuto.Core.Tests
             AddSegment(outline, new Point2D(minX, minY + height), new Point2D(minX, minY), "left");
             return outline;
         }
+
+		private static OutlineFeature2D CreateRightNotchOutline()
+		{
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 200.0,
+				MaxY = 100.0
+			};
+			var points = new[]
+			{
+				new Point2D(0.0, 0.0),
+				new Point2D(200.0, 0.0),
+				new Point2D(200.0, 20.0),
+				new Point2D(60.0, 20.0),
+				new Point2D(60.0, 80.0),
+				new Point2D(200.0, 80.0),
+				new Point2D(200.0, 100.0),
+				new Point2D(0.0, 100.0),
+				new Point2D(0.0, 0.0)
+			};
+			for (int i = 1; i < points.Length; i++)
+			{
+				AddSegment(outline, points[i - 1], points[i], "right-notch");
+			}
+			return outline;
+		}
 
         private static OutlineFeature2D CreateTopRightChamferedOutline()
         {

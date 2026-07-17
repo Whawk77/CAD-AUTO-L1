@@ -18,6 +18,7 @@ Detailed project knowledge lives in `docs/`.
 - Do not edit source code while doing documentation-only tasks.
 - Before changing behavior, read the relevant docs under `docs/` and inspect the current source.
 - Prefer small, targeted changes that match the existing code style.
+- Store each newly built test DLL set in a new versioned output folder whose name ends in `-vNNN`, starting with `-v190`; increment the suffix for every subsequent build (`-v191`, `-v192`, and so on) and never reuse an earlier build folder.
 
 ## Active Project
 
@@ -44,7 +45,8 @@ Detailed project knowledge lives in `docs/`.
 - Preserve pin-hole fit behavior: any `HoleKind.Pin` uses `PinHoleFitToleranceText`.
 - Preserve same-group pin spacing tolerance from `PinCenterDistanceToleranceText`.
 - Preserve pin-group transfer tolerance from `PinGroupDistanceToleranceText`.
-- Loose/scatter normal and thread hole location dimensions must not use local boundary placement unless the user explicitly changes that rule.
+- Functional-hole dimensions stay with their owning pin group and prefer a nearby valid local boundary.
+- Loose/scatter hole-location chains may use a nearby valid local boundary when it shortens extension lines; the final dimension line must remain outside the real contour interior and must not be sent to a distant global side merely to reduce crowding.
 - Pin-group dimensions may use local boundary placement, but the dimension line must stay outside the real outer contour.
 - Zero-length dimensions must never be emitted.
 

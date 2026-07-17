@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="CatiaAiPanel.Core/CatiaAiPanel.Core.csproj" />
+  <Project Path="CatiaAiPanel.App/CatiaAiPanel.App.csproj" />
+  <Project Path="CatiaAiPanel.Tests/CatiaAiPanel.Tests.csproj" />
+</Solution>

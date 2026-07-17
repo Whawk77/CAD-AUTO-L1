@@ -22,6 +22,8 @@ public sealed class DimensionLayoutRules
 		public double ArrA { get; set; }
 
 		public double ArrB { get; set; }
+
+		public string AlignmentLaneKey { get; set; }
 	}
 
 	private sealed class TextSlideCandidate
@@ -149,7 +151,8 @@ public sealed class DimensionLayoutRules
 			});
 		}
 		AlignDimensionsBySharedExtensionLines(list2, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
-		MoveAlignmentGroupsTogether(list2, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
+		List<List<StackingLayerItem>> alignmentLanes = BuildAlignmentLanes(list2);
+		MoveAlignmentGroupsTogether(list2, alignmentLanes, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
 		PromoteOverallDimensionsToOutermostLayer(list2);
 		for (int k = 0; k < list2.Count; k++)
 		{
@@ -165,32 +168,69 @@ public sealed class DimensionLayoutRules
 			}
 		}
 		EnsureOverallPhysicalOutermostOffset(list, dimensions, side, outline, perLevelSpacing);
-		ApplyAlignmentCoordinateOverrides(list, dimensions, side, outline);
+		ApplyAlignmentCoordinateOverrides(list, dimensions, alignmentLanes, side, outline);
 		return list;
 	}
 
-	private void MoveAlignmentGroupsTogether(List<List<StackingLayerItem>> layers, DimensionSide side, OutlineFeature2D outline, double textHeight, double gap, double firstOffset, double perLevelSpacing, bool isHorizontal)
+	private List<List<StackingLayerItem>> BuildAlignmentLanes(IList<List<StackingLayerItem>> layers)
 	{
-		var groups = layers.SelectMany((layer, level) => layer.Select(item => new
-		{
-			Item = item,
-			Level = level
-		}))
-			.Where(entry => !string.IsNullOrEmpty(entry.Item.Dimension.AlignmentKey))
-			.GroupBy(entry => entry.Item.Dimension.AlignmentKey, StringComparer.Ordinal)
-			.Where(group => group.Count() > 1)
-			.OrderBy(group => group.Min(entry => entry.Item.Index))
+		List<List<StackingLayerItem>> result = new List<List<StackingLayerItem>>();
+		var groups = layers.SelectMany(layer => layer)
+			.Where(item => !string.IsNullOrEmpty(item.Dimension.AlignmentKey))
+			.GroupBy(item => item.Dimension.AlignmentKey, StringComparer.Ordinal)
+			.OrderBy(group => group.Min(item => item.Index))
 			.ToList();
 
 		foreach (var group in groups)
 		{
-			List<StackingLayerItem> members = group.Select(entry => entry.Item).OrderBy(item => item.Index).ToList();
+			List<List<StackingLayerItem>> lanes = new List<List<StackingLayerItem>>();
+			foreach (StackingLayerItem item in group.OrderBy(candidate => candidate.Index))
+			{
+				List<StackingLayerItem> lane = lanes.FirstOrDefault(candidate => CanJoinAlignmentLane(item, candidate));
+				if (lane == null)
+				{
+					lane = new List<StackingLayerItem>();
+					lanes.Add(lane);
+				}
+				lane.Add(item);
+				item.AlignmentLaneKey = group.Key + "#" + (lanes.IndexOf(lane) + 1).ToString();
+			}
+			result.AddRange(lanes);
+		}
+		return result;
+	}
+
+	private bool CanJoinAlignmentLane(StackingLayerItem item, IList<StackingLayerItem> lane)
+	{
+		if (lane.Any(existing => HasStrictArrowConflict(item.ArrA, item.ArrB, existing.ArrA, existing.ArrB)))
+		{
+			return false;
+		}
+		return lane.Any(existing => SharesArrowEndpoint(item, existing));
+	}
+
+	private bool SharesArrowEndpoint(StackingLayerItem first, StackingLayerItem second)
+	{
+		return Math.Abs(first.ArrA - second.ArrA) <= _config.GeometryTolerance
+			|| Math.Abs(first.ArrA - second.ArrB) <= _config.GeometryTolerance
+			|| Math.Abs(first.ArrB - second.ArrA) <= _config.GeometryTolerance
+			|| Math.Abs(first.ArrB - second.ArrB) <= _config.GeometryTolerance;
+	}
+
+	private void MoveAlignmentGroupsTogether(List<List<StackingLayerItem>> layers, IList<List<StackingLayerItem>> alignmentLanes, DimensionSide side, OutlineFeature2D outline, double textHeight, double gap, double firstOffset, double perLevelSpacing, bool isHorizontal)
+	{
+		foreach (List<StackingLayerItem> members in alignmentLanes.OrderBy(lane => lane.Min(item => item.Index)))
+		{
 			StackingLayerItem anchor = members
 				.OrderByDescending(item => item.Dimension.AlignmentPriority)
 				.ThenBy(item => item.Dimension.Span)
 				.ThenBy(item => item.Index)
 				.First();
-			int targetLevel = group.Max(entry => entry.Level);
+			int targetLevel = layers.SelectMany((layer, level) => layer
+				.Where(item => members.Contains(item))
+				.Select(item => level))
+				.DefaultIfEmpty(0)
+				.Max();
 			foreach (List<StackingLayerItem> layer in layers)
 			{
 				layer.RemoveAll(item => members.Contains(item));
@@ -256,12 +296,12 @@ public sealed class DimensionLayoutRules
 
 	private double GetResolvedStackingCoordinate(StackingLayerItem item, int itemLevel, IList<List<StackingLayerItem>> layers, DimensionSide side, OutlineFeature2D outline, double firstOffset, double perLevelSpacing)
 	{
-		if (string.IsNullOrEmpty(item.Dimension.AlignmentKey))
+		if (string.IsNullOrEmpty(item.AlignmentLaneKey))
 		{
 			return GetDimLineCoordinate(item.Dimension, side, outline, firstOffset + (double)itemLevel * perLevelSpacing);
 		}
 		var alignedItems = layers.SelectMany((layer, level) => layer
-			.Where(candidate => string.Equals(candidate.Dimension.AlignmentKey, item.Dimension.AlignmentKey, StringComparison.Ordinal))
+			.Where(candidate => string.Equals(candidate.AlignmentLaneKey, item.AlignmentLaneKey, StringComparison.Ordinal))
 			.Select(candidate => new { Item = candidate, Level = level }))
 			.ToList();
 		if (alignedItems.Count == 0)
@@ -276,14 +316,21 @@ public sealed class DimensionLayoutRules
 		return GetDimLineCoordinate(anchor.Item.Dimension, side, outline, firstOffset + (double)anchor.Level * perLevelSpacing);
 	}
 
-	private void ApplyAlignmentCoordinateOverrides(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, DimensionSide side, OutlineFeature2D outline)
+	private void ApplyAlignmentCoordinateOverrides(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, IList<List<StackingLayerItem>> alignmentLanes, DimensionSide side, OutlineFeature2D outline)
 	{
-		var groups = placements
-			.Where(placement => placement.Index >= 0 && placement.Index < dimensions.Count && !string.IsNullOrEmpty(dimensions[placement.Index].AlignmentKey))
-			.GroupBy(placement => dimensions[placement.Index].AlignmentKey, StringComparer.Ordinal);
-
-		foreach (var group in groups)
+		Dictionary<int, DimensionStackingPlacement> placementByIndex = placements
+			.Where(placement => placement.Index >= 0 && placement.Index < dimensions.Count)
+			.ToDictionary(placement => placement.Index);
+		foreach (List<StackingLayerItem> lane in alignmentLanes)
 		{
+			List<DimensionStackingPlacement> group = lane
+				.Where(item => placementByIndex.ContainsKey(item.Index))
+				.Select(item => placementByIndex[item.Index])
+				.ToList();
+			if (group.Count == 0)
+			{
+				continue;
+			}
 			DimensionStackingPlacement anchor = group
 				.OrderByDescending(placement => dimensions[placement.Index].AlignmentPriority)
 				.ThenBy(placement => dimensions[placement.Index].Span)
@@ -401,7 +448,7 @@ public sealed class DimensionLayoutRules
 		{
 			return false;
 		}
-		if (dim.LooseChainId != 0)
+		if (dim.LooseChainId != 0 && !dim.PreferLocalBoundary)
 		{
 			return false;
 		}

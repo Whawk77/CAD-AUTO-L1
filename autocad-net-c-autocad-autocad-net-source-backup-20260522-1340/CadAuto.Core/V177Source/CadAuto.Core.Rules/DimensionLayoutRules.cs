@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using CadAuto.Core.Geometry;
 using CadAuto.Core.Model;
@@ -622,8 +623,7 @@ public sealed class DimensionLayoutRules
 	{
 		Tuple<double, double> verticalInterval = GetVerticalInterval(dim);
 		double num = (verticalInterval.Item1 + verticalInterval.Item2) / 2.0;
-		string dimensionText = GetDimensionText(dim);
-		double num2 = (double)Math.Max(dimensionText.Length, 2) * _config.TextHeight * dimScale * 0.75;
+		double num2 = GetDimensionTextLength(dim, _config.TextHeight * dimScale);
 		return Tuple.Create(num - num2 / 2.0, num + num2 / 2.0);
 	}
 
@@ -767,7 +767,7 @@ public sealed class DimensionLayoutRules
 		};
 	}
 
-	public List<DimensionTextSlidePlacement> SelectVerticalHoleLocationTextSlides(IList<DimensionTextPlacementItem> placedDimensions, IEnumerable<TextBounds2D> textObstacles, double textHeight, double gap, double dimScale)
+	public List<DimensionTextSlidePlacement> SelectShortLocalDimensionTextSlides(IList<DimensionTextPlacementItem> placedDimensions, IEnumerable<TextBounds2D> textObstacles, double textHeight, double arrowSize, double clearance)
 	{
 		List<DimensionTextSlidePlacement> list = new List<DimensionTextSlidePlacement>();
 		if (placedDimensions == null || placedDimensions.Count == 0)
@@ -780,46 +780,88 @@ public sealed class DimensionLayoutRules
 		for (i = 0; i < placedDimensions.Count; i++)
 		{
 			DimensionTextPlacementItem placed = placedDimensions[i];
-			if (!CanSlideVerticalHoleLocationText(placed, dimScale))
+			if (!CanSlideShortLocalDimensionText(placed))
 			{
 				continue;
 			}
-			int num = ScoreTextBoundsAgainstPlaced(currentBounds[i], currentBounds, obstacles, i, gap, dimScale);
-			bool flag = VerticalDimensionTextFitsInsideOwnLines(placed.Dimension, textHeight);
-			bool flag2 = TextBoundsHasHardOverlap(currentBounds[i], currentBounds, obstacles, i, gap);
-			if (!flag || flag2)
+			double safeArrowSize = Math.Max(0.0, arrowSize);
+			double safeClearance = Math.Max(_config.GeometryTolerance, clearance);
+			if (DimensionTextFitsBetweenOwnExtensionLines(placed.Dimension, textHeight))
 			{
-				TextSlideCandidate textSlideCandidate = (from candidate in GetVerticalTextSlideCandidates(placed, textHeight, gap)
-					select new TextSlideCandidate
-					{
-						Position = candidate.Position,
-						Bounds = candidate.Bounds,
-						Score = ScoreTextBoundsAgainstPlaced(candidate.Bounds, currentBounds, obstacles, i, gap, dimScale)
-					} into candidate
-					orderby candidate.Score, Math.Abs(candidate.Position.Y - placed.DimLinePoint.Y)
-					select candidate).FirstOrDefault();
-				if (textSlideCandidate != null && (!flag || textSlideCandidate.Score < num) && (flag || textSlideCandidate.Score <= num))
+				list.Add(new DimensionTextSlidePlacement
 				{
-					currentBounds[i] = textSlideCandidate.Bounds;
-					list.Add(new DimensionTextSlidePlacement
-					{
-						Index = i,
-						TextPosition = textSlideCandidate.Position,
-						TextBounds = textSlideCandidate.Bounds
-					});
-				}
+					Index = i,
+					TextPosition = GetCenteredDimensionTextPosition(placed),
+					TextBounds = currentBounds[i]
+				});
+				continue;
+			}
+			double effectiveDimScale = (_config.TextHeight > _config.GeometryTolerance) ? (textHeight / _config.TextHeight) : 1.0;
+			TextSlideCandidate textSlideCandidate = (from candidate in GetShortDimensionTextSlideCandidates(placed, textHeight, safeArrowSize, safeClearance)
+				select new TextSlideCandidate
+				{
+					Position = candidate.Position,
+					Bounds = candidate.Bounds,
+					Score = ScoreTextBoundsAgainstPlaced(candidate.Bounds, currentBounds, obstacles, i, safeClearance, effectiveDimScale)
+						+ ScoreTextBoundsAgainstArrows(candidate.Bounds, placedDimensions, safeArrowSize, safeClearance)
+				} into candidate
+				orderby candidate.Score, GetTextSlideDistance(candidate.Position, placed)
+				select candidate).FirstOrDefault();
+			if (textSlideCandidate != null)
+			{
+				currentBounds[i] = textSlideCandidate.Bounds;
+				list.Add(new DimensionTextSlidePlacement
+				{
+					Index = i,
+					TextPosition = textSlideCandidate.Position,
+					TextBounds = textSlideCandidate.Bounds
+				});
 			}
 		}
 		return list;
 	}
 
+	private static Point2D GetCenteredDimensionTextPosition(DimensionTextPlacementItem placed)
+	{
+		bool horizontal = placed.Side == DimensionSide.Bottom || placed.Side == DimensionSide.Top;
+		return horizontal
+			? new Point2D((placed.Dimension.FirstPoint.X + placed.Dimension.SecondPoint.X) / 2.0, placed.DimLinePoint.Y)
+			: new Point2D(placed.DimLinePoint.X, (placed.Dimension.FirstPoint.Y + placed.Dimension.SecondPoint.Y) / 2.0);
+	}
+
+	public List<DimensionTextSlidePlacement> SelectVerticalHoleLocationTextSlides(IList<DimensionTextPlacementItem> placedDimensions, IEnumerable<TextBounds2D> textObstacles, double textHeight, double gap, double dimScale)
+	{
+		return SelectShortLocalDimensionTextSlides(placedDimensions, textObstacles, textHeight, 0.0, gap);
+	}
+
+	public bool CanSlideShortLocalDimensionText(DimensionTextPlacementItem placed)
+	{
+		if (placed == null || placed.Dimension == null || placed.Dimension.ForceOuterLevel)
+		{
+			return false;
+		}
+		if (placed.Side != DimensionSide.Bottom && placed.Side != DimensionSide.Top && placed.Side != DimensionSide.Left && placed.Side != DimensionSide.Right)
+		{
+			return false;
+		}
+		DimensionKind kind = placed.Dimension.Kind;
+		return kind == DimensionKind.HoleLocation || kind == DimensionKind.PinDistance || kind == DimensionKind.PinGroupDistance;
+	}
+
+	public bool DimensionTextFitsBetweenOwnExtensionLines(DimensionLayoutItem dim, double textHeight)
+	{
+		if (dim == null)
+		{
+			return true;
+		}
+		double extensionLineClearance = Math.Max(_config.GeometryTolerance, textHeight * 0.15);
+		double requiredLength = GetDimensionTextLength(dim, textHeight) + extensionLineClearance * 2.0;
+		return requiredLength <= Math.Max(0.0, dim.Span) + _config.GeometryTolerance;
+	}
+
 	public bool VerticalDimensionTextFitsInsideOwnLines(DimensionLayoutItem dim, double textHeight)
 	{
-		Tuple<double, double> verticalInterval = GetVerticalInterval(dim);
-		string dimensionText = GetDimensionText(dim);
-		double num = (double)Math.Max(dimensionText.Length, 1) * textHeight * 1.6;
-		double num2 = Math.Max(_config.GeometryTolerance, textHeight * 0.5);
-		return num + num2 * 2.0 <= verticalInterval.Item2 - verticalInterval.Item1;
+		return DimensionTextFitsBetweenOwnExtensionLines(dim, textHeight);
 	}
 
 	public bool CanSlideVerticalHoleLocationText(DimensionTextPlacementItem placed, double dimScale)
@@ -859,6 +901,56 @@ public sealed class DimensionLayoutRules
 			}
 		}
 		return num;
+	}
+
+	private int ScoreTextBoundsAgainstArrows(TextBounds2D candidate, IEnumerable<DimensionTextPlacementItem> placedDimensions, double arrowSize, double clearance)
+	{
+		int score = 0;
+		foreach (DimensionTextPlacementItem placed in placedDimensions ?? Enumerable.Empty<DimensionTextPlacementItem>())
+		{
+			foreach (TextBounds2D arrowBounds in GetArrowBounds(placed, arrowSize))
+			{
+				if (TextBoundsOverlap(candidate, arrowBounds, clearance))
+				{
+					score += 8;
+				}
+			}
+		}
+		return score;
+	}
+
+	private IEnumerable<TextBounds2D> GetArrowBounds(DimensionTextPlacementItem placed, double arrowSize)
+	{
+		if (placed == null || placed.Dimension == null || arrowSize <= _config.GeometryTolerance)
+		{
+			yield break;
+		}
+		double halfThickness = Math.Max(_config.GeometryTolerance, arrowSize * 0.5);
+		bool horizontal = placed.Side == DimensionSide.Bottom || placed.Side == DimensionSide.Top;
+		Point2D[] endpoints = { placed.Dimension.FirstPoint, placed.Dimension.SecondPoint };
+		foreach (Point2D endpoint in endpoints)
+		{
+			if (horizontal)
+			{
+				yield return new TextBounds2D
+				{
+					MinX = endpoint.X - arrowSize,
+					MaxX = endpoint.X + arrowSize,
+					MinY = placed.DimLinePoint.Y - halfThickness,
+					MaxY = placed.DimLinePoint.Y + halfThickness
+				};
+			}
+			else
+			{
+				yield return new TextBounds2D
+				{
+					MinX = placed.DimLinePoint.X - halfThickness,
+					MaxX = placed.DimLinePoint.X + halfThickness,
+					MinY = endpoint.Y - arrowSize,
+					MaxY = endpoint.Y + arrowSize
+				};
+			}
+		}
 	}
 
 	public bool TextBoundsHasHardOverlap(TextBounds2D candidate, IList<TextBounds2D> placedBounds, IEnumerable<TextBounds2D> textObstacles, int selfIndex, double gap)
@@ -960,27 +1052,58 @@ public sealed class DimensionLayoutRules
 		return new Point2D(placed.DimLinePoint.X, featurePoint.Y);
 	}
 
-	private IEnumerable<TextSlideCandidate> GetVerticalTextSlideCandidates(DimensionTextPlacementItem placed, double textHeight, double gap)
+	private IEnumerable<TextSlideCandidate> GetShortDimensionTextSlideCandidates(DimensionTextPlacementItem placed, double textHeight, double arrowSize, double clearance)
 	{
 		double textLength = GetDimensionTextLength(placed.Dimension, textHeight);
-		Tuple<double, double> arrow = GetVerticalInterval(placed.Dimension);
-		double lowerCenter = arrow.Item1 - textLength / 2.0 - gap;
-		double upperCenter = arrow.Item2 + textLength / 2.0 + gap;
+		bool horizontal = placed.Side == DimensionSide.Bottom || placed.Side == DimensionSide.Top;
+		Tuple<double, double> arrow = ComputeArrowInterval(placed.Dimension, horizontal);
+		double extraClearance = clearance + _config.GeometryTolerance * 2.0;
+		double lowerCenter = arrow.Item1 - arrowSize - extraClearance - textLength / 2.0;
+		double upperCenter = arrow.Item2 + arrowSize + extraClearance + textLength / 2.0;
+		if (horizontal)
+		{
+			double y = placed.DimLinePoint.Y;
+			yield return CreateHorizontalCustomTextCandidate(lowerCenter, y, textLength, textHeight);
+			yield return CreateHorizontalCustomTextCandidate(upperCenter, y, textLength, textHeight);
+			yield break;
+		}
 		double x = placed.DimLinePoint.X;
 		yield return CreateVerticalCustomTextCandidate(x, lowerCenter, textLength, textHeight);
 		yield return CreateVerticalCustomTextCandidate(x, upperCenter, textLength, textHeight);
 	}
 
+	private static double GetTextSlideDistance(Point2D position, DimensionTextPlacementItem placed)
+	{
+		bool horizontal = placed.Side == DimensionSide.Bottom || placed.Side == DimensionSide.Top;
+		return horizontal ? Math.Abs(position.X - placed.DimLinePoint.X) : Math.Abs(position.Y - placed.DimLinePoint.Y);
+	}
+
+	private static TextSlideCandidate CreateHorizontalCustomTextCandidate(double centerX, double y, double textLength, double textHeight)
+	{
+		double halfHeight = textHeight * 0.65;
+		return new TextSlideCandidate
+		{
+			Position = new Point2D(centerX, y),
+			Bounds = new TextBounds2D
+			{
+				MinX = centerX - textLength / 2.0,
+				MaxX = centerX + textLength / 2.0,
+				MinY = y - halfHeight,
+				MaxY = y + halfHeight
+			}
+		};
+	}
+
 	private static TextSlideCandidate CreateVerticalCustomTextCandidate(double x, double centerY, double textLength, double textHeight)
 	{
-		double num = textHeight * 0.65;
+		double halfHeight = textHeight * 0.65;
 		return new TextSlideCandidate
 		{
 			Position = new Point2D(x, centerY),
 			Bounds = new TextBounds2D
 			{
-				MinX = x - num,
-				MaxX = x + num,
+				MinX = x - halfHeight,
+				MaxX = x + halfHeight,
 				MinY = centerY - textLength / 2.0,
 				MaxY = centerY + textLength / 2.0
 			}
@@ -1022,26 +1145,66 @@ public sealed class DimensionLayoutRules
 	public Tuple<double, double> ComputeTextInterval(DimensionLayoutItem dim, bool isHorizontal, double textHeight)
 	{
 		double num;
-		double value;
 		if (isHorizontal)
 		{
 			num = (dim.FirstPoint.X + dim.SecondPoint.X) / 2.0;
-			value = Math.Abs(dim.SecondPoint.X - dim.FirstPoint.X);
 		}
 		else
 		{
 			num = (dim.FirstPoint.Y + dim.SecondPoint.Y) / 2.0;
-			value = Math.Abs(dim.SecondPoint.Y - dim.FirstPoint.Y);
 		}
-		string text = (string.IsNullOrEmpty(dim.OverrideText) ? _config.FormatNumber(value) : dim.OverrideText);
-		double num2 = (double)Math.Max(text.Length, 2) * textHeight * 0.7;
+		double num2 = GetDimensionTextLength(dim, textHeight);
 		return Tuple.Create(num - num2 / 2.0, num + num2 / 2.0);
 	}
 
 	public double GetDimensionTextLength(DimensionLayoutItem dim, double textHeight)
 	{
-		string dimensionText = GetDimensionText(dim);
-		return (double)Math.Max(dimensionText.Length, 2) * textHeight * 0.7;
+		string dimensionText = GetDimensionText(dim).Replace("<>", _config.FormatNumber(dim.Span));
+		double baseCharacterWidth = textHeight * 0.7;
+		double heightScale = 1.0;
+		double currentLineWidth = 0.0;
+		double maximumLineWidth = 0.0;
+		for (int i = 0; i < dimensionText.Length; i++)
+		{
+			if (dimensionText[i] == '\\' && i + 1 < dimensionText.Length)
+			{
+				char control = char.ToUpperInvariant(dimensionText[i + 1]);
+				if (control == 'H')
+				{
+					int terminator = dimensionText.IndexOf(';', i + 2);
+					if (terminator >= 0)
+					{
+						string scaleText = dimensionText.Substring(i + 2, terminator - i - 2).TrimEnd('x', 'X');
+						if (double.TryParse(scaleText, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedScale) && parsedScale > 0.0)
+						{
+							heightScale = parsedScale;
+						}
+						i = terminator;
+						continue;
+					}
+				}
+				if (control == 'P')
+				{
+					maximumLineWidth = Math.Max(maximumLineWidth, currentLineWidth);
+					currentLineWidth = 0.0;
+					i++;
+					continue;
+				}
+				continue;
+			}
+			if (dimensionText[i] == '%' && i + 2 < dimensionText.Length && dimensionText[i + 1] == '%')
+			{
+				currentLineWidth += baseCharacterWidth * heightScale;
+				i += 2;
+				continue;
+			}
+			if (dimensionText[i] != '{' && dimensionText[i] != '}')
+			{
+				currentLineWidth += baseCharacterWidth * heightScale;
+			}
+		}
+		maximumLineWidth = Math.Max(maximumLineWidth, currentLineWidth);
+		return Math.Max(baseCharacterWidth * 2.0, maximumLineWidth);
 	}
 
 	public string GetDimensionText(DimensionLayoutItem dim)

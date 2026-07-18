@@ -1458,7 +1458,7 @@ public sealed class DimensionPlanner
 
 	private void AddLooseHoleLocationDimension(DimensionPlan plan, Point2D from, Point2D to, bool horizontal, DimensionSide side, int chainId)
 	{
-		AddDimension(plan, DimensionKind.HoleLocation, (!horizontal) ? DimensionOrientation.Vertical : DimensionOrientation.Horizontal, side, from, to, string.Empty, "LooseHole", (chainId == 0) ? string.Empty : ("L" + chainId.ToString(CultureInfo.InvariantCulture)), preferLocalBoundary: true);
+		AddDimension(plan, DimensionKind.HoleLocation, (!horizontal) ? DimensionOrientation.Vertical : DimensionOrientation.Horizontal, side, from, to, string.Empty, "LooseHole", (chainId == 0) ? string.Empty : ("L" + chainId.ToString(CultureInfo.InvariantCulture)), preferLocalBoundary: true, chainId: chainId);
 	}
 
 	private Point2D ChooseLooseLocationReference(Point2D pinReference, HoleFeature2D target, IList<HoleFeature2D> located, bool horizontal)
@@ -2939,7 +2939,7 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	private void AddDimension(DimensionPlan plan, DimensionKind kind, DimensionOrientation orientation, DimensionSide side, Point2D firstPoint, Point2D secondPoint, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, bool firstPointMustLieOnOutline = false, double? requiredOutlineReferenceCoordinate = null, bool preservePreferredSide = false, string alignmentKey = null, int alignmentPriority = 0, bool preferLocalBoundary = false)
+	private void AddDimension(DimensionPlan plan, DimensionKind kind, DimensionOrientation orientation, DimensionSide side, Point2D firstPoint, Point2D secondPoint, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, bool firstPointMustLieOnOutline = false, double? requiredOutlineReferenceCoordinate = null, bool preservePreferredSide = false, string alignmentKey = null, int alignmentPriority = 0, bool preferLocalBoundary = false, int chainId = 0)
 	{
 		if (!(GetSpan(firstPoint, secondPoint, orientation) <= _config.GeometryTolerance))
 		{
@@ -2955,6 +2955,7 @@ public sealed class DimensionPlanner
 				DebugOwner = debugOwner,
 				AlignmentKey = (alignmentKey ?? string.Empty),
 				AlignmentPriority = alignmentPriority,
+				ChainId = chainId,
 				PreferLocalBoundary = preferLocalBoundary,
 				PreferFeatureLocalPlacement = preferFeatureLocalPlacement,
 				PreservePreferredSide = preservePreferredSide,

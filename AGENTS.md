@@ -26,7 +26,7 @@ Detailed project knowledge lives in `docs/`.
 - Main project file: `AutoFixtureDim.csproj`
 - Target product: AutoCAD 2020 .NET Framework plugin for fixture-part annotation.
 - Main command: `ASD`.
-- Current compatibility/helper commands in source: `AUTOFIXDIM`, `ASD2`, `ASD3`, `ASD4`.
+- Current compatibility/helper commands in source: `AUTOFIXDIM`, `ASD3`, `ASD4`, `ASD5`, `ASD6`, `ASD7`, `ASDCOREDBG`, `AG1`.
 
 ## Product Invariants
 
@@ -60,3 +60,4 @@ Detailed project knowledge lives in `docs/`.
   - `docs/Deployment.md`
   - `docs/RecognitionRules.md`
   - `docs/DimensionRules.md`
+  - `docs/DimensionLayoutRegression.md`

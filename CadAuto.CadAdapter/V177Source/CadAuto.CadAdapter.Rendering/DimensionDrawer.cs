@@ -93,6 +93,22 @@ public sealed class DimensionDrawer
 		public string AlignmentLaneKey;
 
 		public int AlignmentLaneMemberCount;
+
+		public string LayoutBlockId;
+
+		public string LayoutBlockType;
+
+		public double EffectiveSpan;
+
+		public int EffectiveOrder;
+
+		public string OrderingReason;
+
+		public string PromotedByConflictWith;
+
+		public double PhysicalOutwardDistance;
+
+		public bool PhysicalOrderValidated;
 	}
 
 	private struct TextBounds
@@ -782,7 +798,15 @@ public sealed class DimensionDrawer
 				StackingOffset = placement.Offset,
 				HasAlignmentCoordinateOverride = placement.DimLineCoordinateOverride.HasValue,
 				AlignmentLaneKey = placement.AlignmentLaneKey ?? string.Empty,
-				AlignmentLaneMemberCount = placement.AlignmentLaneMemberCount
+				AlignmentLaneMemberCount = placement.AlignmentLaneMemberCount,
+				LayoutBlockId = placement.LayoutBlockId ?? string.Empty,
+				LayoutBlockType = placement.LayoutBlockType ?? string.Empty,
+				EffectiveSpan = placement.EffectiveSpan,
+				EffectiveOrder = placement.EffectiveOrder,
+				OrderingReason = placement.OrderingReason ?? string.Empty,
+				PromotedByConflictWith = placement.PromotedByConflictWith ?? string.Empty,
+				PhysicalOutwardDistance = placement.PhysicalOutwardDistance,
+				PhysicalOrderValidated = placement.PhysicalOrderValidated
 			});
 		}
 		return list;
@@ -801,7 +825,7 @@ public sealed class DimensionDrawer
 				continue;
 			}
 			double resolvedCoordinate = isHorizontal ? placed.DimLinePoint.Y : placed.DimLinePoint.X;
-			_dimensionDiagnosticReport.RecordFinalPlacement(placed.Dim.DiagnosticId, placed.StackingLevel, placed.StackingOffset, resolvedCoordinate, placed.UsesLocalBoundary, placed.HasAlignmentCoordinateOverride, placed.AlignmentLaneKey, placed.AlignmentLaneMemberCount, GetAlignmentDecision(placed));
+			_dimensionDiagnosticReport.RecordFinalPlacement(placed.Dim.DiagnosticId, placed.StackingLevel, placed.StackingOffset, resolvedCoordinate, placed.UsesLocalBoundary, placed.HasAlignmentCoordinateOverride, placed.AlignmentLaneKey, placed.AlignmentLaneMemberCount, GetAlignmentDecision(placed), placed.LayoutBlockId, placed.LayoutBlockType, placed.EffectiveSpan, placed.EffectiveOrder, placed.OrderingReason, placed.PromotedByConflictWith, placed.PhysicalOutwardDistance, placed.PhysicalOrderValidated);
 		}
 	}
 
@@ -810,6 +834,10 @@ public sealed class DimensionDrawer
 		if (string.IsNullOrEmpty(placed.Dim.AlignmentKey))
 		{
 			return "NotRequested";
+		}
+		if (placed.HasAlignmentCoordinateOverride && string.Equals(placed.LayoutBlockType, "RootedAlignmentLane", StringComparison.Ordinal))
+		{
+			return "AlignedRootedLayoutBlock";
 		}
 		if (placed.AlignmentLaneMemberCount < 2)
 		{
@@ -954,6 +982,10 @@ public sealed class DimensionDrawer
 
 	private DimSide ChooseVerticalNormalDimensionSide(DeferredDim dim, DimSide preferredSide)
 	{
+		if (_diagnosticsEnabled && _diagnosticSide != DiagnosticDimensionSide.All)
+		{
+			return preferredSide;
+		}
 		if (dim.DimType != DimensionType.HoleLocation)
 		{
 			return preferredSide;
@@ -970,6 +1002,10 @@ public sealed class DimensionDrawer
 
 	private void RebalanceVerticalHoleLocationSides()
 	{
+		if (_diagnosticsEnabled && _diagnosticSide != DiagnosticDimensionSide.All)
+		{
+			return;
+		}
 		RebalanceVerticalHoleLocationSide(_rightDims, _leftDims);
 		RebalanceVerticalHoleLocationSide(_leftDims, _rightDims);
 	}
@@ -1219,7 +1255,8 @@ public sealed class DimensionDrawer
 			PreferLocalBoundary = dim.PreferLocalBoundary,
 			ForceOuterLevel = dim.ForceOuterLevel,
 			PreferFeatureLocalPlacement = dim.PreferFeatureLocalPlacement,
-			PreservePreferredSide = dim.PreservePreferredSide
+			PreservePreferredSide = dim.PreservePreferredSide,
+			SourceFeatureId = !string.IsNullOrEmpty(dim.DebugOwner) ? dim.DebugOwner : (dim.DebugRole ?? string.Empty)
 		};
 	}
 

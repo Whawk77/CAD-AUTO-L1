@@ -1080,6 +1080,14 @@ public sealed class Commands
 			AppendJsonProperty(builder, indent + 2, "alignmentLaneKey", dimensionCandidateDiagnostic.AlignmentLaneKey, comma: true);
 			AppendNullableJsonProperty(builder, indent + 2, "alignmentLaneMemberCount", dimensionCandidateDiagnostic.AlignmentLaneMemberCount, comma: true);
 			AppendJsonProperty(builder, indent + 2, "alignmentDecision", dimensionCandidateDiagnostic.AlignmentDecision, comma: true);
+			AppendJsonProperty(builder, indent + 2, "layoutBlockId", dimensionCandidateDiagnostic.LayoutBlockId, comma: true);
+			AppendJsonProperty(builder, indent + 2, "layoutBlockType", dimensionCandidateDiagnostic.LayoutBlockType, comma: true);
+			AppendJsonProperty(builder, indent + 2, "effectiveSpan", dimensionCandidateDiagnostic.EffectiveSpan, comma: true);
+			AppendJsonProperty(builder, indent + 2, "effectiveOrder", dimensionCandidateDiagnostic.EffectiveOrder, comma: true);
+			AppendJsonProperty(builder, indent + 2, "orderingReason", dimensionCandidateDiagnostic.OrderingReason, comma: true);
+			AppendJsonProperty(builder, indent + 2, "promotedByConflictWith", dimensionCandidateDiagnostic.PromotedByConflictWith, comma: true);
+			AppendJsonProperty(builder, indent + 2, "physicalOutwardDistance", dimensionCandidateDiagnostic.PhysicalOutwardDistance, comma: true);
+			AppendJsonProperty(builder, indent + 2, "physicalOrderValidated", dimensionCandidateDiagnostic.PhysicalOrderValidated, comma: true);
 			AppendJsonProperty(builder, indent + 2, "isSuppressed", dimensionCandidateDiagnostic.IsSuppressed, comma: true);
 			AppendJsonProperty(builder, indent + 2, "isSelected", dimensionCandidateDiagnostic.IsSelected, comma: true);
 			AppendJsonProperty(builder, indent + 2, "isAttachmentValid", dimensionCandidateDiagnostic.IsAttachmentValid, comma: true);

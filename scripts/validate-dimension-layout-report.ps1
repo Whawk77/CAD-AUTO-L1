@@ -246,6 +246,7 @@ foreach ($constraint in $outwardConstraints) {
 }
 
 if ($expected.requireContiguousStackingLevels -eq $true) {
+    $allowMultipleCoordinatesPerLevel = (Test-HasProperty -Object $expected -Name "allowMultipleCoordinatesPerLevel") -and $expected.allowMultipleCoordinatesPerLevel -eq $true
     $levelGroups = @($finalDimensions | Group-Object stackingLevel | Sort-Object { [int]$_.Name })
     for ($index = 0; $index -lt $levelGroups.Count; $index++) {
         if ([int]$levelGroups[$index].Name -ne $index) {
@@ -258,13 +259,13 @@ if ($expected.requireContiguousStackingLevels -eq $true) {
         $levelRanks = @($levelGroup.Group | ForEach-Object { Get-PhysicalRank -Dimension $_ -Side $side })
         $minimumRank = [double](($levelRanks | Measure-Object -Minimum).Minimum)
         $maximumRank = [double](($levelRanks | Measure-Object -Maximum).Maximum)
-        if (($maximumRank - $minimumRank) -gt $CoordinateTolerance) {
+        if (-not $allowMultipleCoordinatesPerLevel -and ($maximumRank - $minimumRank) -gt $CoordinateTolerance) {
             throw "Stacking level $($levelGroup.Name) maps to multiple physical coordinates."
         }
         $representativeRanks += $minimumRank
     }
 
-    if (Test-HasProperty -Object $expected -Name "expectedLayerStep") {
+    if (-not $allowMultipleCoordinatesPerLevel -and (Test-HasProperty -Object $expected -Name "expectedLayerStep")) {
         $stepTolerance = [double]$expected.layerStepTolerance
         for ($index = 0; $index -lt $representativeRanks.Count - 1; $index++) {
             $actualStep = [double]$representativeRanks[$index + 1] - [double]$representativeRanks[$index]

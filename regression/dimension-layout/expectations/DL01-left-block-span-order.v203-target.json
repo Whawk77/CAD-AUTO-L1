@@ -18,6 +18,7 @@
   ],
   "requirePhysicalOrderValidated": true,
   "requireContiguousStackingLevels": true,
+  "allowMultipleCoordinatesPerLevel": true,
   "expectedLayerStep": 6.5,
   "layerStepTolerance": 0.01,
   "blocks": [

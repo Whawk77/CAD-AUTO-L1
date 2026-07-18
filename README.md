@@ -7,11 +7,17 @@ Main command: `ASD`
 Compatibility and helper commands:
 
 - `AUTOFIXDIM`: same main workflow.
-- `ASD2`: clear old generated annotations, then regenerate.
-- `ASDDBG`: regenerate with compact diagnostic labels.
-- `ASD3`: clear generated plugin annotations.
+- `ASD4`: clear generated annotations, then run diagnostic generation with side selection.
+- `ASD5`: generate outline-related annotations only.
+- `ASD6`: generate hole-related annotations only.
+- `ASD7`: generate corner-feature annotations only.
+- `ASDCOREDBG`: core diagnostic generation.
+- `ASD3`: clear the most recently generated plugin annotation group.
+- `AG1`: special line-processing helper.
 
 ## Debug Flow
+
+The repeatable four-direction regression is documented in `docs/DimensionLayoutRegression.md`. The helper below is a manual smoke-test flow and does not archive or validate all four directions.
 
 Use the helper script to build the plugin, generate an AutoCAD `.scr` script, start AutoCAD, `NETLOAD` the compiled DLL, and run the configured test command:
 

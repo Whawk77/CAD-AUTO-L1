@@ -36,8 +36,16 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(OverallWinsDuplicatePreferenceEvenAgainstTolerance), OverallWinsDuplicatePreferenceEvenAgainstTolerance);
 				RunTest(nameof(OverallRemainsOutermostAfterLayoutAlignment), OverallRemainsOutermostAfterLayoutAlignment);
 				RunTest(nameof(OverallCompactsToOnePhysicalSpacing), OverallCompactsToOnePhysicalSpacing);
-				RunTest(nameof(SemanticReadingLevelsControlHorizontalStacking), SemanticReadingLevelsControlHorizontalStacking);
-				RunTest(nameof(SemanticReadingLevelsControlVerticalStacking), SemanticReadingLevelsControlVerticalStacking);
+				RunTest(nameof(EffectiveSpanControlsHorizontalStacking), EffectiveSpanControlsHorizontalStacking);
+				RunTest(nameof(SharedArrowEndpointUsesStrictSpanOrder), SharedArrowEndpointUsesStrictSpanOrder);
+				RunTest(nameof(EffectiveSpanControlsVerticalStacking), EffectiveSpanControlsVerticalStacking);
+				RunTest(nameof(NearEqualEffectiveSpansUseSemanticTieBreak), NearEqualEffectiveSpansUseSemanticTieBreak);
+				RunTest(nameof(LayoutBlocksUseBottomV203SpanOrder), LayoutBlocksUseBottomV203SpanOrder);
+				RunTest(nameof(RootedLayoutBlockSurvivesLegacyLaneProcessing), RootedLayoutBlockSurvivesLegacyLaneProcessing);
+				RunTest(nameof(LooseChainFormsOneEffectiveSpanBlock), LooseChainFormsOneEffectiveSpanBlock);
+				RunTest(nameof(DisconnectedLooseChainsRemainSeparateBlocks), DisconnectedLooseChainsRemainSeparateBlocks);
+				RunTest(nameof(OverlappingRootedTransfersFormLeftV203Blocks), OverlappingRootedTransfersFormLeftV203Blocks);
+				RunTest(nameof(IndependentLocalAndGlobalDimensionsMayShareLogicalLevel), IndependentLocalAndGlobalDimensionsMayShareLogicalLevel);
 				RunTest(nameof(IsolatedShortPinGroupTransferUsesInnerSpanOrder), IsolatedShortPinGroupTransferUsesInnerSpanOrder);
 				RunTest(nameof(DimensionDiagnosticsRecordFinalPlacement), DimensionDiagnosticsRecordFinalPlacement);
 				RunTest(nameof(FormattedDimensionTextLengthIgnoresControlCodes), FormattedDimensionTextLengthIgnoresControlCodes);
@@ -584,7 +592,7 @@ namespace CadAuto.Core.Tests
 				"overall dimensions must compact to exactly one physical stacking interval beyond the actual outermost dimension");
 		}
 
-		private static void SemanticReadingLevelsControlHorizontalStacking()
+		private static void EffectiveSpanControlsHorizontalStacking()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
 			var dimensions = new[]
@@ -596,15 +604,32 @@ namespace CadAuto.Core.Tests
 			};
 			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Bottom, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: true);
 
-			Assert(placements.Single(item => item.Index == 3).Level < placements.Single(item => item.Index == 2).Level,
-				"local horizontal spacing must be placed inside intra-group spacing even when generated last");
-			Assert(placements.Single(item => item.Index == 2).Level < placements.Single(item => item.Index == 1).Level,
-				"intra-group horizontal spacing must be placed inside datum transfer spacing");
-			Assert(placements.Single(item => item.Index == 1).Level < placements.Single(item => item.Index == 0).Level,
-				"datum transfer spacing must be placed inside the horizontal overall dimension");
+			Assert(placements.Single(item => item.Index == 1).Level < placements.Single(item => item.Index == 2).Level,
+				"the shorter horizontal datum transfer must stay inside the longer intra-group span");
+			Assert(placements.Single(item => item.Index == 2).Level < placements.Single(item => item.Index == 3).Level,
+				"effective span must outrank semantic reading level for non-equal horizontal spans");
+			Assert(placements.Single(item => item.Index == 3).Level < placements.Single(item => item.Index == 0).Level,
+				"the forced horizontal overall dimension must remain outermost");
 		}
 
-		private static void SemanticReadingLevelsControlVerticalStacking()
+		private static void SharedArrowEndpointUsesStrictSpanOrder()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(200.0, 100.0);
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.Normal, FirstPoint = new Point2D(0.0, 100.0), SecondPoint = new Point2D(73.0, 100.0), Span = 73.0, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "TopStructWidth" },
+				new DimensionLayoutItem { Kind = DimensionKind.Normal, FirstPoint = new Point2D(73.0, 100.0), SecondPoint = new Point2D(160.554, 100.0), Span = 87.554, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "TopStructWidth" }
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Top, outline, 2.5, 1.0, 5.0, 6.5, isHorizontal: true).ToDictionary(item => item.Index);
+
+			Assert(placements[0].Level < placements[1].Level,
+				$"adjacent dimensions that share an arrow endpoint must keep the shorter span physically inside the longer span (levels {placements[0].Level}/{placements[1].Level})");
+			Assert(placements.Values.All(placement => placement.PhysicalOrderValidated),
+				"shared-endpoint span ordering must pass physical-order validation");
+		}
+
+		private static void EffectiveSpanControlsVerticalStacking()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
 			var dimensions = new[]
@@ -616,12 +641,186 @@ namespace CadAuto.Core.Tests
 			};
 			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Left, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: false);
 
-			Assert(placements.Single(item => item.Index == 3).Level < placements.Single(item => item.Index == 2).Level,
-				"local vertical spacing must be placed inside intra-group spacing even when generated last");
-			Assert(placements.Single(item => item.Index == 2).Level < placements.Single(item => item.Index == 1).Level,
-				"intra-group vertical spacing must be placed inside datum transfer spacing");
-			Assert(placements.Single(item => item.Index == 1).Level < placements.Single(item => item.Index == 0).Level,
-				"datum transfer spacing must be placed inside the vertical overall dimension");
+			Assert(placements.Single(item => item.Index == 1).Level < placements.Single(item => item.Index == 2).Level,
+				"the shorter vertical datum transfer must stay inside the longer intra-group span");
+			Assert(placements.Single(item => item.Index == 2).Level < placements.Single(item => item.Index == 3).Level,
+				"effective span must outrank semantic reading level for non-equal vertical spans");
+			Assert(placements.Single(item => item.Index == 3).Level < placements.Single(item => item.Index == 0).Level,
+				"the forced vertical overall dimension must remain outermost");
+		}
+
+		private static void NearEqualEffectiveSpansUseSemanticTieBreak()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(50.0, 0.0), Span = 50.0, ReadingLevel = DimensionReadingLevel.DatumTransfer },
+				new DimensionLayoutItem { Kind = DimensionKind.Normal, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(50.0 + config.GeometryTolerance * 0.5, 0.0), Span = 50.0 + config.GeometryTolerance * 0.5, ReadingLevel = DimensionReadingLevel.LocalSpacing }
+			};
+			var rules = new DimensionLayoutRules(config);
+			var order = rules.GetStackingOrder(dimensions, isHorizontal: true);
+			var placements = rules.CreateStackingPlan(dimensions, DimensionSide.Top, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: true).ToDictionary(item => item.Index);
+
+			Assert(order.SequenceEqual(new[] { 1, 0 }),
+				"semantic reading level may decide only when effective spans are within geometry tolerance");
+			Assert(placements[1].OrderingReason == "NearEqualSpanSemanticTieBreak" && placements[0].OrderingReason == "NearEqualSpanSemanticTieBreak",
+				"near-equal span diagnostics must expose the semantic tie-break reason");
+		}
+
+		private static void LayoutBlocksUseBottomV203SpanOrder()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(338.0, 100.0);
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.Normal, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(305.0, 0.0), Span = 305.0, ReadingLevel = DimensionReadingLevel.LocalSpacing },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(10.0, 0.0), SecondPoint = new Point2D(233.5, 0.0), Span = 223.5, AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG3" },
+				new DimensionLayoutItem { Kind = DimensionKind.DatumHoleLocationX, FirstPoint = new Point2D(180.0, 0.0), SecondPoint = new Point2D(233.5, 0.0), Span = 53.5, AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 120, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG1" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(60.0, 0.0), SecondPoint = new Point2D(180.0, 0.0), Span = 120.0, AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG2" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(60.0, 0.0), Span = 60.0, AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 100, ReadingLevel = DimensionReadingLevel.IntraGroup, SourceFeatureId = "PG2" },
+				new DimensionLayoutItem { Kind = DimensionKind.OverallWidth, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(338.0, 0.0), Span = 338.0, ForceOuterLevel = true, ReadingLevel = DimensionReadingLevel.Overall },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(25.0, 0.0), Span = 25.0, ReadingLevel = DimensionReadingLevel.LocalSpacing }
+			};
+			var rules = new DimensionLayoutRules(config);
+			var order = rules.GetStackingOrder(dimensions, isHorizontal: true);
+			var placements = rules.CreateStackingPlan(dimensions, DimensionSide.Bottom, outline, 2.5, 1.25, 5.0, 6.5, isHorizontal: true).ToDictionary(item => item.Index);
+
+			Assert(order.SequenceEqual(new[] { 6, 1, 2, 3, 4, 0, 5 }),
+				"v203 bottom order must be local25, isolated223.5, rooted233.5, structure305, overall338");
+			Assert(placements[1].Level < placements[2].Level && placements[2].Level < placements[0].Level && placements[0].Level < placements[5].Level,
+				"layout blocks must be stacked outward by effective span");
+			Assert(new[] { 2, 3, 4 }.Select(index => placements[index].LayoutBlockId).Distinct().Count() == 1
+				&& new[] { 2, 3, 4 }.All(index => placements[index].Level == placements[2].Level)
+				&& Math.Abs(placements[2].EffectiveSpan - 233.5) <= config.GeometryTolerance,
+				"the rooted datum chain must remain one indivisible 233.5 layout block");
+			Assert(placements.Values.All(placement => placement.PhysicalOrderValidated),
+				"the final bottom physical coordinates must preserve the v203 outward order");
+		}
+
+		private static void RootedLayoutBlockSurvivesLegacyLaneProcessing()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(338.0, 100.0);
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.DatumHoleLocationX, FirstPoint = new Point2D(245.5, 0.0), SecondPoint = new Point2D(305.0, 0.0), Span = 59.5, AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 120, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG1" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(121.5, 0.0), SecondPoint = new Point2D(245.5, 0.0), Span = 124.0, AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG2" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(71.5, 0.0), SecondPoint = new Point2D(121.5, 0.0), Span = 50.0, AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 100, ReadingLevel = DimensionReadingLevel.IntraGroup, SourceFeatureId = "PG2" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(22.0, 0.0), SecondPoint = new Point2D(245.5, 0.0), Span = 223.5, AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG3" }
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Bottom, outline, 2.5, 1.25, 5.0, 6.5, isHorizontal: true).ToDictionary(item => item.Index);
+			var rooted = new[] { placements[0], placements[1], placements[2] };
+
+			Assert(rooted.Select(item => item.LayoutBlockId).Distinct().Count() == 1
+				&& rooted.All(item => item.LayoutBlockType == "RootedAlignmentLane" && item.Level == rooted[0].Level),
+				"legacy alignment-lane processing must not split an already formed rooted layout block");
+			Assert(rooted.All(item => item.AlignmentLaneKey == "PG1:DatumChain:H#1" && item.AlignmentLaneMemberCount == 3)
+				&& rooted.All(item => item.DimLineCoordinateOverride.HasValue)
+				&& rooted.Select(item => item.DimLineCoordinateOverride.Value).Distinct().Count() == 1,
+				"rooted layout-block diagnostics and physical coordinates must remain block-consistent");
+			Assert(placements[3].Level < rooted[0].Level && placements.Values.All(item => item.PhysicalOrderValidated),
+				"isolated 223.5 transfer must remain inside the rooted 233.5 block");
+		}
+
+		private static void LooseChainFormsOneEffectiveSpanBlock()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 120.0);
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(100.0, 0.0), SecondPoint = new Point2D(100.0, 20.0), Span = 20.0, LooseChainId = 1, ReadingLevel = DimensionReadingLevel.LocalSpacing },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(100.0, 20.0), SecondPoint = new Point2D(100.0, 50.0), Span = 30.0, LooseChainId = 3, ReadingLevel = DimensionReadingLevel.LocalSpacing },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(100.0, 0.0), SecondPoint = new Point2D(100.0, 40.0), Span = 40.0, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 100, ReadingLevel = DimensionReadingLevel.IntraGroup },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(100.0, 40.0), SecondPoint = new Point2D(100.0, 85.0), Span = 45.0, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer },
+				new DimensionLayoutItem { Kind = DimensionKind.Normal, FirstPoint = new Point2D(100.0, 0.0), SecondPoint = new Point2D(100.0, 100.0), Span = 100.0, ReadingLevel = DimensionReadingLevel.LocalSpacing }
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Right, outline, 2.5, 1.25, 5.0, 6.5, isHorizontal: false).ToDictionary(item => item.Index);
+
+			Assert(placements[0].LayoutBlockId == placements[1].LayoutBlockId
+				&& placements[0].LayoutBlockType == "LooseChain"
+				&& Math.Abs(placements[0].EffectiveSpan - 50.0) <= config.GeometryTolerance,
+				"all members of one loose chain must form one 50-unit layout block");
+			Assert(placements[0].Level < placements[2].Level && placements[2].Level < placements[4].Level,
+				"right-side loose50, rooted85, and outline100 blocks must follow effective-span order");
+		}
+
+		private static void DisconnectedLooseChainsRemainSeparateBlocks()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(100.0, 0.0), SecondPoint = new Point2D(100.0, 20.0), Span = 20.0, LooseChainId = 1 },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(100.0, 50.0), SecondPoint = new Point2D(100.0, 70.0), Span = 20.0, LooseChainId = 3 }
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Right, null, 2.5, 1.25, 5.0, 6.5, isHorizontal: false).ToDictionary(item => item.Index);
+
+			Assert(placements[0].LayoutBlockId != placements[1].LayoutBlockId,
+				"disconnected loose dimensions with different chain identifiers must remain separate layout blocks");
+		}
+
+		private static void OverlappingRootedTransfersFormLeftV203Blocks()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 201.5);
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(0.0, 41.0), Span = 41.0, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG2" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(0.0, 176.5), Span = 176.5, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG4" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(0.0, -4.0), SecondPoint = new Point2D(0.0, 41.0), Span = 45.0, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 100, ReadingLevel = DimensionReadingLevel.IntraGroup, SourceFeatureId = "PG2" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(0.0, 30.0), Span = 30.0, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 100, ReadingLevel = DimensionReadingLevel.IntraGroup, SourceFeatureId = "PG3" },
+				new DimensionLayoutItem { Kind = DimensionKind.OverallHeight, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(0.0, 201.5), Span = 201.5, ForceOuterLevel = true, ReadingLevel = DimensionReadingLevel.Overall }
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Left, outline, 2.5, 1.25, 5.0, 6.5, isHorizontal: false).ToDictionary(item => item.Index);
+
+			Assert(placements[0].LayoutBlockId == placements[2].LayoutBlockId
+				&& Math.Abs(placements[0].EffectiveSpan - 45.0) <= config.GeometryTolerance,
+				"the PG2 transfer and direct pin distance must form the left-side 45 block");
+			Assert(placements[1].LayoutBlockId == placements[3].LayoutBlockId
+				&& Math.Abs(placements[1].EffectiveSpan - 176.5) <= config.GeometryTolerance,
+				"the remaining PG3/PG4 rooted members must form the left-side 176.5 block");
+			Assert(placements[0].DimLineCoordinateOverride.HasValue && placements[2].DimLineCoordinateOverride.HasValue
+				&& Math.Abs(placements[0].DimLineCoordinateOverride.Value - placements[2].DimLineCoordinateOverride.Value) <= config.GeometryTolerance
+				&& Math.Abs(placements[1].DimLineCoordinateOverride.Value - placements[3].DimLineCoordinateOverride.Value) <= config.GeometryTolerance,
+				"each overlapping rooted block must resolve to one physical dimension-line coordinate");
+			Assert(placements[0].Level < placements[1].Level && placements[1].Level < placements[4].Level
+				&& placements.Values.All(placement => placement.PhysicalOrderValidated),
+				"left-side rooted blocks must keep 45, 176.5, overall201.5 outward order");
+		}
+
+		private static void IndependentLocalAndGlobalDimensionsMayShareLogicalLevel()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRightNotchOutline();
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.HoleLocation,
+					FirstPoint = new Point2D(20.0, 30.0),
+					SecondPoint = new Point2D(20.0, 40.0),
+					Span = 10.0,
+					PreferLocalBoundary = true,
+					PreservePreferredSide = true,
+					ReadingLevel = DimensionReadingLevel.LocalSpacing
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.Normal,
+					FirstPoint = new Point2D(200.0, 85.0),
+					SecondPoint = new Point2D(200.0, 95.0),
+					Span = 10.0,
+					ReadingLevel = DimensionReadingLevel.LocalSpacing
+				}
+			};
+			var rules = new DimensionLayoutRules(config);
+			var placements = rules.CreateStackingPlan(dimensions, DimensionSide.Right, outline, 2.5, 1.25, 5.0, 6.5, isHorizontal: false).ToDictionary(item => item.Index);
+			double localCoordinate = placements[0].DimLineCoordinateOverride ?? rules.GetDimLineCoordinate(dimensions[0], DimensionSide.Right, outline, placements[0].Offset);
+			double globalCoordinate = placements[1].DimLineCoordinateOverride ?? rules.GetDimLineCoordinate(dimensions[1], DimensionSide.Right, outline, placements[1].Offset);
+
+			Assert(placements[0].Level == placements[1].Level && Math.Abs(localCoordinate - globalCoordinate) > config.GeometryTolerance,
+				"independent local-boundary and global dimensions may share one logical level at different physical coordinates");
+			Assert(placements.Values.All(placement => placement.PhysicalOrderValidated),
+				"different coordinates on a shared non-conflicting logical level must not invalidate physical block ordering");
 		}
 
 		private static void IsolatedShortPinGroupTransferUsesInnerSpanOrder()
@@ -662,7 +861,7 @@ namespace CadAuto.Core.Tests
 			};
 			plan.Add(dimension);
 			plan.CaptureFinalDimensions();
-			plan.Diagnostics.RecordFinalPlacement(dimension.DiagnosticId, 2, 15.0, 125.0, true, true, "PG1:DatumChain:H#1", 3, "AlignedLaneCoordinateOverride");
+			plan.Diagnostics.RecordFinalPlacement(dimension.DiagnosticId, 2, 15.0, 125.0, true, true, "PG1:DatumChain:H#1", 3, "AlignedLaneCoordinateOverride", "AlignmentLane:PG1:DatumChain:H#1", "RootedAlignmentLane", 30.0, 1, "EffectiveSpanAscending", "Dimension:2", 15.0, true);
 
 			Assert(dimension.DiagnosticId > 0, "planned dimensions must receive a stable diagnostic id");
 			Assert(plan.Diagnostics.DimensionCandidates.Single().ReadingLevel == DimensionReadingLevel.IntraGroup.ToString()
@@ -677,6 +876,10 @@ namespace CadAuto.Core.Tests
 			Assert(plan.Diagnostics.FinalDimensions.Single().AlignmentLaneMemberCount == 3
 				&& plan.Diagnostics.FinalDimensions.Single().AlignmentDecision == "AlignedLaneCoordinateOverride",
 				"final placement diagnostics must explain the resolved alignment lane");
+			Assert(plan.Diagnostics.FinalDimensions.Single().LayoutBlockType == "RootedAlignmentLane"
+				&& Math.Abs(plan.Diagnostics.FinalDimensions.Single().EffectiveSpan - 30.0) <= 1E-09
+				&& plan.Diagnostics.FinalDimensions.Single().PhysicalOrderValidated,
+				"final placement diagnostics must expose v203 layout-block and physical-order metadata");
 		}
 
 		private static void FormattedDimensionTextLengthIgnoresControlCodes()

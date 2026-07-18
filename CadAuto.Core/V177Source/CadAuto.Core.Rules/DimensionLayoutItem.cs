@@ -32,4 +32,6 @@ public sealed class DimensionLayoutItem
 	public bool PreferFeatureLocalPlacement { get; set; }
 
 	public bool PreservePreferredSide { get; set; }
+
+	public string SourceFeatureId { get; set; }
 }

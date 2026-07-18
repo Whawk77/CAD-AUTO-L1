@@ -30,8 +30,8 @@
 
 - Normal/thread holes assigned to a pin group are functional-hole dimensions owned by that pin group.
 - Pin-group functional-hole dimensions may prefer local boundary placement.
-- Loose/scatter hole chains use `LooseChainId` and should remain globally based unless the user explicitly changes the rule.
-- Loose/scatter `HoleLocation` dimensions must not use local boundary placement.
+- Loose/scatter hole chains use `LooseChainId` and may prefer a nearby valid local boundary when it shortens extension lines.
+- A loose/scatter `HoleLocation` dimension line must remain outside the real contour interior and must not be sent to a distant global side merely to reduce crowding.
 - Loose-hole chain dimensions should stay visually grouped and should not be split across unrelated sides by post-processing.
 
 ## Local Boundary Rules
@@ -40,7 +40,7 @@
   - `PinDistance`
   - `PinGroupDistance`
   - functional-hole dimensions marked with `PreferLocalBoundary`
-- Local boundary placement is not allowed for dimensions with a non-zero `LooseChainId`.
+  - loose/scatter `HoleLocation` dimensions marked with `PreferLocalBoundary`
 - A local-boundary dimension line must not enter the real outer contour interior.
 - If no valid local boundary is found, fall back to the global `MainOutline` envelope.
 

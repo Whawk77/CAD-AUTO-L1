@@ -25,6 +25,35 @@ public sealed class DimensionLayoutRules
 		public double ArrB { get; set; }
 
 		public string AlignmentLaneKey { get; set; }
+
+		public string LayoutBlockId { get; set; }
+
+		public string LayoutBlockType { get; set; }
+
+		public int LayoutBlockMemberCount { get; set; }
+	}
+
+	private sealed class LayoutBlock
+	{
+		public string Id { get; set; }
+
+		public string Type { get; set; }
+
+		public List<IndexedLayoutItem> Members { get; } = new List<IndexedLayoutItem>();
+
+		public double EffectiveSpan { get; set; }
+
+		public DimensionReadingLevel ReadingLevel { get; set; }
+
+		public bool ForceOuterLevel { get; set; }
+
+		public int FirstSourceIndex { get; set; }
+
+		public int EffectiveOrder { get; set; }
+
+		public string OrderingReason { get; set; }
+
+		public string PromotedByConflictWith { get; set; }
 	}
 
 	private sealed class TextSlideCandidate
@@ -70,108 +99,103 @@ public sealed class DimensionLayoutRules
 
 	public List<DimensionStackingPlacement> CreateStackingPlan(IList<DimensionLayoutItem> dimensions, DimensionSide side, OutlineFeature2D outline, double textHeight, double gap, double firstOffset, double perLevelSpacing, bool isHorizontal)
 	{
-		List<DimensionStackingPlacement> list = new List<DimensionStackingPlacement>();
+		List<DimensionStackingPlacement> placements = new List<DimensionStackingPlacement>();
 		if (dimensions == null || dimensions.Count == 0)
 		{
-			return list;
+			return placements;
 		}
-		List<List<StackingLayerItem>> list2 = new List<List<StackingLayerItem>>();
-		Dictionary<int, int> dictionary = new Dictionary<int, int>();
-		int? num = null;
-		foreach (int sourceIndex in GetStackingOrder(dimensions, isHorizontal))
+		List<LayoutBlock> layoutBlocks = GetOrderedLayoutBlocks(dimensions, isHorizontal);
+		Dictionary<string, LayoutBlock> blockById = layoutBlocks.ToDictionary(block => block.Id, StringComparer.Ordinal);
+		List<List<StackingLayerItem>> layers = new List<List<StackingLayerItem>>();
+		foreach (LayoutBlock block in layoutBlocks)
 		{
-			int i = sourceIndex;
-			DimensionLayoutItem dimensionLayoutItem = dimensions[sourceIndex];
-			Tuple<double, double> tuple = ComputeTextInterval(dimensionLayoutItem, isHorizontal, textHeight);
-			Tuple<double, double> tuple2 = ComputeArrowInterval(dimensionLayoutItem, isHorizontal);
-			int num2 = 0;
-			for (int j = 0; j < list2.Count; j++)
+			List<StackingLayerItem> blockItems = block.Members
+				.OrderBy(member => member.SourceIndex)
+				.Select(member => CreateStackingLayerItem(member, block, isHorizontal, textHeight))
+				.ToList();
+			int targetLevel = 0;
+			for (int level = 0; level < layers.Count; level++)
 			{
-				foreach (StackingLayerItem item in list2[j])
+				foreach (StackingLayerItem existing in layers[level])
 				{
-					if (HasStrictArrowConflict(tuple2.Item1, tuple2.Item2, item.ArrA, item.ArrB) && j + 1 > num2)
+					bool hasStrictArrowConflict = blockItems.Any(member => HasStrictArrowConflict(member.ArrA, member.ArrB, existing.ArrA, existing.ArrB));
+					bool requiresPhysicalOutwardOrder = blockById.TryGetValue(existing.LayoutBlockId ?? string.Empty, out var existingBlock)
+						&& RequiresPhysicalOutwardOrder(existingBlock, block, isHorizontal);
+					if ((hasStrictArrowConflict || requiresPhysicalOutwardOrder) && level + 1 > targetLevel)
 					{
-						num2 = j + 1;
+						targetLevel = level + 1;
+						block.PromotedByConflictWith = existing.LayoutBlockId ?? string.Empty;
 					}
 				}
 			}
-			int num3 = (dimensionLayoutItem.ForceOuterLevel ? Math.Max(num2, list2.Count) : num2);
-			if (isHorizontal && !dimensionLayoutItem.ForceOuterLevel && dimensionLayoutItem.LooseChainId != 0 && dictionary.TryGetValue(dimensionLayoutItem.LooseChainId, out var value))
+			if (block.ForceOuterLevel)
 			{
-				num3 = Math.Max(value, num2);
-			}
-			if (isHorizontal && !dimensionLayoutItem.ForceOuterLevel && dimensionLayoutItem.LooseChainId != 0 && num.HasValue)
-			{
-				num3 = Math.Max(num.Value, num2);
+				targetLevel = Math.Max(targetLevel, layers.Count);
 			}
 			while (true)
 			{
-				double offset = firstOffset + (double)num3 * perLevelSpacing;
-				if (TextCoversOutline(dimensionLayoutItem, side, offset, textHeight, outline, isHorizontal))
+				double offset = firstOffset + (double)targetLevel * perLevelSpacing;
+				if (blockItems.Any(member => TextCoversOutline(member.Dimension, side, offset, textHeight, outline, isHorizontal)))
 				{
-					num3++;
+					targetLevel++;
 					continue;
 				}
-				if (num3 >= list2.Count)
+				StackingLayerItem conflict = targetLevel < layers.Count
+					? layers[targetLevel].FirstOrDefault(existing => blockItems.Any(member => HasStackingLayerConflict(member, existing, isHorizontal, gap)))
+					: null;
+				if (conflict != null)
 				{
-					break;
+					block.PromotedByConflictWith = conflict.LayoutBlockId ?? string.Empty;
+					targetLevel++;
+					continue;
 				}
-				bool flag = true;
-				foreach (StackingLayerItem item2 in list2[num3])
+				StackingLayerItem anchor = blockItems
+					.OrderByDescending(item => item.Dimension.AlignmentPriority)
+					.ThenBy(item => item.Dimension.Span)
+					.ThenBy(item => item.Index)
+					.First();
+				if (HasPhysicalAlignmentGroupConflict(blockItems, anchor, targetLevel, layers, side, outline, textHeight, gap, firstOffset, perLevelSpacing))
 				{
-					if ((!isHorizontal || dimensionLayoutItem.LooseChainId == 0 || item2.Dimension.LooseChainId == 0) && (!isHorizontal || !CanIgnoreTextConflictWithLooseChain(dimensionLayoutItem, item2.Dimension) || HasStrictArrowConflict(tuple2.Item1, tuple2.Item2, item2.ArrA, item2.ArrB)) && !AreCompatible(item2.TxtA, item2.TxtB, tuple.Item1, tuple.Item2, gap))
-					{
-						flag = false;
-						break;
-					}
-				}
-				if (!flag)
-				{
-					num3++;
+					targetLevel++;
 					continue;
 				}
 				break;
 			}
-			while (list2.Count <= num3)
+			while (layers.Count <= targetLevel)
 			{
-				list2.Add(new List<StackingLayerItem>());
+				layers.Add(new List<StackingLayerItem>());
 			}
-			if (isHorizontal && dimensionLayoutItem.LooseChainId != 0)
-			{
-				PromoteLooseSideLevel(list2, num3);
-				dictionary[dimensionLayoutItem.LooseChainId] = num3;
-				num = num3;
-			}
-			list2[num3].Add(new StackingLayerItem
-			{
-				Index = i,
-				Dimension = dimensionLayoutItem,
-				TxtA = tuple.Item1,
-				TxtB = tuple.Item2,
-				ArrA = tuple2.Item1,
-				ArrB = tuple2.Item2
-			});
+			layers[targetLevel].AddRange(blockItems);
 		}
-		AlignDimensionsBySharedExtensionLines(list2, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
-		List<List<StackingLayerItem>> alignmentLanes = BuildAlignmentLanes(list2, gap);
-		MoveAlignmentGroupsTogether(list2, alignmentLanes, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
-		PromoteOverallDimensionsToOutermostLayer(list2);
-		for (int k = 0; k < list2.Count; k++)
+		AlignDimensionsBySharedExtensionLines(layers, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
+		List<List<StackingLayerItem>> alignmentLanes = BuildAlignmentLanes(layers, gap);
+		MoveAlignmentGroupsTogether(layers, alignmentLanes, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
+		PromoteOverallDimensionsToOutermostLayer(layers);
+		for (int level = 0; level < layers.Count; level++)
 		{
-			double offset2 = firstOffset + (double)k * perLevelSpacing;
-			foreach (StackingLayerItem item3 in list2[k])
+			double offset = firstOffset + (double)level * perLevelSpacing;
+			foreach (StackingLayerItem item in layers[level])
 			{
-				list.Add(new DimensionStackingPlacement
+				LayoutBlock block = blockById[item.LayoutBlockId];
+				placements.Add(new DimensionStackingPlacement
 				{
-					Index = item3.Index,
-					Level = k,
-					Offset = offset2
+					Index = item.Index,
+					Level = level,
+					Offset = offset,
+					LayoutBlockId = block.Id,
+					LayoutBlockType = block.Type,
+					EffectiveSpan = block.EffectiveSpan,
+					EffectiveOrder = block.EffectiveOrder,
+					OrderingReason = block.OrderingReason,
+					PromotedByConflictWith = block.PromotedByConflictWith ?? string.Empty
 				});
 			}
 		}
-		ApplyAlignmentCoordinateOverrides(list, dimensions, alignmentLanes, side, outline);
-		EnsureOverallPhysicalOutermostOffset(list, dimensions, side, outline, perLevelSpacing);
-		return list;
+		ApplyAlignmentCoordinateOverrides(placements, dimensions, alignmentLanes, side, outline);
+		ApplyRootedLayoutBlockCoordinateOverrides(placements, dimensions, side, outline);
+		EnsureOverallPhysicalOutermostOffset(placements, dimensions, side, outline, perLevelSpacing);
+		UpdatePhysicalOrderDiagnostics(placements, dimensions, layoutBlocks, side, outline, isHorizontal);
+		return placements;
 	}
 
 	public List<int> GetStackingOrder(IList<DimensionLayoutItem> dimensions, bool isHorizontal)
@@ -180,44 +204,258 @@ public sealed class DimensionLayoutRules
 		{
 			return new List<int>();
 		}
-		return dimensions.Select((DimensionLayoutItem dimension, int index) => new IndexedLayoutItem
-		{
-			SourceIndex = index,
-			Dimension = dimension
-		}).OrderBy((IndexedLayoutItem item) => GetEffectiveReadingLevel(item.Dimension, item.SourceIndex, dimensions, isHorizontal))
-			.ThenBy((IndexedLayoutItem item) => item.Dimension.Span)
-			.ThenBy((IndexedLayoutItem item) => item.SourceIndex)
-			.Select((IndexedLayoutItem item) => item.SourceIndex)
+		return GetOrderedLayoutBlocks(dimensions, isHorizontal)
+			.SelectMany(block => block.Members.OrderBy(member => member.SourceIndex))
+			.Select(member => member.SourceIndex)
 			.ToList();
 	}
 
-	private DimensionReadingLevel GetEffectiveReadingLevel(DimensionLayoutItem dimension, int sourceIndex, IList<DimensionLayoutItem> dimensions, bool isHorizontal)
+	private List<LayoutBlock> GetOrderedLayoutBlocks(IList<DimensionLayoutItem> dimensions, bool isHorizontal)
 	{
-		if (dimension == null || dimension.Kind != DimensionKind.PinGroupDistance || dimension.ReadingLevel != DimensionReadingLevel.DatumTransfer || string.IsNullOrEmpty(dimension.AlignmentKey))
+		List<LayoutBlock> blocks = BuildLayoutBlocks(dimensions, isHorizontal);
+		blocks.Sort((first, second) => CompareLayoutBlocks(first, second));
+		for (int index = 0; index < blocks.Count; index++)
 		{
-			return dimension?.ReadingLevel ?? DimensionReadingLevel.LocalSpacing;
+			LayoutBlock block = blocks[index];
+			block.EffectiveOrder = index;
+			block.OrderingReason = GetOrderingReason(block, blocks);
 		}
-		Tuple<double, double> arrowInterval = ComputeArrowInterval(dimension, isHorizontal);
-		for (int i = 0; i < dimensions.Count; i++)
+		return blocks;
+	}
+
+	private List<LayoutBlock> BuildLayoutBlocks(IList<DimensionLayoutItem> dimensions, bool isHorizontal)
+	{
+		List<IndexedLayoutItem> indexedItems = dimensions
+			.Select((dimension, index) => new IndexedLayoutItem { SourceIndex = index, Dimension = dimension })
+			.Where(item => item.Dimension != null)
+			.ToList();
+		HashSet<int> assigned = new HashSet<int>();
+		List<LayoutBlock> blocks = new List<LayoutBlock>();
+		foreach (List<IndexedLayoutItem> looseChain in BuildLooseLayoutChains(
+			indexedItems.Where(item => item.Dimension.LooseChainId != 0),
+			isHorizontal))
 		{
-			DimensionLayoutItem candidate = dimensions[i];
-			if (i == sourceIndex || candidate == null || !string.Equals(candidate.AlignmentKey, dimension.AlignmentKey, StringComparison.Ordinal))
+			string chainKey = string.Join("+", looseChain
+				.Select(item => item.Dimension.LooseChainId)
+				.Distinct()
+				.OrderBy(chainId => chainId)
+				.Select(chainId => chainId.ToString(CultureInfo.InvariantCulture)));
+			LayoutBlock block = CreateLayoutBlock("LooseChain:" + chainKey, "LooseChain", looseChain, isHorizontal);
+			blocks.Add(block);
+			foreach (IndexedLayoutItem member in block.Members)
+			{
+				assigned.Add(member.SourceIndex);
+			}
+		}
+		foreach (IGrouping<string, IndexedLayoutItem> alignmentGroup in indexedItems
+			.Where(item => !assigned.Contains(item.SourceIndex)
+				&& !item.Dimension.PreserveAlignmentLevel
+				&& !string.IsNullOrEmpty(item.Dimension.AlignmentKey))
+			.GroupBy(item => item.Dimension.AlignmentKey, StringComparer.Ordinal)
+			.OrderBy(group => group.Min(item => item.SourceIndex)))
+		{
+			List<List<IndexedLayoutItem>> lanes = BuildRootedLayoutLanes(alignmentGroup, isHorizontal);
+			int laneNumber = 1;
+			foreach (List<IndexedLayoutItem> lane in lanes)
+			{
+				LayoutBlock block = CreateLayoutBlock("AlignmentLane:" + alignmentGroup.Key + "#" + laneNumber.ToString(CultureInfo.InvariantCulture), "RootedAlignmentLane", lane, isHorizontal);
+				blocks.Add(block);
+				foreach (IndexedLayoutItem laneMember in lane)
+				{
+					assigned.Add(laneMember.SourceIndex);
+				}
+				laneNumber++;
+			}
+		}
+		foreach (IndexedLayoutItem item in indexedItems.Where(item => !assigned.Contains(item.SourceIndex)).OrderBy(item => item.SourceIndex))
+		{
+			blocks.Add(CreateLayoutBlock("Dimension:" + item.SourceIndex.ToString(CultureInfo.InvariantCulture), "SingleDimension", new[] { item }, isHorizontal));
+		}
+		return blocks;
+	}
+
+	private List<List<IndexedLayoutItem>> BuildLooseLayoutChains(IEnumerable<IndexedLayoutItem> source, bool isHorizontal)
+	{
+		List<IndexedLayoutItem> remaining = source.OrderBy(item => item.SourceIndex).ToList();
+		List<List<IndexedLayoutItem>> chains = new List<List<IndexedLayoutItem>>();
+		while (remaining.Count > 0)
+		{
+			List<IndexedLayoutItem> chain = new List<IndexedLayoutItem> { remaining[0] };
+			remaining.RemoveAt(0);
+			bool added;
+			do
+			{
+				added = false;
+				foreach (IndexedLayoutItem candidate in remaining.ToList())
+				{
+					if (!chain.Any(member => member.Dimension.LooseChainId == candidate.Dimension.LooseChainId
+						|| SharesArrowEndpoint(member.Dimension, candidate.Dimension, isHorizontal)))
+					{
+						continue;
+					}
+					chain.Add(candidate);
+					remaining.Remove(candidate);
+					added = true;
+				}
+			}
+			while (added);
+			chains.Add(chain.OrderBy(item => item.SourceIndex).ToList());
+		}
+		return chains.OrderBy(chain => chain.Min(item => item.SourceIndex)).ToList();
+	}
+
+	private List<List<IndexedLayoutItem>> BuildRootedLayoutLanes(IEnumerable<IndexedLayoutItem> source, bool isHorizontal)
+	{
+		List<IndexedLayoutItem> remaining = source.OrderBy(item => item.SourceIndex).ToList();
+		List<List<IndexedLayoutItem>> lanes = new List<List<IndexedLayoutItem>>();
+		foreach (IndexedLayoutItem transfer in remaining.Where(item => item.Dimension.Kind == DimensionKind.PinGroupDistance).ToList())
+		{
+			IndexedLayoutItem pin = remaining
+				.Where(item => item != transfer
+					&& item.Dimension.Kind == DimensionKind.PinDistance
+					&& SharesArrowEndpoint(transfer.Dimension, item.Dimension, isHorizontal))
+				.OrderByDescending(item => HasSameSourceFeature(transfer.Dimension, item.Dimension))
+				.ThenBy(item => item.SourceIndex)
+				.FirstOrDefault();
+			if (pin == null)
 			{
 				continue;
 			}
-			Tuple<double, double> candidateInterval = ComputeArrowInterval(candidate, isHorizontal);
-			if (!HasStrictArrowConflict(arrowInterval.Item1, arrowInterval.Item2, candidateInterval.Item1, candidateInterval.Item2)
-				&& SharesArrowEndpoint(arrowInterval.Item1, arrowInterval.Item2, candidateInterval.Item1, candidateInterval.Item2))
+			lanes.Add(new List<IndexedLayoutItem> { transfer, pin });
+			remaining.Remove(transfer);
+			remaining.Remove(pin);
+		}
+		foreach (IndexedLayoutItem datum in remaining.Where(item => item.Dimension.Kind == DimensionKind.DatumHoleLocationX || item.Dimension.Kind == DimensionKind.DatumHoleLocationY).ToList())
+		{
+			List<IndexedLayoutItem> lane = lanes.FirstOrDefault(candidate => CanJoinRootedLayoutLane(datum, candidate, isHorizontal));
+			if (lane != null)
 			{
-				return dimension.ReadingLevel;
+				lane.Add(datum);
+				remaining.Remove(datum);
+				continue;
+			}
+			IndexedLayoutItem pin = remaining
+				.Where(item => item != datum
+					&& item.Dimension.Kind == DimensionKind.PinDistance
+					&& SharesArrowEndpoint(datum.Dimension, item.Dimension, isHorizontal))
+				.OrderByDescending(item => HasSameSourceFeature(datum.Dimension, item.Dimension))
+				.ThenBy(item => item.SourceIndex)
+				.FirstOrDefault();
+			if (pin != null)
+			{
+				lanes.Add(new List<IndexedLayoutItem> { datum, pin });
+				remaining.Remove(datum);
+				remaining.Remove(pin);
 			}
 		}
-		bool hasLargerOverlappingLocalDimension = dimensions.Where((DimensionLayoutItem candidate, int index) => index != sourceIndex && candidate != null
-			&& candidate.ReadingLevel == DimensionReadingLevel.LocalSpacing
-			&& candidate.Span > dimension.Span + _config.GeometryTolerance)
-			.Select(candidate => ComputeArrowInterval(candidate, isHorizontal))
-			.Any(candidateInterval => HasStrictArrowConflict(arrowInterval.Item1, arrowInterval.Item2, candidateInterval.Item1, candidateInterval.Item2));
-		return hasLargerOverlappingLocalDimension ? DimensionReadingLevel.LocalSpacing : dimension.ReadingLevel;
+		foreach (IndexedLayoutItem item in remaining.OrderBy(candidate => candidate.SourceIndex).ToList())
+		{
+			List<IndexedLayoutItem> lane = lanes.FirstOrDefault(candidate => CanJoinRootedLayoutLane(item, candidate, isHorizontal));
+			if (lane == null)
+			{
+				lane = new List<IndexedLayoutItem>();
+				lanes.Add(lane);
+			}
+			lane.Add(item);
+			remaining.Remove(item);
+		}
+		return lanes
+			.OrderByDescending(lane => lane.Count)
+			.ThenBy(lane => lane.Min(item => item.SourceIndex))
+			.ToList();
+	}
+
+	private bool CanJoinRootedLayoutLane(IndexedLayoutItem item, IList<IndexedLayoutItem> lane, bool isHorizontal)
+	{
+		return lane.Any(member => SharesArrowEndpoint(item.Dimension, member.Dimension, isHorizontal))
+			&& lane.All(member => !HasStrictArrowConflict(item.Dimension, member.Dimension, isHorizontal));
+	}
+
+	private bool HasStrictArrowConflict(DimensionLayoutItem first, DimensionLayoutItem second, bool isHorizontal)
+	{
+		Tuple<double, double> firstInterval = ComputeArrowInterval(first, isHorizontal);
+		Tuple<double, double> secondInterval = ComputeArrowInterval(second, isHorizontal);
+		return HasStrictArrowConflict(firstInterval.Item1, firstInterval.Item2, secondInterval.Item1, secondInterval.Item2);
+	}
+
+	private bool SharesArrowEndpoint(DimensionLayoutItem first, DimensionLayoutItem second, bool isHorizontal)
+	{
+		Tuple<double, double> firstInterval = ComputeArrowInterval(first, isHorizontal);
+		Tuple<double, double> secondInterval = ComputeArrowInterval(second, isHorizontal);
+		return SharesArrowEndpoint(firstInterval.Item1, firstInterval.Item2, secondInterval.Item1, secondInterval.Item2);
+	}
+
+	private static bool HasSameSourceFeature(DimensionLayoutItem first, DimensionLayoutItem second)
+	{
+		return !string.IsNullOrEmpty(first.SourceFeatureId)
+			&& string.Equals(first.SourceFeatureId, second.SourceFeatureId, StringComparison.Ordinal);
+	}
+
+	private LayoutBlock CreateLayoutBlock(string id, string type, IEnumerable<IndexedLayoutItem> members, bool isHorizontal)
+	{
+		LayoutBlock block = new LayoutBlock { Id = id, Type = type, PromotedByConflictWith = string.Empty };
+		block.Members.AddRange(members.OrderBy(member => member.SourceIndex));
+		List<Tuple<double, double>> intervals = block.Members.Select(member => ComputeArrowInterval(member.Dimension, isHorizontal)).ToList();
+		block.EffectiveSpan = intervals.Count == 0 ? 0.0 : intervals.Max(interval => interval.Item2) - intervals.Min(interval => interval.Item1);
+		block.ReadingLevel = block.Members.Count == 0
+			? DimensionReadingLevel.LocalSpacing
+			: block.Members.Select(member => member.Dimension.ReadingLevel).OrderByDescending(level => level).First();
+		block.ForceOuterLevel = block.Members.Any(member => member.Dimension.ForceOuterLevel);
+		block.FirstSourceIndex = block.Members.Count == 0 ? int.MaxValue : block.Members.Min(member => member.SourceIndex);
+		return block;
+	}
+
+	private int CompareLayoutBlocks(LayoutBlock first, LayoutBlock second)
+	{
+		if (first.ForceOuterLevel != second.ForceOuterLevel)
+		{
+			return first.ForceOuterLevel ? 1 : -1;
+		}
+		double spanDifference = first.EffectiveSpan - second.EffectiveSpan;
+		if (Math.Abs(spanDifference) > _config.GeometryTolerance)
+		{
+			return spanDifference < 0.0 ? -1 : 1;
+		}
+		int readingLevelComparison = first.ReadingLevel.CompareTo(second.ReadingLevel);
+		return readingLevelComparison != 0 ? readingLevelComparison : first.FirstSourceIndex.CompareTo(second.FirstSourceIndex);
+	}
+
+	private string GetOrderingReason(LayoutBlock block, IList<LayoutBlock> orderedBlocks)
+	{
+		if (block.ForceOuterLevel)
+		{
+			return "ForceOutermost";
+		}
+		bool usedSemanticTieBreak = orderedBlocks.Any(candidate => candidate != block
+			&& Math.Abs(candidate.EffectiveSpan - block.EffectiveSpan) <= _config.GeometryTolerance
+			&& candidate.ReadingLevel != block.ReadingLevel);
+		return usedSemanticTieBreak ? "NearEqualSpanSemanticTieBreak" : "EffectiveSpanAscending";
+	}
+
+	private StackingLayerItem CreateStackingLayerItem(IndexedLayoutItem member, LayoutBlock block, bool isHorizontal, double textHeight)
+	{
+		Tuple<double, double> textInterval = ComputeTextInterval(member.Dimension, isHorizontal, textHeight);
+		Tuple<double, double> arrowInterval = ComputeArrowInterval(member.Dimension, isHorizontal);
+		return new StackingLayerItem
+		{
+			Index = member.SourceIndex,
+			Dimension = member.Dimension,
+			TxtA = textInterval.Item1,
+			TxtB = textInterval.Item2,
+			ArrA = arrowInterval.Item1,
+			ArrB = arrowInterval.Item2,
+			LayoutBlockId = block.Id,
+			LayoutBlockType = block.Type,
+			LayoutBlockMemberCount = block.Members.Count
+		};
+	}
+
+	private bool HasStackingLayerConflict(StackingLayerItem candidate, StackingLayerItem existing, bool isHorizontal, double gap)
+	{
+		bool strictArrowConflict = HasStrictArrowConflict(candidate.ArrA, candidate.ArrB, existing.ArrA, existing.ArrB);
+		return (!isHorizontal || candidate.Dimension.LooseChainId == 0 || existing.Dimension.LooseChainId == 0)
+			&& (!isHorizontal || !CanIgnoreTextConflictWithLooseChain(candidate.Dimension, existing.Dimension) || strictArrowConflict)
+			&& !AreCompatible(existing.TxtA, existing.TxtB, candidate.TxtA, candidate.TxtB, gap);
 	}
 
 	private List<List<StackingLayerItem>> BuildAlignmentLanes(IList<List<StackingLayerItem>> layers, double gap)
@@ -229,7 +467,8 @@ public sealed class DimensionLayoutRules
 			Level = level
 		})).ToDictionary(entry => entry.Item, entry => entry.Level);
 		var groups = layers.SelectMany(layer => layer)
-			.Where(item => !string.IsNullOrEmpty(item.Dimension.AlignmentKey))
+			.Where(item => !string.IsNullOrEmpty(item.Dimension.AlignmentKey)
+				&& !string.Equals(item.LayoutBlockType, "RootedAlignmentLane", StringComparison.Ordinal))
 			.GroupBy(item => item.Dimension.AlignmentKey, StringComparer.Ordinal)
 			.OrderBy(group => group.Min(item => item.Index))
 			.ToList();
@@ -257,6 +496,10 @@ public sealed class DimensionLayoutRules
 				}
 				lane.Add(item);
 			}
+			lanes = lanes
+				.OrderByDescending(lane => lane.Count)
+				.ThenBy(lane => lane.Min(item => item.Index))
+				.ToList();
 			for (int i = 0; i < lanes.Count; i++)
 			{
 				foreach (StackingLayerItem item3 in lanes[i])
@@ -318,7 +561,10 @@ public sealed class DimensionLayoutRules
 	{
 		foreach (List<StackingLayerItem> members in alignmentLanes.OrderBy(lane => lane.Min(item => item.Index)))
 		{
-			if (members.Count < 2 || members.All(item => item.Dimension.PreserveAlignmentLevel))
+			bool alreadyPlacedAsLayoutBlock = members.Count > 1
+				&& members[0].LayoutBlockMemberCount > 1
+				&& members.All(item => string.Equals(item.LayoutBlockId, members[0].LayoutBlockId, StringComparison.Ordinal));
+			if (members.Count < 2 || members.All(item => item.Dimension.PreserveAlignmentLevel) || alreadyPlacedAsLayoutBlock)
 			{
 				continue;
 			}
@@ -460,6 +706,42 @@ public sealed class DimensionLayoutRules
 		}
 	}
 
+	private void ApplyRootedLayoutBlockCoordinateOverrides(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, DimensionSide side, OutlineFeature2D outline)
+	{
+		foreach (IGrouping<string, DimensionStackingPlacement> block in placements
+			.Where(placement => string.Equals(placement.LayoutBlockType, "RootedAlignmentLane", StringComparison.Ordinal))
+			.GroupBy(placement => placement.LayoutBlockId, StringComparer.Ordinal))
+		{
+			List<DimensionStackingPlacement> members = block.Where(placement => placement.Index >= 0 && placement.Index < dimensions.Count).ToList();
+			if (members.Count == 0)
+			{
+				continue;
+			}
+			string alignmentLaneKey = block.Key.StartsWith("AlignmentLane:", StringComparison.Ordinal)
+				? block.Key.Substring("AlignmentLane:".Length)
+				: (dimensions[members[0].Index].AlignmentKey ?? string.Empty);
+			foreach (DimensionStackingPlacement placement in members)
+			{
+				placement.AlignmentLaneKey = alignmentLaneKey;
+				placement.AlignmentLaneMemberCount = members.Count;
+			}
+			DimensionStackingPlacement anchor = members
+				.OrderByDescending(placement => dimensions[placement.Index].AlignmentPriority)
+				.ThenBy(placement => dimensions[placement.Index].Span)
+				.ThenBy(placement => placement.Index)
+				.First();
+			double coordinate = GetDimLineCoordinate(dimensions[anchor.Index], side, outline, anchor.Offset);
+			if (members.Any(placement => DimensionLineEntersOutlineInterior(dimensions[placement.Index], side, coordinate, outline)))
+			{
+				continue;
+			}
+			foreach (DimensionStackingPlacement placement in members)
+			{
+				placement.DimLineCoordinateOverride = coordinate;
+			}
+		}
+	}
+
 	private void EnsureOverallPhysicalOutermostOffset(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, DimensionSide side, OutlineFeature2D outline, double perLevelSpacing)
 	{
 		if (outline == null || placements == null || placements.Count < 2)
@@ -527,6 +809,143 @@ public sealed class DimensionLayoutRules
 		}
 		layers.RemoveAll((List<StackingLayerItem> layer) => layer.Count == 0);
 		layers.Add(list);
+	}
+
+	private void UpdatePhysicalOrderDiagnostics(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, IList<LayoutBlock> layoutBlocks, DimensionSide side, OutlineFeature2D outline, bool isHorizontal)
+	{
+		Dictionary<string, List<DimensionStackingPlacement>> placementsByBlock = placements
+			.GroupBy(placement => placement.LayoutBlockId, StringComparer.Ordinal)
+			.ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
+		Dictionary<string, Tuple<double, double>> physicalRanks = new Dictionary<string, Tuple<double, double>>(StringComparer.Ordinal);
+		bool physicalOrderValidated = true;
+		foreach (DimensionStackingPlacement placement in placements)
+		{
+			if (placement.Index < 0 || placement.Index >= dimensions.Count)
+			{
+				physicalOrderValidated = false;
+				continue;
+			}
+			DimensionLayoutItem dimension = dimensions[placement.Index];
+			double coordinate = placement.DimLineCoordinateOverride ?? GetDimLineCoordinate(dimension, side, outline, placement.Offset);
+			placement.PhysicalOutwardDistance = GetPhysicalOutwardDistance(dimension, side, outline, coordinate, placement.Offset);
+			if (double.IsNaN(coordinate) || double.IsInfinity(coordinate) || placement.PhysicalOutwardDistance < -_config.GeometryTolerance)
+			{
+				physicalOrderValidated = false;
+			}
+		}
+		foreach (IGrouping<string, DimensionStackingPlacement> group in placements.GroupBy(placement => placement.LayoutBlockId, StringComparer.Ordinal))
+		{
+			List<double> ranks = group.Select(placement =>
+			{
+				DimensionLayoutItem dimension = dimensions[placement.Index];
+				double coordinate = placement.DimLineCoordinateOverride ?? GetDimLineCoordinate(dimension, side, outline, placement.Offset);
+				return GetPhysicalOutwardRank(side, coordinate);
+			}).ToList();
+			physicalRanks[group.Key] = Tuple.Create(ranks.Min(), ranks.Max());
+		}
+		foreach (LayoutBlock block in layoutBlocks.Where(candidate => candidate.Members.Count > 1))
+		{
+			if (!placementsByBlock.TryGetValue(block.Id, out var blockPlacements))
+			{
+				continue;
+			}
+			if (blockPlacements.Select(placement => placement.Level).Distinct().Count() != 1
+				|| (string.Equals(block.Type, "RootedAlignmentLane", StringComparison.Ordinal)
+					&& physicalRanks[block.Id].Item2 - physicalRanks[block.Id].Item1 > _config.GeometryTolerance))
+			{
+				physicalOrderValidated = false;
+			}
+		}
+		for (int outerIndex = 0; outerIndex < layoutBlocks.Count; outerIndex++)
+		{
+			LayoutBlock outer = layoutBlocks[outerIndex];
+			if (!placementsByBlock.TryGetValue(outer.Id, out var outerPlacements))
+			{
+				continue;
+			}
+			for (int innerIndex = 0; innerIndex < outerIndex; innerIndex++)
+			{
+				LayoutBlock inner = layoutBlocks[innerIndex];
+				if (!placementsByBlock.TryGetValue(inner.Id, out var innerPlacements) || !RequiresPhysicalOutwardOrder(inner, outer, isHorizontal))
+				{
+					continue;
+				}
+				if (physicalRanks[inner.Id].Item2 >= physicalRanks[outer.Id].Item1 - _config.GeometryTolerance)
+				{
+					physicalOrderValidated = false;
+				}
+				if (string.IsNullOrEmpty(outer.PromotedByConflictWith)
+					&& outerPlacements.Min(placement => placement.Level) > innerPlacements.Max(placement => placement.Level))
+				{
+					outer.PromotedByConflictWith = inner.Id;
+				}
+			}
+		}
+		foreach (DimensionStackingPlacement placement in placements)
+		{
+			placement.PromotedByConflictWith = layoutBlocks.First(block => string.Equals(block.Id, placement.LayoutBlockId, StringComparison.Ordinal)).PromotedByConflictWith ?? string.Empty;
+			placement.PhysicalOrderValidated = physicalOrderValidated;
+		}
+	}
+
+	private bool RequiresPhysicalOutwardOrder(LayoutBlock inner, LayoutBlock outer, bool isHorizontal)
+	{
+		if (outer.ForceOuterLevel)
+		{
+			return true;
+		}
+		if (Math.Abs(inner.EffectiveSpan - outer.EffectiveSpan) <= _config.GeometryTolerance)
+		{
+			return false;
+		}
+		foreach (IndexedLayoutItem innerMember in inner.Members)
+		{
+			Tuple<double, double> innerInterval = ComputeArrowInterval(innerMember.Dimension, isHorizontal);
+			foreach (IndexedLayoutItem outerMember in outer.Members)
+			{
+				Tuple<double, double> outerInterval = ComputeArrowInterval(outerMember.Dimension, isHorizontal);
+				if (HasStrictArrowConflict(innerInterval.Item1, innerInterval.Item2, outerInterval.Item1, outerInterval.Item2)
+					|| (HasSameSourceFeature(innerMember.Dimension, outerMember.Dimension)
+						&& SharesArrowEndpoint(innerInterval.Item1, innerInterval.Item2, outerInterval.Item1, outerInterval.Item2)))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private double GetPhysicalOutwardDistance(DimensionLayoutItem dimension, DimensionSide side, OutlineFeature2D outline, double coordinate, double fallbackOffset)
+	{
+		double boundary;
+		if (!TryGetDimensionLocalBoundary(dimension, side, outline, out boundary))
+		{
+			if (outline == null)
+			{
+				return Math.Max(0.0, fallbackOffset);
+			}
+			boundary = side switch
+			{
+				DimensionSide.Bottom => outline.MinY,
+				DimensionSide.Top => outline.MaxY,
+				DimensionSide.Left => outline.MinX,
+				DimensionSide.Right => outline.MaxX,
+				_ => coordinate,
+			};
+		}
+		return side switch
+		{
+			DimensionSide.Bottom => boundary - coordinate,
+			DimensionSide.Top => coordinate - boundary,
+			DimensionSide.Left => boundary - coordinate,
+			DimensionSide.Right => coordinate - boundary,
+			_ => 0.0,
+		};
+	}
+
+	private static double GetPhysicalOutwardRank(DimensionSide side, double coordinate)
+	{
+		return side == DimensionSide.Bottom || side == DimensionSide.Left ? -coordinate : coordinate;
 	}
 
 	public bool TryGetLocalDimLineCoordinate(DimensionLayoutItem dim, DimensionSide side, OutlineFeature2D outline, double offset, out double coordinate)
@@ -1497,7 +1916,7 @@ public sealed class DimensionLayoutRules
 			for (int num = layers[i].Count - 1; num >= 0; num--)
 			{
 				StackingLayerItem stackingLayerItem = layers[i][num];
-				if (stackingLayerItem.Dimension.Kind != DimensionKind.HoleLocation && !HasArrowEndpointTouch(stackingLayerItem, layers, i, num, side, outline, firstOffset, perLevelSpacing, isHorizontal))
+				if (stackingLayerItem.LayoutBlockMemberCount <= 1 && stackingLayerItem.Dimension.Kind != DimensionKind.HoleLocation && !HasArrowEndpointTouch(stackingLayerItem, layers, i, num, side, outline, firstOffset, perLevelSpacing, isHorizontal))
 				{
 					int num2 = FindSharedExtensionAlignmentLevel(stackingLayerItem, layers, i, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
 					if (num2 > i)
@@ -1550,7 +1969,9 @@ public sealed class DimensionLayoutRules
 				{
 					flag = true;
 				}
-				if (HasStrictArrowConflict(candidate.ArrA, candidate.ArrB, item.ArrA, item.ArrB) || !AreCompatible(item.TxtA, item.TxtB, candidate.TxtA, candidate.TxtB, gap))
+				if (SharesArrowEndpoint(candidate, item)
+					|| HasStrictArrowConflict(candidate.ArrA, candidate.ArrB, item.ArrA, item.ArrB)
+					|| !AreCompatible(item.TxtA, item.TxtB, candidate.TxtA, candidate.TxtB, gap))
 				{
 					flag2 = false;
 					break;
@@ -1577,29 +1998,30 @@ public sealed class DimensionLayoutRules
 
 	private void SelectVerticalLooseChainRebalanceMoves(List<IndexedLayoutItem> source, List<IndexedLayoutItem> target, double dimScale, List<VerticalRebalanceMove> moves)
 	{
-		List<int> list = (from item in source
-			where item.Dimension.LooseChainId != 0 && item.Dimension.Kind == DimensionKind.HoleLocation
-			select item.Dimension.LooseChainId).Distinct().ToList();
-		foreach (int chainId in list)
+		List<List<IndexedLayoutItem>> chains = BuildLooseLayoutChains(
+			source.Where(item => item.Dimension.LooseChainId != 0 && item.Dimension.Kind == DimensionKind.HoleLocation),
+			isHorizontal: false);
+		foreach (List<IndexedLayoutItem> chain in chains)
 		{
-			List<IndexedLayoutItem> list2 = source.Where((IndexedLayoutItem item) => item.Dimension.LooseChainId == chainId).ToList();
-			if (list2.Count == 0 || list2.Any((IndexedLayoutItem item) => !CanRebalanceVerticalLooseChainDimension(item.Dimension, dimScale)))
+			if (chain.Count == 0 || chain.Any(item => !CanRebalanceVerticalLooseChainDimension(item.Dimension, dimScale)))
 			{
 				continue;
 			}
-			List<DimensionLayoutItem> sourceWithoutChain = (from item in source
-				where item.Dimension.LooseChainId != chainId
-				select item.Dimension).ToList();
-			int num = list2.Sum((IndexedLayoutItem item) => ScoreVerticalSideCrowding(item.Dimension, sourceWithoutChain, dimScale));
-			int num2 = list2.Sum((IndexedLayoutItem item) => ScoreVerticalSideCrowding(item.Dimension, target.Select((IndexedLayoutItem existing) => existing.Dimension), dimScale));
-			int num3 = Math.Max(2, list2.Count);
+			HashSet<int> chainSourceIndexes = new HashSet<int>(chain.Select(item => item.SourceIndex));
+			List<DimensionLayoutItem> sourceWithoutChain = source
+				.Where(item => !chainSourceIndexes.Contains(item.SourceIndex))
+				.Select(item => item.Dimension)
+				.ToList();
+			int num = chain.Sum(item => ScoreVerticalSideCrowding(item.Dimension, sourceWithoutChain, dimScale));
+			int num2 = chain.Sum(item => ScoreVerticalSideCrowding(item.Dimension, target.Select(existing => existing.Dimension), dimScale));
+			int num3 = Math.Max(2, chain.Count);
 			if (num - num2 < num3)
 			{
 				continue;
 			}
 			for (int num4 = source.Count - 1; num4 >= 0; num4--)
 			{
-				if (source[num4].Dimension.LooseChainId == chainId)
+				if (chainSourceIndexes.Contains(source[num4].SourceIndex))
 				{
 					IndexedLayoutItem indexedLayoutItem = source[num4];
 					source.RemoveAt(num4);

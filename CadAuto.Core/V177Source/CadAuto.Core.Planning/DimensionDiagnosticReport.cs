@@ -17,13 +17,13 @@ public sealed class DimensionDiagnosticReport
 		FinalDimensions = new List<DimensionCandidateDiagnostic>();
 	}
 
-	public void RecordFinalPlacement(int diagnosticId, int stackingLevel, double stackingOffset, double resolvedDimLineCoordinate, bool usesLocalBoundary, bool hasAlignmentCoordinateOverride, string alignmentLaneKey, int alignmentLaneMemberCount, string alignmentDecision)
+	public void RecordFinalPlacement(int diagnosticId, int stackingLevel, double stackingOffset, double resolvedDimLineCoordinate, bool usesLocalBoundary, bool hasAlignmentCoordinateOverride, string alignmentLaneKey, int alignmentLaneMemberCount, string alignmentDecision, string layoutBlockId, string layoutBlockType, double effectiveSpan, int effectiveOrder, string orderingReason, string promotedByConflictWith, double physicalOutwardDistance, bool physicalOrderValidated)
 	{
-		RecordFinalPlacement(DimensionCandidates, diagnosticId, stackingLevel, stackingOffset, resolvedDimLineCoordinate, usesLocalBoundary, hasAlignmentCoordinateOverride, alignmentLaneKey, alignmentLaneMemberCount, alignmentDecision);
-		RecordFinalPlacement(FinalDimensions, diagnosticId, stackingLevel, stackingOffset, resolvedDimLineCoordinate, usesLocalBoundary, hasAlignmentCoordinateOverride, alignmentLaneKey, alignmentLaneMemberCount, alignmentDecision);
+		RecordFinalPlacement(DimensionCandidates, diagnosticId, stackingLevel, stackingOffset, resolvedDimLineCoordinate, usesLocalBoundary, hasAlignmentCoordinateOverride, alignmentLaneKey, alignmentLaneMemberCount, alignmentDecision, layoutBlockId, layoutBlockType, effectiveSpan, effectiveOrder, orderingReason, promotedByConflictWith, physicalOutwardDistance, physicalOrderValidated);
+		RecordFinalPlacement(FinalDimensions, diagnosticId, stackingLevel, stackingOffset, resolvedDimLineCoordinate, usesLocalBoundary, hasAlignmentCoordinateOverride, alignmentLaneKey, alignmentLaneMemberCount, alignmentDecision, layoutBlockId, layoutBlockType, effectiveSpan, effectiveOrder, orderingReason, promotedByConflictWith, physicalOutwardDistance, physicalOrderValidated);
 	}
 
-	private static void RecordFinalPlacement(IEnumerable<DimensionCandidateDiagnostic> diagnostics, int diagnosticId, int stackingLevel, double stackingOffset, double resolvedDimLineCoordinate, bool usesLocalBoundary, bool hasAlignmentCoordinateOverride, string alignmentLaneKey, int alignmentLaneMemberCount, string alignmentDecision)
+	private static void RecordFinalPlacement(IEnumerable<DimensionCandidateDiagnostic> diagnostics, int diagnosticId, int stackingLevel, double stackingOffset, double resolvedDimLineCoordinate, bool usesLocalBoundary, bool hasAlignmentCoordinateOverride, string alignmentLaneKey, int alignmentLaneMemberCount, string alignmentDecision, string layoutBlockId, string layoutBlockType, double effectiveSpan, int effectiveOrder, string orderingReason, string promotedByConflictWith, double physicalOutwardDistance, bool physicalOrderValidated)
 	{
 		foreach (DimensionCandidateDiagnostic diagnostic in diagnostics)
 		{
@@ -40,6 +40,14 @@ public sealed class DimensionDiagnosticReport
 			diagnostic.AlignmentLaneKey = alignmentLaneKey ?? string.Empty;
 			diagnostic.AlignmentLaneMemberCount = alignmentLaneMemberCount;
 			diagnostic.AlignmentDecision = alignmentDecision ?? string.Empty;
+			diagnostic.LayoutBlockId = layoutBlockId ?? string.Empty;
+			diagnostic.LayoutBlockType = layoutBlockType ?? string.Empty;
+			diagnostic.EffectiveSpan = effectiveSpan;
+			diagnostic.EffectiveOrder = effectiveOrder;
+			diagnostic.OrderingReason = orderingReason ?? string.Empty;
+			diagnostic.PromotedByConflictWith = promotedByConflictWith ?? string.Empty;
+			diagnostic.PhysicalOutwardDistance = physicalOutwardDistance;
+			diagnostic.PhysicalOrderValidated = physicalOrderValidated;
 		}
 	}
 }

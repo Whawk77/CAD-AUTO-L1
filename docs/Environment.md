@@ -43,8 +43,12 @@ Notes:
 
 - `ASD`: generate annotations.
 - `AUTOFIXDIM`: compatibility alias for normal generation.
-- `ASD2`: clear generated annotations, then regenerate.
-- `ASD3`: clear generated plugin annotations.
 - `ASD4`: diagnostic generation with side selection.
+- `ASD5`: generate outline-related annotations only.
+- `ASD6`: generate hole-related annotations only.
+- `ASD7`: generate corner-feature annotations only.
+- `ASDCOREDBG`: core diagnostic generation.
+- `ASD3`: clear the most recently generated plugin annotation group.
+- `AG1`: special line-processing helper.
 
 Historical command names such as `AUTOFIXDIMREGEN`, `AUTOFIXDIMCLEAR`, and `ASDDBG` should not be documented as current source behavior unless they are reintroduced in code.

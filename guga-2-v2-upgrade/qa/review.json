@@ -1,0 +1,1001 @@
+{
+  "ok": true,
+  "frames_root": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames",
+  "states": [
+    "idle",
+    "running-right",
+    "running-left",
+    "waving",
+    "jumping",
+    "failed",
+    "waiting",
+    "running",
+    "review"
+  ],
+  "errors": [],
+  "warnings": [
+    "idle used extraction method stable-slots; confirm motion playback remains stable and unclipped",
+    "running-right used extraction method stable-slots; confirm motion playback remains stable and unclipped",
+    "running-left used extraction method stable-slots; confirm motion playback remains stable and unclipped",
+    "waving used extraction method stable-slots; confirm motion playback remains stable and unclipped",
+    "jumping used extraction method stable-slots; confirm motion playback remains stable and unclipped",
+    "failed used extraction method stable-slots; confirm motion playback remains stable and unclipped",
+    "waiting used extraction method stable-slots; confirm motion playback remains stable and unclipped",
+    "running used extraction method stable-slots; confirm motion playback remains stable and unclipped",
+    "review used extraction method stable-slots; confirm motion playback remains stable and unclipped"
+  ],
+  "rows": [
+    {
+      "state": "idle",
+      "expected_frames": 6,
+      "actual_frames": 6,
+      "extraction_method": "stable-slots",
+      "ok": true,
+      "errors": [],
+      "warnings": [
+        "idle used extraction method stable-slots; confirm motion playback remains stable and unclipped"
+      ],
+      "frames": [
+        {
+          "index": 0,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\idle\\00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19272,
+          "bbox": [
+            22,
+            6,
+            168,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\idle\\01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19651,
+          "bbox": [
+            20,
+            6,
+            171,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\idle\\02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19820,
+          "bbox": [
+            17,
+            6,
+            174,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 3,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\idle\\03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 20783,
+          "bbox": [
+            10,
+            6,
+            181,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 4,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\idle\\04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18552,
+          "bbox": [
+            26,
+            6,
+            164,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 5,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\idle\\05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19224,
+          "bbox": [
+            22,
+            6,
+            169,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 1
+        }
+      ]
+    },
+    {
+      "state": "running-right",
+      "expected_frames": 8,
+      "actual_frames": 8,
+      "extraction_method": "stable-slots",
+      "ok": true,
+      "errors": [],
+      "warnings": [
+        "running-right used extraction method stable-slots; confirm motion playback remains stable and unclipped"
+      ],
+      "frames": [
+        {
+          "index": 0,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19365,
+          "bbox": [
+            20,
+            6,
+            172,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19171,
+          "bbox": [
+            14,
+            6,
+            178,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 20442,
+          "bbox": [
+            16,
+            6,
+            176,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 1
+        },
+        {
+          "index": 3,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18533,
+          "bbox": [
+            17,
+            6,
+            174,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 4,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18167,
+          "bbox": [
+            16,
+            6,
+            175,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 5,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19478,
+          "bbox": [
+            18,
+            6,
+            174,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 6,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\06.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18868,
+          "bbox": [
+            18,
+            6,
+            173,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 7,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\07.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18858,
+          "bbox": [
+            21,
+            6,
+            170,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        }
+      ]
+    },
+    {
+      "state": "running-left",
+      "expected_frames": 8,
+      "actual_frames": 8,
+      "extraction_method": "stable-slots",
+      "ok": true,
+      "errors": [],
+      "warnings": [
+        "running-left used extraction method stable-slots; confirm motion playback remains stable and unclipped"
+      ],
+      "frames": [
+        {
+          "index": 0,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19332,
+          "bbox": [
+            15,
+            6,
+            177,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 6
+        },
+        {
+          "index": 1,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18678,
+          "bbox": [
+            15,
+            6,
+            176,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 1
+        },
+        {
+          "index": 2,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18715,
+          "bbox": [
+            14,
+            6,
+            177,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 3,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18703,
+          "bbox": [
+            16,
+            6,
+            176,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 5
+        },
+        {
+          "index": 4,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18664,
+          "bbox": [
+            14,
+            6,
+            177,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 5,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19629,
+          "bbox": [
+            13,
+            6,
+            178,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 6,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\06.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19305,
+          "bbox": [
+            12,
+            6,
+            180,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 7,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\07.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19182,
+          "bbox": [
+            14,
+            6,
+            177,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 2
+        }
+      ]
+    },
+    {
+      "state": "waving",
+      "expected_frames": 4,
+      "actual_frames": 4,
+      "extraction_method": "stable-slots",
+      "ok": true,
+      "errors": [],
+      "warnings": [
+        "waving used extraction method stable-slots; confirm motion playback remains stable and unclipped"
+      ],
+      "frames": [
+        {
+          "index": 0,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waving\\00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19281,
+          "bbox": [
+            22,
+            6,
+            169,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waving\\01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19311,
+          "bbox": [
+            22,
+            6,
+            170,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waving\\02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19275,
+          "bbox": [
+            17,
+            6,
+            175,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 4
+        },
+        {
+          "index": 3,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waving\\03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18679,
+          "bbox": [
+            23,
+            6,
+            169,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 1
+        }
+      ]
+    },
+    {
+      "state": "jumping",
+      "expected_frames": 5,
+      "actual_frames": 5,
+      "extraction_method": "stable-slots",
+      "ok": true,
+      "errors": [],
+      "warnings": [
+        "jumping used extraction method stable-slots; confirm motion playback remains stable and unclipped"
+      ],
+      "frames": [
+        {
+          "index": 0,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\jumping\\00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 23131,
+          "bbox": [
+            12,
+            6,
+            178,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 3
+        },
+        {
+          "index": 1,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\jumping\\01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 21585,
+          "bbox": [
+            12,
+            6,
+            178,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\jumping\\02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 21902,
+          "bbox": [
+            6,
+            6,
+            185,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 3,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\jumping\\03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 21252,
+          "bbox": [
+            15,
+            6,
+            175,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 4,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\jumping\\04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 23052,
+          "bbox": [
+            13,
+            6,
+            178,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        }
+      ]
+    },
+    {
+      "state": "failed",
+      "expected_frames": 8,
+      "actual_frames": 8,
+      "extraction_method": "stable-slots",
+      "ok": true,
+      "errors": [],
+      "warnings": [
+        "failed used extraction method stable-slots; confirm motion playback remains stable and unclipped"
+      ],
+      "frames": [
+        {
+          "index": 0,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19985,
+          "bbox": [
+            21,
+            6,
+            170,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19401,
+          "bbox": [
+            21,
+            6,
+            169,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 2
+        },
+        {
+          "index": 2,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19334,
+          "bbox": [
+            26,
+            6,
+            165,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 7
+        },
+        {
+          "index": 3,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 20730,
+          "bbox": [
+            20,
+            6,
+            170,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 1
+        },
+        {
+          "index": 4,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 23708,
+          "bbox": [
+            11,
+            6,
+            180,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 11
+        },
+        {
+          "index": 5,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 22508,
+          "bbox": [
+            12,
+            6,
+            179,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 1
+        },
+        {
+          "index": 6,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\06.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 22038,
+          "bbox": [
+            15,
+            6,
+            176,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 1
+        },
+        {
+          "index": 7,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\07.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 20159,
+          "bbox": [
+            22,
+            6,
+            168,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 6
+        }
+      ]
+    },
+    {
+      "state": "waiting",
+      "expected_frames": 6,
+      "actual_frames": 6,
+      "extraction_method": "stable-slots",
+      "ok": true,
+      "errors": [],
+      "warnings": [
+        "waiting used extraction method stable-slots; confirm motion playback remains stable and unclipped"
+      ],
+      "frames": [
+        {
+          "index": 0,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waiting\\00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18998,
+          "bbox": [
+            22,
+            6,
+            169,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waiting\\01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 17689,
+          "bbox": [
+            31,
+            6,
+            160,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waiting\\02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18431,
+          "bbox": [
+            28,
+            6,
+            163,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 3,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waiting\\03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 15486,
+          "bbox": [
+            36,
+            6,
+            154,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 4,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waiting\\04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 17922,
+          "bbox": [
+            23,
+            6,
+            168,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 5,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waiting\\05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18676,
+          "bbox": [
+            23,
+            6,
+            168,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        }
+      ]
+    },
+    {
+      "state": "running",
+      "expected_frames": 6,
+      "actual_frames": 6,
+      "extraction_method": "stable-slots",
+      "ok": true,
+      "errors": [],
+      "warnings": [
+        "running used extraction method stable-slots; confirm motion playback remains stable and unclipped"
+      ],
+      "frames": [
+        {
+          "index": 0,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running\\00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19016,
+          "bbox": [
+            23,
+            6,
+            169,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running\\01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 17623,
+          "bbox": [
+            33,
+            6,
+            158,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running\\02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 20665,
+          "bbox": [
+            27,
+            6,
+            165,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 3,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running\\03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 17571,
+          "bbox": [
+            30,
+            6,
+            162,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 1
+        },
+        {
+          "index": 4,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running\\04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18451,
+          "bbox": [
+            27,
+            6,
+            165,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 1
+        },
+        {
+          "index": 5,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running\\05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19082,
+          "bbox": [
+            23,
+            6,
+            169,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 3
+        }
+      ]
+    },
+    {
+      "state": "review",
+      "expected_frames": 6,
+      "actual_frames": 6,
+      "extraction_method": "stable-slots",
+      "ok": true,
+      "errors": [],
+      "warnings": [
+        "review used extraction method stable-slots; confirm motion playback remains stable and unclipped"
+      ],
+      "frames": [
+        {
+          "index": 0,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\review\\00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18967,
+          "bbox": [
+            23,
+            6,
+            168,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\review\\01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 19218,
+          "bbox": [
+            17,
+            6,
+            175,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\review\\02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18571,
+          "bbox": [
+            33,
+            6,
+            159,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 3,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\review\\03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18509,
+          "bbox": [
+            31,
+            6,
+            160,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 4,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\review\\04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18045,
+          "bbox": [
+            30,
+            6,
+            161,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 5,
+          "file": "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\review\\05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 18733,
+          "bbox": [
+            24,
+            6,
+            167,
+            202
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        }
+      ]
+    }
+  ]
+}

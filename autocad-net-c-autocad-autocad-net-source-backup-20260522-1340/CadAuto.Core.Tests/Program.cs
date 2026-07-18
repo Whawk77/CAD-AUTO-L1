@@ -34,8 +34,10 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(GeometryToleranceControlsMicroSegments), GeometryToleranceControlsMicroSegments);
                 RunTest(nameof(ConcaveHoleDatumUsesRealOutlineIntersections), ConcaveHoleDatumUsesRealOutlineIntersections);
                 RunTest(nameof(OverallWinsDuplicatePreferenceEvenAgainstTolerance), OverallWinsDuplicatePreferenceEvenAgainstTolerance);
-                RunTest(nameof(OverallRemainsOutermostAfterLayoutAlignment), OverallRemainsOutermostAfterLayoutAlignment);
+				RunTest(nameof(OverallRemainsOutermostAfterLayoutAlignment), OverallRemainsOutermostAfterLayoutAlignment);
 				RunTest(nameof(OverallCompactsToOnePhysicalSpacing), OverallCompactsToOnePhysicalSpacing);
+				RunTest(nameof(SemanticReadingLevelsControlHorizontalStacking), SemanticReadingLevelsControlHorizontalStacking);
+				RunTest(nameof(SemanticReadingLevelsControlVerticalStacking), SemanticReadingLevelsControlVerticalStacking);
 				RunTest(nameof(FormattedDimensionTextLengthIgnoresControlCodes), FormattedDimensionTextLengthIgnoresControlCodes);
 				RunTest(nameof(FittingVerticalLocalTextStaysCentered), FittingVerticalLocalTextStaysCentered);
 				RunTest(nameof(ShortVerticalLocalTextClearsArrowheads), ShortVerticalLocalTextClearsArrowheads);
@@ -57,15 +59,18 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(SlotDimensionsUseCenterAndDatumChainsWithoutPins), SlotDimensionsUseCenterAndDatumChainsWithoutPins);
                 RunTest(nameof(HolesAreGroupedByHorizontalRows), HolesAreGroupedByHorizontalRows);
                 RunTest(nameof(NormalHolesLocateFromOutlineDatum), NormalHolesLocateFromOutlineDatum);
-                RunTest(nameof(PinGroupsPlanBaseAndPairDistances), PinGroupsPlanBaseAndPairDistances);
+				RunTest(nameof(PinGroupsPlanBaseAndPairDistances), PinGroupsPlanBaseAndPairDistances);
 				RunTest(nameof(PinAlignmentGroupsRespectSideAndOrientation), PinAlignmentGroupsRespectSideAndOrientation);
+				RunTest(nameof(RootedDatumChainMergesTransitiveAlignmentLanes), RootedDatumChainMergesTransitiveAlignmentLanes);
 				RunTest(nameof(PinAlignmentAnchorFallsBackWithStableOrdering), PinAlignmentAnchorFallsBackWithStableOrdering);
 				RunTest(nameof(PinAlignmentGroupMovesTogetherOnConflict), PinAlignmentGroupMovesTogetherOnConflict);
 				RunTest(nameof(PinAlignmentGroupAvoidsResolvedCoordinateConflicts), PinAlignmentGroupAvoidsResolvedCoordinateConflicts);
 				RunTest(nameof(PinAlignmentKeySplitsStrictHorizontalOverlapsIntoLanes), PinAlignmentKeySplitsStrictHorizontalOverlapsIntoLanes);
 				RunTest(nameof(PinAlignmentKeySplitsStrictVerticalOverlapsIntoLanes), PinAlignmentKeySplitsStrictVerticalOverlapsIntoLanes);
 				RunTest(nameof(EquivalentPinGroupTransfersSuppressAcrossDebugOwners), EquivalentPinGroupTransfersSuppressAcrossDebugOwners);
-                RunTest(nameof(FunctionalHolesAttachToPinGroup), FunctionalHolesAttachToPinGroup);
+				RunTest(nameof(FunctionalHolesAttachToPinGroup), FunctionalHolesAttachToPinGroup);
+				RunTest(nameof(FunctionalHoleAlignmentUsesSeparateSameOrientationLane), FunctionalHoleAlignmentUsesSeparateSameOrientationLane);
+				RunTest(nameof(FunctionalHoleAlignmentPreservesV198Stacking), FunctionalHoleAlignmentPreservesV198Stacking);
                 RunTest(nameof(PreferredSideLockedHoleLocationUsesLocalBoundary), PreferredSideLockedHoleLocationUsesLocalBoundary);
                 RunTest(nameof(ExplicitLocalLooseChainUsesNearbyConcaveBoundary), ExplicitLocalLooseChainUsesNearbyConcaveBoundary);
                 RunTest(nameof(LooseHolesUseChainDimensions), LooseHolesUseChainDimensions);
@@ -575,6 +580,46 @@ namespace CadAuto.Core.Tests
 
 			Assert(Math.Abs((otherCoordinates.Min() - overallCoordinate) - 5.0) <= config.GeometryTolerance,
 				"overall dimensions must compact to exactly one physical stacking interval beyond the actual outermost dimension");
+		}
+
+		private static void SemanticReadingLevelsControlHorizontalStacking()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.OverallWidth, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(100.0, 0.0), Span = 100.0, ForceOuterLevel = true, ReadingLevel = DimensionReadingLevel.Overall },
+				new DimensionLayoutItem { Kind = DimensionKind.DatumHoleLocationX, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(10.0, 0.0), Span = 10.0, ReadingLevel = DimensionReadingLevel.DatumTransfer },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(20.0, 0.0), Span = 20.0, ReadingLevel = DimensionReadingLevel.IntraGroup },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(80.0, 0.0), Span = 80.0, ReadingLevel = DimensionReadingLevel.LocalSpacing }
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Bottom, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: true);
+
+			Assert(placements.Single(item => item.Index == 3).Level < placements.Single(item => item.Index == 2).Level,
+				"local horizontal spacing must be placed inside intra-group spacing even when generated last");
+			Assert(placements.Single(item => item.Index == 2).Level < placements.Single(item => item.Index == 1).Level,
+				"intra-group horizontal spacing must be placed inside datum transfer spacing");
+			Assert(placements.Single(item => item.Index == 1).Level < placements.Single(item => item.Index == 0).Level,
+				"datum transfer spacing must be placed inside the horizontal overall dimension");
+		}
+
+		private static void SemanticReadingLevelsControlVerticalStacking()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.OverallHeight, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(0.0, 100.0), Span = 100.0, ForceOuterLevel = true, ReadingLevel = DimensionReadingLevel.Overall },
+				new DimensionLayoutItem { Kind = DimensionKind.DatumHoleLocationY, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(0.0, 10.0), Span = 10.0, ReadingLevel = DimensionReadingLevel.DatumTransfer },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(0.0, 20.0), Span = 20.0, ReadingLevel = DimensionReadingLevel.IntraGroup },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(0.0, 80.0), Span = 80.0, ReadingLevel = DimensionReadingLevel.LocalSpacing }
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Left, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: false);
+
+			Assert(placements.Single(item => item.Index == 3).Level < placements.Single(item => item.Index == 2).Level,
+				"local vertical spacing must be placed inside intra-group spacing even when generated last");
+			Assert(placements.Single(item => item.Index == 2).Level < placements.Single(item => item.Index == 1).Level,
+				"intra-group vertical spacing must be placed inside datum transfer spacing");
+			Assert(placements.Single(item => item.Index == 1).Level < placements.Single(item => item.Index == 0).Level,
+				"datum transfer spacing must be placed inside the vertical overall dimension");
 		}
 
 		private static void FormattedDimensionTextLengthIgnoresControlCodes()
@@ -1232,6 +1277,10 @@ namespace CadAuto.Core.Tests
 				"datum pin Y location should preserve the selected real Y datum");
 			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.PinDistance), "expected same-group pin distance");
             Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.PinGroupDistance), "expected pin group transfer distance");
+			Assert(plan.Dimensions.Where(d => d.Kind == DimensionKind.PinDistance).All(d => d.ReadingLevel == DimensionReadingLevel.IntraGroup),
+				"same-group pin distances must carry the intra-group reading level");
+			Assert(plan.Dimensions.Where(d => d.Kind == DimensionKind.PinGroupDistance).All(d => d.ReadingLevel == DimensionReadingLevel.DatumTransfer),
+				"pin-group transfer distances must carry the datum-transfer reading level");
 			var horizontalTransfer = plan.Dimensions.Single(d => d.Kind == DimensionKind.PinGroupDistance && d.Orientation == DimensionOrientation.Horizontal);
 			var horizontalPg2Direct = plan.Dimensions.Single(d => d.Kind == DimensionKind.PinDistance && d.DebugOwner == "PG2" && d.Orientation == DimensionOrientation.Horizontal);
 			var verticalTransfer = plan.Dimensions.Single(d => d.Kind == DimensionKind.PinGroupDistance && d.Orientation == DimensionOrientation.Vertical);
@@ -1244,6 +1293,12 @@ namespace CadAuto.Core.Tests
 				"the rooted chain must fall back from PG1 datum to transfer and then to PG2 direct dimensions");
 			Assert(horizontalTransfer.AlignmentKey != verticalTransfer.AlignmentKey,
 				"horizontal and vertical transfer dimensions must never share an alignment key");
+			Assert(datumX.ReadingLevel == DimensionReadingLevel.DatumTransfer && datumY.ReadingLevel == DimensionReadingLevel.DatumTransfer,
+				"datum-hole locations must carry the datum-transfer reading level");
+			Assert(plan.Dimensions.Where(d => d.Kind == DimensionKind.OverallWidth || d.Kind == DimensionKind.OverallHeight).All(d => d.ReadingLevel == DimensionReadingLevel.Overall),
+				"overall dimensions must carry the outermost reading level");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(d => d.Kind == DimensionKind.PinDistance.ToString() && d.ReadingLevel == DimensionReadingLevel.IntraGroup.ToString()),
+				"dimension diagnostics must expose the explicit reading level");
         }
 
 		private static void PinAlignmentGroupsRespectSideAndOrientation()
@@ -1307,6 +1362,78 @@ namespace CadAuto.Core.Tests
 				"same keys on different sides must be resolved independently");
 			Assert(Math.Abs(top[0].DimLineCoordinateOverride.Value - left[0].DimLineCoordinateOverride.Value) > config.GeometryTolerance,
 				"same keys in different orientations must be resolved independently");
+		}
+
+		private static void RootedDatumChainMergesTransitiveAlignmentLanes()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(30.0, 0.0), Span = 30.0, AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 100, ReadingLevel = DimensionReadingLevel.IntraGroup },
+				new DimensionLayoutItem { Kind = DimensionKind.DatumHoleLocationX, FirstPoint = new Point2D(145.0, 0.0), SecondPoint = new Point2D(205.0, 0.0), Span = 60.0, AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 120, ReadingLevel = DimensionReadingLevel.DatumTransfer },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(30.0, 0.0), SecondPoint = new Point2D(145.0, 0.0), Span = 115.0, AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer }
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Top, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: true);
+			var coordinates = placements.Select(item => item.DimLineCoordinateOverride).ToList();
+
+			Assert(coordinates.All(coordinate => coordinate.HasValue)
+				&& coordinates.Select(coordinate => coordinate.Value).Distinct().Count() == 1,
+				"a rooted DX-to-GD-to-PD datum chain must merge transitively into one shared dimension line");
+		}
+
+		private static void FunctionalHoleAlignmentUsesSeparateSameOrientationLane()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(140.0, 85.0), SecondPoint = new Point2D(95.0, 10.0), Span = 45.0, PreferLocalBoundary = true, AlignmentKey = "PG1:FunctionalHoles:H", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(140.0, 85.0), SecondPoint = new Point2D(185.0, 10.0), Span = 45.0, PreferLocalBoundary = true, AlignmentKey = "PG1:FunctionalHoles:H", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing },
+				new DimensionLayoutItem { Kind = DimensionKind.DatumHoleLocationX, FirstPoint = new Point2D(200.0, 85.0), SecondPoint = new Point2D(140.0, 85.0), Span = 60.0, AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 120, ReadingLevel = DimensionReadingLevel.DatumTransfer }
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Top, null, 2.5, 1.0, 5.0, 5.0, isHorizontal: true);
+			var functionalHole1 = placements.Single(item => item.Index == 0);
+			var functionalHole2 = placements.Single(item => item.Index == 1);
+			var datum = placements.Single(item => item.Index == 2);
+
+			Assert(functionalHole1.DimLineCoordinateOverride.HasValue && functionalHole2.DimLineCoordinateOverride.HasValue
+				&& Math.Abs(functionalHole1.DimLineCoordinateOverride.Value - functionalHole2.DimLineCoordinateOverride.Value) <= config.GeometryTolerance,
+				"functional holes from one pin group and orientation must share a dimension line");
+			Assert(Math.Abs(functionalHole1.DimLineCoordinateOverride.Value - datum.DimLineCoordinateOverride.Value) > config.GeometryTolerance,
+				"functional-hole alignment must remain separate from the datum chain");
+		}
+
+		private static void FunctionalHoleAlignmentPreservesV198Stacking()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(40.0, 0.0), SecondPoint = new Point2D(25.0, 0.0), Span = 15.0, AlignmentKey = "PG2:FunctionalHoles:H", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(40.0, 0.0), SecondPoint = new Point2D(55.0, 0.0), Span = 15.0, AlignmentKey = "PG2:FunctionalHoles:H", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(40.0, 0.0), SecondPoint = new Point2D(10.0, 0.0), Span = 30.0, OverrideText = @"30\H0.8x;±0.02\H1x;", AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 100, ReadingLevel = DimensionReadingLevel.IntraGroup },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(155.0, 0.0), SecondPoint = new Point2D(110.0, 0.0), Span = 45.0, AlignmentKey = "PG1:FunctionalHoles:H", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(155.0, 0.0), SecondPoint = new Point2D(200.0, 0.0), Span = 45.0, AlignmentKey = "PG1:FunctionalHoles:H", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing },
+				new DimensionLayoutItem { Kind = DimensionKind.Normal, FirstPoint = new Point2D(90.0, 0.0), SecondPoint = new Point2D(140.0, 0.0), Span = 50.0, ReadingLevel = DimensionReadingLevel.LocalSpacing },
+				new DimensionLayoutItem { Kind = DimensionKind.DatumHoleLocationX, FirstPoint = new Point2D(215.0, 0.0), SecondPoint = new Point2D(155.0, 0.0), Span = 60.0, AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 120, ReadingLevel = DimensionReadingLevel.DatumTransfer },
+				new DimensionLayoutItem { Kind = DimensionKind.Normal, FirstPoint = new Point2D(140.0, 0.0), SecondPoint = new Point2D(215.0, 0.0), Span = 75.0, ReadingLevel = DimensionReadingLevel.LocalSpacing },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(155.0, 0.0), SecondPoint = new Point2D(40.0, 0.0), Span = 115.0, OverrideText = @"115\H0.8x;±0.05\H1x;", AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer }
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Top, null, 2.5, 1.25, 5.0, 5.0, isHorizontal: true);
+			var byIndex = placements.ToDictionary(item => item.Index);
+
+			Assert(byIndex[0].Level == 0 && byIndex[1].Level == 0 && byIndex[3].Level == 0 && byIndex[4].Level == 0,
+				"functional-hole alignment must preserve the v198 innermost stacking level");
+			Assert(byIndex[5].Level == 1 && byIndex[7].Level == 1,
+				"structure dimensions must retain the v198 middle stacking level");
+			Assert(byIndex[2].Level == 2 && byIndex[6].Level == 2 && byIndex[8].Level == 2,
+				"the rooted datum chain must retain the v198 outer stacking level");
+			Assert(placements.Select(item => item.Level).Distinct().OrderBy(level => level).SequenceEqual(new[] { 0, 1, 2 }),
+				"functional-hole alignment must not create empty stacking levels or enlarge spacing");
+			Assert(byIndex[0].DimLineCoordinateOverride.HasValue && byIndex[1].DimLineCoordinateOverride.HasValue
+				&& Math.Abs(byIndex[0].DimLineCoordinateOverride.Value - byIndex[1].DimLineCoordinateOverride.Value) <= config.GeometryTolerance,
+				"safe PG2 functional-hole dimensions must remain collinear without moving outward");
+			Assert(byIndex[3].DimLineCoordinateOverride.HasValue && byIndex[4].DimLineCoordinateOverride.HasValue
+				&& Math.Abs(byIndex[3].DimLineCoordinateOverride.Value - byIndex[4].DimLineCoordinateOverride.Value) <= config.GeometryTolerance,
+				"safe PG1 functional-hole dimensions must remain collinear without moving outward");
 		}
 
 		private static void PinAlignmentAnchorFallsBackWithStableOrdering()
@@ -1511,6 +1638,9 @@ namespace CadAuto.Core.Tests
 			Assert(functionalHoles.Count > 0
 				&& functionalHoles.All(d => d.PreservePreferredSide && !d.PreferFeatureLocalPlacement && d.PreferLocalBoundary),
 				"functional-hole dimensions must stay with their pin group and prefer a nearby local boundary");
+			Assert(functionalHoles.GroupBy(d => d.Orientation).All(group => group.Select(d => d.AlignmentKey).Distinct().Count() == 1
+				&& group.All(d => !string.IsNullOrEmpty(d.AlignmentKey) && d.AlignmentPriority == 90 && d.PreserveAlignmentLevel)),
+				"functional-hole dimensions in one pin group must receive a same-orientation alignment key");
 			Assert(verticalFunctionalHoles.All(d => d.Side == plan.PinGroups[0].VerticalSide),
 				"functional-hole dimensions must inherit their pin group's vertical side");
         }

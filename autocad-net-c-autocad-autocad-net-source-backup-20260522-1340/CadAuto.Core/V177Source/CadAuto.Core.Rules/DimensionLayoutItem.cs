@@ -21,6 +21,10 @@ public sealed class DimensionLayoutItem
 
 	public int AlignmentPriority { get; set; }
 
+	public bool PreserveAlignmentLevel { get; set; }
+
+	public DimensionReadingLevel ReadingLevel { get; set; }
+
 	public bool PreferLocalBoundary { get; set; }
 
 	public bool ForceOuterLevel { get; set; }

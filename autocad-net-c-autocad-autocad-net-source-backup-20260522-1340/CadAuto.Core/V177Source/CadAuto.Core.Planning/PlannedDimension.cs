@@ -38,6 +38,10 @@ public sealed class PlannedDimension
 
 	public int AlignmentPriority { get; set; }
 
+	public bool PreserveAlignmentLevel { get; set; }
+
+	public DimensionReadingLevel ReadingLevel { get; set; }
+
 	public string DebugOwner { get; set; }
 
 	public string DebugRole { get; set; }

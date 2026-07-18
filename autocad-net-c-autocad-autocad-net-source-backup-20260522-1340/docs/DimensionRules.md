@@ -86,7 +86,10 @@ Current follow-up areas:
 - Suppress mirrored duplicate vertical local dimensions across Left/Right only when they measure the same geometry and are not functionally significant.
 - Same-side duplicate measured dimensions should keep the rule-significant candidate, preferring tolerance text, smaller tolerance, functional dimension type, forced outer-level dimensions, then non-empty override text.
 - Linear dimensions are deferred into Bottom/Top/Left/Right buckets and placed by `FlushStackedDimensions`.
-- Shorter spans are generally placed inside; longer spans stack outward.
+- Same-side dimensions first follow the reading hierarchy: local hole spacing, intra-group pin spacing, datum/group-transfer spacing, then overall size.
+- Within one reading level, shorter spans are generally placed inside; longer spans stack outward, with original generation order as the stable tie-breaker.
+- A rooted datum chain may align its datum, inter-group transfer, and intra-group pin distances on one shared dimension line when consecutive members share endpoints and have no strict arrow overlap; a text or arrow conflict moves the whole chain outward.
+- Functional-hole dimensions belonging to one pin group share a separate same-orientation alignment line and do not join the rooted datum chain.
 - Placement checks arrow conflicts, text-box conflicts, and outline coverage.
 - Shared-extension alignment may move eligible dimensions outward, but must not move dimensions whose real arrow endpoints touch another dimension at the same dimension-line level.
 

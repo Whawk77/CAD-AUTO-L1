@@ -1,0 +1,125 @@
+{
+  "ok": true,
+  "chroma_key": {
+    "hex": "#00FFFF",
+    "rgb": [
+      0,
+      255,
+      255
+    ],
+    "threshold": 96.0
+  },
+  "rows": [
+    {
+      "state": "idle",
+      "frames": [
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\idle\\00.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\idle\\01.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\idle\\02.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\idle\\03.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\idle\\04.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\idle\\05.png"
+      ],
+      "method": "stable-slots"
+    },
+    {
+      "state": "running-right",
+      "frames": [
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\00.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\01.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\02.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\03.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\04.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\05.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\06.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-right\\07.png"
+      ],
+      "method": "stable-slots"
+    },
+    {
+      "state": "running-left",
+      "frames": [
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\00.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\01.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\02.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\03.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\04.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\05.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\06.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running-left\\07.png"
+      ],
+      "method": "stable-slots"
+    },
+    {
+      "state": "waving",
+      "frames": [
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waving\\00.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waving\\01.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waving\\02.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waving\\03.png"
+      ],
+      "method": "stable-slots"
+    },
+    {
+      "state": "jumping",
+      "frames": [
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\jumping\\00.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\jumping\\01.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\jumping\\02.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\jumping\\03.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\jumping\\04.png"
+      ],
+      "method": "stable-slots"
+    },
+    {
+      "state": "failed",
+      "frames": [
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\00.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\01.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\02.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\03.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\04.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\05.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\06.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\failed\\07.png"
+      ],
+      "method": "stable-slots"
+    },
+    {
+      "state": "waiting",
+      "frames": [
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waiting\\00.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waiting\\01.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waiting\\02.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waiting\\03.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waiting\\04.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\waiting\\05.png"
+      ],
+      "method": "stable-slots"
+    },
+    {
+      "state": "running",
+      "frames": [
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running\\00.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running\\01.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running\\02.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running\\03.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running\\04.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\running\\05.png"
+      ],
+      "method": "stable-slots"
+    },
+    {
+      "state": "review",
+      "frames": [
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\review\\00.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\review\\01.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\review\\02.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\review\\03.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\review\\04.png",
+        "D:\\work\\AI\\project\\L1\\guga-2-v2-upgrade\\frames\\review\\05.png"
+      ],
+      "method": "stable-slots"
+    }
+  ]
+}

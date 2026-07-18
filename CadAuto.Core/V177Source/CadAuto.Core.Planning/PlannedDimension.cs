@@ -4,6 +4,8 @@ namespace CadAuto.Core.Planning;
 
 public sealed class PlannedDimension
 {
+	public int DiagnosticId { get; set; }
+
 	public DimensionKind Kind { get; set; }
 
 	public DimensionOrientation Orientation { get; set; }

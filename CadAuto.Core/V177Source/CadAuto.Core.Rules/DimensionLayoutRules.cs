@@ -78,18 +78,10 @@ public sealed class DimensionLayoutRules
 		List<List<StackingLayerItem>> list2 = new List<List<StackingLayerItem>>();
 		Dictionary<int, int> dictionary = new Dictionary<int, int>();
 		int? num = null;
-		List<IndexedLayoutItem> list3 = dimensions.Select((DimensionLayoutItem dimension, int index) => new IndexedLayoutItem
+		foreach (int sourceIndex in GetStackingOrder(dimensions, isHorizontal))
 		{
-			SourceIndex = index,
-			Dimension = dimension
-		}).OrderBy((IndexedLayoutItem item) => item.Dimension.ReadingLevel)
-			.ThenBy((IndexedLayoutItem item) => item.Dimension.Span)
-			.ThenBy((IndexedLayoutItem item) => item.SourceIndex)
-			.ToList();
-		foreach (IndexedLayoutItem indexedLayoutItem in list3)
-		{
-			int i = indexedLayoutItem.SourceIndex;
-			DimensionLayoutItem dimensionLayoutItem = indexedLayoutItem.Dimension;
+			int i = sourceIndex;
+			DimensionLayoutItem dimensionLayoutItem = dimensions[sourceIndex];
 			Tuple<double, double> tuple = ComputeTextInterval(dimensionLayoutItem, isHorizontal, textHeight);
 			Tuple<double, double> tuple2 = ComputeArrowInterval(dimensionLayoutItem, isHorizontal);
 			int num2 = 0;
@@ -182,6 +174,52 @@ public sealed class DimensionLayoutRules
 		return list;
 	}
 
+	public List<int> GetStackingOrder(IList<DimensionLayoutItem> dimensions, bool isHorizontal)
+	{
+		if (dimensions == null)
+		{
+			return new List<int>();
+		}
+		return dimensions.Select((DimensionLayoutItem dimension, int index) => new IndexedLayoutItem
+		{
+			SourceIndex = index,
+			Dimension = dimension
+		}).OrderBy((IndexedLayoutItem item) => GetEffectiveReadingLevel(item.Dimension, item.SourceIndex, dimensions, isHorizontal))
+			.ThenBy((IndexedLayoutItem item) => item.Dimension.Span)
+			.ThenBy((IndexedLayoutItem item) => item.SourceIndex)
+			.Select((IndexedLayoutItem item) => item.SourceIndex)
+			.ToList();
+	}
+
+	private DimensionReadingLevel GetEffectiveReadingLevel(DimensionLayoutItem dimension, int sourceIndex, IList<DimensionLayoutItem> dimensions, bool isHorizontal)
+	{
+		if (dimension == null || dimension.Kind != DimensionKind.PinGroupDistance || dimension.ReadingLevel != DimensionReadingLevel.DatumTransfer || string.IsNullOrEmpty(dimension.AlignmentKey))
+		{
+			return dimension?.ReadingLevel ?? DimensionReadingLevel.LocalSpacing;
+		}
+		Tuple<double, double> arrowInterval = ComputeArrowInterval(dimension, isHorizontal);
+		for (int i = 0; i < dimensions.Count; i++)
+		{
+			DimensionLayoutItem candidate = dimensions[i];
+			if (i == sourceIndex || candidate == null || !string.Equals(candidate.AlignmentKey, dimension.AlignmentKey, StringComparison.Ordinal))
+			{
+				continue;
+			}
+			Tuple<double, double> candidateInterval = ComputeArrowInterval(candidate, isHorizontal);
+			if (!HasStrictArrowConflict(arrowInterval.Item1, arrowInterval.Item2, candidateInterval.Item1, candidateInterval.Item2)
+				&& SharesArrowEndpoint(arrowInterval.Item1, arrowInterval.Item2, candidateInterval.Item1, candidateInterval.Item2))
+			{
+				return dimension.ReadingLevel;
+			}
+		}
+		bool hasLargerOverlappingLocalDimension = dimensions.Where((DimensionLayoutItem candidate, int index) => index != sourceIndex && candidate != null
+			&& candidate.ReadingLevel == DimensionReadingLevel.LocalSpacing
+			&& candidate.Span > dimension.Span + _config.GeometryTolerance)
+			.Select(candidate => ComputeArrowInterval(candidate, isHorizontal))
+			.Any(candidateInterval => HasStrictArrowConflict(arrowInterval.Item1, arrowInterval.Item2, candidateInterval.Item1, candidateInterval.Item2));
+		return hasLargerOverlappingLocalDimension ? DimensionReadingLevel.LocalSpacing : dimension.ReadingLevel;
+	}
+
 	private List<List<StackingLayerItem>> BuildAlignmentLanes(IList<List<StackingLayerItem>> layers, double gap)
 	{
 		List<List<StackingLayerItem>> result = new List<List<StackingLayerItem>>();
@@ -265,17 +303,22 @@ public sealed class DimensionLayoutRules
 
 	private bool SharesArrowEndpoint(StackingLayerItem first, StackingLayerItem second)
 	{
-		return Math.Abs(first.ArrA - second.ArrA) <= _config.GeometryTolerance
-			|| Math.Abs(first.ArrA - second.ArrB) <= _config.GeometryTolerance
-			|| Math.Abs(first.ArrB - second.ArrA) <= _config.GeometryTolerance
-			|| Math.Abs(first.ArrB - second.ArrB) <= _config.GeometryTolerance;
+		return SharesArrowEndpoint(first.ArrA, first.ArrB, second.ArrA, second.ArrB);
+	}
+
+	private bool SharesArrowEndpoint(double firstA, double firstB, double secondA, double secondB)
+	{
+		return Math.Abs(firstA - secondA) <= _config.GeometryTolerance
+			|| Math.Abs(firstA - secondB) <= _config.GeometryTolerance
+			|| Math.Abs(firstB - secondA) <= _config.GeometryTolerance
+			|| Math.Abs(firstB - secondB) <= _config.GeometryTolerance;
 	}
 
 	private void MoveAlignmentGroupsTogether(List<List<StackingLayerItem>> layers, IList<List<StackingLayerItem>> alignmentLanes, DimensionSide side, OutlineFeature2D outline, double textHeight, double gap, double firstOffset, double perLevelSpacing, bool isHorizontal)
 	{
 		foreach (List<StackingLayerItem> members in alignmentLanes.OrderBy(lane => lane.Min(item => item.Index)))
 		{
-			if (members.All(item => item.Dimension.PreserveAlignmentLevel))
+			if (members.Count < 2 || members.All(item => item.Dimension.PreserveAlignmentLevel))
 			{
 				continue;
 			}
@@ -388,6 +431,12 @@ public sealed class DimensionLayoutRules
 			if (group.Count == 0)
 			{
 				continue;
+			}
+			string alignmentLaneKey = lane.Select(item => item.AlignmentLaneKey).FirstOrDefault(key => !string.IsNullOrEmpty(key)) ?? string.Empty;
+			foreach (DimensionStackingPlacement placement in group)
+			{
+				placement.AlignmentLaneKey = alignmentLaneKey;
+				placement.AlignmentLaneMemberCount = group.Count;
 			}
 			bool preservesLevel = lane.All(item => item.Dimension.PreserveAlignmentLevel);
 			if (preservesLevel && group.Count < 2)

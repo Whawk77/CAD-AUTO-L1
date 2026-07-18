@@ -27,6 +27,8 @@ public sealed class DimensionDrawer
 
 	private struct DeferredDim
 	{
+		public int DiagnosticId;
+
 		public double Rotation;
 
 		public Point3d XLine1;
@@ -81,6 +83,16 @@ public sealed class DimensionDrawer
 		public Point3d TextPosition;
 
 		public bool UsesLocalBoundary;
+
+		public int StackingLevel;
+
+		public double StackingOffset;
+
+		public bool HasAlignmentCoordinateOverride;
+
+		public string AlignmentLaneKey;
+
+		public int AlignmentLaneMemberCount;
 	}
 
 	private struct TextBounds
@@ -133,6 +145,10 @@ public sealed class DimensionDrawer
 	private readonly List<DeferredDim> _rightDims = new List<DeferredDim>();
 
 	private readonly List<TextBounds> _linearDimTextObstacles = new List<TextBounds>();
+
+	private readonly List<TextBounds> _dimensionDebugLabelBounds = new List<TextBounds>();
+
+	private DimensionDiagnosticReport _dimensionDiagnosticReport;
 
 	private void AddRotatedDimension(double rotation, Point3d xLine1, Point3d xLine2, Point3d dimLinePoint, string overrideText, bool useSegmentedExtensionLines, bool useCustomTextPosition = false, Point3d customTextPosition = default(Point3d))
 	{
@@ -352,11 +368,69 @@ public sealed class DimensionDrawer
 		if (!string.IsNullOrEmpty(text))
 		{
 			double num = Math.Max(textHeight * 0.38, Scale(1.2));
-			double num2 = num * 2.2;
-			Point3d dimLinePoint = placed.DimLinePoint;
-			dimLinePoint = ((!isHorizontal) ? ((placed.Side == DimSide.Right) ? new Point3d(dimLinePoint.X + num2, dimLinePoint.Y, 0.0) : new Point3d(dimLinePoint.X - num2, dimLinePoint.Y, 0.0)) : ((placed.Side == DimSide.Top) ? new Point3d(dimLinePoint.X, dimLinePoint.Y + num2, 0.0) : new Point3d(dimLinePoint.X, dimLinePoint.Y - num2, 0.0)));
-			_debugAnnotationRenderer.AddDimensionLabel(text, dimLinePoint, num, GetDebugLabelColor(placed.Dim));
+			Point3d debugLabelPoint = ChooseDimensionDebugLabelPoint(placed, isHorizontal, text, num, out var bounds);
+			_dimensionDebugLabelBounds.Add(bounds);
+			_debugAnnotationRenderer.AddDimensionLabel(text, debugLabelPoint, placed.DimLinePoint, num, GetDebugLabelColor(placed.Dim));
 		}
+	}
+
+	private Point3d ChooseDimensionDebugLabelPoint(PlacedDim placed, bool isHorizontal, string label, double textHeight, out TextBounds bounds)
+	{
+		double width = Math.Max(textHeight * 4.0, (label ?? string.Empty).Length * textHeight * 0.72);
+		double initialNormalDistance = Math.Max(textHeight * 2.2, Scale(2.5));
+		double normalStep = Math.Max(textHeight * 2.0, Scale(2.5));
+		double tangentStep = Math.Max(width * 0.62, textHeight * 4.0);
+		double direction = ((placed.Side == DimSide.Top || placed.Side == DimSide.Right) ? 1.0 : (-1.0));
+		double[] tangentMultipliers = new double[7] { 0.0, -1.0, 1.0, -2.0, 2.0, -3.0, 3.0 };
+		for (int level = 0; level < 8; level++)
+		{
+			double normalDistance = initialNormalDistance + (double)level * normalStep;
+			foreach (double tangentMultiplier in tangentMultipliers)
+			{
+				double tangentDistance = tangentMultiplier * tangentStep;
+				Point3d point = isHorizontal
+					? new Point3d(placed.DimLinePoint.X + tangentDistance, placed.DimLinePoint.Y + direction * normalDistance, 0.0)
+					: new Point3d(placed.DimLinePoint.X + direction * normalDistance, placed.DimLinePoint.Y + tangentDistance, 0.0);
+				TextBounds candidateBounds = EstimateDimensionDebugLabelBounds(point, width, textHeight);
+				if (!DimensionDebugLabelCollides(candidateBounds, textHeight))
+				{
+					bounds = candidateBounds;
+					return point;
+				}
+			}
+		}
+		double fallbackDistance = initialNormalDistance + (double)(_dimensionDebugLabelBounds.Count + 8) * normalStep;
+		Point3d fallbackPoint = isHorizontal
+			? new Point3d(placed.DimLinePoint.X, placed.DimLinePoint.Y + direction * fallbackDistance, 0.0)
+			: new Point3d(placed.DimLinePoint.X + direction * fallbackDistance, placed.DimLinePoint.Y, 0.0);
+		bounds = EstimateDimensionDebugLabelBounds(fallbackPoint, width, textHeight);
+		return fallbackPoint;
+	}
+
+	private static TextBounds EstimateDimensionDebugLabelBounds(Point3d point, double width, double textHeight)
+	{
+		return new TextBounds
+		{
+			MinX = point.X - width * 0.5,
+			MaxX = point.X + width * 0.5,
+			MinY = point.Y - textHeight * 0.7,
+			MaxY = point.Y + textHeight * 0.7
+		};
+	}
+
+	private bool DimensionDebugLabelCollides(TextBounds bounds, double textHeight)
+	{
+		double gap = Math.Max(textHeight * 0.4, Scale(0.5));
+		return _dimensionDebugLabelBounds.Any(existing => DebugTextBoundsOverlap(existing, bounds, gap))
+			|| _linearDimTextObstacles.Any(existing => DebugTextBoundsOverlap(existing, bounds, gap));
+	}
+
+	private static bool DebugTextBoundsOverlap(TextBounds first, TextBounds second, double gap)
+	{
+		return first.MinX <= second.MaxX + gap
+			&& first.MaxX + gap >= second.MinX
+			&& first.MinY <= second.MaxY + gap
+			&& first.MaxY + gap >= second.MinY;
 	}
 
 	private string BuildDimensionDebugLabel(PlacedDim placed)
@@ -367,7 +441,7 @@ public sealed class DimensionDrawer
 		{
 			text += placed.Dim.DebugIndex.ToString(CultureInfo.InvariantCulture);
 		}
-		return debugOwnerText + "|" + text + "|" + GetDebugBoundaryText(placed) + "|" + GetDebugSideText(placed.Side);
+		return debugOwnerText + "|" + text + "|" + GetDebugBoundaryText(placed) + "|" + GetDebugSideText(placed.Side) + "|L" + placed.StackingLevel.ToString(CultureInfo.InvariantCulture);
 	}
 
 	private static string GetDebugBoundaryText(PlacedDim placed)
@@ -575,6 +649,7 @@ public sealed class DimensionDrawer
 		bool isHorizontal = side == DimSide.Bottom || side == DimSide.Top;
 		IList<DimensionStackingPlacement> placements = CreateSideStackingPlacements(dims, side, outline, dimStyleTextHeight, gap, perLevelSpacing, isHorizontal);
 		List<PlacedDim> list = BuildPlacedDimensions(dims, side, outline, placements, isHorizontal, dimStyleTextHeight);
+		RecordFinalPlacementDiagnostics(list, isHorizontal);
 		if (_diagnosticsEnabled)
 		{
 			AssignDebugIndexes(list);
@@ -589,12 +664,9 @@ public sealed class DimensionDrawer
 
 	private IList<DimensionStackingPlacement> CreateSideStackingPlacements(List<DeferredDim> dims, DimSide side, OutlineFeature outline, double textHeight, double gap, double perLevelSpacing, bool isHorizontal)
 	{
-		List<DeferredDim> stableSpanOrder = dims
-			.Select((DeferredDim dim, int generationOrder) => new { Dim = dim, GenerationOrder = generationOrder })
-			.OrderBy(item => item.Dim.ReadingLevel)
-			.ThenBy(item => item.Dim.Span)
-			.ThenBy(item => item.GenerationOrder)
-			.Select(item => item.Dim)
+		List<DimensionLayoutItem> orderingItems = dims.Select(ToLayoutItem).ToList();
+		List<DeferredDim> stableSpanOrder = _dimensionLayoutRules.GetStackingOrder(orderingItems, isHorizontal)
+			.Select(index => dims[index])
 			.ToList();
 		dims.Clear();
 		dims.AddRange(stableSpanOrder);
@@ -705,10 +777,49 @@ public sealed class DimensionDrawer
 				Side = side,
 				DimLinePoint = dimLinePoint,
 				TextBounds = ComputePlacedTextBounds(dim, dimLinePoint, isHorizontal, textHeight),
-				UsesLocalBoundary = TryGetLocalDimLineCoordinate(dim, side, outline, placement.Offset, out var _)
+				UsesLocalBoundary = TryGetLocalDimLineCoordinate(dim, side, outline, placement.Offset, out var _),
+				StackingLevel = placement.Level,
+				StackingOffset = placement.Offset,
+				HasAlignmentCoordinateOverride = placement.DimLineCoordinateOverride.HasValue,
+				AlignmentLaneKey = placement.AlignmentLaneKey ?? string.Empty,
+				AlignmentLaneMemberCount = placement.AlignmentLaneMemberCount
 			});
 		}
 		return list;
+	}
+
+	private void RecordFinalPlacementDiagnostics(IEnumerable<PlacedDim> placedDims, bool isHorizontal)
+	{
+		if (_dimensionDiagnosticReport == null)
+		{
+			return;
+		}
+		foreach (PlacedDim placed in placedDims)
+		{
+			if (placed.Dim.DiagnosticId <= 0)
+			{
+				continue;
+			}
+			double resolvedCoordinate = isHorizontal ? placed.DimLinePoint.Y : placed.DimLinePoint.X;
+			_dimensionDiagnosticReport.RecordFinalPlacement(placed.Dim.DiagnosticId, placed.StackingLevel, placed.StackingOffset, resolvedCoordinate, placed.UsesLocalBoundary, placed.HasAlignmentCoordinateOverride, placed.AlignmentLaneKey, placed.AlignmentLaneMemberCount, GetAlignmentDecision(placed));
+		}
+	}
+
+	private static string GetAlignmentDecision(PlacedDim placed)
+	{
+		if (string.IsNullOrEmpty(placed.Dim.AlignmentKey))
+		{
+			return "NotRequested";
+		}
+		if (placed.AlignmentLaneMemberCount < 2)
+		{
+			return placed.Dim.PreserveAlignmentLevel ? "PreservedOriginalLevelNoSafePeer" : "NoConnectedAlignmentPeer";
+		}
+		if (placed.HasAlignmentCoordinateOverride)
+		{
+			return placed.Dim.PreserveAlignmentLevel ? "AlignedWithinOriginalLevel" : "AlignedLaneCoordinateOverride";
+		}
+		return placed.Dim.PreserveAlignmentLevel ? "PreservedOriginalCoordinateUnsafe" : "AlignmentLaneWithoutCoordinateOverride";
 	}
 
 	private void RenderPlacedDimensions(IList<PlacedDim> placedDims, bool isHorizontal, double textHeight)
@@ -767,6 +878,7 @@ public sealed class DimensionDrawer
 		{
 			return;
 		}
+		_dimensionDiagnosticReport = plan.Diagnostics;
 		foreach (DimensionPlanCadItem item in _dimensionPlanMapper.Map(plan))
 		{
 			AddPlannedDimension(item);
@@ -779,6 +891,7 @@ public sealed class DimensionDrawer
 		{
 			DeferredDim dim = new DeferredDim
 			{
+				DiagnosticId = dimension.DiagnosticId,
 				Rotation = dimension.Rotation,
 				XLine1 = dimension.FirstPoint,
 				XLine2 = dimension.SecondPoint,

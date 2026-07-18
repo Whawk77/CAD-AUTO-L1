@@ -24,8 +24,17 @@ public sealed class DebugAnnotationRenderer
 
 	public void AddDimensionLabel(string label, Point3d point, double textHeight, Color color)
 	{
+		AddDimensionLabel(label, point, point, textHeight, color);
+	}
+
+	public void AddDimensionLabel(string label, Point3d point, Point3d anchor, double textHeight, Color color)
+	{
 		if (!string.IsNullOrEmpty(label))
 		{
+			if (point.DistanceTo(anchor) > 1E-08)
+			{
+				AddLine(point, anchor, color);
+			}
 			MText mText = new MText();
 			mText.SetDatabaseDefaults(_database);
 			mText.Contents = label;
@@ -61,10 +70,15 @@ public sealed class DebugAnnotationRenderer
 
 	public void AddLine(Point3d start, Point3d end, short colorIndex)
 	{
+		AddLine(start, end, Color.FromColorIndex(ColorMethod.ByAci, colorIndex));
+	}
+
+	private void AddLine(Point3d start, Point3d end, Color color)
+	{
 		Line line = new Line(start, end);
 		line.SetDatabaseDefaults(_database);
 		line.Layer = _annotationLayer;
-		line.Color = Color.FromColorIndex(ColorMethod.ByAci, colorIndex);
+		line.Color = color;
 		_writer.Append(line);
 	}
 }

@@ -106,9 +106,11 @@ public sealed class DimensionPlan
 
 	private DimensionCandidateDiagnostic AddDiagnosticCandidate(PlannedDimension dimension)
 	{
+		int diagnosticId = _nextDiagnosticId++;
+		dimension.DiagnosticId = diagnosticId;
 		DimensionCandidateDiagnostic dimensionCandidateDiagnostic = new DimensionCandidateDiagnostic
 		{
-			Id = _nextDiagnosticId++,
+			Id = diagnosticId,
 			Kind = dimension.Kind.ToString(),
 			SourceFeatureId = (dimension.SourceKey ?? dimension.DebugOwner ?? dimension.DebugRole ?? string.Empty),
 			Value = GetDiagnosticValue(dimension),
@@ -121,6 +123,11 @@ public sealed class DimensionPlan
 			PlacementSide = dimension.Side.ToString(),
 			Priority = GetDiagnosticPriority(dimension),
 			ReadingLevel = dimension.ReadingLevel.ToString(),
+			AlignmentKey = dimension.AlignmentKey ?? string.Empty,
+			AlignmentPriority = dimension.AlignmentPriority,
+			PreserveAlignmentLevel = dimension.PreserveAlignmentLevel,
+			AlignmentLaneKey = string.Empty,
+			AlignmentDecision = string.Empty,
 			IsSuppressed = false,
 			IsSelected = false,
 			IsAttachmentValid = true,
@@ -153,6 +160,18 @@ public sealed class DimensionPlan
 			PlacementSide = source.PlacementSide,
 			Priority = source.Priority,
 			ReadingLevel = source.ReadingLevel,
+			AlignmentKey = source.AlignmentKey,
+			AlignmentPriority = source.AlignmentPriority,
+			PreserveAlignmentLevel = source.PreserveAlignmentLevel,
+			HasFinalPlacement = source.HasFinalPlacement,
+			StackingLevel = source.StackingLevel,
+			StackingOffset = source.StackingOffset,
+			ResolvedDimLineCoordinate = source.ResolvedDimLineCoordinate,
+			UsesLocalBoundary = source.UsesLocalBoundary,
+			HasAlignmentCoordinateOverride = source.HasAlignmentCoordinateOverride,
+			AlignmentLaneKey = source.AlignmentLaneKey,
+			AlignmentLaneMemberCount = source.AlignmentLaneMemberCount,
+			AlignmentDecision = source.AlignmentDecision,
 			IsSuppressed = source.IsSuppressed,
 			IsSelected = source.IsSelected,
 			IsAttachmentValid = source.IsAttachmentValid,

@@ -744,7 +744,7 @@ public sealed class Commands
 				}
 				transaction.Commit();
 			}
-			WriteDimensionRunSummary(editor, completedLinearPlan, outline, recognizedHoles, slotFeatures, outputScope);
+			WriteDimensionRunSummary(editor, completedLinearPlan, outline, recognizedHoles, slotFeatures, outputScope, diagnosticsEnabled, diagnosticSide);
 			if (!diagnosticsEnabled && (flag3 || flag5))
 			{
 				DrawPostLinearInteractiveAnnotations(mdiActiveDocument, config, dimStyleId, objectId, dimScale, annotationLayer, groupId, outline, slotFeatures, flag3, flag5);
@@ -765,7 +765,7 @@ public sealed class Commands
 		}
 	}
 
-	private static void WriteDimensionRunSummary(Editor editor, DimensionPlan plan, OutlineFeature outline, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, AutoFixDimOutputScope outputScope)
+	private static void WriteDimensionRunSummary(Editor editor, DimensionPlan plan, OutlineFeature outline, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide)
 	{
 		if (editor == null || plan == null)
 		{
@@ -783,7 +783,7 @@ public sealed class Commands
 		}
 		try
 		{
-			string path = WriteDimensionDiagnosticReport(plan, outline, holes, slots, outputScope);
+			string path = WriteDimensionDiagnosticReport(plan, outline, holes, slots, outputScope, diagnosticsEnabled, diagnosticSide);
 			editor.WriteMessage("\n诊断报告已输出: {0}", path);
 		}
 		catch (System.Exception ex)
@@ -980,7 +980,7 @@ public sealed class Commands
 		return dimensionPlan;
 	}
 
-	private static string WriteDimensionDiagnosticReport(DimensionPlan plan, OutlineFeature outline, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, AutoFixDimOutputScope outputScope)
+	private static string WriteDimensionDiagnosticReport(DimensionPlan plan, OutlineFeature outline, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide)
 	{
 		DimensionDiagnosticReport diagnostics = plan.Diagnostics;
 		List<HoleFeature> source = (holes ?? Enumerable.Empty<HoleFeature>()).Where((HoleFeature h) => h != null).ToList();
@@ -994,7 +994,7 @@ public sealed class Commands
 		string text = Path.Combine(GetProjectRootOrAssemblyDirectory(), "diagnostics");
 		Directory.CreateDirectory(text);
 		string text2 = Path.Combine(text, "last-run.json");
-		File.WriteAllText(text2, SerializeDimensionDiagnosticReport(diagnostics, outputScope), Encoding.UTF8);
+		File.WriteAllText(text2, SerializeDimensionDiagnosticReport(diagnostics, outputScope, diagnosticsEnabled, diagnosticSide), Encoding.UTF8);
 		return text2;
 	}
 
@@ -1014,12 +1014,14 @@ public sealed class Commands
 		return text ?? Environment.CurrentDirectory;
 	}
 
-	private static string SerializeDimensionDiagnosticReport(DimensionDiagnosticReport report, AutoFixDimOutputScope outputScope)
+	private static string SerializeDimensionDiagnosticReport(DimensionDiagnosticReport report, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide)
 	{
 		StringBuilder stringBuilder = new StringBuilder();
 		stringBuilder.AppendLine("{");
 		AppendJsonProperty(stringBuilder, 1, "generatedAt", DateTime.Now.ToString("o", CultureInfo.InvariantCulture), comma: true);
 		AppendJsonProperty(stringBuilder, 1, "commandScope", outputScope.ToString(), comma: true);
+		AppendJsonProperty(stringBuilder, 1, "diagnosticsEnabled", diagnosticsEnabled, comma: true);
+		AppendJsonProperty(stringBuilder, 1, "diagnosticSide", diagnosticSide.ToString(), comma: true);
 		AppendFeatureCounts(stringBuilder, report.Features, comma: true);
 		AppendDimensionDiagnostics(stringBuilder, 1, "dimensionCandidates", report.DimensionCandidates, comma: true);
 		AppendDimensionDiagnostics(stringBuilder, 1, "finalDimensions", report.FinalDimensions, comma: false);
@@ -1065,6 +1067,19 @@ public sealed class Commands
 			AppendJsonProperty(builder, indent + 2, "measurementMaximum", dimensionCandidateDiagnostic.MeasurementMaximum, comma: true);
 			AppendJsonProperty(builder, indent + 2, "placementSide", dimensionCandidateDiagnostic.PlacementSide, comma: true);
 			AppendJsonProperty(builder, indent + 2, "priority", dimensionCandidateDiagnostic.Priority, comma: true);
+			AppendJsonProperty(builder, indent + 2, "readingLevel", dimensionCandidateDiagnostic.ReadingLevel, comma: true);
+			AppendJsonProperty(builder, indent + 2, "alignmentKey", dimensionCandidateDiagnostic.AlignmentKey, comma: true);
+			AppendJsonProperty(builder, indent + 2, "alignmentPriority", dimensionCandidateDiagnostic.AlignmentPriority, comma: true);
+			AppendJsonProperty(builder, indent + 2, "preserveAlignmentLevel", dimensionCandidateDiagnostic.PreserveAlignmentLevel, comma: true);
+			AppendJsonProperty(builder, indent + 2, "hasFinalPlacement", dimensionCandidateDiagnostic.HasFinalPlacement, comma: true);
+			AppendNullableJsonProperty(builder, indent + 2, "stackingLevel", dimensionCandidateDiagnostic.StackingLevel, comma: true);
+			AppendNullableJsonProperty(builder, indent + 2, "stackingOffset", dimensionCandidateDiagnostic.StackingOffset, comma: true);
+			AppendNullableJsonProperty(builder, indent + 2, "resolvedDimLineCoordinate", dimensionCandidateDiagnostic.ResolvedDimLineCoordinate, comma: true);
+			AppendNullableJsonProperty(builder, indent + 2, "usesLocalBoundary", dimensionCandidateDiagnostic.UsesLocalBoundary, comma: true);
+			AppendNullableJsonProperty(builder, indent + 2, "hasAlignmentCoordinateOverride", dimensionCandidateDiagnostic.HasAlignmentCoordinateOverride, comma: true);
+			AppendJsonProperty(builder, indent + 2, "alignmentLaneKey", dimensionCandidateDiagnostic.AlignmentLaneKey, comma: true);
+			AppendNullableJsonProperty(builder, indent + 2, "alignmentLaneMemberCount", dimensionCandidateDiagnostic.AlignmentLaneMemberCount, comma: true);
+			AppendJsonProperty(builder, indent + 2, "alignmentDecision", dimensionCandidateDiagnostic.AlignmentDecision, comma: true);
 			AppendJsonProperty(builder, indent + 2, "isSuppressed", dimensionCandidateDiagnostic.IsSuppressed, comma: true);
 			AppendJsonProperty(builder, indent + 2, "isSelected", dimensionCandidateDiagnostic.IsSelected, comma: true);
 			AppendJsonProperty(builder, indent + 2, "isAttachmentValid", dimensionCandidateDiagnostic.IsAttachmentValid, comma: true);
@@ -1113,6 +1128,43 @@ public sealed class Commands
 		AppendIndent(builder, indent);
 		builder.Append('"').Append(JsonEscape(name)).Append("\": ")
 			.Append(value ? "true" : "false");
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendNullableJsonProperty(StringBuilder builder, int indent, string name, int? value, bool comma)
+	{
+		if (value.HasValue)
+		{
+			AppendJsonProperty(builder, indent, name, value.Value, comma);
+			return;
+		}
+		AppendJsonNullProperty(builder, indent, name, comma);
+	}
+
+	private static void AppendNullableJsonProperty(StringBuilder builder, int indent, string name, double? value, bool comma)
+	{
+		if (value.HasValue)
+		{
+			AppendJsonProperty(builder, indent, name, value.Value, comma);
+			return;
+		}
+		AppendJsonNullProperty(builder, indent, name, comma);
+	}
+
+	private static void AppendNullableJsonProperty(StringBuilder builder, int indent, string name, bool? value, bool comma)
+	{
+		if (value.HasValue)
+		{
+			AppendJsonProperty(builder, indent, name, value.Value, comma);
+			return;
+		}
+		AppendJsonNullProperty(builder, indent, name, comma);
+	}
+
+	private static void AppendJsonNullProperty(StringBuilder builder, int indent, string name, bool comma)
+	{
+		AppendIndent(builder, indent);
+		builder.Append('"').Append(JsonEscape(name)).Append("\": null");
 		builder.AppendLine(comma ? "," : string.Empty);
 	}
 

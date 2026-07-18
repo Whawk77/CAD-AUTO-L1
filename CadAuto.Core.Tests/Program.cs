@@ -38,6 +38,8 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(OverallCompactsToOnePhysicalSpacing), OverallCompactsToOnePhysicalSpacing);
 				RunTest(nameof(SemanticReadingLevelsControlHorizontalStacking), SemanticReadingLevelsControlHorizontalStacking);
 				RunTest(nameof(SemanticReadingLevelsControlVerticalStacking), SemanticReadingLevelsControlVerticalStacking);
+				RunTest(nameof(IsolatedShortPinGroupTransferUsesInnerSpanOrder), IsolatedShortPinGroupTransferUsesInnerSpanOrder);
+				RunTest(nameof(DimensionDiagnosticsRecordFinalPlacement), DimensionDiagnosticsRecordFinalPlacement);
 				RunTest(nameof(FormattedDimensionTextLengthIgnoresControlCodes), FormattedDimensionTextLengthIgnoresControlCodes);
 				RunTest(nameof(FittingVerticalLocalTextStaysCentered), FittingVerticalLocalTextStaysCentered);
 				RunTest(nameof(ShortVerticalLocalTextClearsArrowheads), ShortVerticalLocalTextClearsArrowheads);
@@ -620,6 +622,61 @@ namespace CadAuto.Core.Tests
 				"intra-group vertical spacing must be placed inside datum transfer spacing");
 			Assert(placements.Single(item => item.Index == 1).Level < placements.Single(item => item.Index == 0).Level,
 				"datum transfer spacing must be placed inside the vertical overall dimension");
+		}
+
+		private static void IsolatedShortPinGroupTransferUsesInnerSpanOrder()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.OverallHeight, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(0.0, 100.0), Span = 100.0, ForceOuterLevel = true, ReadingLevel = DimensionReadingLevel.Overall },
+				new DimensionLayoutItem { Kind = DimensionKind.Normal, FirstPoint = new Point2D(10.0, 42.0), SecondPoint = new Point2D(0.0, 0.0), Span = 42.0, ReadingLevel = DimensionReadingLevel.LocalSpacing },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(155.0, 14.5), SecondPoint = new Point2D(40.0, 0.0), Span = 14.5, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer }
+			};
+			var rules = new DimensionLayoutRules(config);
+			var order = rules.GetStackingOrder(dimensions, isHorizontal: false);
+			var placements = rules.CreateStackingPlan(dimensions, DimensionSide.Left, null, 2.5, 1.25, 5.0, 6.5, isHorizontal: false).ToDictionary(item => item.Index);
+
+			Assert(order.SequenceEqual(new[] { 2, 1, 0 }),
+				"an isolated short pin-group transfer must use span order ahead of a larger overlapping local dimension");
+			Assert(placements[2].Level == 0 && placements[1].Level == 1 && placements[0].Level == 2,
+				"left-side isolated GD 14.5 must sit inside local structure height 42 while overall height remains outermost");
+			Assert(placements[2].AlignmentLaneMemberCount == 1,
+				"the span-order exception must apply only to an isolated alignment lane");
+		}
+
+		private static void DimensionDiagnosticsRecordFinalPlacement()
+		{
+			var plan = new DimensionPlan();
+			var dimension = new PlannedDimension
+			{
+				Kind = DimensionKind.PinDistance,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(30.0, 0.0),
+				AlignmentKey = "PG1:DatumChain:H",
+				AlignmentPriority = 100,
+				ReadingLevel = DimensionReadingLevel.IntraGroup,
+				DebugRole = "PinDistance"
+			};
+			plan.Add(dimension);
+			plan.CaptureFinalDimensions();
+			plan.Diagnostics.RecordFinalPlacement(dimension.DiagnosticId, 2, 15.0, 125.0, true, true, "PG1:DatumChain:H#1", 3, "AlignedLaneCoordinateOverride");
+
+			Assert(dimension.DiagnosticId > 0, "planned dimensions must receive a stable diagnostic id");
+			Assert(plan.Diagnostics.DimensionCandidates.Single().ReadingLevel == DimensionReadingLevel.IntraGroup.ToString()
+				&& plan.Diagnostics.DimensionCandidates.Single().AlignmentKey == "PG1:DatumChain:H",
+				"candidate diagnostics must expose reading and requested alignment metadata");
+			Assert(plan.Diagnostics.DimensionCandidates.Single().HasFinalPlacement
+				&& plan.Diagnostics.FinalDimensions.Single().HasFinalPlacement
+				&& plan.Diagnostics.FinalDimensions.Single().StackingLevel == 2
+				&& Math.Abs(plan.Diagnostics.FinalDimensions.Single().StackingOffset.Value - 15.0) <= 1E-09
+				&& Math.Abs(plan.Diagnostics.FinalDimensions.Single().ResolvedDimLineCoordinate.Value - 125.0) <= 1E-09,
+				"final placement diagnostics must update both candidate and final-dimension views");
+			Assert(plan.Diagnostics.FinalDimensions.Single().AlignmentLaneMemberCount == 3
+				&& plan.Diagnostics.FinalDimensions.Single().AlignmentDecision == "AlignedLaneCoordinateOverride",
+				"final placement diagnostics must explain the resolved alignment lane");
 		}
 
 		private static void FormattedDimensionTextLengthIgnoresControlCodes()
@@ -1398,6 +1455,9 @@ namespace CadAuto.Core.Tests
 			Assert(functionalHole1.DimLineCoordinateOverride.HasValue && functionalHole2.DimLineCoordinateOverride.HasValue
 				&& Math.Abs(functionalHole1.DimLineCoordinateOverride.Value - functionalHole2.DimLineCoordinateOverride.Value) <= config.GeometryTolerance,
 				"functional holes from one pin group and orientation must share a dimension line");
+			Assert(functionalHole1.AlignmentLaneMemberCount == 2 && functionalHole2.AlignmentLaneMemberCount == 2
+				&& functionalHole1.AlignmentLaneKey == functionalHole2.AlignmentLaneKey,
+				"functional-hole placements must expose their resolved diagnostic alignment lane");
 			Assert(Math.Abs(functionalHole1.DimLineCoordinateOverride.Value - datum.DimLineCoordinateOverride.Value) > config.GeometryTolerance,
 				"functional-hole alignment must remain separate from the datum chain");
 		}

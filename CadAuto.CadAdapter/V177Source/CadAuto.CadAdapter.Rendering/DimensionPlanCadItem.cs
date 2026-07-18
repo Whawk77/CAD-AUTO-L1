@@ -6,6 +6,8 @@ namespace CadAuto.CadAdapter.Rendering;
 
 internal sealed class DimensionPlanCadItem
 {
+	public int DiagnosticId { get; set; }
+
 	public double Rotation { get; set; }
 
 	public Point3d FirstPoint { get; set; }

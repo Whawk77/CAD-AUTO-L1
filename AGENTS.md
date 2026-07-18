@@ -22,7 +22,7 @@ Detailed project knowledge lives in `docs/`.
 
 ## Active Project
 
-- Active source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340`
+- Active source: `D:\work\AI\project\autocad-dim`
 - Main project file: `AutoFixtureDim.csproj`
 - Target product: AutoCAD 2020 .NET Framework plugin for fixture-part annotation.
 - Main command: `ASD`.

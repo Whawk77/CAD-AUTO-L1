@@ -64,7 +64,7 @@ Last synced: 2026-05-28
 - Same debug flow, first asking existing AutoCAD windows to close:
   `powershell -ExecutionPolicy Bypass -File .\scripts\run-cad-test.ps1 -Restart`
 - Current test DLL:
-  `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB60.dll`
+  `D:\work\AI\project\autocad-dim\bin\Debug\autofixdim-LB60.dll`
 - AutoCAD load command: `NETLOAD`, then select the current test DLL.
 - Main command: `ASD`
 - Regenerate command: `ASD2`
@@ -107,15 +107,15 @@ It never creates centerlines or a `CENTER` layer.
 
 ## Project
 - Active L1 workspace: `D:\work\AI\project\L1`
-- Active source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340`
+- Active source: `D:\work\AI\project\autocad-dim`
 - Project file: `AutoFixtureDim.csproj`
 - Target framework: .NET Framework 4.7.2
 - AutoCAD install: `D:\Program Files\Autodesk\AutoCAD 2020`
 - Build command: `dotnet msbuild AutoFixtureDim.csproj /p:Configuration=Debug /p:PostBuildEvent= /p:DebugType=None /p:DebugSymbols=false /v:minimal`
-- Build output: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\AutoFixtureDim.dll`
+- Build output: `D:\work\AI\project\autocad-dim\bin\Debug\AutoFixtureDim.dll`
 - Deployment folder: `D:\app\不加班的小刘_工具箱\dll`
 - Deploy script: `.\deploy_next_version.ps1`
-- Latest test DLL from current source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB60.dll`
+- Latest test DLL from current source: `D:\work\AI\project\autocad-dim\bin\Debug\autofixdim-LB60.dll`
 - Pre-rewrite `DimensionDrawer.cs` backup requested by user: `D:\work\AI\project\1\DimensionDrawer.cs.bak`
 - Historical note: the earlier abandoned `autofixdim-v89.dll` build must not be used as a baseline. The source was rolled back to the `v88` logic before the rejected step-dimension replacement behavior, and the current `v89` suffix is reused for the diameter-style follow-current-child-style test build.
 
@@ -355,12 +355,12 @@ It never creates centerlines or a `CENTER` layer.
 - Standard deploy command:
   `powershell -ExecutionPolicy Bypass -File .\deploy_next_version.ps1`
 - Latest compiled DLL:
-  `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\AutoFixtureDim.dll`
+  `D:\work\AI\project\autocad-dim\bin\Debug\AutoFixtureDim.dll`
 - Latest test DLL:
-  `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB60.dll`
+  `D:\work\AI\project\autocad-dim\bin\Debug\autofixdim-LB60.dll`
 
 ## Manual AutoCAD Test Checklist
-- Load `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB60.dll` with `NETLOAD` for the current local test build.
+- Load `D:\work\AI\project\autocad-dim\bin\Debug\autofixdim-LB60.dll` with `NETLOAD` for the current local test build.
 - Run `ASD`.
 - Select outline and hole geometry.
 - Pick the intended first-group datum pin.

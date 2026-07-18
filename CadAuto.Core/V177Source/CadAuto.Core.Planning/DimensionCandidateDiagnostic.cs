@@ -28,6 +28,30 @@ public sealed class DimensionCandidateDiagnostic
 
 	public string ReadingLevel { get; set; }
 
+	public string AlignmentKey { get; set; }
+
+	public int AlignmentPriority { get; set; }
+
+	public bool PreserveAlignmentLevel { get; set; }
+
+	public bool HasFinalPlacement { get; set; }
+
+	public int? StackingLevel { get; set; }
+
+	public double? StackingOffset { get; set; }
+
+	public double? ResolvedDimLineCoordinate { get; set; }
+
+	public bool? UsesLocalBoundary { get; set; }
+
+	public bool? HasAlignmentCoordinateOverride { get; set; }
+
+	public string AlignmentLaneKey { get; set; }
+
+	public int? AlignmentLaneMemberCount { get; set; }
+
+	public string AlignmentDecision { get; set; }
+
 	public bool IsSuppressed { get; set; }
 
 	public bool IsSelected { get; set; }

@@ -116,7 +116,7 @@
 - 编译：
   `dotnet msbuild AutoFixtureDim.csproj /p:Configuration=Debug /p:PostBuildEvent= /p:DebugType=None /p:DebugSymbols=false /v:minimal`
 - 当前测试 DLL：
-  `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340\bin\Debug\autofixdim-LB51.dll`
+  `D:\work\AI\project\autocad-dim\bin\Debug\autofixdim-LB51.dll`
 - AutoCAD 加载：`NETLOAD`
 - 主命令：`ASD`
 - 重新生成：`AUTOFIXDIMREGEN`
@@ -126,7 +126,7 @@
 
 # 注意事项
 
-- 本项目当前工作目录是 `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340`。
+- 本项目当前工作目录是 `D:\work\AI\project\autocad-dim`。
 - 当前源码不是干净工作区，接手前先看 `git status --short --branch`。
 - AutoCAD 可能锁定已加载 DLL 或 PDB；如果覆盖失败，使用新的 `autofixdim-LB<N>.dll` 后缀。
 - 文档中使用绝对日期，不使用相对时间词。

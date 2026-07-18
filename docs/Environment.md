@@ -3,7 +3,7 @@
 ## Project Paths
 
 - Workspace: `D:\work\AI\project\L1`
-- Active source: `D:\work\AI\project\L1\autocad-net-c-autocad-autocad-net-source-backup-20260522-1340`
+- Active source: `D:\work\AI\project\autocad-dim`
 - Project file: `AutoFixtureDim.csproj`
 - Build output: `bin\Debug\AutoFixtureDim.dll`
 

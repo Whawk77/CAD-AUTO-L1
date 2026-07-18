@@ -36,6 +36,7 @@ internal sealed class DimensionPlanCadMapper
 		}
 		return new DimensionPlanCadItem
 		{
+			DiagnosticId = dimension.DiagnosticId,
 			Rotation = ((dimension.Orientation == DimensionOrientation.Horizontal) ? 0.0 : (Math.PI / 2.0)),
 			FirstPoint = new Point3d(dimension.FirstPoint.X, dimension.FirstPoint.Y, 0.0),
 			SecondPoint = new Point3d(dimension.SecondPoint.X, dimension.SecondPoint.Y, 0.0),

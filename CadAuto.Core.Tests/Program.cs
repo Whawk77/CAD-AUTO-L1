@@ -36,6 +36,12 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(OverallWinsDuplicatePreferenceEvenAgainstTolerance), OverallWinsDuplicatePreferenceEvenAgainstTolerance);
                 RunTest(nameof(OverallRemainsOutermostAfterLayoutAlignment), OverallRemainsOutermostAfterLayoutAlignment);
 				RunTest(nameof(OverallCompactsToOnePhysicalSpacing), OverallCompactsToOnePhysicalSpacing);
+				RunTest(nameof(FormattedDimensionTextLengthIgnoresControlCodes), FormattedDimensionTextLengthIgnoresControlCodes);
+				RunTest(nameof(FittingVerticalLocalTextStaysCentered), FittingVerticalLocalTextStaysCentered);
+				RunTest(nameof(ShortVerticalLocalTextClearsArrowheads), ShortVerticalLocalTextClearsArrowheads);
+				RunTest(nameof(FittingHorizontalTextStaysCenteredDespiteNeighborArrow), FittingHorizontalTextStaysCenteredDespiteNeighborArrow);
+				RunTest(nameof(ShortHorizontalLocalTextClearsArrowheads), ShortHorizontalLocalTextClearsArrowheads);
+				RunTest(nameof(ShortVerticalChainTextAvoidsNeighborArrowheads), ShortVerticalChainTextAvoidsNeighborArrowheads);
                 RunTest(nameof(InvalidDatumCoordinateIsSkippedWithDiagnostic), InvalidDatumCoordinateIsSkippedWithDiagnostic);
                 RunTest(nameof(InvalidSlotDatumIsSkippedWithDiagnostic), InvalidSlotDatumIsSkippedWithDiagnostic);
                 RunTest(nameof(ChamferSuppressesAdjacentLocalLinearDimensions), ChamferSuppressesAdjacentLocalLinearDimensions);
@@ -569,6 +575,215 @@ namespace CadAuto.Core.Tests
 
 			Assert(Math.Abs((otherCoordinates.Min() - overallCoordinate) - 5.0) <= config.GeometryTolerance,
 				"overall dimensions must compact to exactly one physical stacking interval beyond the actual outermost dimension");
+		}
+
+		private static void FormattedDimensionTextLengthIgnoresControlCodes()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var dimension = new DimensionLayoutItem
+			{
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(0.0, 15.0),
+				Span = 15.0,
+				OverrideText = "15\\H0.8x;\u00B10.02\\H1x;"
+			};
+
+			double length = rules.GetDimensionTextLength(dimension, 2.5);
+
+			Assert(Math.Abs(length - 10.5) <= config.GeometryTolerance,
+				"formatted tolerance control codes must not count as visible glyphs when estimating dimension text length");
+		}
+
+		private static void FittingVerticalLocalTextStaysCentered()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var dimension = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.HoleLocation,
+				FirstPoint = new Point2D(20.0, 0.0),
+				SecondPoint = new Point2D(20.0, 15.0),
+				Span = 15.0,
+				OverrideText = "15\\H0.8x;\u00B10.02\\H1x;",
+				PreferLocalBoundary = true
+			};
+			var dimLinePoint = new Point2D(-10.0, 7.5);
+			var placed = new DimensionTextPlacementItem
+			{
+				Dimension = dimension,
+				Side = DimensionSide.Left,
+				DimLinePoint = dimLinePoint,
+				TextBounds = rules.ComputePlacedTextBounds(dimension, dimLinePoint, isHorizontal: false, textHeight: 2.5)
+			};
+
+			var slides = rules.SelectShortLocalDimensionTextSlides(new[] { placed }, new TextBounds2D[0], 2.5, 2.5, 3.0);
+
+			Assert(slides.Count == 1 && rules.DimensionTextFitsBetweenOwnExtensionLines(dimension, 2.5),
+				"dimension text that fits between its own extension lines must receive an explicit centered position");
+			Assert(Math.Abs(slides[0].TextPosition.X + 10.0) <= config.GeometryTolerance
+				&& Math.Abs(slides[0].TextPosition.Y - 7.5) <= config.GeometryTolerance,
+				"fitting vertical text must stay at the center of its dimension line even when arrow clearance is tighter");
+		}
+
+		private static void ShortVerticalLocalTextClearsArrowheads()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var dimension = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.HoleLocation,
+				FirstPoint = new Point2D(20.0, 0.0),
+				SecondPoint = new Point2D(20.0, 8.0),
+				Span = 8.0,
+				OverrideText = "15\\H0.8x;\u00B10.02\\H1x;",
+				PreferLocalBoundary = true
+			};
+			var dimLinePoint = new Point2D(-10.0, 4.0);
+			var placed = new DimensionTextPlacementItem
+			{
+				Dimension = dimension,
+				Side = DimensionSide.Left,
+				DimLinePoint = dimLinePoint,
+				TextBounds = rules.ComputePlacedTextBounds(dimension, dimLinePoint, isHorizontal: false, textHeight: 2.5)
+			};
+
+			var slides = rules.SelectShortLocalDimensionTextSlides(new[] { placed }, new TextBounds2D[0], 2.5, 2.5, 3.0);
+
+			Assert(slides.Count == 1, "a short vertical local dimension must move its text outside its arrowheads");
+			TextBounds2D bounds = slides[0].TextBounds;
+			Assert(bounds.MaxY <= -5.5 + config.GeometryTolerance || bounds.MinY >= 13.5 - config.GeometryTolerance,
+				"vertical external text must keep the configured clearance beyond the arrowhead envelope");
+		}
+
+		private static void FittingHorizontalTextStaysCenteredDespiteNeighborArrow()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var target = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.PinGroupDistance,
+				FirstPoint = new Point2D(0.0, 20.0),
+				SecondPoint = new Point2D(223.5, 20.0),
+				Span = 223.5,
+				OverrideText = "223.5\\H0.8x;\u00B10.05\\H1x;"
+			};
+			var neighbor = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.PinDistance,
+				FirstPoint = new Point2D(111.75, 30.0),
+				SecondPoint = new Point2D(130.0, 30.0),
+				Span = 18.25,
+				OverrideText = "18.25"
+			};
+			var targetLinePoint = new Point2D(111.75, -10.0);
+			var neighborLinePoint = new Point2D(120.875, -10.0);
+			var placed = new[]
+			{
+				new DimensionTextPlacementItem
+				{
+					Dimension = target,
+					Side = DimensionSide.Bottom,
+					DimLinePoint = targetLinePoint,
+					TextBounds = rules.ComputePlacedTextBounds(target, targetLinePoint, isHorizontal: true, textHeight: 2.5)
+				},
+				new DimensionTextPlacementItem
+				{
+					Dimension = neighbor,
+					Side = DimensionSide.Bottom,
+					DimLinePoint = neighborLinePoint,
+					TextBounds = rules.ComputePlacedTextBounds(neighbor, neighborLinePoint, isHorizontal: true, textHeight: 2.5)
+				}
+			};
+
+			var slides = rules.SelectShortLocalDimensionTextSlides(placed, new TextBounds2D[0], 2.5, 2.5, 3.0);
+			var targetPlacement = slides.Single(slide => slide.Index == 0);
+
+			Assert(rules.DimensionTextFitsBetweenOwnExtensionLines(target, 2.5),
+				"the long formatted dimension must fit between its own extension lines");
+			Assert(Math.Abs(targetPlacement.TextPosition.X - 111.75) <= config.GeometryTolerance
+				&& Math.Abs(targetPlacement.TextPosition.Y + 10.0) <= config.GeometryTolerance,
+				"fitting horizontal text must stay explicitly centered even when another dimension arrow is nearby");
+		}
+
+		private static void ShortHorizontalLocalTextClearsArrowheads()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var dimension = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.PinDistance,
+				FirstPoint = new Point2D(0.0, 20.0),
+				SecondPoint = new Point2D(8.0, 20.0),
+				Span = 8.0,
+				OverrideText = "15\\H0.8x;\u00B10.02\\H1x;"
+			};
+			var dimLinePoint = new Point2D(4.0, -10.0);
+			var placed = new DimensionTextPlacementItem
+			{
+				Dimension = dimension,
+				Side = DimensionSide.Bottom,
+				DimLinePoint = dimLinePoint,
+				TextBounds = rules.ComputePlacedTextBounds(dimension, dimLinePoint, isHorizontal: true, textHeight: 2.5)
+			};
+
+			var slides = rules.SelectShortLocalDimensionTextSlides(new[] { placed }, new TextBounds2D[0], 2.5, 2.5, 3.0);
+
+			Assert(slides.Count == 1, "a short horizontal local dimension must move its text outside its arrowheads");
+			TextBounds2D bounds = slides[0].TextBounds;
+			Assert(bounds.MaxX <= -5.5 + config.GeometryTolerance || bounds.MinX >= 13.5 - config.GeometryTolerance,
+				"horizontal external text must keep the configured clearance beyond the arrowhead envelope");
+		}
+
+		private static void ShortVerticalChainTextAvoidsNeighborArrowheads()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.HoleLocation,
+					FirstPoint = new Point2D(20.0, 0.0),
+					SecondPoint = new Point2D(20.0, 8.0),
+					Span = 8.0,
+					OverrideText = "15\\H0.8x;\u00B10.02\\H1x;",
+					PreferLocalBoundary = true,
+					LooseChainId = 1
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.HoleLocation,
+					FirstPoint = new Point2D(20.0, 8.0),
+					SecondPoint = new Point2D(20.0, 16.0),
+					Span = 8.0,
+					OverrideText = "15\\H0.8x;\u00B10.02\\H1x;",
+					PreferLocalBoundary = true,
+					LooseChainId = 1
+				}
+			};
+			var placed = dimensions.Select(dimension =>
+			{
+				var dimLinePoint = new Point2D(-10.0, (dimension.FirstPoint.Y + dimension.SecondPoint.Y) / 2.0);
+				return new DimensionTextPlacementItem
+				{
+					Dimension = dimension,
+					Side = DimensionSide.Left,
+					DimLinePoint = dimLinePoint,
+					TextBounds = rules.ComputePlacedTextBounds(dimension, dimLinePoint, isHorizontal: false, textHeight: 2.5)
+				};
+			}).ToList();
+
+			var slides = rules.SelectShortLocalDimensionTextSlides(placed, new TextBounds2D[0], 2.5, 2.5, 3.0);
+			var first = slides.Single(slide => slide.Index == 0);
+			var second = slides.Single(slide => slide.Index == 1);
+
+			Assert(first.TextBounds.MaxY <= -5.5 + config.GeometryTolerance,
+				"the first short-chain label must choose the free side away from the neighboring arrowheads");
+			Assert(second.TextBounds.MinY >= 21.5 - config.GeometryTolerance,
+				"the second short-chain label must choose the opposite free side away from the neighboring arrowheads");
+			Assert(!rules.TextBoundsOverlap(first.TextBounds, second.TextBounds, 3.0),
+				"external labels in one short chain must preserve their configured mutual clearance");
 		}
 
 		private static void InvalidDatumCoordinateIsSkippedWithDiagnostic()
@@ -1407,8 +1622,10 @@ namespace CadAuto.Core.Tests
 
             Assert(plan.Dimensions.Any(d => d.DebugRole == "LooseHole" && d.DebugOwner.StartsWith("L", StringComparison.Ordinal)),
                 "loose holes should use chained hole-location dimensions");
-            Assert(plan.Dimensions.Count(d => d.DebugRole == "LooseHole") >= 3,
-                "loose hole chain should include center distances and pin/location references");
+			Assert(plan.Dimensions.Count(d => d.DebugRole == "LooseHole") >= 3,
+				"loose hole chain should include center distances and pin/location references");
+			Assert(plan.Dimensions.Where(d => d.DebugRole == "LooseHole").All(d => d.ChainId > 0),
+				"loose hole dimensions must preserve their generated chain identifiers through planning");
 			Assert(plan.Dimensions.Where(d => d.DebugRole == "LooseHole").All(d => d.PreferLocalBoundary),
 				"loose hole chains must prefer a nearby valid boundary to avoid full-part extension lines");
         }

@@ -141,6 +141,16 @@ public sealed class CadEntityWriter
 		return Scale(_config.TextHeight);
 	}
 
+	public double GetDimStyleArrowSize(ObjectId dimStyleId)
+	{
+		DimStyleTableRecord dimStyleTableRecord = _transaction.GetObject(dimStyleId, OpenMode.ForRead) as DimStyleTableRecord;
+		if (dimStyleTableRecord != null && dimStyleTableRecord.Dimasz > _config.GeometryTolerance)
+		{
+			return dimStyleTableRecord.Dimasz * _dimScale;
+		}
+		return Scale(_config.ArrowSize);
+	}
+
 	public int GetDimStyleLinearPrecision(ObjectId dimStyleId)
 	{
 		DimStyleTableRecord dimStyleTableRecord = _transaction.GetObject(dimStyleId, OpenMode.ForRead) as DimStyleTableRecord;

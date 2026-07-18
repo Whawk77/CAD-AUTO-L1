@@ -160,6 +160,11 @@ public sealed class DimensionDrawer
 		return _entityWriter.GetDimStyleTextHeight(dimStyleId);
 	}
 
+	private double GetDimStyleArrowSize(ObjectId dimStyleId)
+	{
+		return _entityWriter.GetDimStyleArrowSize(dimStyleId);
+	}
+
 	private int GetDimStyleLinearPrecision(ObjectId dimStyleId)
 	{
 		return _entityWriter.GetDimStyleLinearPrecision(dimStyleId);
@@ -561,6 +566,8 @@ public sealed class DimensionDrawer
 		}
 		double dimStyleTextHeight = GetDimStyleTextHeight(_dimStyleId);
 		double gap = dimStyleTextHeight * 0.5;
+		double arrowSize = GetDimStyleArrowSize(_dimStyleId);
+		double textArrowClearance = Math.Max(gap, Scale(_config.DimTextClearance));
 		bool isHorizontal = side == DimSide.Bottom || side == DimSide.Top;
 		IList<DimensionStackingPlacement> placements = CreateSideStackingPlacements(dims, side, outline, dimStyleTextHeight, gap, perLevelSpacing, isHorizontal);
 		List<PlacedDim> list = BuildPlacedDimensions(dims, side, outline, placements, isHorizontal, dimStyleTextHeight);
@@ -568,7 +575,7 @@ public sealed class DimensionDrawer
 		{
 			AssignDebugIndexes(list);
 		}
-		AdjustVerticalHoleLocationTextPositions(list, dimStyleTextHeight, gap);
+		AdjustShortLocalDimensionTextPositions(list, dimStyleTextHeight, arrowSize, textArrowClearance);
 		foreach (PlacedDim item in list)
 		{
 			_linearDimTextObstacles.Add(item.TextBounds);
@@ -711,7 +718,7 @@ public sealed class DimensionDrawer
 		}
 	}
 
-	private void AdjustVerticalHoleLocationTextPositions(IList<PlacedDim> placedDims, double textHeight, double gap)
+	private void AdjustShortLocalDimensionTextPositions(IList<PlacedDim> placedDims, double textHeight, double arrowSize, double clearance)
 	{
 		List<DimensionTextPlacementItem> placedDimensions = placedDims.Select((PlacedDim placed) => new DimensionTextPlacementItem
 		{
@@ -720,7 +727,7 @@ public sealed class DimensionDrawer
 			DimLinePoint = new Point2D(placed.DimLinePoint.X, placed.DimLinePoint.Y),
 			TextBounds = ToCoreTextBounds(placed.TextBounds)
 		}).ToList();
-		List<DimensionTextSlidePlacement> list = _dimensionLayoutRules.SelectVerticalHoleLocationTextSlides(placedDimensions, _linearDimTextObstacles.Select(ToCoreTextBounds), textHeight, gap, _dimScale);
+		List<DimensionTextSlidePlacement> list = _dimensionLayoutRules.SelectShortLocalDimensionTextSlides(placedDimensions, _linearDimTextObstacles.Select(ToCoreTextBounds), textHeight, arrowSize, clearance);
 		foreach (DimensionTextSlidePlacement item in list)
 		{
 			PlacedDim value = placedDims[item.Index];

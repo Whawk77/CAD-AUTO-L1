@@ -49,6 +49,10 @@ public sealed class DimensionDrawer
 
 		public int AlignmentPriority;
 
+		public bool PreserveAlignmentLevel;
+
+		public DimensionReadingLevel ReadingLevel;
+
 		public bool PreferLocalBoundary;
 
 		public bool PreferFeatureLocalPlacement;
@@ -587,7 +591,8 @@ public sealed class DimensionDrawer
 	{
 		List<DeferredDim> stableSpanOrder = dims
 			.Select((DeferredDim dim, int generationOrder) => new { Dim = dim, GenerationOrder = generationOrder })
-			.OrderBy(item => item.Dim.Span)
+			.OrderBy(item => item.Dim.ReadingLevel)
+			.ThenBy(item => item.Dim.Span)
 			.ThenBy(item => item.GenerationOrder)
 			.Select(item => item.Dim)
 			.ToList();
@@ -785,6 +790,8 @@ public sealed class DimensionDrawer
 				LooseChainId = dimension.ChainId,
 				AlignmentKey = dimension.AlignmentKey,
 				AlignmentPriority = dimension.AlignmentPriority,
+				PreserveAlignmentLevel = dimension.PreserveAlignmentLevel,
+				ReadingLevel = dimension.ReadingLevel,
 				PreferLocalBoundary = dimension.PreferLocalBoundary,
 				PreferFeatureLocalPlacement = dimension.PreferFeatureLocalPlacement,
 				PreservePreferredSide = dimension.PreservePreferredSide,
@@ -1094,6 +1101,8 @@ public sealed class DimensionDrawer
 			LooseChainId = dim.LooseChainId,
 			AlignmentKey = dim.AlignmentKey,
 			AlignmentPriority = dim.AlignmentPriority,
+			PreserveAlignmentLevel = dim.PreserveAlignmentLevel,
+			ReadingLevel = dim.ReadingLevel,
 			PreferLocalBoundary = dim.PreferLocalBoundary,
 			ForceOuterLevel = dim.ForceOuterLevel,
 			PreferFeatureLocalPlacement = dim.PreferFeatureLocalPlacement,

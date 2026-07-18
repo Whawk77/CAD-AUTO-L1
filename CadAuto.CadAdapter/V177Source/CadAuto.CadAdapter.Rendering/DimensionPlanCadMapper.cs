@@ -47,6 +47,8 @@ internal sealed class DimensionPlanCadMapper
 			ChainId = dimension.ChainId,
 			AlignmentKey = dimension.AlignmentKey,
 			AlignmentPriority = dimension.AlignmentPriority,
+			PreserveAlignmentLevel = dimension.PreserveAlignmentLevel,
+			ReadingLevel = dimension.ReadingLevel,
 			PreferLocalBoundary = dimension.PreferLocalBoundary,
 			PreferFeatureLocalPlacement = dimension.PreferFeatureLocalPlacement,
 			PreservePreferredSide = dimension.PreservePreferredSide,

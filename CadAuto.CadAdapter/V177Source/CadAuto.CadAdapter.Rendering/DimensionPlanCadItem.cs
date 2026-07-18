@@ -28,6 +28,10 @@ internal sealed class DimensionPlanCadItem
 
 	public int AlignmentPriority { get; set; }
 
+	public bool PreserveAlignmentLevel { get; set; }
+
+	public DimensionReadingLevel ReadingLevel { get; set; }
+
 	public bool PreferLocalBoundary { get; set; }
 
 	public bool PreferFeatureLocalPlacement { get; set; }

@@ -78,9 +78,18 @@ public sealed class DimensionLayoutRules
 		List<List<StackingLayerItem>> list2 = new List<List<StackingLayerItem>>();
 		Dictionary<int, int> dictionary = new Dictionary<int, int>();
 		int? num = null;
-		for (int i = 0; i < dimensions.Count; i++)
+		List<IndexedLayoutItem> list3 = dimensions.Select((DimensionLayoutItem dimension, int index) => new IndexedLayoutItem
 		{
-			DimensionLayoutItem dimensionLayoutItem = dimensions[i];
+			SourceIndex = index,
+			Dimension = dimension
+		}).OrderBy((IndexedLayoutItem item) => item.Dimension.ReadingLevel)
+			.ThenBy((IndexedLayoutItem item) => item.Dimension.Span)
+			.ThenBy((IndexedLayoutItem item) => item.SourceIndex)
+			.ToList();
+		foreach (IndexedLayoutItem indexedLayoutItem in list3)
+		{
+			int i = indexedLayoutItem.SourceIndex;
+			DimensionLayoutItem dimensionLayoutItem = indexedLayoutItem.Dimension;
 			Tuple<double, double> tuple = ComputeTextInterval(dimensionLayoutItem, isHorizontal, textHeight);
 			Tuple<double, double> tuple2 = ComputeArrowInterval(dimensionLayoutItem, isHorizontal);
 			int num2 = 0;
@@ -152,7 +161,7 @@ public sealed class DimensionLayoutRules
 			});
 		}
 		AlignDimensionsBySharedExtensionLines(list2, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
-		List<List<StackingLayerItem>> alignmentLanes = BuildAlignmentLanes(list2);
+		List<List<StackingLayerItem>> alignmentLanes = BuildAlignmentLanes(list2, gap);
 		MoveAlignmentGroupsTogether(list2, alignmentLanes, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
 		PromoteOverallDimensionsToOutermostLayer(list2);
 		for (int k = 0; k < list2.Count; k++)
@@ -173,9 +182,14 @@ public sealed class DimensionLayoutRules
 		return list;
 	}
 
-	private List<List<StackingLayerItem>> BuildAlignmentLanes(IList<List<StackingLayerItem>> layers)
+	private List<List<StackingLayerItem>> BuildAlignmentLanes(IList<List<StackingLayerItem>> layers, double gap)
 	{
 		List<List<StackingLayerItem>> result = new List<List<StackingLayerItem>>();
+		Dictionary<StackingLayerItem, int> levelByItem = layers.SelectMany((layer, level) => layer.Select(item => new
+		{
+			Item = item,
+			Level = level
+		})).ToDictionary(entry => entry.Item, entry => entry.Level);
 		var groups = layers.SelectMany(layer => layer)
 			.Where(item => !string.IsNullOrEmpty(item.Dimension.AlignmentKey))
 			.GroupBy(item => item.Dimension.AlignmentKey, StringComparer.Ordinal)
@@ -187,27 +201,66 @@ public sealed class DimensionLayoutRules
 			List<List<StackingLayerItem>> lanes = new List<List<StackingLayerItem>>();
 			foreach (StackingLayerItem item in group.OrderBy(candidate => candidate.Index))
 			{
-				List<StackingLayerItem> lane = lanes.FirstOrDefault(candidate => CanJoinAlignmentLane(item, candidate));
-				if (lane == null)
+				List<List<StackingLayerItem>> list = lanes.Where((List<StackingLayerItem> candidate) => CanJoinAlignmentLane(item, candidate, levelByItem, gap)).ToList();
+				List<StackingLayerItem> lane;
+				if (list.Count == 0)
 				{
 					lane = new List<StackingLayerItem>();
 					lanes.Add(lane);
 				}
+				else
+				{
+					lane = list[0];
+					foreach (List<StackingLayerItem> item2 in list.Skip(1).Where((List<StackingLayerItem> candidate) => CanMergeAlignmentLanes(lane, candidate, levelByItem, gap)).ToList())
+					{
+						lane.AddRange(item2);
+						lanes.Remove(item2);
+					}
+				}
 				lane.Add(item);
-				item.AlignmentLaneKey = group.Key + "#" + (lanes.IndexOf(lane) + 1).ToString();
+			}
+			for (int i = 0; i < lanes.Count; i++)
+			{
+				foreach (StackingLayerItem item3 in lanes[i])
+				{
+					item3.AlignmentLaneKey = group.Key + "#" + (i + 1).ToString();
+				}
 			}
 			result.AddRange(lanes);
 		}
 		return result;
 	}
 
-	private bool CanJoinAlignmentLane(StackingLayerItem item, IList<StackingLayerItem> lane)
+	private bool CanJoinAlignmentLane(StackingLayerItem item, IList<StackingLayerItem> lane, IDictionary<StackingLayerItem, int> levelByItem, double gap)
 	{
+		if (lane.Any(existing => existing.Dimension.PreserveAlignmentLevel != item.Dimension.PreserveAlignmentLevel))
+		{
+			return false;
+		}
 		if (lane.Any(existing => HasStrictArrowConflict(item.ArrA, item.ArrB, existing.ArrA, existing.ArrB)))
 		{
 			return false;
 		}
+		if (item.Dimension.PreserveAlignmentLevel && lane.Any(existing => levelByItem[existing] != levelByItem[item]
+			|| !AreCompatible(item.TxtA, item.TxtB, existing.TxtA, existing.TxtB, gap)))
+		{
+			return false;
+		}
 		return lane.Any(existing => SharesArrowEndpoint(item, existing));
+	}
+
+	private bool CanMergeAlignmentLanes(IList<StackingLayerItem> first, IList<StackingLayerItem> second, IDictionary<StackingLayerItem, int> levelByItem, double gap)
+	{
+		if (first.Any(item => item.Dimension.PreserveAlignmentLevel != second[0].Dimension.PreserveAlignmentLevel))
+		{
+			return false;
+		}
+		if (first[0].Dimension.PreserveAlignmentLevel && first.Any(item => second.Any(candidate => levelByItem[item] != levelByItem[candidate]
+			|| !AreCompatible(item.TxtA, item.TxtB, candidate.TxtA, candidate.TxtB, gap))))
+		{
+			return false;
+		}
+		return !first.Any((StackingLayerItem item) => second.Any((StackingLayerItem candidate) => HasStrictArrowConflict(item.ArrA, item.ArrB, candidate.ArrA, candidate.ArrB)));
 	}
 
 	private bool SharesArrowEndpoint(StackingLayerItem first, StackingLayerItem second)
@@ -222,6 +275,10 @@ public sealed class DimensionLayoutRules
 	{
 		foreach (List<StackingLayerItem> members in alignmentLanes.OrderBy(lane => lane.Min(item => item.Index)))
 		{
+			if (members.All(item => item.Dimension.PreserveAlignmentLevel))
+			{
+				continue;
+			}
 			StackingLayerItem anchor = members
 				.OrderByDescending(item => item.Dimension.AlignmentPriority)
 				.ThenBy(item => item.Dimension.Span)
@@ -332,12 +389,21 @@ public sealed class DimensionLayoutRules
 			{
 				continue;
 			}
+			bool preservesLevel = lane.All(item => item.Dimension.PreserveAlignmentLevel);
+			if (preservesLevel && group.Count < 2)
+			{
+				continue;
+			}
 			DimensionStackingPlacement anchor = group
 				.OrderByDescending(placement => dimensions[placement.Index].AlignmentPriority)
 				.ThenBy(placement => dimensions[placement.Index].Span)
 				.ThenBy(placement => placement.Index)
 				.First();
 			double coordinate = GetDimLineCoordinate(dimensions[anchor.Index], side, outline, anchor.Offset);
+			if (preservesLevel && lane.Any(item => DimensionLineEntersOutlineInterior(item.Dimension, side, coordinate, outline)))
+			{
+				continue;
+			}
 			foreach (DimensionStackingPlacement placement in group)
 			{
 				placement.DimLineCoordinateOverride = coordinate;

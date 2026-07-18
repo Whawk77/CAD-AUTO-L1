@@ -26,6 +26,8 @@ public sealed class DimensionCandidateDiagnostic
 
 	public int Priority { get; set; }
 
+	public string ReadingLevel { get; set; }
+
 	public bool IsSuppressed { get; set; }
 
 	public bool IsSelected { get; set; }

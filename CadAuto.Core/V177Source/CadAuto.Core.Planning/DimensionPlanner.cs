@@ -760,8 +760,8 @@ public sealed class DimensionPlanner
 		double y = datum.DatumHoleLocationBaseY ?? datum.BaseY;
 		string overrideText = (ShouldUseDatumHoleLocationTolerance(datum, isXDirection: true) ? (_config.DatumHoleLocationToleranceText ?? string.Empty) : string.Empty);
 		string overrideText2 = (ShouldUseDatumHoleLocationTolerance(datum, isXDirection: false) ? (_config.DatumHoleLocationToleranceText ?? string.Empty) : string.Empty);
-		AddHorizontalOutlineReferenceDimension(plan, outline, x, basePin.Center, DimensionKind.DatumHoleLocationX, group.HorizontalSide, overrideText, "DatumX", GetPinGroupDebugOwner(group), alignmentKey: GetPinDatumAlignmentKey(group, horizontal: true), alignmentPriority: 120);
-		AddVerticalOutlineReferenceDimension(plan, outline, y, basePin.Center, DimensionKind.DatumHoleLocationY, group.VerticalSide, overrideText2, "DatumY", GetPinGroupDebugOwner(group), alignmentKey: GetPinDatumAlignmentKey(group, horizontal: false), alignmentPriority: 120);
+		AddHorizontalOutlineReferenceDimension(plan, outline, x, basePin.Center, DimensionKind.DatumHoleLocationX, group.HorizontalSide, overrideText, "DatumX", GetPinGroupDebugOwner(group), alignmentKey: GetPinDatumAlignmentKey(group, horizontal: true), alignmentPriority: 120, readingLevel: DimensionReadingLevel.DatumTransfer);
+		AddVerticalOutlineReferenceDimension(plan, outline, y, basePin.Center, DimensionKind.DatumHoleLocationY, group.VerticalSide, overrideText2, "DatumY", GetPinGroupDebugOwner(group), alignmentKey: GetPinDatumAlignmentKey(group, horizontal: false), alignmentPriority: 120, readingLevel: DimensionReadingLevel.DatumTransfer);
 	}
 
 	private void AddPinGroupBaseTransfers(DimensionPlan plan, IList<PinGroupPlan> groups)
@@ -780,11 +780,11 @@ public sealed class DimensionPlanner
 			double num2 = Math.Abs(basePin2.Center.Y - basePin.Center.Y);
 			if (num > _config.GeometryTolerance)
 			{
-				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Horizontal, groups[i].HorizontalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: horizontalAlignmentKey, alignmentPriority: 110);
+				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Horizontal, groups[i].HorizontalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: horizontalAlignmentKey, alignmentPriority: 110, readingLevel: DimensionReadingLevel.DatumTransfer);
 			}
 			if (num2 > _config.GeometryTolerance)
 			{
-				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Vertical, groups[i].VerticalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num2), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: verticalAlignmentKey, alignmentPriority: 110);
+				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Vertical, groups[i].VerticalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num2), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: verticalAlignmentKey, alignmentPriority: 110, readingLevel: DimensionReadingLevel.DatumTransfer);
 			}
 		}
 	}
@@ -804,11 +804,11 @@ public sealed class DimensionPlanner
 					double num2 = Math.Abs(pin.Center.Y - group.BasePin.Center.Y);
 					if (num > _config.GeometryTolerance)
 					{
-						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Horizontal, group.HorizontalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: horizontalAlignmentKey, alignmentPriority: 100);
+						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Horizontal, group.HorizontalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: horizontalAlignmentKey, alignmentPriority: 100, readingLevel: DimensionReadingLevel.IntraGroup);
 					}
 					if (num2 > _config.GeometryTolerance)
 					{
-						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Vertical, group.VerticalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num2), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: verticalAlignmentKey, alignmentPriority: 100);
+						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Vertical, group.VerticalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num2), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: verticalAlignmentKey, alignmentPriority: 100, readingLevel: DimensionReadingLevel.IntraGroup);
 					}
 				}
 			}
@@ -1055,8 +1055,8 @@ public sealed class DimensionPlanner
 			}
 			foreach (HoleFeature2D hole in functionalGroup.Holes)
 			{
-				AddDimension(plan, DimensionKind.HoleLocation, DimensionOrientation.Horizontal, pinGroup.HorizontalSide, holeFeature2D.Center, hole.Center, string.Empty, "FunctionalHole", GetPinGroupDebugOwner(pinGroup), preservePreferredSide: true, preferLocalBoundary: true);
-				AddDimension(plan, DimensionKind.HoleLocation, DimensionOrientation.Vertical, pinGroup.VerticalSide, holeFeature2D.Center, hole.Center, string.Empty, "FunctionalHole", GetPinGroupDebugOwner(pinGroup), preservePreferredSide: true, preferLocalBoundary: true);
+				AddDimension(plan, DimensionKind.HoleLocation, DimensionOrientation.Horizontal, pinGroup.HorizontalSide, holeFeature2D.Center, hole.Center, string.Empty, "FunctionalHole", GetPinGroupDebugOwner(pinGroup), preservePreferredSide: true, preferLocalBoundary: true, alignmentKey: GetPinFunctionalHoleAlignmentKey(pinGroup, horizontal: true), alignmentPriority: 90, readingLevel: DimensionReadingLevel.LocalSpacing, preserveAlignmentLevel: true);
+				AddDimension(plan, DimensionKind.HoleLocation, DimensionOrientation.Vertical, pinGroup.VerticalSide, holeFeature2D.Center, hole.Center, string.Empty, "FunctionalHole", GetPinGroupDebugOwner(pinGroup), preservePreferredSide: true, preferLocalBoundary: true, alignmentKey: GetPinFunctionalHoleAlignmentKey(pinGroup, horizontal: false), alignmentPriority: 90, readingLevel: DimensionReadingLevel.LocalSpacing, preserveAlignmentLevel: true);
 			}
 		}
 	}
@@ -1596,6 +1596,7 @@ public sealed class DimensionPlanner
 				FirstPoint = GetLeftBoundaryPoint(outline),
 				SecondPoint = GetRightBoundaryPoint(outline),
 				ForceOuterLevel = true,
+				ReadingLevel = DimensionReadingLevel.Overall,
 				DebugRole = "OverallWidth"
 			});
 		}
@@ -1613,6 +1614,7 @@ public sealed class DimensionPlanner
 				FirstPoint = GetBottomBoundaryPoint(outline),
 				SecondPoint = GetTopBoundaryPoint(outline),
 				ForceOuterLevel = true,
+				ReadingLevel = DimensionReadingLevel.Overall,
 				DebugRole = "OverallHeight"
 			});
 		}
@@ -2891,25 +2893,25 @@ public sealed class DimensionPlanner
 		return _structureEndpointRules.GetBoundaryPoint(outline, DimensionSide.Top);
 	}
 
-	private bool AddHorizontalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredX, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0)
+	private bool AddHorizontalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredX, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing)
 	{
 		if (!OutlineGeometryQuery.TryFindVerticalBoundaryPoint(outline, preferredX, target.Y, _config.GeometryTolerance, out var point))
 		{
 			plan.AddSkippedDimension(kind, DimensionOrientation.Horizontal, side, new Point2D(preferredX, target.Y), target, "NoRealOutlineAttachment:XDatum=" + preferredX.ToString("0.########", CultureInfo.InvariantCulture), debugRole, debugOwner);
 			return false;
 		}
-		AddDimension(plan, kind, DimensionOrientation.Horizontal, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredX, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority);
+		AddDimension(plan, kind, DimensionOrientation.Horizontal, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredX, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, readingLevel: readingLevel);
 		return true;
 	}
 
-	private bool AddVerticalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredY, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0)
+	private bool AddVerticalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredY, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing)
 	{
 		if (!OutlineGeometryQuery.TryFindHorizontalBoundaryPoint(outline, preferredY, target.X, _config.GeometryTolerance, out var point))
 		{
 			plan.AddSkippedDimension(kind, DimensionOrientation.Vertical, side, new Point2D(target.X, preferredY), target, "NoRealOutlineAttachment:YDatum=" + preferredY.ToString("0.########", CultureInfo.InvariantCulture), debugRole, debugOwner);
 			return false;
 		}
-		AddDimension(plan, kind, DimensionOrientation.Vertical, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredY, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority);
+		AddDimension(plan, kind, DimensionOrientation.Vertical, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredY, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, readingLevel: readingLevel);
 		return true;
 	}
 
@@ -2939,7 +2941,7 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	private void AddDimension(DimensionPlan plan, DimensionKind kind, DimensionOrientation orientation, DimensionSide side, Point2D firstPoint, Point2D secondPoint, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, bool firstPointMustLieOnOutline = false, double? requiredOutlineReferenceCoordinate = null, bool preservePreferredSide = false, string alignmentKey = null, int alignmentPriority = 0, bool preferLocalBoundary = false, int chainId = 0)
+	private void AddDimension(DimensionPlan plan, DimensionKind kind, DimensionOrientation orientation, DimensionSide side, Point2D firstPoint, Point2D secondPoint, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, bool firstPointMustLieOnOutline = false, double? requiredOutlineReferenceCoordinate = null, bool preservePreferredSide = false, string alignmentKey = null, int alignmentPriority = 0, bool preferLocalBoundary = false, int chainId = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing, bool preserveAlignmentLevel = false)
 	{
 		if (!(GetSpan(firstPoint, secondPoint, orientation) <= _config.GeometryTolerance))
 		{
@@ -2955,6 +2957,8 @@ public sealed class DimensionPlanner
 				DebugOwner = debugOwner,
 				AlignmentKey = (alignmentKey ?? string.Empty),
 				AlignmentPriority = alignmentPriority,
+				PreserveAlignmentLevel = preserveAlignmentLevel,
+				ReadingLevel = readingLevel,
 				ChainId = chainId,
 				PreferLocalBoundary = preferLocalBoundary,
 				PreferFeatureLocalPlacement = preferFeatureLocalPlacement,
@@ -3270,4 +3274,15 @@ public sealed class DimensionPlanner
 		return "PG" + firstGroup.GroupIndex.ToString(CultureInfo.InvariantCulture)
 			+ ":DatumChain:" + (horizontal ? "H" : "V");
 	}
+
+	private static string GetPinFunctionalHoleAlignmentKey(PinGroupPlan group, bool horizontal)
+	{
+		if (group == null)
+		{
+			return string.Empty;
+		}
+		return "PG" + group.GroupIndex.ToString(CultureInfo.InvariantCulture)
+			+ ":FunctionalHoles:" + (horizontal ? "H" : "V");
+	}
+
 }

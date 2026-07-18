@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "caseId": "DL01-top-block-span-order",
+  "description": "v203 顶部布局块、有效跨度与 +Y 物理方向目标",
+  "requiredDimensionFields": [
+    "id",
+    "placementSide",
+    "stackingLevel",
+    "resolvedDimLineCoordinate",
+    "layoutBlockId",
+    "layoutBlockType",
+    "effectiveSpan",
+    "effectiveOrder",
+    "orderingReason",
+    "promotedByConflictWith",
+    "physicalOutwardDistance",
+    "physicalOrderValidated"
+  ],
+  "requirePhysicalOrderValidated": true,
+  "requireContiguousStackingLevels": true,
+  "expectedLayerStep": 6.5,
+  "layerStepTolerance": 0.01,
+  "blocks": [
+    {
+      "id": "local-loose-functional-15-45",
+      "selectors": [
+        { "debugRole": "LooseHole", "sourceFeatureId": "L4" },
+        { "debugRole": "LooseHole", "sourceFeatureId": "L5" },
+        { "debugRole": "FunctionalHole", "sourceFeatureId": "PG4" }
+      ],
+      "minCount": 4,
+      "maxCount": 4
+    },
+    {
+      "id": "top-structure-73",
+      "selectors": [
+        { "debugRole": "TopStructWidth", "valueApprox": 73.0, "valueTolerance": 0.01 }
+      ],
+      "minCount": 1,
+      "maxCount": 1,
+      "expectedEffectiveSpan": 73.0,
+      "effectiveSpanTolerance": 0.01
+    },
+    {
+      "id": "top-structure-87.554",
+      "selectors": [
+        { "debugRole": "TopStructWidth", "valueApprox": 87.55427071, "valueTolerance": 0.01 }
+      ],
+      "minCount": 1,
+      "maxCount": 1,
+      "expectedEffectiveSpan": 87.55427071,
+      "effectiveSpanTolerance": 0.01
+    },
+    {
+      "id": "rooted-datum-chain-253.5",
+      "selectors": [
+        { "alignmentKey": "PG1:DatumChain:H", "sourceFeatureId": "PG4" }
+      ],
+      "minCount": 2,
+      "maxCount": 2,
+      "requireSameCoordinate": true,
+      "requireSameLayoutBlock": true,
+      "expectedEffectiveSpan": 253.5,
+      "effectiveSpanTolerance": 0.01
+    }
+  ],
+  "outwardOrder": [
+    "local-loose-functional-15-45",
+    "top-structure-73",
+    "top-structure-87.554",
+    "rooted-datum-chain-253.5"
+  ]
+}

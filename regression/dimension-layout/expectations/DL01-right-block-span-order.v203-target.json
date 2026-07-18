@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "caseId": "DL01-right-block-span-order",
+  "description": "v203 右侧布局块、有效跨度与 +X 物理方向目标",
+  "requiredDimensionFields": [
+    "id",
+    "placementSide",
+    "stackingLevel",
+    "resolvedDimLineCoordinate",
+    "layoutBlockId",
+    "layoutBlockType",
+    "effectiveSpan",
+    "effectiveOrder",
+    "orderingReason",
+    "promotedByConflictWith",
+    "physicalOutwardDistance",
+    "physicalOrderValidated"
+  ],
+  "requirePhysicalOrderValidated": true,
+  "requireContiguousStackingLevels": true,
+  "expectedLayerStep": 6.5,
+  "layerStepTolerance": 0.01,
+  "blocks": [
+    {
+      "id": "loose-chain-50",
+      "selectors": [
+        { "debugRole": "LooseHole", "sourceFeatureId": "L1" },
+        { "debugRole": "LooseHole", "sourceFeatureId": "L3" }
+      ],
+      "minCount": 2,
+      "maxCount": 2,
+      "requireSameLayoutBlock": true,
+      "expectedEffectiveSpan": 50.0,
+      "effectiveSpanTolerance": 0.01
+    },
+    {
+      "id": "rooted-datum-chain-85",
+      "selectors": [
+        { "alignmentKey": "PG1:DatumChain:V" }
+      ],
+      "minCount": 2,
+      "maxCount": 2,
+      "requireSameCoordinate": true,
+      "requireSameLayoutBlock": true,
+      "expectedEffectiveSpan": 85.0,
+      "effectiveSpanTolerance": 0.01
+    },
+    {
+      "id": "outline-100",
+      "selectors": [
+        { "debugRole": "OutlineSegment", "valueApprox": 100.0, "valueTolerance": 0.01 }
+      ],
+      "minCount": 1,
+      "maxCount": 1,
+      "expectedEffectiveSpan": 100.0,
+      "effectiveSpanTolerance": 0.01
+    }
+  ],
+  "outwardOrder": [
+    "loose-chain-50",
+    "rooted-datum-chain-85",
+    "outline-100"
+  ]
+}

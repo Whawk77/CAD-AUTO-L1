@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "DL01-bottom-block-span-order",
+      "fixture": "fixtures/DL01-four-side-dimension-layout.dwg",
+      "fixtureReady": true,
+      "fixtureSha256": "CAB97F3FFA4F7A9AF613C1905BFD0CF2F7003044472CEC8E2020710B40BE6D34",
+      "fixtureSizeBytes": 14743967,
+      "sourceFileName": "text7.18.dwg",
+      "sourceCapturedAt": "2026-07-18T16:08:44+08:00",
+      "diagnosticCommand": "ASD4",
+      "diagnosticSide": "Bottom",
+      "commandScope": "All",
+      "baselineExpectation": "expectations/DL01-bottom-block-span-order.v202-baseline.json",
+      "targetExpectation": "expectations/DL01-bottom-block-span-order.v203-target.json",
+      "manualChecks": [
+        "有根 DX/GD/PD 基准链整体移动且保持同一尺寸线坐标",
+        "功能孔尺寸仍按 v200 安全规则对齐，不合并成大包络",
+        "Overall338 永远位于最外层",
+        "尺寸文字、引线和轮廓之间没有肉眼可见的遮挡或穿越"
+      ]
+    },
+    {
+      "id": "DL01-top-block-span-order",
+      "fixture": "fixtures/DL01-four-side-dimension-layout.dwg",
+      "fixtureReady": true,
+      "fixtureSha256": "CAB97F3FFA4F7A9AF613C1905BFD0CF2F7003044472CEC8E2020710B40BE6D34",
+      "fixtureSizeBytes": 14743967,
+      "sourceFileName": "text7.18.dwg",
+      "sourceCapturedAt": "2026-07-18T16:08:44+08:00",
+      "diagnosticCommand": "ASD4",
+      "diagnosticSide": "Top",
+      "commandScope": "All",
+      "targetExpectation": "expectations/DL01-top-block-span-order.v203-target.json",
+      "manualChecks": [
+        "顶部尺寸按 +Y 方向由内向外排列",
+        "顶部有根基准链整体移动且不按单条显示值拆开",
+        "尺寸文字、引线和轮廓之间没有肉眼可见的遮挡或穿越"
+      ]
+    },
+    {
+      "id": "DL01-left-block-span-order",
+      "fixture": "fixtures/DL01-four-side-dimension-layout.dwg",
+      "fixtureReady": true,
+      "fixtureSha256": "CAB97F3FFA4F7A9AF613C1905BFD0CF2F7003044472CEC8E2020710B40BE6D34",
+      "fixtureSizeBytes": 14743967,
+      "sourceFileName": "text7.18.dwg",
+      "sourceCapturedAt": "2026-07-18T16:08:44+08:00",
+      "diagnosticCommand": "ASD4",
+      "diagnosticSide": "Left",
+      "commandScope": "All",
+      "targetExpectation": "expectations/DL01-left-block-span-order.v203-target.json",
+      "manualChecks": [
+        "左侧尺寸按 -X 方向由内向外排列",
+        "互不干扰的尺寸允许共享层级",
+        "Overall201.5 永远位于最外层",
+        "尺寸文字、引线和轮廓之间没有肉眼可见的遮挡或穿越"
+      ]
+    },
+    {
+      "id": "DL01-right-block-span-order",
+      "fixture": "fixtures/DL01-four-side-dimension-layout.dwg",
+      "fixtureReady": true,
+      "fixtureSha256": "CAB97F3FFA4F7A9AF613C1905BFD0CF2F7003044472CEC8E2020710B40BE6D34",
+      "fixtureSizeBytes": 14743967,
+      "sourceFileName": "text7.18.dwg",
+      "sourceCapturedAt": "2026-07-18T16:08:44+08:00",
+      "diagnosticCommand": "ASD4",
+      "diagnosticSide": "Right",
+      "commandScope": "All",
+      "targetExpectation": "expectations/DL01-right-block-span-order.v203-target.json",
+      "manualChecks": [
+        "右侧尺寸按 +X 方向由内向外排列",
+        "Loose chain 与有根基准链均保持为不可拆布局块",
+        "尺寸文字、引线和轮廓之间没有肉眼可见的遮挡或穿越"
+      ]
+    }
+  ]
+}

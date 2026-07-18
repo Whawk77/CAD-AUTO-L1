@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "caseId": "DL01-left-block-span-order",
+  "description": "v203 左侧布局块、有效跨度与 -X 物理方向目标",
+  "requiredDimensionFields": [
+    "id",
+    "placementSide",
+    "stackingLevel",
+    "resolvedDimLineCoordinate",
+    "layoutBlockId",
+    "layoutBlockType",
+    "effectiveSpan",
+    "effectiveOrder",
+    "orderingReason",
+    "promotedByConflictWith",
+    "physicalOutwardDistance",
+    "physicalOrderValidated"
+  ],
+  "requirePhysicalOrderValidated": true,
+  "requireContiguousStackingLevels": true,
+  "expectedLayerStep": 6.5,
+  "layerStepTolerance": 0.01,
+  "blocks": [
+    {
+      "id": "functional-15",
+      "selectors": [
+        { "debugRole": "FunctionalHole", "sourceFeatureId": "PG3", "valueApprox": 15.0, "valueTolerance": 0.01 }
+      ],
+      "minCount": 2,
+      "maxCount": 2
+    },
+    {
+      "id": "outline-20",
+      "selectors": [
+        { "debugRole": "OutlineSegment", "valueApprox": 20.0, "valueTolerance": 0.01 }
+      ],
+      "minCount": 1,
+      "maxCount": 1,
+      "expectedEffectiveSpan": 20.0,
+      "effectiveSpanTolerance": 0.01
+    },
+    {
+      "id": "rooted-pg2-chain-45",
+      "selectors": [
+        { "alignmentKey": "PG1:DatumChain:V", "sourceFeatureId": "PG2" }
+      ],
+      "minCount": 2,
+      "maxCount": 2,
+      "requireSameCoordinate": true,
+      "requireSameLayoutBlock": true,
+      "expectedEffectiveSpan": 45.0,
+      "effectiveSpanTolerance": 0.01
+    },
+    {
+      "id": "loose-chain-48.5",
+      "selectors": [
+        { "debugRole": "LooseHole", "sourceFeatureId": "L6", "valueApprox": 48.5, "valueTolerance": 0.01 }
+      ],
+      "minCount": 1,
+      "maxCount": 1,
+      "expectedEffectiveSpan": 48.5,
+      "effectiveSpanTolerance": 0.01
+    },
+    {
+      "id": "rooted-pg3-pg4-chain-176.5",
+      "selectors": [
+        { "alignmentKey": "PG1:DatumChain:V", "sourceFeatureId": "PG3" },
+        { "alignmentKey": "PG1:DatumChain:V", "sourceFeatureId": "PG4" }
+      ],
+      "minCount": 2,
+      "maxCount": 2,
+      "requireSameCoordinate": true,
+      "requireSameLayoutBlock": true,
+      "expectedEffectiveSpan": 176.5,
+      "effectiveSpanTolerance": 0.01
+    },
+    {
+      "id": "overall-201.5",
+      "selectors": [
+        { "debugRole": "OverallHeight", "sourceFeatureId": "OverallHeight", "valueApprox": 201.5, "valueTolerance": 0.01 }
+      ],
+      "minCount": 1,
+      "maxCount": 1,
+      "expectedEffectiveSpan": 201.5,
+      "effectiveSpanTolerance": 0.01
+    }
+  ],
+  "outwardConstraints": [
+    { "inner": "functional-15", "outer": "rooted-pg2-chain-45" },
+    { "inner": "rooted-pg2-chain-45", "outer": "rooted-pg3-pg4-chain-176.5" },
+    { "inner": "outline-20", "outer": "loose-chain-48.5" },
+    { "inner": "loose-chain-48.5", "outer": "rooted-pg3-pg4-chain-176.5" },
+    { "inner": "rooted-pg3-pg4-chain-176.5", "outer": "overall-201.5" }
+  ]
+}

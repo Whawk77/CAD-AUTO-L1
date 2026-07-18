@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "caseId": "DL01-bottom-block-span-order",
+  "description": "v203 布局块与有效跨度目标顺序",
+  "requiredDimensionFields": [
+    "id",
+    "placementSide",
+    "stackingLevel",
+    "resolvedDimLineCoordinate",
+    "layoutBlockId",
+    "layoutBlockType",
+    "effectiveSpan",
+    "effectiveOrder",
+    "orderingReason",
+    "promotedByConflictWith",
+    "physicalOutwardDistance",
+    "physicalOrderValidated"
+  ],
+  "requirePhysicalOrderValidated": true,
+  "requireContiguousStackingLevels": true,
+  "expectedLayerStep": 6.5,
+  "layerStepTolerance": 0.01,
+  "blocks": [
+    {
+      "id": "local-25-45",
+      "selectors": [
+        { "debugRole": "FunctionalHole", "sourceFeatureId": "PG1", "valueApprox": 45.0, "valueTolerance": 0.01 },
+        { "debugRole": "LooseHole", "sourceFeatureId": "L2", "valueApprox": 25.0, "valueTolerance": 0.01 }
+      ],
+      "minCount": 3,
+      "maxCount": 3
+    },
+    {
+      "id": "isolated-gd-223.5",
+      "selectors": [
+        { "kind": "PinGroupDistance", "sourceFeatureId": "PG3", "valueApprox": 223.5, "valueTolerance": 0.01 }
+      ],
+      "minCount": 1,
+      "maxCount": 1,
+      "expectedEffectiveSpan": 223.5,
+      "effectiveSpanTolerance": 0.01
+    },
+    {
+      "id": "rooted-datum-chain-233.5",
+      "selectors": [
+        { "alignmentLaneKey": "PG1:DatumChain:H#1" }
+      ],
+      "minCount": 3,
+      "maxCount": 3,
+      "requireSameCoordinate": true,
+      "requireSameLayoutBlock": true,
+      "expectedEffectiveSpan": 233.5,
+      "effectiveSpanTolerance": 0.01
+    },
+    {
+      "id": "bottom-structure-305",
+      "selectors": [
+        { "debugRole": "BottomStructWidth", "sourceFeatureId": "BottomStructWidth", "valueApprox": 305.0, "valueTolerance": 0.01 }
+      ],
+      "minCount": 1,
+      "maxCount": 1,
+      "expectedEffectiveSpan": 305.0,
+      "effectiveSpanTolerance": 0.01
+    },
+    {
+      "id": "overall-338",
+      "selectors": [
+        { "debugRole": "OverallWidth", "sourceFeatureId": "OverallWidth", "valueApprox": 338.0, "valueTolerance": 0.01 }
+      ],
+      "minCount": 1,
+      "maxCount": 1,
+      "expectedEffectiveSpan": 338.0,
+      "effectiveSpanTolerance": 0.01
+    }
+  ],
+  "outwardOrder": [
+    "local-25-45",
+    "isolated-gd-223.5",
+    "rooted-datum-chain-233.5",
+    "bottom-structure-305",
+    "overall-338"
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "caseId": "DL01-bottom-block-span-order",
+  "description": "2026-07-18 v202 诊断基线；用于确认固定夹具仍能复现既有结果",
+  "requiredDimensionFields": [
+    "id",
+    "placementSide",
+    "stackingLevel",
+    "resolvedDimLineCoordinate",
+    "isSelected",
+    "decisionStatus"
+  ],
+  "requireContiguousStackingLevels": true,
+  "expectedLayerStep": 6.5,
+  "layerStepTolerance": 0.01,
+  "blocks": [
+    {
+      "id": "local-25-45",
+      "selectors": [
+        { "debugRole": "FunctionalHole", "sourceFeatureId": "PG1", "valueApprox": 45.0, "valueTolerance": 0.01 },
+        { "debugRole": "LooseHole", "sourceFeatureId": "L2", "valueApprox": 25.0, "valueTolerance": 0.01 }
+      ],
+      "minCount": 3,
+      "maxCount": 3
+    },
+    {
+      "id": "bottom-structure-305",
+      "selectors": [
+        { "debugRole": "BottomStructWidth", "sourceFeatureId": "BottomStructWidth", "valueApprox": 305.0, "valueTolerance": 0.01 }
+      ],
+      "minCount": 1,
+      "maxCount": 1
+    },
+    {
+      "id": "isolated-gd-223.5",
+      "selectors": [
+        { "kind": "PinGroupDistance", "sourceFeatureId": "PG3", "valueApprox": 223.5, "valueTolerance": 0.01 }
+      ],
+      "minCount": 1,
+      "maxCount": 1
+    },
+    {
+      "id": "rooted-datum-chain-233.5",
+      "selectors": [
+        { "alignmentLaneKey": "PG1:DatumChain:H#1" }
+      ],
+      "minCount": 3,
+      "maxCount": 3,
+      "requireSameCoordinate": true
+    },
+    {
+      "id": "overall-338",
+      "selectors": [
+        { "debugRole": "OverallWidth", "sourceFeatureId": "OverallWidth", "valueApprox": 338.0, "valueTolerance": 0.01 }
+      ],
+      "minCount": 1,
+      "maxCount": 1
+    }
+  ],
+  "outwardOrder": [
+    "local-25-45",
+    "bottom-structure-305",
+    "isolated-gd-223.5",
+    "rooted-datum-chain-233.5",
+    "overall-338"
+  ]
+}

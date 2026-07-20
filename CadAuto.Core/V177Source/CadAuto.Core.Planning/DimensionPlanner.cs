@@ -357,6 +357,20 @@ public sealed class DimensionPlanner
 	{
 		SuppressRightStructureHeightsDuplicatingOverallHeight(plan);
 		SuppressLeftStructureHeightsCoveredByRight(plan);
+		// Drop raw OutlineSegment pairs that re-partition overall first (before complementary
+		// remainder removes only the larger partner and leaves the smaller fragment orphaned).
+		// Scoped to OutlineSegment only — do not broaden complementary-remainder to Bottom/Left
+		// or slot/hole Normal dims (e.g. SlotDatumV + SlotCenter can sum to overall height).
+		SuppressOutlineSegmentsThatPartitionOverall(plan, DimensionSide.Top, horizontal: true);
+		SuppressOutlineSegmentsThatPartitionOverall(plan, DimensionSide.Bottom, horizontal: true);
+		SuppressOutlineSegmentsThatPartitionOverall(plan, DimensionSide.Right, horizontal: false);
+		SuppressOutlineSegmentsThatPartitionOverall(plan, DimensionSide.Left, horizontal: false);
+		// Structure width/height that only re-partition overall (same or opposite side) — drop both.
+		// Do NOT filter envelope edge points at collection time: local top/bottom steps that share
+		// MaxY/MinY can still be real locating dims (e.g. TopStructWidth=50).
+		SuppressStructureDimensionsThatPartitionOverall(plan, horizontal: true);
+		SuppressStructureDimensionsThatPartitionOverall(plan, horizontal: false);
+		// Existing complementary remainder for structure/normal remainders (Top/Right only).
 		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Top, horizontal: true);
 		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Right, horizontal: false);
 		SuppressMirroredDuplicates(plan, DimensionSide.Bottom, DimensionSide.Top, horizontal: true);
@@ -387,6 +401,41 @@ public sealed class DimensionPlanner
 					plan.Dimensions.RemoveAt(num);
 				}
 			}
+		}
+	}
+
+	/// <summary>
+	/// Suppress OutlineSegment dims that merely partition the overall envelope with another
+	/// same-side span (A + B ≈ Overall). Unlike complementary-remainder (keeps the smaller
+	/// partner), both OutlineSegment partners are dropped — they restate overall without a
+	/// distinct manufacturing meaning (e.g. bottom 25 + 232 with overall 257).
+	/// </summary>
+	private void SuppressOutlineSegmentsThatPartitionOverall(DimensionPlan plan, DimensionSide side, bool horizontal)
+	{
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => horizontal ? (d.Kind == DimensionKind.OverallWidth) : (d.Kind == DimensionKind.OverallHeight));
+		if (overall == null)
+		{
+			return;
+		}
+		double overallSpan = GetDimensionSpan(overall, horizontal);
+		List<PlannedDimension> sameSide = plan.Dimensions
+			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal && d.Side == side)
+			.ToList();
+		// Collect first so partners still see each other (do not remove mid-scan).
+		List<PlannedDimension> toSuppress = sameSide
+			.Where((PlannedDimension candidate) => string.Equals(candidate.DebugRole, "OutlineSegment", StringComparison.Ordinal)
+				&& sameSide.Any((PlannedDimension other) => other != candidate
+					&& Math.Abs(GetDimensionSpan(other, horizontal) + GetDimensionSpan(candidate, horizontal) - overallSpan) <= _config.GeometryTolerance))
+			.ToList();
+		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
+		{
+			PlannedDimension candidate = plan.Dimensions[num];
+			if (!toSuppress.Contains(candidate))
+			{
+				continue;
+			}
+			plan.MarkSuppressed(candidate, "OutlineSegmentOverallPartition");
+			plan.Dimensions.RemoveAt(num);
 		}
 	}
 
@@ -836,6 +885,27 @@ public sealed class DimensionPlanner
 			foreach (FunctionalHoleGroupPlan item in FindFunctionalHoleGroupsForPinPair(pinGroup, candidates, used))
 			{
 				list.Add(item);
+			}
+			// Holes that sit between the two pin centers belong to this pin group even when
+			// they are not part of a 2/4-hole functional grid (common: one hole between a pin pair).
+			List<HoleFeature2D> betweenPins = candidates
+				.Where((HoleFeature2D h) => !ContainsHole(used, h) && IsHoleBetweenPinPair(h, pinGroup))
+				.OrderBy((HoleFeature2D h) => DistanceSquared(h.Center, pinGroup.BasePin.Center))
+				.ThenBy((HoleFeature2D h) => h.Center.X)
+				.ThenBy((HoleFeature2D h) => h.Center.Y)
+				.ToList();
+			if (betweenPins.Count > 0)
+			{
+				FunctionalHoleGroupPlan betweenGroup = new FunctionalHoleGroupPlan
+				{
+					PinGroup = pinGroup
+				};
+				foreach (HoleFeature2D hole in betweenPins)
+				{
+					betweenGroup.Holes.Add(hole);
+					used.Add(hole);
+				}
+				list.Add(betweenGroup);
 			}
 		}
 		return list;
@@ -1695,6 +1765,7 @@ public sealed class DimensionPlanner
 		{
 			return;
 		}
+		string alignmentKey = GetStructureAlignmentKey(side, horizontal: true);
 		for (int i = 1; i < points.Count; i++)
 		{
 			Point2D point2D = points[i - 1];
@@ -1702,7 +1773,7 @@ public sealed class DimensionPlanner
 			double num = Math.Abs(point2D2.X - point2D.X);
 			if (!IsTooSmallStructureSpan(num) && !(Math.Abs(num - outline.Width) <= _config.GeometryTolerance) && !IsCrossAxisStructureSpanTooLarge(point2D, point2D2, horizontal: true))
 			{
-				AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Horizontal, side, point2D, point2D2, string.Empty, debugRole);
+				AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Horizontal, side, point2D, point2D2, string.Empty, debugRole, alignmentKey: alignmentKey, alignmentPriority: 70, readingLevel: DimensionReadingLevel.LocalSpacing);
 			}
 		}
 	}
@@ -1739,6 +1810,7 @@ public sealed class DimensionPlanner
 	private List<PlannedDimension> BuildHorizontalWidthCandidates(IList<Point2D> points, DimensionSide side, string debugRole)
 	{
 		List<PlannedDimension> list = new List<PlannedDimension>();
+		string alignmentKey = GetStructureAlignmentKey(side, horizontal: true);
 		for (int i = 1; i < points.Count; i++)
 		{
 			Point2D firstPoint = points[i - 1];
@@ -1754,7 +1826,10 @@ public sealed class DimensionPlanner
 					FirstPoint = firstPoint,
 					SecondPoint = secondPoint,
 					OverrideText = string.Empty,
-					DebugRole = (debugRole ?? string.Empty)
+					DebugRole = (debugRole ?? string.Empty),
+					AlignmentKey = alignmentKey,
+					AlignmentPriority = 70,
+					ReadingLevel = DimensionReadingLevel.LocalSpacing
 				});
 			}
 		}
@@ -1775,6 +1850,7 @@ public sealed class DimensionPlanner
 		{
 			return;
 		}
+		string alignmentKey = GetStructureAlignmentKey(side, horizontal: false);
 		for (int i = 1; i < points.Count; i++)
 		{
 			Point2D point2D = points[i - 1];
@@ -1782,7 +1858,7 @@ public sealed class DimensionPlanner
 			double num = Math.Abs(point2D2.Y - point2D.Y);
 			if (!IsTooSmallStructureSpan(num) && !(Math.Abs(num - outline.Height) <= _config.GeometryTolerance) && !IsCrossAxisStructureSpanTooLarge(point2D, point2D2, horizontal: false))
 			{
-				AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Vertical, side, point2D, point2D2, string.Empty, debugRole);
+				AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Vertical, side, point2D, point2D2, string.Empty, debugRole, alignmentKey: alignmentKey, alignmentPriority: 70, readingLevel: DimensionReadingLevel.LocalSpacing);
 			}
 		}
 	}
@@ -1904,6 +1980,7 @@ public sealed class DimensionPlanner
 	private List<PlannedDimension> BuildVerticalHeightCandidates(IList<Point2D> points, DimensionSide side, string debugRole)
 	{
 		List<PlannedDimension> list = new List<PlannedDimension>();
+		string alignmentKey = GetStructureAlignmentKey(side, horizontal: false);
 		for (int i = 1; i < points.Count; i++)
 		{
 			Point2D secondPoint = points[i - 1];
@@ -1919,7 +1996,10 @@ public sealed class DimensionPlanner
 					FirstPoint = firstPoint,
 					SecondPoint = secondPoint,
 					OverrideText = string.Empty,
-					DebugRole = (debugRole ?? string.Empty)
+					DebugRole = (debugRole ?? string.Empty),
+					AlignmentKey = alignmentKey,
+					AlignmentPriority = 70,
+					ReadingLevel = DimensionReadingLevel.LocalSpacing
 				});
 			}
 		}
@@ -2853,6 +2933,59 @@ public sealed class DimensionPlanner
 		return _structureSuppressionRules.IsEnvelopeHorizontalSidePoint(point, outline);
 	}
 
+	/// <summary>
+	/// Suppress structure width/height dims that only re-partition overall
+	/// (span A + span B ≈ overall), including cross-side pairs such as
+	/// BottomStructWidth 25 + TopStructWidth 232 with OverallWidth 257.
+	/// Local structure steps that do not complete overall are kept (e.g. TopStructWidth 50).
+	/// </summary>
+	private void SuppressStructureDimensionsThatPartitionOverall(DimensionPlan plan, bool horizontal)
+	{
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => horizontal ? (d.Kind == DimensionKind.OverallWidth) : (d.Kind == DimensionKind.OverallHeight));
+		if (overall == null)
+		{
+			return;
+		}
+		double overallSpan = GetDimensionSpan(overall, horizontal);
+		List<PlannedDimension> structureDims = plan.Dimensions
+			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+				&& IsStructureWidthOrHeightRole(d.DebugRole)
+				&& (horizontal
+					? d.Orientation == DimensionOrientation.Horizontal
+					: d.Orientation == DimensionOrientation.Vertical))
+			.ToList();
+		if (structureDims.Count == 0)
+		{
+			return;
+		}
+		List<PlannedDimension> toSuppress = structureDims
+			.Where((PlannedDimension candidate) => structureDims.Any((PlannedDimension other) => other != candidate
+				&& Math.Abs(GetDimensionSpan(other, horizontal) + GetDimensionSpan(candidate, horizontal) - overallSpan) <= _config.GeometryTolerance))
+			.ToList();
+		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
+		{
+			PlannedDimension candidate = plan.Dimensions[num];
+			if (!toSuppress.Contains(candidate))
+			{
+				continue;
+			}
+			plan.MarkSuppressed(candidate, "StructureOverallPartition");
+			plan.Dimensions.RemoveAt(num);
+		}
+	}
+
+	private static bool IsStructureWidthOrHeightRole(string debugRole)
+	{
+		if (string.IsNullOrEmpty(debugRole))
+		{
+			return false;
+		}
+		return debugRole == "TopStructWidth"
+			|| debugRole == "BottomStructWidth"
+			|| debugRole == "LeftStructHeight"
+			|| debugRole == "RightStructHeight";
+	}
+
 	private bool ContainsStructurePoint(IEnumerable<StructurePoint> points, Point2D point)
 	{
 		return points.Any((StructurePoint p) => PointsEqual(p.Point, point));
@@ -3188,6 +3321,40 @@ public sealed class DimensionPlanner
 		return group.Pins.Take(2).Sum((HoleFeature2D pin) => Math.Sqrt(DistanceSquared(hole.Center, pin.Center)));
 	}
 
+	/// <summary>
+	/// True when the hole projects strictly inside the pin-pair segment and stays near the pin axis.
+	/// Used to claim single (or non-grid) holes that sit between the two pin centers as functional holes.
+	/// </summary>
+	private bool IsHoleBetweenPinPair(HoleFeature2D hole, PinGroupPlan group)
+	{
+		if (hole == null || group == null || group.Pins.Count < 2)
+		{
+			return false;
+		}
+		Point2D pinA = group.Pins[0].Center;
+		Point2D pinB = group.Pins[1].Center;
+		Point2D center = hole.Center;
+		double dx = pinB.X - pinA.X;
+		double dy = pinB.Y - pinA.Y;
+		double lengthSquared = dx * dx + dy * dy;
+		if (lengthSquared <= _config.GeometryTolerance * _config.GeometryTolerance)
+		{
+			return false;
+		}
+		double t = ((center.X - pinA.X) * dx + (center.Y - pinA.Y) * dy) / lengthSquared;
+		// Strictly between the two pins (exclude endpoints / outside the span).
+		double endMargin = Math.Min(0.05, 0.1);
+		if (t <= endMargin || t >= 1.0 - endMargin)
+		{
+			return false;
+		}
+		double projX = pinA.X + t * dx;
+		double projY = pinA.Y + t * dy;
+		double perpendicular = Math.Sqrt((center.X - projX) * (center.X - projX) + (center.Y - projY) * (center.Y - projY));
+		double axisTolerance = Math.Max(GetFunctionalHoleAlignmentTolerance(), Math.Max(group.Pins[0].Diameter, group.Pins[1].Diameter) * 0.5);
+		return perpendicular <= axisTolerance;
+	}
+
 	private double DistanceSquared(Point2D a, Point2D b)
 	{
 		double num = a.X - b.X;
@@ -3283,6 +3450,19 @@ public sealed class DimensionPlanner
 		}
 		return "PG" + group.GroupIndex.ToString(CultureInfo.InvariantCulture)
 			+ ":FunctionalHoles:" + (horizontal ? "H" : "V");
+	}
+
+	private static string GetStructureAlignmentKey(DimensionSide side, bool horizontal)
+	{
+		string sideTag = side switch
+		{
+			DimensionSide.Top => "T",
+			DimensionSide.Bottom => "B",
+			DimensionSide.Left => "L",
+			DimensionSide.Right => "R",
+			_ => side.ToString()
+		};
+		return "Structure:" + sideTag + ":" + (horizontal ? "H" : "V");
 	}
 
 }

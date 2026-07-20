@@ -5,6 +5,8 @@
 - Overall width and height use the full real envelope of the selected `MainOutline`.
 - Overall dimensions have highest priority.
 - Do not replace overall dimensions with local step, chamfer tangent, fillet tangent, or feature projection dimensions.
+- Raw `OutlineSegment` dimensions that only re-partition overall (e.g. 25 + 232 with overall 257 on the same side) must be suppressed on all four sides (`OutlineSegmentOverallPartition`). Both partners are dropped — they do not express manufacturing intent beyond overall.
+- Complementary remainders of overall for general structure/normal dims remain on Top/Right only (`ComplementaryOutlineRemainder`); do not broaden that path to Bottom/Left in a way that can remove slot/hole location dimensions.
 
 ## Attachment Rules
 
@@ -30,6 +32,9 @@
 
 - Normal/thread holes assigned to a pin group are functional-hole dimensions owned by that pin group.
 - Pin-group functional-hole dimensions may prefer local boundary placement.
+- Functional holes are located from the owning pin group's **base pin** (`DebugRole=FunctionalHole`, owner `PGn`).
+- A non-pin hole whose center projects **strictly between** the two pin centers of a pin pair, and stays near the pin-pair axis, is claimed by that pin group even when it is a single hole (not only 2/4-hole functional grids).
+- Holes that do not attach to any pin group remain loose/scatter holes.
 - Loose/scatter hole chains use `LooseChainId` and may prefer a nearby valid local boundary when it shortens extension lines.
 - A loose/scatter `HoleLocation` dimension line must remain outside the real contour interior and must not be sent to a distant global side merely to reduce crowding.
 - Loose-hole chain dimensions should stay visually grouped and should not be split across unrelated sides by post-processing.
@@ -53,6 +58,15 @@
   - Right: `DrawRightSideStepHeight`
 - Top and bottom horizontal width rules collect side-specific structure points and ignored points before emitting dimensions.
 - Left and right vertical height rules collect side-specific structure points and ignored points before emitting dimensions.
+- Same-side structure segments share one rooted alignment key so adjacent chain members can stay on one dim-line level:
+  - Top: `Structure:T:H`
+  - Bottom: `Structure:B:H`
+  - Left: `Structure:L:V`
+  - Right: `Structure:R:V`
+- Alignment priority for structure segments is `70` (below pin/functional-hole keys).
+- Non-adjacent structure segments with the same key may still split into separate rooted lanes when they do not share arrow endpoints.
+- Structure points on the overall envelope edge are **allowed** when they measure a local step (e.g. top recess width 50) — do not drop them just because `Y≈MaxY` / `X≈MinX`.
+- Suppress structure width/height only when they **re-partition overall**: two structure spans (same or opposite side) with `A + B ≈ Overall` → both suppressed (`StructureOverallPartition`). Example: BottomStructWidth 25 + TopStructWidth 232 with OverallWidth 257.
 - Directional 45/135-degree endpoint suppression is side-specific.
 - Top/bottom use horizontal groove context.
 - Left/right use vertical groove context.

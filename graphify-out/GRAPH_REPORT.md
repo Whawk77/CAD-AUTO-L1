@@ -1,13 +1,18 @@
-# Graph Report - D:\work\AI\project\autocad-dim  (2026-07-20)
+# Graph Report - L1-grok  (2026-07-20)
 
 ## Corpus Check
-- 184 files · ~153,272 words
+- 185 files · ~153,124 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2854 nodes · 9662 edges · 119 communities (105 shown, 14 thin omitted)
-- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 342 edges (avg confidence: 0.8)
+- 3099 nodes · 7524 edges · 607 communities (76 shown, 531 thin omitted)
+- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 341 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `39226ee6`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - Point2D Module
@@ -38,7 +43,6 @@
 - StackingLayerItem Module
 - NativeDiameterDimensioner Module
 - Commands Module
-- NativeDiameterDimensioner Module
 - DimensionDrawer Module
 - DimensionDrawer Module
 - DatumDefinition Module
@@ -49,7 +53,6 @@
 - SlotArcCandidate Module
 - Flush Side
 - DimensionDrawer Module
-- CadAuto Core Planning
 - DimensionDrawer Module
 - Point2d Module
 - CadEntityWriter Module
@@ -62,9 +65,7 @@
 - Point3d Module
 - AUTOFIXDIM Agent Rules
 - DimensionType Module
-- DimensionDrawer Module
 - Get Break Ranges For Extension
-- Segment2D Module
 - DimensionPlan Module
 - DimensionDeduplicationRules Module
 - DimensionDrawer Module
@@ -75,32 +76,24 @@
 - DimensionRuleConfig Module
 - Graphify Workflow
 - DimensionRuleConfig Module
+- To Deduplication Item
 - Recognize Outline
 - HoleDiameterLeaderRenderer Module
-- Select Vertical Hole Location Rebalance
 - DimensionDrawer Module
 - DimensionPlanCadItem Module
 - Dimension Rules
 - Incremental Graph Update
 - DebugAnnotationRenderer Module
-- DebugAnnotationRenderer Module
-- Ag1 Module
 - AnnotationMetadata Module
 - OutlineArc Module
-- Recognize Outline From Segments
 - AUTOFIXDIM Project Handoff
 - Recognition Rules
 - Resolve Dim Style
-- CadToCoreModelMapper Module
 - AnnotationPreview Module
-- Resolve Dim Style
-- FeatureRecognizer2D Module
 - DimensionExtensionLineRenderer Module
 - OutlineArc Module
-- DimensionExtensionLineRenderer Module
 - Top Bottom Left Right Workflow
 - PlacedDim Module
-- Point2D Module
 - run cad test ps1
 - Build Hole Callout Plans For
 - Graphify Query Reference
@@ -117,18 +110,513 @@
 - From Outline
 - Include Module
 - Include Module
+- AssemblyInfo Module
+- AssemblyInfo Module
+- HoleFeature
+- IList
+- LayerTableRecord
+- Line
+- List
+- ObjectId
+- OutlineFeature
+- OutlineSelection
+- Point2d
+- Point3d
+- Transaction
+- Datum2D
+- DatumDefinition
+- HoleFeature
+- HoleFeature2D
+- HoleKind
+- HoleKind2D
+- IEnumerable
+- List
+- OutlineFeature
+- OutlineFeature2D
+- SlotFeature
+- SlotFeature2D
+- BlockTableRecord
+- Database
+- DiametricDimension
+- DimensionRuleConfig
+- Document
+- double
+- Editor
+- Entity
+- HoleCalloutPlan
+- HoleFeature
+- HoleFeature2D
+- IList
+- JigPrompts
+- ObjectId
+- Point3d
+- SamplerStatus
+- string
+- Transaction
+- Vector3d
+- WorldDraw
+- Arc
+- BlockReference
+- bool
+- ChamferFeature
+- Circle
+- DimensionRuleConfig
+- Editor
+- Entity
+- HoleFeature
+- IEnumerable
+- IList
+- ISet
+- ObjectId
+- OutlineArc
+- OutlineFeature
+- OutlineSegment
+- Point2d
+- Point3d
+- Polyline
+- Polyline2d
+- SlotFeature
+- Transaction
+- Vector2d
+- BlockTableRecord
+- bool
+- Color
+- Database
+- DimensionRuleConfig
+- double
+- Entity
+- IList
+- ObjectId
+- Point3d
+- string
+- Transaction
+- bool
+- CadEntityWriter
+- Database
+- DimensionRuleConfig
+- double
+- Editor
+- JigPrompts
+- ObjectId
+- Point2d
+- Point3d
+- SamplerStatus
+- string
+- WorldDraw
+- ArrA
+- ArrB
+- Dim
+- List
+- OutlineFeature
+- Point3d
+- TxtA
+- TxtB
+- ChamferFeature
+- FilletFeature
+- IEnumerable
+- IList
+- List
+- OutlineFeature
+- Point2d
+- SlotFeature
+- Vector2d
+- Editor
+- FilletFeature
+- HoleFeature
+- IEnumerable
+- IList
+- OutlineFeature
+- Point2d
+- Point3d
+- SlotFeature
+- BlockTableRecord
+- bool
+- CadEntityWriter
+- Color
+- CornerCalloutRenderer
+- Database
+- DatumDefinition
+- DebugAnnotationRenderer
+- DimensionExtensionLineRenderer
+- DimensionPlan
+- DimensionPlanCadItem
+- DimensionPlanCadMapper
+- DimensionRuleConfig
+- DimensionSide
+- DimensionType
+- double
+- Entity
+- HoleFeature
+- IList
+- int
+- List
+- ObjectId
+- OutlineFeature
+- Point2d
+- Point3d
+- string
+- TextBounds
+- Transaction
+- Color
+- DeferredDim
+- DimSide
+- IEnumerable
+- IList
+- Point2d
+- Point3d
+- TextBounds
+- DeferredDim
+- List
+- A
+- B
+- DeferredDim
+- DimSide
+- OutlineFeature
+- Point2d
+- Point3d
+- Vector2d
+- HoleFeature
+- IEnumerable
+- IList
+- List
+- OutlineFeature
+- PinGroupPlan
+- DatumDefinition
+- DimSide
+- HoleFeature
+- IEnumerable
+- IList
+- List
+- OutlineFeature
+- PinGroupPlan
+- Point3d
+- DeferredDim
+- DimSide
+- IEnumerable
+- IgnoredPoint
+- IList
+- List
+- OutlineFeature
+- OutlineSegment
+- Point2d
+- StructurePoint
+- DeferredDim
+- DimSide
+- IEnumerable
+- IList
+- List
+- OutlineFeature
+- OutlineSegment
+- Point2d
+- A
+- B
+- DeferredDim
+- DimSide
+- OutlineFeature
+- Point2d
+- Point3d
+- TextBounds
+- A
+- B
+- IList
+- List
+- PlacedDim
+- Point3d
+- TextBounds
+- DeferredDim
+- DimSide
+- List
+- OutlineFeature
+- DeferredDim
+- IgnoredPoint
+- IList
+- OutlineFeature
+- OutlineSegment
+- Point2d
+- StructurePoint
+- DeferredDim
+- IEnumerable
+- IgnoredPoint
+- IList
+- OutlineFeature
+- OutlineSegment
+- Point2d
+- Point3d
+- StructurePoint
+- ChamferFeature
+- DeferredDim
+- DimSide
+- IgnoredPoint
+- IList
+- List
+- OutlineFeature
+- OutlineSegment
+- Point2d
+- Point3d
+- ChamferFeature
+- DimSide
+- FilletFeature
+- IEnumerable
+- OutlineFeature
+- OutlineSegment
+- Point2d
+- ArrA
+- ArrB
+- DeferredDim
+- Dim
+- IEnumerable
+- IList
+- List
+- PlacedDim
+- Point3d
+- TextBounds
+- TxtA
+- TxtB
+- A
+- B
+- DeferredDim
+- DimSide
+- IList
+- List
+- DimensionKind
+- DimensionPlan
+- DimensionSide
+- DimensionType
+- IEnumerable
+- PlannedDimension
+- Point3d
+- Database
+- Entity
+- IEnumerable
+- List
+- ObjectId
+- string
+- Transaction
+- Arc
+- Arc2D
+- Circle
+- Circle2D
+- Line
+- OutlineFeature2D
+- Point2d
+- Point3d
+- Polyline
+- Segment2D
+- Database
+- ObjectId
+- string
+- Transaction
+- Database
+- string
+- Transaction
+- Datum2D
+- DatumDefinition
+- HoleFeature
+- HoleFeature2D
+- HoleKind
+- HoleKind2D
+- IEnumerable
+- List
+- OutlineFeature
+- OutlineFeature2D
+- OutlineSegment
+- Segment2D
+- SlotFeature
+- SlotFeature2D
+- OutlineSegment
+- Point2d
+- HoleFeature
+- OutlineFeature
+- OutlineArc
+- Point2d
+- HoleKind
+- ObjectId
+- Point3d
+- ObjectId
+- Point2d
+- ChamferFeature
+- FilletFeature
+- List
+- OutlineArc
+- OutlineSegment
+- Point2d
+- ObjectId
+- Point2d
+- List
+- ObjectId
+- ObjectId
+- Point2d
+- CadEntityWriter
+- Database
+- DimensionRuleConfig
+- double
+- Editor
+- JigPrompts
+- ObjectId
+- Point2d
+- Point3d
+- SamplerStatus
+- string
+- WorldDraw
+- CadEntityWriter
+- Database
+- IList
+- string
+- Tuple
+- BlockTableRecord
+- Database
+- DiametricDimension
+- DimensionRuleConfig
+- Document
+- double
+- Editor
+- Entity
+- HoleCalloutPlan
+- HoleFeature
+- HoleFeature2D
+- IList
+- JigPrompts
+- ObjectId
+- Point3d
+- SamplerStatus
+- string
+- Transaction
+- Vector3d
+- WorldDraw
+- HoleFeature2D
+- List
+- Point2D
+- ChamferFeature2D
+- Datum2D
+- DimensionKind
+- DimensionOrientation
+- DimensionPlan
+- DimensionRuleConfig
+- DimensionSide
+- Func
+- HoleFeature2D
+- IEnumerable
+- IList
+- int
+- List
+- OutlineFeature2D
+- PinGroupPlan
+- PlannedDimension
+- Point2D
+- Segment2D
+- SlotFeature2D
+- Tuple
+- DimensionRuleConfig
+- HoleCalloutKind
+- HoleCalloutPlan
+- HoleFeature2D
+- IEnumerable
+- IList
+- List
+- Point2D
+- Arc2D
+- ChamferFeature2D
+- DimensionRuleConfig
+- DrawingGeometry
+- IEnumerable
+- IList
+- ISet
+- OutlineFeature2D
+- Point2D
+- Segment2D
+- SlotArcCandidate
+- SlotFeature2D
+- SlotLineCandidate
+- Dictionary
+- Point2D
+- Point2D
+- Point2D
+- Point2D
+- Point2D
+- Segment2D
+- HoleFeature2D
+- OutlineFeature2D
+- Arc2D
+- Circle2D
+- List
+- OutlineFeature2D
+- Segment2D
+- Arc2D
+- Point2D
+- HoleKind2D
+- Point2D
+- Arc2D
+- ChamferFeature2D
+- FilletFeature2D
+- List
+- Point2D
+- Segment2D
+- Point2D
+- HoleCalloutKind
+- HoleFeature2D
+- List
+- Point2D
+- DimensionRuleConfig
+- HoleCalloutKind
+- HoleCalloutPlan
+- HoleFeature2D
+- IEnumerable
+- IList
+- List
+- Point2D
+- DimensionSide
+- HoleFeature2D
+- List
+- DimensionKind
+- Point2D
+- Dictionary
+- DimensionSide
+- Point2D
+- Point2D
+- Point2D
+- ChamferFeature2D
+- DimensionRuleConfig
+- DimensionSide
+- FilletFeature2D
+- IEnumerable
+- OutlineFeature2D
+- Point2D
+- Segment2D
+- BlockTableRecord
+- CommandMethod
+- Database
+- DatumDefinition
+- DiagnosticDimensionSide
+- DimensionDrawer
+- DimensionPlan
+- DimensionRuleConfig
+- Document
+- Editor
+- HoleCalloutPlan>
+- HoleFeature
+- HoleFeature2D
+- IEnumerable
+- IList
+- List
+- ObjectId
+- OutlineFeature
+- PlannedDimension
+- Point3d
+- Transaction
+- DimensionRuleConfig
+- Dictionary
 
 ## God Nodes (most connected - your core abstractions)
-1. `OutlineFeature2D` - 359 edges
-2. `Point2D` - 347 edges
-3. `OutlineFeature` - 291 edges
-4. `DimensionPlanner` - 231 edges
-5. `DimensionPlanner` - 205 edges
-6. `Segment2D` - 156 edges
-7. `HoleFeature2D` - 147 edges
-8. `DimensionPlan` - 113 edges
-9. `DimensionDrawer` - 111 edges
-10. `HoleFeature` - 110 edges
+1. `DimensionPlanner` - 236 edges
+2. `OutlineFeature2D` - 220 edges
+3. `DimensionPlanner` - 203 edges
+4. `Point2D` - 197 edges
+5. `DimensionDrawer` - 111 edges
+6. `Program` - 94 edges
+7. `DimensionLayoutRules` - 94 edges
+8. `OutlineFeature` - 90 edges
+9. `FeatureRecognizer` - 82 edges
+10. `Segment2D` - 80 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Pin-Group Datum Chain` --semantically_similar_to--> `Pin-First Hole Positioning`  [INFERRED] [semantically similar]
@@ -150,243 +638,163 @@
 - **AUTOFIXDIM Annotation Rule System** — docs_recognitionrules_recognition_rules, docs_dimensionrules_dimension_rules, agents_annotation_product_invariants, docs_environment_source_map [INFERRED 0.85]
 - **Four-Direction Regression Evidence Chain** — docs_dimensionlayoutregression_dl01_fixture, docs_dimensionlayoutregression_trace_and_report_archiving, docs_dimensionlayoutregression_structured_report_validation, docs_dimensionlayoutregression_visual_image_review, docs_dimensionlayoutregression_completion_gate [EXTRACTED 1.00]
 
-## Communities (119 total, 14 thin omitted)
-
-### Community 0 - "Point2D Module"
-Cohesion: 0.05
-Nodes (11): Point2D, FilletFeature2D, PlannedDimension, DimensionPlanner, IList, int, List, OutlineFeature2D (+3 more)
+## Communities (607 total, 531 thin omitted)
 
 ### Community 1 - "OutlineFeature2D Module"
 Cohesion: 0.06
-Nodes (9): IgnoredPoint, StructurePoint, OutlineFeature2D, List, DimensionPlanner, FunctionalHoleGroupPlan, IList, int (+1 more)
+Nodes (6): Point2D, FilletFeature2D, DimensionPlanner, int, Point2D, IEquatable
 
 ### Community 2 - "HoleFeature2D Module"
-Cohesion: 0.05
-Nodes (18): LooseHoleLocationPlan, HoleFeature2D, PinGroupPlan, List, FunctionalHoleGroupPlan, IgnoredPoint, LooseHoleLineGroup, LooseHoleLocationPlan (+10 more)
+Cohesion: 0.11
+Nodes (9): HoleFeature2D, FunctionalHoleGroupPlan, LooseHoleLineGroup, LooseHoleLocationPlan, LooseHoleMacroGroup, IList, List, Tuple (+1 more)
 
 ### Community 3 - "GeometryCollector Module"
-Cohesion: 0.06
-Nodes (30): GeometryCollector, OutlineEntityCandidate, Arc, Editor, Entity, IList, LayerTableRecord, Line (+22 more)
+Cohesion: 0.09
+Nodes (4): List, IList, PlannedDimension, RenderItem
 
 ### Community 4 - "DimensionPlan Module"
-Cohesion: 0.07
-Nodes (9): Datum2D, SlotFeature2D, DimensionKind, DimensionPlan, Func, Func, IEnumerable, DimensionReadingLevel (+1 more)
+Cohesion: 0.10
+Nodes (4): Datum2D, SlotFeature2D, Func, DimensionPlan
 
 ### Community 5 - "FeatureRecognizer2D Module"
-Cohesion: 0.05
-Nodes (33): AutoCadGeometryConverter, Arc, Circle, Line, Point2d, Point3d, Polyline, AutoCadGeometryConverter (+25 more)
-
-### Community 6 - "DimensionDrawer Module"
-Cohesion: 0.05
-Nodes (30): FilletFeature, CornerLeaderPlacement, DimensionDrawer, IEnumerable, IList, List, Point2d, Vector2d (+22 more)
+Cohesion: 0.10
+Nodes (18): AutoCadGeometryConverter, Arc, Circle, Line, Point2d, Point3d, Polyline, Arc2D (+10 more)
 
 ### Community 7 - "Assert Module"
-Cohesion: 0.08
+Cohesion: 0.06
 Nodes (3): Action, Program, int
 
 ### Community 8 - "Commands Module"
-Cohesion: 0.07
-Nodes (25): DimensionPlanRenderer, BlockTableRecord, Database, double, List, ObjectId, Point3d, string (+17 more)
+Cohesion: 0.19
+Nodes (8): DimensionPlanRenderer, BlockTableRecord, Database, double, ObjectId, Point3d, string, Transaction
 
 ### Community 9 - "DimensionDrawer Module"
-Cohesion: 0.08
-Nodes (29): Bounds, DimensionDrawer, A, B, DeferredDim, DimSide, Point3d, TextBounds (+21 more)
-
-### Community 10 - "DimensionDrawer Module"
-Cohesion: 0.14
-Nodes (8): DimensionDrawer, DeferredDim, DimSide, IgnoredPoint, IList, List, Point2d, Point3d
-
-### Community 11 - "StructureSuppressionRules Module"
-Cohesion: 0.08
-Nodes (3): ChamferFeature2D, StructureSuppressionRules, IEnumerable
+Cohesion: 0.25
+Nodes (3): Bounds, DimensionDrawer, Position
 
 ### Community 12 - "DimensionDrawer Module"
-Cohesion: 0.08
-Nodes (9): TextBounds, PlacedDim, DimensionDrawer, BlockTableRecord, Color, Entity, ObjectId, Transaction (+1 more)
+Cohesion: 0.11
+Nodes (7): DimensionDrawer, BlockTableRecord, Color, Entity, List, ObjectId, Transaction
 
 ### Community 13 - "FeatureRecognizer Module"
-Cohesion: 0.11
-Nodes (18): FeatureRecognizer, SlotArcCandidate, SlotLineCandidate, ThreadArcInfo, ThreadMinorCircleInfo, Arc, BlockReference, bool (+10 more)
+Cohesion: 0.12
+Nodes (14): SlotArcCandidate, SlotLineCandidate, ThreadArcInfo, ThreadMinorCircleInfo, BlockReference, Circle, Editor, IEnumerable (+6 more)
 
 ### Community 14 - "OutlineFeature Module"
-Cohesion: 0.12
-Nodes (7): OutlineFeature, Point2d, Entity, Point2d, Polyline, Polyline2d, Vector2d
+Cohesion: 0.14
+Nodes (8): ChamferFeature, OutlineSegment, Point2d, FeatureRecognizer, bool, double, Point2d, Vector2d
 
 ### Community 15 - "FeatureRecognizer Module"
-Cohesion: 0.13
-Nodes (15): FeatureRecognizer, SlotArcCandidate, SlotLineCandidate, ThreadArcInfo, ThreadMinorCircleInfo, Arc, BlockReference, bool (+7 more)
+Cohesion: 0.05
+Nodes (39): 0. 总图：上下文不是一锅炖, 10. 自己写 Agent 时的对照映射, 1.1 挂载时机（最重要）, 1.2 AGENTS.md 怎么被组装, 1. 上下文注入：写什么、挂在哪、何时挂, 2.1 阶段 A：Catalog（常驻 / 在 initial context 里）, 2.2 阶段 B：Body 注入（仅本 turn）, 2.3 How to use 里写死的最佳实践（直接抄） (+31 more)
 
 ### Community 16 - "CadAuto Core Geometry"
-Cohesion: 0.08
-Nodes (11): RenderItem, HoleKind2D, Arc2D, Circle2D, ChamferFeature2D, HoleFeature2D, HoleKind2D, SlotFeature2D (+3 more)
-
-### Community 17 - "OutlineSegment Module"
-Cohesion: 0.10
-Nodes (7): ChamferFeature, OutlineSegment, Point2d, DimensionDrawer, DimSide, IEnumerable, Point2d
+Cohesion: 0.04
+Nodes (40): DimSide, TextBounds, BoundingBox2D, HoleKind2D, IgnoredPoint, StructurePoint, SlotArcCandidate, SlotLineCandidate (+32 more)
 
 ### Community 18 - "CadAuto CadAdapter Model"
-Cohesion: 0.07
-Nodes (12): DiameterJigResult, ChamferFeature, Point2d, DimensionType, FilletFeature, Point2d, HoleKind, CornerCalloutJigResult (+4 more)
+Cohesion: 0.05
+Nodes (16): CadAuto.CadAdapter.Model, CadAuto.CadAdapter.Rendering, DiameterJigResult, CornerLeaderPlacement, ChamferFeature, DimensionType, FilletFeature, HoleFeature (+8 more)
 
 ### Community 19 - "HoleFeature Module"
-Cohesion: 0.17
-Nodes (12): HoleFeature, Point3d, DimensionDrawer, DeferredDim, DimSide, IEnumerable, IList, List (+4 more)
+Cohesion: 0.08
+Nodes (24): HoleFeature, Point3d, DimensionDrawer, DeferredDim, DimSide, IEnumerable, IList, List (+16 more)
 
 ### Community 20 - "HoleCalloutPlan Module"
-Cohesion: 0.14
-Nodes (14): HoleCalloutKind, HoleCalloutPlan, List, HoleCalloutCluster, HoleCalloutPlanner, IEnumerable, IList, List (+6 more)
-
-### Community 21 - "DimensionLayoutRules Module"
-Cohesion: 0.14
-Nodes (7): DimensionLayoutRules, IEnumerable, DimensionTextPlacementItem, DimensionTextSlidePlacement, TextBounds2D, ExtensionLineBreakCandidate, TextSlideCandidate
+Cohesion: 0.08
+Nodes (4): HoleCalloutPlanner, HoleCalloutPlanner, Commands, HoleCalloutCluster
 
 ### Community 22 - "StructureEndpointRules Module"
-Cohesion: 0.14
-Nodes (3): StructureEndpointRules, IEnumerable, IList
+Cohesion: 0.13
+Nodes (6): Segment2D, OutlineFeature2D, List, StructureEndpointRules, IEnumerable, StructureEndpointSpan
 
 ### Community 23 - "DimensionSide Module"
-Cohesion: 0.14
-Nodes (3): DimensionSide, DimensionLayoutItem, DimensionStackingPlacement
-
-### Community 24 - "FeatureRecognizer2D Module"
 Cohesion: 0.13
-Nodes (3): FeatureRecognizer2D, IEnumerable, IList
+Nodes (3): IEnumerable, IgnoredPoint, StructurePoint
 
 ### Community 25 - "StackingLayerItem Module"
-Cohesion: 0.16
-Nodes (6): IList, List, IDictionary, IndexedLayoutItem, LayoutBlock, StackingLayerItem
+Cohesion: 0.06
+Nodes (26): DimensionPlanCadItem, Point3d, DimensionReadingLevel, DimensionLayoutItem, DimensionLayoutRules, ExtensionLineBreakCandidate, IndexedLayoutItem, LayoutBlock (+18 more)
 
 ### Community 26 - "NativeDiameterDimensioner Module"
-Cohesion: 0.13
-Nodes (19): DiameterCalloutJig, NativeDiameterDimensioner, BlockTableRecord, Database, DiametricDimension, Document, double, Editor (+11 more)
+Cohesion: 0.14
+Nodes (3): NativeDiameterDimensioner, NativeDiameterDimensioner, DiameterJigResult
 
 ### Community 27 - "Commands Module"
-Cohesion: 0.14
-Nodes (6): AutoFixDimOutputScope, DiagnosticDimensionSide, Commands, CommandMethod, Editor, string
-
-### Community 28 - "NativeDiameterDimensioner Module"
-Cohesion: 0.13
-Nodes (18): DiameterCalloutJig, NativeDiameterDimensioner, BlockTableRecord, Database, DiametricDimension, Document, double, Editor (+10 more)
+Cohesion: 0.07
+Nodes (24): AutoFixDimOutputScope, HoleCalloutKind, HoleCalloutPlan, List, DiagnosticDimensionSide, Polyline3d, StringBuilder, Commands (+16 more)
 
 ### Community 29 - "DimensionDrawer Module"
-Cohesion: 0.14
-Nodes (11): DimensionDrawer, Color, DeferredDim, DimSide, IEnumerable, IList, Point2d, Point3d (+3 more)
+Cohesion: 0.19
+Nodes (3): DimensionDrawer, PointDebugLabel, PointDebugLabelPlacement
 
 ### Community 30 - "DimensionDrawer Module"
-Cohesion: 0.20
-Nodes (10): DimensionDrawer, DeferredDim, IgnoredPoint, IList, Point2d, StructurePoint, IEnumerable, IgnoredPoint (+2 more)
+Cohesion: 0.05
+Nodes (18): OutlineSelection, List, GeometryCollector, OutlineEntityCandidate, Arc, Editor, Entity, IList (+10 more)
 
 ### Community 31 - "DatumDefinition Module"
-Cohesion: 0.21
-Nodes (8): DatumDefinition, DimensionDrawer, DimSide, IEnumerable, IList, List, PinGroupPlan, Point3d
+Cohesion: 0.17
+Nodes (3): CornerLeaderPlacement, DimensionDrawer, DimensionDrawer
 
 ### Community 32 - "DimensionRuleConfig Module"
-Cohesion: 0.10
-Nodes (7): CoreModelMapper, AutoFixtureDim, IExtensionApplication, PluginEntry, DimensionRuleConfig, Dictionary, PluginEntry
+Cohesion: 0.14
+Nodes (5): AutoFixtureDim, CoreModelMapper, PluginEntry, IExtensionApplication, PluginEntry
 
 ### Community 33 - "SlotFeature Module"
-Cohesion: 0.25
-Nodes (7): SlotFeature, DimensionDrawer, Func, IEnumerable, IList, List, Point3d
-
-### Community 34 - "DimensionDrawer Module"
-Cohesion: 0.21
-Nodes (7): DimensionDrawer, DeferredDim, DimSide, IEnumerable, IList, List, Point2d
+Cohesion: 0.07
+Nodes (16): DatumDefinition, DimensionType, HoleKind, SlotFeature, DimensionDrawer, Func, IEnumerable, IList (+8 more)
 
 ### Community 35 - "CadAuto Core Rules"
-Cohesion: 0.10
-Nodes (9): DimSide, TextBounds, ExtensionLineBreakRange, CadAuto.CadAdapter.Recognition, CadAuto.CadAdapter.Mapping, CadAuto.Core.Rules, CadAuto.CadAdapter.Environment, CadAuto.CadAdapter.Collection (+1 more)
+Cohesion: 0.09
+Nodes (13): CadAuto.CadAdapter.Recognition, CadAuto.CadAdapter.Mapping, CadAuto.CadAdapter.Environment, CadAuto.CadAdapter.Collection, OutlineEntityCandidate, SlotArcCandidate, SlotLineCandidate, ThreadArcInfo (+5 more)
 
 ### Community 36 - "SlotArcCandidate Module"
-Cohesion: 0.18
-Nodes (5): ISet, SlotArcCandidate, SlotLineCandidate, ISet, ISet
+Cohesion: 0.17
+Nodes (5): ISet, IList, ISet, SlotArcCandidate, SlotLineCandidate
 
-### Community 37 - "Flush Side"
-Cohesion: 0.19
-Nodes (12): DimensionDrawer, ArrA, ArrB, Dim, List, Point3d, TxtA, TxtB (+4 more)
-
-### Community 38 - "DimensionDrawer Module"
-Cohesion: 0.12
-Nodes (9): DimensionDrawer, BlockTableRecord, Color, Database, Entity, IList, ObjectId, Point3d (+1 more)
-
-### Community 39 - "CadAuto Core Planning"
-Cohesion: 0.08
-Nodes (10): DimensionKind, DimensionOrientation, IgnoredPoint, LooseHoleLineGroup, StructurePoint, DimensionSide, HoleCalloutKind, PinGroupPlan (+2 more)
-
-### Community 40 - "DimensionDrawer Module"
-Cohesion: 0.20
-Nodes (9): DimensionDrawer, DeferredDim, DimSide, IEnumerable, IgnoredPoint, IList, List, Point2d (+1 more)
-
-### Community 42 - "CadEntityWriter Module"
-Cohesion: 0.13
-Nodes (12): CadEntityWriter, BlockTableRecord, bool, Color, Database, double, Entity, IList (+4 more)
+### Community 41 - "Point2d Module"
+Cohesion: 0.24
+Nodes (3): OutlineArc, ObjectId, Arc
 
 ### Community 43 - "CornerCalloutRenderer Module"
-Cohesion: 0.12
-Nodes (15): CornerCalloutJigResult, CornerCalloutRenderer, CornerFeatureLeaderJig, bool, Database, double, Editor, JigPrompts (+7 more)
+Cohesion: 0.08
+Nodes (8): DiameterCalloutJig, CornerCalloutJigResult, CornerCalloutRenderer, CornerFeatureLeaderJig, CornerCalloutRenderer, CornerFeatureLeaderJig, DiameterCalloutJig, DrawJig
 
 ### Community 44 - "DimensionDrawer Module"
-Cohesion: 0.14
-Nodes (20): DeferredDim, DimSide, FunctionalHoleGroupPlan, IgnoredPoint, LooseHoleLineGroup, LooseHoleMacroGroup, PinGroupPlan, PlacedDim (+12 more)
+Cohesion: 0.15
+Nodes (12): DeferredDim, DimSide, FunctionalHoleGroupPlan, IgnoredPoint, LooseHoleLineGroup, LooseHoleMacroGroup, PinGroupPlan, PointDebugLabel (+4 more)
 
 ### Community 45 - "AnnotationMetadata Module"
-Cohesion: 0.17
-Nodes (11): AnnotationMetadata, GeneratedAnnotation, Database, Entity, IEnumerable, List, ObjectId, string (+3 more)
+Cohesion: 0.23
+Nodes (4): AnnotationMetadata, GeneratedAnnotation, DateTime, GeneratedAnnotation
 
-### Community 46 - "DeferredDim Module"
-Cohesion: 0.21
-Nodes (4): DeferredDim, A, B, List
+### Community 47 - "DimSide Module"
+Cohesion: 0.23
+Nodes (5): OutlineFeature, DeferredDim, DimSide, PlacedDim, RotatedDimension
 
 ### Community 48 - "CadEntityWriter Module"
-Cohesion: 0.15
+Cohesion: 0.14
 Nodes (10): CadEntityWriter, BlockTableRecord, Color, Database, double, Entity, ObjectId, Point3d (+2 more)
 
 ### Community 49 - "Point3d Module"
-Cohesion: 0.18
-Nodes (5): Editor, IEnumerable, IList, Point2d, Point3d
+Cohesion: 0.16
+Nodes (6): FilletFeature, Editor, IEnumerable, IList, Point2d, Point3d
 
 ### Community 50 - "AUTOFIXDIM Agent Rules"
 Cohesion: 0.13
 Nodes (19): AUTOFIXDIM Agent Rules, Explicit Validation Authorization, Graphify-First Codebase Navigation, Safe File Operations, Deployment and Manual Verification, Four-Direction Automated Regression, Manual AutoCAD Verification Flow, Manual CAD Smoke Test (+11 more)
 
-### Community 51 - "DimensionType Module"
-Cohesion: 0.33
-Nodes (6): DimensionType, DimensionDrawer, DimSide, Point3d, DimensionPlanCadItem, Point3d
-
-### Community 52 - "DimensionDrawer Module"
-Cohesion: 0.27
-Nodes (6): DimensionDrawer, IEnumerable, IList, List, PinGroupPlan, FunctionalHoleGroupPlan
-
 ### Community 53 - "Get Break Ranges For Extension"
-Cohesion: 0.26
-Nodes (10): DimensionDrawer, A, B, IList, List, PlacedDim, Point3d, TextBounds (+2 more)
+Cohesion: 0.29
+Nodes (3): DimensionDrawer, DistanceToFeature, Length
 
 ### Community 55 - "DimensionPlan Module"
-Cohesion: 0.22
-Nodes (6): DimensionOrientation, DimensionCandidateDiagnostic, DimensionPlan, Dictionary, int, List
+Cohesion: 0.14
+Nodes (12): DimensionCandidateDiagnostic, DimensionDiagnosticReport, IEnumerable, List, DimensionPlan, Dictionary, int, List (+4 more)
 
 ### Community 56 - "DimensionDeduplicationRules Module"
-Cohesion: 0.23
-Nodes (3): DimensionDeduplicationItem, DimensionDeduplicationRules, Tuple
-
-### Community 57 - "DimensionDrawer Module"
-Cohesion: 0.25
-Nodes (4): DimensionDrawer, DeferredDim, IList, Point3d
-
-### Community 58 - "CornerCalloutRenderer Module"
-Cohesion: 0.14
-Nodes (12): CornerCalloutRenderer, CornerFeatureLeaderJig, Database, double, Editor, JigPrompts, ObjectId, Point2d (+4 more)
-
-### Community 59 - "Append Dimension Diagnostics"
-Cohesion: 0.24
-Nodes (5): DimensionDiagnosticReport, IEnumerable, List, FeatureDiagnosticCounts, StringBuilder
-
-### Community 60 - "Point3d Module"
-Cohesion: 0.19
-Nodes (6): Polyline3d, Entity, Line, Point3d, Polyline, Polyline2d
-
-### Community 61 - "CadToCoreModelMapper Module"
-Cohesion: 0.18
-Nodes (7): HoleKind, CadToCoreModelMapper, IEnumerable, List, HoleFeature, ObjectId, Point3d
+Cohesion: 0.22
+Nodes (3): DimensionDeduplicationRules, Tuple, DimensionDeduplicationItem
 
 ### Community 63 - "Graphify Workflow"
 Cohesion: 0.15
@@ -394,19 +802,15 @@ Nodes (14): Extraction Confidence Taxonomy, Deterministic Node IDs, Semantic Ext
 
 ### Community 66 - "Recognize Outline"
 Cohesion: 0.33
-Nodes (3): Entity, Polyline, Polyline2d
-
-### Community 67 - "HoleDiameterLeaderRenderer Module"
-Cohesion: 0.22
-Nodes (9): HoleDiameterLeaderRenderer, HoleLeaderPoints, bool, Database, IList, ObjectId, Point3d, string (+1 more)
+Nodes (4): LayerManager, Database, string, Transaction
 
 ### Community 69 - "DimensionDrawer Module"
 Cohesion: 0.35
 Nodes (3): DimensionDrawer, DeferredDim, DimSide
 
 ### Community 70 - "DimensionPlanCadItem Module"
-Cohesion: 0.23
-Nodes (6): DimensionPlanCadItem, DimensionPlanCadMapper, IEnumerable, Point3d, DimensionPlanCadMapper, IEnumerable
+Cohesion: 0.27
+Nodes (4): DimensionPlanCadMapper, IEnumerable, DimensionPlanCadItem, DimensionPlanCadMapper
 
 ### Community 71 - "Dimension Rules"
 Cohesion: 0.20
@@ -417,20 +821,16 @@ Cohesion: 0.20
 Nodes (11): Graphify Add and Watch Reference, Folder Watcher, URL Ingestion, Native CLAUDE.md Integration, Graphify Hooks Reference, Post-Commit Graph Rebuild Hook, Cluster-Only Refresh, Deleted Source Pruning (+3 more)
 
 ### Community 73 - "DebugAnnotationRenderer Module"
-Cohesion: 0.22
-Nodes (7): DebugAnnotationRenderer, Color, Database, ObjectId, Point2d, Point3d, string
-
-### Community 74 - "DebugAnnotationRenderer Module"
-Cohesion: 0.25
-Nodes (7): DebugAnnotationRenderer, Color, Database, ObjectId, Point2d, Point3d, string
-
-### Community 75 - "Ag1 Module"
-Cohesion: 0.45
-Nodes (4): BlockTableRecord, Database, ObjectId, Transaction
+Cohesion: 0.06
+Nodes (20): DebugAnnotationRenderer, Color, Database, ObjectId, Point2d, Point3d, string, DimensionExtensionLineRenderer (+12 more)
 
 ### Community 76 - "AnnotationMetadata Module"
+Cohesion: 0.15
+Nodes (4): RenderItem, CadAuto.CadAdapter, AnnotationMetadata, AutoCadGeometryConverter
+
+### Community 77 - "OutlineArc Module"
 Cohesion: 0.31
-Nodes (5): AnnotationMetadata, Database, Entity, string, Transaction
+Nodes (3): Entity, Polyline, Polyline2d
 
 ### Community 79 - "AUTOFIXDIM Project Handoff"
 Cohesion: 0.20
@@ -444,33 +844,9 @@ Nodes (10): Chamfer Recognition, Datum Recognition, Recognizer and Layout Diagno
 Cohesion: 0.33
 Nodes (5): DimStyleManager, Database, ObjectId, string, Transaction
 
-### Community 82 - "CadToCoreModelMapper Module"
-Cohesion: 0.36
-Nodes (3): CadToCoreModelMapper, IEnumerable, List
-
 ### Community 83 - "AnnotationPreview Module"
 Cohesion: 0.22
 Nodes (6): AnnotationPreview, bool, IList, CadAuto.CadAdapter.Preview, IDisposable, IntegerCollection
-
-### Community 84 - "Resolve Dim Style"
-Cohesion: 0.33
-Nodes (5): DimStyleManager, Database, ObjectId, string, Transaction
-
-### Community 85 - "FeatureRecognizer2D Module"
-Cohesion: 0.22
-Nodes (6): SlotArcCandidate, SlotLineCandidate, SlotArcCandidate, SlotLineCandidate, CadAuto.Core.Recognition, CadAuto.Core.Tests
-
-### Community 86 - "DimensionExtensionLineRenderer Module"
-Cohesion: 0.29
-Nodes (5): DimensionExtensionLineRenderer, Database, IList, string, Tuple
-
-### Community 87 - "OutlineArc Module"
-Cohesion: 0.21
-Nodes (6): OutlineArc, ObjectId, Point2d, SlotFeature, ObjectId, Point2d
-
-### Community 88 - "DimensionExtensionLineRenderer Module"
-Cohesion: 0.29
-Nodes (5): DimensionExtensionLineRenderer, Database, IList, string, Tuple
 
 ### Community 89 - "Top Bottom Left Right Workflow"
 Cohesion: 0.29
@@ -480,10 +856,6 @@ Nodes (7): Graph Health Check, Graphify Output Artifacts, Regression Completion 
 Cohesion: 0.43
 Nodes (7): DeferredDim, PlacedDim, bool, double, int, string, TextBounds
 
-### Community 93 - "Build Hole Callout Plans For"
-Cohesion: 0.38
-Nodes (4): DimensionRuleConfig, Document, IEnumerable, IList
-
 ### Community 94 - "Graphify Query Reference"
 Cohesion: 0.33
 Nodes (6): Breadth-First Graph Traversal, Constrained Vocabulary Expansion, Depth-First Graph Traversal, Graphify Query Reference, Saved Query Feedback Loop, Graph Work Reflections
@@ -492,22 +864,6 @@ Nodes (6): Breadth-First Graph Traversal, Constrained Vocabulary Expansion, Dept
 Cohesion: 0.33
 Nodes (6): Annotation Product Invariants, Legacy Dimension and Recognition Rules, Legacy LB Test DLL Flow, Legacy Loose-Hole Global-Boundary Rule, Legacy AUTOFIXDIM Project Rules, Real Geometry Attachment Rules
 
-### Community 96 - "Resolve Annotation Layer"
-Cohesion: 0.33
-Nodes (4): LayerManager, Database, string, Transaction
-
-### Community 97 - "OutlineSegment Module"
-Cohesion: 0.33
-Nodes (3): OutlineSegment, ObjectId, Point2d
-
-### Community 98 - "DimensionLayoutRules Module"
-Cohesion: 0.33
-Nodes (5): ExtensionLineBreakCandidate, IndexedLayoutItem, LayoutBlock, StackingLayerItem, TextSlideCandidate
-
-### Community 99 - "Resolve Annotation Layer"
-Cohesion: 0.40
-Nodes (4): LayerManager, Database, string, Transaction
-
 ### Community 100 - "Graphify Export Reference"
 Cohesion: 0.50
 Nodes (4): Graphify Export Reference, Graphify MCP Server, Optional Graph Exports, Token Reduction Benchmark
@@ -515,10 +871,6 @@ Nodes (4): Graphify Export Reference, Graphify MCP Server, Optional Graph Export
 ### Community 101 - "GitHub and Merge Reference"
 Cohesion: 0.50
 Nodes (4): Cross-Repository Graph Merge, GitHub and Merge Reference, GitHub Repository Clone, Monorepo Subgraph Merge
-
-### Community 103 - "OutlineSelection Module"
-Cohesion: 0.50
-Nodes (3): OutlineSelection, List, ObjectId
 
 ### Community 105 - "Test Has Property"
 Cohesion: 0.83
@@ -529,24 +881,24 @@ Nodes (3): Get-PhysicalRank(), Test-DimensionSelector(), Test-HasProperty()
   PROJECT_HANDOFF.md · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **50 isolated node(s):** `DiameterJigResult`, `DimSide`, `DimensionType`, `HoleKind`, `CornerCalloutJigResult` (+45 more)
+- **114 isolated node(s):** `OutlineEntityCandidate`, `DiameterJigResult`, `SlotArcCandidate`, `SlotLineCandidate`, `ThreadArcInfo` (+109 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **531 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **What is the exact relationship between `2026-05-28 Loose-Hole Boundary Decision` and `Local Boundary Placement Rules`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `OutlineFeature` connect `OutlineFeature Module` to `GeometryCollector Module`, `DimensionDrawer Module`, `Commands Module`, `DimensionDrawer Module`, `DimensionDrawer Module`, `DimensionDrawer Module`, `OutlineSegment Module`, `HoleFeature Module`, `Commands Module`, `DimensionDrawer Module`, `DatumDefinition Module`, `SlotFeature Module`, `DimensionDrawer Module`, `Flush Side`, `DimensionDrawer Module`, `DimensionDrawer Module`, `Point2d Module`, `DimSide Module`, `Point3d Module`, `DimensionDrawer Module`, `DimensionDrawer Module`, `CadToCoreModelMapper Module`, `Recognize Outline`, `HoleDiameterLeaderRenderer Module`, `DimensionDrawer Module`, `OutlineArc Module`, `CadToCoreModelMapper Module`, `Build Hole Callout Plans For`, `From Outline`?**
-  _High betweenness centrality (0.255) - this node is a cross-community bridge._
-- **Why does `DimensionRuleConfig` connect `DimensionRuleConfig Module` to `Point2D Module`, `OutlineFeature2D Module`, `GeometryCollector Module`, `FeatureRecognizer2D Module`, `StructureSuppressionRules Module`, `DimensionDrawer Module`, `FeatureRecognizer Module`, `FeatureRecognizer Module`, `HoleCalloutPlan Module`, `DimensionLayoutRules Module`, `StructureEndpointRules Module`, `FeatureRecognizer2D Module`, `NativeDiameterDimensioner Module`, `NativeDiameterDimensioner Module`, `DimensionRuleConfig Module`, `DimensionDrawer Module`, `CadEntityWriter Module`, `CornerCalloutRenderer Module`, `CadEntityWriter Module`, `DimensionDeduplicationRules Module`, `CornerCalloutRenderer Module`, `DimensionRuleConfig Module`, `HoleDiameterLeaderRenderer Module`?**
-  _High betweenness centrality (0.152) - this node is a cross-community bridge._
-- **Why does `OutlineFeature2D` connect `OutlineFeature2D Module` to `Point2D Module`, `HoleFeature2D Module`, `DimensionPlan Module`, `FeatureRecognizer2D Module`, `Assert Module`, `Commands Module`, `StructureSuppressionRules Module`, `Recognize Outline From Segments`, `DimSide Module`, `CadAuto Core Geometry`, `CadToCoreModelMapper Module`, `Segment2D Module`, `DimensionSide Module`, `FeatureRecognizer2D Module`, `StackingLayerItem Module`, `StructureEndpointRules Module`, `CadToCoreModelMapper Module`?**
-  _High betweenness centrality (0.110) - this node is a cross-community bridge._
-- **What connects `DiameterJigResult`, `DimSide`, `DimensionType` to the rest of the system?**
-  _50 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Why does `CadAuto.CadAdapter.Model` connect `CadAuto CadAdapter Model` to `SlotFeature Module`, `CadAuto Core Rules`, `DimensionPlanCadItem Module`, `DimensionDrawer Module`, `FeatureRecognizer Module`, `CadAuto Core Geometry`, `DimensionExtensionLineRenderer Module`, `DimensionDrawer Module`?**
+  _High betweenness centrality (0.113) - this node is a cross-community bridge._
+- **Why does `CadAuto.Core.Rules` connect `CadAuto Core Geometry` to `CadAuto Core Rules`, `DebugAnnotationRenderer Module`, `CornerCalloutRenderer Module`, `DimensionDrawer Module`, `FeatureRecognizer Module`, `CadEntityWriter Module`, `CadAuto CadAdapter Model`, `DimensionRuleConfig Module`, `StackingLayerItem Module`, `DimensionDrawer Module`?**
+  _High betweenness centrality (0.106) - this node is a cross-community bridge._
+- **Why does `CadAuto.CadAdapter.Rendering` connect `CadAuto CadAdapter Model` to `CadAuto Core Rules`, `DimensionPlanCadItem Module`, `DebugAnnotationRenderer Module`, `CornerCalloutRenderer Module`, `DimensionDrawer Module`, `CadEntityWriter Module`, `CadAuto Core Geometry`, `Get Break Ranges For Extension`, `OutlineArc Module`?**
+  _High betweenness centrality (0.076) - this node is a cross-community bridge._
+- **What connects `OutlineEntityCandidate`, `DiameterJigResult`, `SlotArcCandidate` to the rest of the system?**
+  _114 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Point2D Module` be split into smaller, more focused modules?**
-  _Cohesion score 0.04974528019178903 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06479081821547575 - nodes in this community are weakly interconnected._
 - **Should `OutlineFeature2D Module` be split into smaller, more focused modules?**
-  _Cohesion score 0.05745707552463248 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06361570918532944 - nodes in this community are weakly interconnected._

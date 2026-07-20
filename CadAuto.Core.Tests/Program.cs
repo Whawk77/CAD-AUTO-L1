@@ -38,6 +38,8 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(OverallCompactsToOnePhysicalSpacing), OverallCompactsToOnePhysicalSpacing);
 				RunTest(nameof(EffectiveSpanControlsHorizontalStacking), EffectiveSpanControlsHorizontalStacking);
 				RunTest(nameof(SharedArrowEndpointUsesStrictSpanOrder), SharedArrowEndpointUsesStrictSpanOrder);
+				RunTest(nameof(StructureAlignmentKeyAlignsAdjacentSegmentsOnSameLevel), StructureAlignmentKeyAlignsAdjacentSegmentsOnSameLevel);
+				RunTest(nameof(OutlineSegmentsThatPartitionOverallAreSuppressed), OutlineSegmentsThatPartitionOverallAreSuppressed);
 				RunTest(nameof(EffectiveSpanControlsVerticalStacking), EffectiveSpanControlsVerticalStacking);
 				RunTest(nameof(NearEqualEffectiveSpansUseSemanticTieBreak), NearEqualEffectiveSpansUseSemanticTieBreak);
 				RunTest(nameof(LayoutBlocksUseBottomV203SpanOrder), LayoutBlocksUseBottomV203SpanOrder);
@@ -60,6 +62,8 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(ChamferSuppressesAdjacentLocalLinearDimensions), ChamferSuppressesAdjacentLocalLinearDimensions);
                 RunTest(nameof(NonFortyFiveSlopeIsNotChamfer), NonFortyFiveSlopeIsNotChamfer);
                 RunTest(nameof(VerticalStructurePointsCreateStepWidths), VerticalStructurePointsCreateStepWidths);
+                RunTest(nameof(StructureWidthsThatPartitionOverallAreSuppressed), StructureWidthsThatPartitionOverallAreSuppressed);
+                RunTest(nameof(LocalTopStructureWidthIsKeptWhenNotPartitioningOverall), LocalTopStructureWidthIsKeptWhenNotPartitioningOverall);
                 RunTest(nameof(HorizontalStructurePointsCreateStepHeights), HorizontalStructurePointsCreateStepHeights);
                 RunTest(nameof(DiagonalFragmentsDoNotCreateStructureDimensions), DiagonalFragmentsDoNotCreateStructureDimensions);
                 RunTest(nameof(BottomInclinedStructurePointsRequireInnerGrooveChamfer), BottomInclinedStructurePointsRequireInnerGrooveChamfer);
@@ -80,6 +84,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(PinAlignmentKeySplitsStrictVerticalOverlapsIntoLanes), PinAlignmentKeySplitsStrictVerticalOverlapsIntoLanes);
 				RunTest(nameof(EquivalentPinGroupTransfersSuppressAcrossDebugOwners), EquivalentPinGroupTransfersSuppressAcrossDebugOwners);
 				RunTest(nameof(FunctionalHolesAttachToPinGroup), FunctionalHolesAttachToPinGroup);
+				RunTest(nameof(HoleBetweenPinPairAttachesAsFunctionalHole), HoleBetweenPinPairAttachesAsFunctionalHole);
 				RunTest(nameof(FunctionalHoleAlignmentUsesSeparateSameOrientationLane), FunctionalHoleAlignmentUsesSeparateSameOrientationLane);
 				RunTest(nameof(FunctionalHoleAlignmentPreservesV198Stacking), FunctionalHoleAlignmentPreservesV198Stacking);
                 RunTest(nameof(PreferredSideLockedHoleLocationUsesLocalBoundary), PreferredSideLockedHoleLocationUsesLocalBoundary);
@@ -628,6 +633,66 @@ namespace CadAuto.Core.Tests
 				$"adjacent dimensions that share an arrow endpoint must keep the shorter span physically inside the longer span (levels {placements[0].Level}/{placements[1].Level})");
 			Assert(placements.Values.All(placement => placement.PhysicalOrderValidated),
 				"shared-endpoint span ordering must pass physical-order validation");
+		}
+
+		private static void StructureAlignmentKeyAlignsAdjacentSegmentsOnSameLevel()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(200.0, 100.0);
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.Normal, FirstPoint = new Point2D(0.0, 100.0), SecondPoint = new Point2D(73.0, 100.0), Span = 73.0, AlignmentKey = "Structure:T:H", AlignmentPriority = 70, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "TopStructWidth" },
+				new DimensionLayoutItem { Kind = DimensionKind.Normal, FirstPoint = new Point2D(73.0, 100.0), SecondPoint = new Point2D(160.554, 100.0), Span = 87.554, AlignmentKey = "Structure:T:H", AlignmentPriority = 70, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "TopStructWidth" }
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Top, outline, 2.5, 1.0, 5.0, 6.5, isHorizontal: true).ToDictionary(item => item.Index);
+
+			Assert(placements[0].Level == placements[1].Level,
+				$"adjacent structure segments that share an alignment key must stay on the same stacking level (levels {placements[0].Level}/{placements[1].Level})");
+			Assert(placements[0].LayoutBlockType == "RootedAlignmentLane" && placements[1].LayoutBlockType == "RootedAlignmentLane",
+				"structure alignment key members must form a rooted alignment lane");
+			Assert(placements[0].LayoutBlockId == placements[1].LayoutBlockId,
+				"adjacent structure segments must share one rooted layout block");
+		}
+
+		private static void OutlineSegmentsThatPartitionOverallAreSuppressed()
+		{
+			// Collinear bottom edge split into 25 + 232 = overall 257 (repro of ASD4 bottom).
+			// Raw OutlineSegment pair restates overall and must not remain selected.
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 257.0,
+				MaxY = 20.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(25.0, 0.0), "bottom-left");
+			AddSegment(outline, new Point2D(25.0, 0.0), new Point2D(257.0, 0.0), "bottom-right");
+			AddSegment(outline, new Point2D(257.0, 0.0), new Point2D(257.0, 20.0), "right");
+			AddSegment(outline, new Point2D(257.0, 20.0), new Point2D(0.0, 20.0), "top");
+			AddSegment(outline, new Point2D(0.0, 20.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 257.0) <= config.GeometryTolerance),
+				"overall width 257 must remain");
+			Assert(!plan.Dimensions.Any(d => d.DebugRole == "OutlineSegment"
+					&& d.Side == DimensionSide.Bottom),
+				"bottom OutlineSegment dims that partition overall must not remain selected");
+			var suppressedBottom = plan.Diagnostics.DimensionCandidates
+				.Where(c => c.DebugRole == "OutlineSegment"
+					&& c.PlacementSide == DimensionSide.Bottom.ToString()
+					&& c.IsSuppressed)
+				.ToList();
+			Assert(suppressedBottom.Count >= 2
+					&& suppressedBottom.Any(c => Math.Abs(c.Value - 25.0) <= config.GeometryTolerance)
+					&& suppressedBottom.Any(c => Math.Abs(c.Value - 232.0) <= config.GeometryTolerance),
+				"both 25 and 232 OutlineSegments must be suppressed");
+			Assert(suppressedBottom.All(c => c.SuppressedReason == "OutlineSegmentOverallPartition"
+					|| c.SuppressedReason == "ComplementaryOutlineRemainder"
+					|| c.SuppressedReason == "MirroredDuplicate"),
+				"partition OutlineSegments must use partition/remainder/mirror reasons");
 		}
 
 		private static void EffectiveSpanControlsVerticalStacking()
@@ -1261,7 +1326,76 @@ namespace CadAuto.Core.Tests
                     && d.Orientation == DimensionOrientation.Horizontal
                     && Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 60.0) <= 0.001),
                 "bottom structure width should remove the longest extension candidate");
+            Assert(plan.Dimensions.Where(d => d.DebugRole == "TopStructWidth").All(d =>
+                    d.AlignmentKey == "Structure:T:H" && d.AlignmentPriority == 70),
+                "top structure widths must share Structure:T:H alignment key");
+            Assert(plan.Dimensions.Where(d => d.DebugRole == "BottomStructWidth").All(d =>
+                    d.AlignmentKey == "Structure:B:H" && d.AlignmentPriority == 70),
+                "bottom structure widths must share Structure:B:H alignment key");
         }
+
+		private static void StructureWidthsThatPartitionOverallAreSuppressed()
+		{
+			// Cross-side partition: BottomStruct 25 + TopStruct 232 = Overall 257 → both suppressed.
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 257.0,
+				MaxY = 20.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(25.0, 0.0), "bottom-left");
+			AddSegment(outline, new Point2D(25.0, 0.0), new Point2D(25.0, 20.0), "shoulder");
+			AddSegment(outline, new Point2D(25.0, 0.0), new Point2D(257.0, 0.0), "bottom-main");
+			AddSegment(outline, new Point2D(257.0, 0.0), new Point2D(257.0, 20.0), "right");
+			AddSegment(outline, new Point2D(257.0, 20.0), new Point2D(0.0, 20.0), "top");
+			AddSegment(outline, new Point2D(0.0, 20.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 257.0) <= config.GeometryTolerance),
+				"overall width 257 must remain");
+			// Selected structure widths must not form an overall partition pair.
+			var selectedStruct = plan.Dimensions
+				.Where(d => d.DebugRole == "TopStructWidth" || d.DebugRole == "BottomStructWidth")
+				.ToList();
+			Assert(!selectedStruct.Any(a => selectedStruct.Any(b => a != b
+					&& Math.Abs(Math.Abs(a.SecondPoint.X - a.FirstPoint.X) + Math.Abs(b.SecondPoint.X - b.FirstPoint.X) - 257.0) <= config.GeometryTolerance)),
+				"no selected structure pair may partition overall 257");
+			// Complementary remainder / partition should remove the long leftover edge 232.
+			Assert(!selectedStruct.Any(d => Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 232.0) <= config.GeometryTolerance),
+				"structure width 232 (overall remainder) must not remain selected");
+		}
+
+		private static void LocalTopStructureWidthIsKeptWhenNotPartitioningOverall()
+		{
+			// Local step width 40 on overall 100 — must keep structure width (positioning), not treat as overall partition.
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 100.0,
+				MaxY = 50.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(0.0, 50.0), "left");
+			AddSegment(outline, new Point2D(40.0, 10.0), new Point2D(40.0, 45.0), "middle");
+			AddSegment(outline, new Point2D(100.0, 0.0), new Point2D(100.0, 50.0), "right");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d =>
+					(d.DebugRole == "TopStructWidth" || d.DebugRole == "BottomStructWidth")
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 40.0) <= config.GeometryTolerance),
+				"local structure width 40 must remain when it does not partition overall 100");
+			Assert(plan.Diagnostics.DimensionCandidates
+					.Where(c => (c.DebugRole == "TopStructWidth" || c.DebugRole == "BottomStructWidth")
+						&& Math.Abs(c.Value - 40.0) <= config.GeometryTolerance)
+					.All(c => c.SuppressedReason != "StructureOverallPartition"),
+				"local structure width must not be suppressed as StructureOverallPartition");
+		}
 
         private static void HorizontalStructurePointsCreateStepHeights()
         {
@@ -1953,6 +2087,60 @@ namespace CadAuto.Core.Tests
 				"functional-hole dimensions must inherit their pin group's vertical side");
         }
 
+		private static void HoleBetweenPinPairAttachesAsFunctionalHole()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(300.0, 40.0);
+			// Two pin pairs, each with one normal hole strictly between the pins (repro of the bar fixture).
+			var datumPin = CreateHole(210.0, 20.0, 6.0, HoleKind2D.Pin);
+			var holes = new List<HoleFeature2D>
+			{
+				// Right pin group (datum): pins at 180/210, hole at midpoint 195
+				CreateHole(180.0, 20.0, 6.0, HoleKind2D.Pin),
+				datumPin,
+				CreateHole(195.0, 20.0, 8.0, HoleKind2D.Normal),
+				// Left pin group: pins at 80/110, hole at midpoint 95
+				CreateHole(80.0, 20.0, 6.0, HoleKind2D.Pin),
+				CreateHole(110.0, 20.0, 6.0, HoleKind2D.Pin),
+				CreateHole(95.0, 20.0, 8.0, HoleKind2D.Normal),
+				// Far-left isolated hole should remain loose (not between any pin pair)
+				CreateHole(30.0, 20.0, 8.0, HoleKind2D.Normal)
+			};
+			var datum = Datum2D.FromOutline(outline);
+			datum.DatumHole = datumPin;
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, holes);
+
+			var functional = plan.Dimensions.Where(d => d.DebugRole == "FunctionalHole").ToList();
+			var loose = plan.Dimensions.Where(d => d.DebugRole == "LooseHole").ToList();
+
+			Assert(plan.PinGroups.Count == 2, "fixture must form two pin groups");
+			Assert(functional.Count > 0 && functional.All(d => d.DebugOwner == "PG1" || d.DebugOwner == "PG2"),
+				"holes between pin pairs must become FunctionalHole owned by a pin group");
+			// Each between-pin hole should be located from its group's base pin (horizontal span 15 = half of pin distance 30).
+			Assert(functional.Count(d => d.Orientation == DimensionOrientation.Horizontal
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 15.0) <= config.GeometryTolerance) >= 2,
+				"each between-pin hole must be dimensioned 15 from the owning base pin");
+			Assert(functional.All(d =>
+					plan.PinGroups.Any(g => g.BasePin != null
+						&& (IsNear(d.FirstPoint, g.BasePin.Center, config) || IsNear(d.SecondPoint, g.BasePin.Center, config)))),
+				"functional-hole dimensions must use the pin-group base pin as one endpoint");
+			Assert(!loose.Any(d => Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 100.0) <= 1.0
+					|| Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 93.0) <= 1.0),
+				"between-pin holes must not form a long loose chain across pin groups");
+			// Isolated left hole may still emit a short location, but not re-chain the pin-pair midpoints.
+			Assert(!loose.Any(d =>
+					Math.Abs(d.FirstPoint.X - 95.0) <= config.GeometryTolerance
+					|| Math.Abs(d.SecondPoint.X - 95.0) <= config.GeometryTolerance
+					|| Math.Abs(d.FirstPoint.X - 195.0) <= config.GeometryTolerance
+					|| Math.Abs(d.SecondPoint.X - 195.0) <= config.GeometryTolerance),
+				"between-pin holes must not appear in LooseHole dimensions");
+		}
+
+		private static bool IsNear(Point2D a, Point2D b, DimensionRuleConfig config)
+		{
+			return Math.Abs(a.X - b.X) <= config.GeometryTolerance && Math.Abs(a.Y - b.Y) <= config.GeometryTolerance;
+		}
+
 		private static void PreferredSideLockedHoleLocationUsesLocalBoundary()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -2087,10 +2275,18 @@ namespace CadAuto.Core.Tests
 
             var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, holes);
 
-            Assert(plan.Dimensions.Count(d => d.DebugRole == "LooseHole") == 1,
-                "concentric loose holes should share a single hole-location dimension");
-            Assert(plan.Dimensions.Any(d => d.DebugRole == "LooseHole" && Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 15.0) <= 0.001),
-                "concentric loose hole location should be measured from the pin group base");
+			// Concentric non-pin holes sit between the pin pair → claimed as FunctionalHole from base pin.
+			// Same measured span should collapse to one selected location (duplicate suppressed).
+			var functionalHorizontal = plan.Diagnostics.DimensionCandidates
+				.Where(d => d.DebugRole == "FunctionalHole"
+					&& d.Orientation == DimensionOrientation.Horizontal.ToString()
+					&& Math.Abs(d.Value - 15.0) <= 0.001)
+				.ToList();
+			Assert(functionalHorizontal.Count >= 1, "concentric between-pin holes must locate from the pin-group base as FunctionalHole");
+			Assert(functionalHorizontal.Count(d => d.IsSelected) == 1,
+				"concentric between-pin holes that share the same center must keep a single selected location dimension");
+			Assert(!plan.Dimensions.Any(d => d.DebugRole == "LooseHole"),
+				"between-pin concentric holes must not fall through to LooseHole");
         }
 
         private static void HoleLocationDimensionsUseSegmentedExtensionLines()

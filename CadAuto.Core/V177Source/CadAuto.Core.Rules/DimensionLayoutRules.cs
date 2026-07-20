@@ -193,6 +193,7 @@ public sealed class DimensionLayoutRules
 		}
 		ApplyAlignmentCoordinateOverrides(placements, dimensions, alignmentLanes, side, outline);
 		ApplyRootedLayoutBlockCoordinateOverrides(placements, dimensions, side, outline);
+		EnsureLayoutBlockPhysicalOutwardOrder(placements, dimensions, layoutBlocks, side, outline, perLevelSpacing, isHorizontal);
 		EnsureOverallPhysicalOutermostOffset(placements, dimensions, side, outline, perLevelSpacing);
 		UpdatePhysicalOrderDiagnostics(placements, dimensions, layoutBlocks, side, outline, isHorizontal);
 		return placements;
@@ -313,7 +314,8 @@ public sealed class DimensionLayoutRules
 			IndexedLayoutItem pin = remaining
 				.Where(item => item != transfer
 					&& item.Dimension.Kind == DimensionKind.PinDistance
-					&& SharesArrowEndpoint(transfer.Dimension, item.Dimension, isHorizontal))
+					&& SharesArrowEndpoint(transfer.Dimension, item.Dimension, isHorizontal)
+					&& !HasStrictArrowConflict(transfer.Dimension, item.Dimension, isHorizontal))
 				.OrderByDescending(item => HasSameSourceFeature(transfer.Dimension, item.Dimension))
 				.ThenBy(item => item.SourceIndex)
 				.FirstOrDefault();
@@ -337,7 +339,8 @@ public sealed class DimensionLayoutRules
 			IndexedLayoutItem pin = remaining
 				.Where(item => item != datum
 					&& item.Dimension.Kind == DimensionKind.PinDistance
-					&& SharesArrowEndpoint(datum.Dimension, item.Dimension, isHorizontal))
+					&& SharesArrowEndpoint(datum.Dimension, item.Dimension, isHorizontal)
+					&& !HasStrictArrowConflict(datum.Dimension, item.Dimension, isHorizontal))
 				.OrderByDescending(item => HasSameSourceFeature(datum.Dimension, item.Dimension))
 				.ThenBy(item => item.SourceIndex)
 				.FirstOrDefault();
@@ -786,6 +789,67 @@ public sealed class DimensionLayoutRules
 			};
 			placement.Offset = Math.Max(clearance, val);
 		}
+	}
+
+	private void EnsureLayoutBlockPhysicalOutwardOrder(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, IList<LayoutBlock> layoutBlocks, DimensionSide side, OutlineFeature2D outline, double perLevelSpacing, bool isHorizontal)
+	{
+		if (placements == null || dimensions == null || layoutBlocks == null || placements.Count < 2)
+		{
+			return;
+		}
+		Dictionary<string, List<DimensionStackingPlacement>> placementsByBlock = placements
+			.GroupBy(placement => placement.LayoutBlockId, StringComparer.Ordinal)
+			.ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
+		double clearance = Math.Max(Math.Abs(perLevelSpacing), _config.GeometryTolerance);
+		for (int outerIndex = 0; outerIndex < layoutBlocks.Count; outerIndex++)
+		{
+			LayoutBlock outer = layoutBlocks[outerIndex];
+			if (outer.ForceOuterLevel || !placementsByBlock.TryGetValue(outer.Id, out var outerPlacements))
+			{
+				continue;
+			}
+			double requiredMinimumRank = double.NegativeInfinity;
+			string promotedBy = string.Empty;
+			for (int innerIndex = 0; innerIndex < outerIndex; innerIndex++)
+			{
+				LayoutBlock inner = layoutBlocks[innerIndex];
+				if (!placementsByBlock.TryGetValue(inner.Id, out var innerPlacements) || !RequiresPhysicalOutwardOrder(inner, outer, isHorizontal))
+				{
+					continue;
+				}
+				double innerMaximumRank = innerPlacements.Max(placement => GetPlacementPhysicalOutwardRank(placement, dimensions, side, outline));
+				double requiredRank = innerMaximumRank + clearance;
+				if (requiredRank > requiredMinimumRank)
+				{
+					requiredMinimumRank = requiredRank;
+					promotedBy = inner.Id;
+				}
+			}
+			if (double.IsNegativeInfinity(requiredMinimumRank))
+			{
+				continue;
+			}
+			double outerMinimumRank = outerPlacements.Min(placement => GetPlacementPhysicalOutwardRank(placement, dimensions, side, outline));
+			if (outerMinimumRank >= requiredMinimumRank - _config.GeometryTolerance)
+			{
+				continue;
+			}
+			double outwardShift = requiredMinimumRank - outerMinimumRank;
+			foreach (DimensionStackingPlacement placement in outerPlacements)
+			{
+				double adjustedRank = GetPlacementPhysicalOutwardRank(placement, dimensions, side, outline) + outwardShift;
+				double coordinate = (side == DimensionSide.Bottom || side == DimensionSide.Left) ? (0.0 - adjustedRank) : adjustedRank;
+				placement.DimLineCoordinateOverride = coordinate;
+			}
+			outer.PromotedByConflictWith = promotedBy;
+		}
+	}
+
+	private double GetPlacementPhysicalOutwardRank(DimensionStackingPlacement placement, IList<DimensionLayoutItem> dimensions, DimensionSide side, OutlineFeature2D outline)
+	{
+		DimensionLayoutItem dimension = dimensions[placement.Index];
+		double coordinate = placement.DimLineCoordinateOverride ?? GetDimLineCoordinate(dimension, side, outline, placement.Offset);
+		return GetPhysicalOutwardRank(side, coordinate);
 	}
 
 	private static void PromoteOverallDimensionsToOutermostLayer(List<List<StackingLayerItem>> layers)

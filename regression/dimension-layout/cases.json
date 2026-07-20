@@ -53,6 +53,7 @@
       "targetExpectation": "expectations/DL01-left-block-span-order.v203-target.json",
       "manualChecks": [
         "左侧尺寸按 -X 方向由内向外排列",
+        "共享端点但箭头区间严格重叠的 PD/GD 必须拆到不同尺寸线",
         "互不干扰的尺寸允许共享层级",
         "Overall201.5 永远位于最外层",
         "尺寸文字、引线和轮廓之间没有肉眼可见的遮挡或穿越"

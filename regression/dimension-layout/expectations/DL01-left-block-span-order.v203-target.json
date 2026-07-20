@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "caseId": "DL01-left-block-span-order",
-  "description": "v203 左侧布局块、有效跨度与 -X 物理方向目标",
+  "description": "v203 左侧严格重叠拆层、布局块有效跨度与 -X 物理方向目标",
   "requiredDimensionFields": [
     "id",
     "placementSide",
@@ -41,14 +41,32 @@
       "effectiveSpanTolerance": 0.01
     },
     {
-      "id": "rooted-pg2-chain-45",
+      "id": "pg3-pin-30",
       "selectors": [
-        { "alignmentKey": "PG1:DatumChain:V", "sourceFeatureId": "PG2" }
+        { "debugRole": "PinDistance", "sourceFeatureId": "PG3", "valueApprox": 30.0, "valueTolerance": 0.01, "layoutBlockType": "RootedAlignmentLane" }
       ],
-      "minCount": 2,
-      "maxCount": 2,
-      "requireSameCoordinate": true,
-      "requireSameLayoutBlock": true,
+      "minCount": 1,
+      "maxCount": 1,
+      "expectedEffectiveSpan": 30.0,
+      "effectiveSpanTolerance": 0.01
+    },
+    {
+      "id": "pg2-transfer-41",
+      "selectors": [
+        { "debugRole": "PinGroupDistance", "sourceFeatureId": "PG2", "valueApprox": 41.0, "valueTolerance": 0.01, "layoutBlockType": "RootedAlignmentLane" }
+      ],
+      "minCount": 1,
+      "maxCount": 1,
+      "expectedEffectiveSpan": 41.0,
+      "effectiveSpanTolerance": 0.01
+    },
+    {
+      "id": "pg2-pin-45",
+      "selectors": [
+        { "debugRole": "PinDistance", "sourceFeatureId": "PG2", "valueApprox": 45.0, "valueTolerance": 0.01, "layoutBlockType": "RootedAlignmentLane" }
+      ],
+      "minCount": 1,
+      "maxCount": 1,
       "expectedEffectiveSpan": 45.0,
       "effectiveSpanTolerance": 0.01
     },
@@ -63,15 +81,12 @@
       "effectiveSpanTolerance": 0.01
     },
     {
-      "id": "rooted-pg3-pg4-chain-176.5",
+      "id": "pg4-transfer-176.5",
       "selectors": [
-        { "alignmentKey": "PG1:DatumChain:V", "sourceFeatureId": "PG3" },
-        { "alignmentKey": "PG1:DatumChain:V", "sourceFeatureId": "PG4" }
+        { "debugRole": "PinGroupDistance", "sourceFeatureId": "PG4", "valueApprox": 176.5, "valueTolerance": 0.01, "layoutBlockType": "RootedAlignmentLane" }
       ],
-      "minCount": 2,
-      "maxCount": 2,
-      "requireSameCoordinate": true,
-      "requireSameLayoutBlock": true,
+      "minCount": 1,
+      "maxCount": 1,
       "expectedEffectiveSpan": 176.5,
       "effectiveSpanTolerance": 0.01
     },
@@ -87,10 +102,12 @@
     }
   ],
   "outwardConstraints": [
-    { "inner": "functional-15", "outer": "rooted-pg2-chain-45" },
-    { "inner": "rooted-pg2-chain-45", "outer": "rooted-pg3-pg4-chain-176.5" },
+    { "inner": "functional-15", "outer": "pg3-pin-30" },
+    { "inner": "pg3-pin-30", "outer": "pg2-transfer-41" },
+    { "inner": "pg2-transfer-41", "outer": "pg2-pin-45" },
+    { "inner": "pg2-pin-45", "outer": "pg4-transfer-176.5" },
     { "inner": "outline-20", "outer": "loose-chain-48.5" },
-    { "inner": "loose-chain-48.5", "outer": "rooted-pg3-pg4-chain-176.5" },
-    { "inner": "rooted-pg3-pg4-chain-176.5", "outer": "overall-201.5" }
+    { "inner": "loose-chain-48.5", "outer": "pg4-transfer-176.5" },
+    { "inner": "pg4-transfer-176.5", "outer": "overall-201.5" }
   ]
 }

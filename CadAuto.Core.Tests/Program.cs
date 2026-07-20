@@ -44,7 +44,8 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(RootedLayoutBlockSurvivesLegacyLaneProcessing), RootedLayoutBlockSurvivesLegacyLaneProcessing);
 				RunTest(nameof(LooseChainFormsOneEffectiveSpanBlock), LooseChainFormsOneEffectiveSpanBlock);
 				RunTest(nameof(DisconnectedLooseChainsRemainSeparateBlocks), DisconnectedLooseChainsRemainSeparateBlocks);
-				RunTest(nameof(OverlappingRootedTransfersFormLeftV203Blocks), OverlappingRootedTransfersFormLeftV203Blocks);
+				RunTest(nameof(OverlappingRootedIntervalsSplitIntoSeparateLeftBlocks), OverlappingRootedIntervalsSplitIntoSeparateLeftBlocks);
+				RunTest(nameof(OverlappingDatumAndPinIntervalsSplitIntoSeparateBlocks), OverlappingDatumAndPinIntervalsSplitIntoSeparateBlocks);
 				RunTest(nameof(IndependentLocalAndGlobalDimensionsMayShareLogicalLevel), IndependentLocalAndGlobalDimensionsMayShareLogicalLevel);
 				RunTest(nameof(IsolatedShortPinGroupTransferUsesInnerSpanOrder), IsolatedShortPinGroupTransferUsesInnerSpanOrder);
 				RunTest(nameof(DimensionDiagnosticsRecordFinalPlacement), DimensionDiagnosticsRecordFinalPlacement);
@@ -758,33 +759,77 @@ namespace CadAuto.Core.Tests
 				"disconnected loose dimensions with different chain identifiers must remain separate layout blocks");
 		}
 
-		private static void OverlappingRootedTransfersFormLeftV203Blocks()
+		private static void OverlappingRootedIntervalsSplitIntoSeparateLeftBlocks()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
-			var outline = CreateRectangle(100.0, 201.5);
+			var outline = CreateTopLeftShoulderOutline();
 			var dimensions = new[]
 			{
-				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(0.0, 41.0), Span = 41.0, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG2" },
-				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(0.0, 176.5), Span = 176.5, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG4" },
-				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(0.0, -4.0), SecondPoint = new Point2D(0.0, 41.0), Span = 45.0, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 100, ReadingLevel = DimensionReadingLevel.IntraGroup, SourceFeatureId = "PG2" },
-				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(0.0, 30.0), Span = 30.0, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 100, ReadingLevel = DimensionReadingLevel.IntraGroup, SourceFeatureId = "PG3" },
-				new DimensionLayoutItem { Kind = DimensionKind.OverallHeight, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(0.0, 201.5), Span = 201.5, ForceOuterLevel = true, ReadingLevel = DimensionReadingLevel.Overall }
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(245.5, 15.0), SecondPoint = new Point2D(121.5, 56.0), Span = 41.0, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG2" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(245.5, 15.0), SecondPoint = new Point2D(22.0, 191.5), Span = 176.5, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG4" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(121.5, 56.0), SecondPoint = new Point2D(71.5, 11.0), Span = 45.0, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 100, ReadingLevel = DimensionReadingLevel.IntraGroup, SourceFeatureId = "PG2" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(22.0, 45.0), SecondPoint = new Point2D(22.0, 15.0), Span = 30.0, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 100, ReadingLevel = DimensionReadingLevel.IntraGroup, SourceFeatureId = "PG3" },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(22.0, 45.0), SecondPoint = new Point2D(22.0, 30.0), Span = 15.0, PreferLocalBoundary = true, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "PG3" },
+				new DimensionLayoutItem { Kind = DimensionKind.Normal, FirstPoint = new Point2D(-33.0, 181.5), SecondPoint = new Point2D(-33.0, 201.5), Span = 20.0, ReadingLevel = DimensionReadingLevel.LocalSpacing },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(22.0, 191.5), SecondPoint = new Point2D(24.0, 143.0), Span = 48.5, LooseChainId = 6, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "L6" },
+				new DimensionLayoutItem { Kind = DimensionKind.OverallHeight, FirstPoint = new Point2D(5.0, 0.0), SecondPoint = new Point2D(-33.0, 201.5), Span = 201.5, ForceOuterLevel = true, ReadingLevel = DimensionReadingLevel.Overall }
 			};
-			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Left, outline, 2.5, 1.25, 5.0, 6.5, isHorizontal: false).ToDictionary(item => item.Index);
+			var rules = new DimensionLayoutRules(config);
+			var placements = rules.CreateStackingPlan(dimensions, DimensionSide.Left, outline, 2.5, 1.25, 10.0, 6.5, isHorizontal: false).ToDictionary(item => item.Index);
+			double pg2TransferCoordinate = placements[0].DimLineCoordinateOverride
+				?? rules.GetDimLineCoordinate(dimensions[0], DimensionSide.Left, outline, placements[0].Offset);
+			double pg2PinCoordinate = placements[2].DimLineCoordinateOverride
+				?? rules.GetDimLineCoordinate(dimensions[2], DimensionSide.Left, outline, placements[2].Offset);
+			double pg4TransferCoordinate = placements[1].DimLineCoordinateOverride
+				?? rules.GetDimLineCoordinate(dimensions[1], DimensionSide.Left, outline, placements[1].Offset);
+			double pg3PinCoordinate = placements[3].DimLineCoordinateOverride
+				?? rules.GetDimLineCoordinate(dimensions[3], DimensionSide.Left, outline, placements[3].Offset);
 
-			Assert(placements[0].LayoutBlockId == placements[2].LayoutBlockId
-				&& Math.Abs(placements[0].EffectiveSpan - 45.0) <= config.GeometryTolerance,
-				"the PG2 transfer and direct pin distance must form the left-side 45 block");
-			Assert(placements[1].LayoutBlockId == placements[3].LayoutBlockId
+			Assert(placements[0].LayoutBlockId != placements[2].LayoutBlockId
+				&& placements[0].Level < placements[2].Level
+				&& Math.Abs(pg2TransferCoordinate - pg2PinCoordinate) >= 6.5 - config.GeometryTolerance,
+				"shared-endpoint PG2 dimensions with overlapping arrow intervals must use separate levels");
+			Assert(placements[1].LayoutBlockId != placements[3].LayoutBlockId
+				&& placements[3].Level < placements[1].Level
+				&& Math.Abs(pg4TransferCoordinate - pg3PinCoordinate) >= 6.5 - config.GeometryTolerance,
+				"shared-endpoint PG3/PG4 dimensions with overlapping arrow intervals must use separate levels");
+			Assert(Math.Abs(placements[0].EffectiveSpan - 41.0) <= config.GeometryTolerance
+				&& Math.Abs(placements[2].EffectiveSpan - 45.0) <= config.GeometryTolerance
+				&& Math.Abs(placements[3].EffectiveSpan - 30.0) <= config.GeometryTolerance
 				&& Math.Abs(placements[1].EffectiveSpan - 176.5) <= config.GeometryTolerance,
-				"the remaining PG3/PG4 rooted members must form the left-side 176.5 block");
-			Assert(placements[0].DimLineCoordinateOverride.HasValue && placements[2].DimLineCoordinateOverride.HasValue
-				&& Math.Abs(placements[0].DimLineCoordinateOverride.Value - placements[2].DimLineCoordinateOverride.Value) <= config.GeometryTolerance
-				&& Math.Abs(placements[1].DimLineCoordinateOverride.Value - placements[3].DimLineCoordinateOverride.Value) <= config.GeometryTolerance,
-				"each overlapping rooted block must resolve to one physical dimension-line coordinate");
-			Assert(placements[0].Level < placements[1].Level && placements[1].Level < placements[4].Level
+				"split dimensions must preserve their own effective spans");
+			double pg4Rank = -pg4TransferCoordinate;
+			double looseCoordinate = placements[6].DimLineCoordinateOverride
+				?? rules.GetDimLineCoordinate(dimensions[6], DimensionSide.Left, outline, placements[6].Offset);
+			double overallCoordinate = placements[7].DimLineCoordinateOverride
+				?? rules.GetDimLineCoordinate(dimensions[7], DimensionSide.Left, outline, placements[7].Offset);
+			Assert(placements[2].Level < placements[1].Level
+				&& pg4Rank >= -looseCoordinate + 6.5 - config.GeometryTolerance
+				&& -overallCoordinate >= pg4Rank + 6.5 - config.GeometryTolerance
 				&& placements.Values.All(placement => placement.PhysicalOrderValidated),
-				"left-side rooted blocks must keep 45, 176.5, overall201.5 outward order");
+				"left-side split dimensions must retain physical outward order across local and global boundaries");
+		}
+
+		private static void OverlappingDatumAndPinIntervalsSplitIntoSeparateBlocks()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.DatumHoleLocationY, FirstPoint = new Point2D(40.0, 15.0), SecondPoint = new Point2D(40.0, 56.0), Span = 41.0, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 120, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG1" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(20.0, 11.0), SecondPoint = new Point2D(20.0, 56.0), Span = 45.0, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 100, ReadingLevel = DimensionReadingLevel.IntraGroup, SourceFeatureId = "PG1" }
+			};
+			var rules = new DimensionLayoutRules(config);
+			var placements = rules.CreateStackingPlan(dimensions, DimensionSide.Left, null, 2.5, 1.25, 5.0, 5.0, isHorizontal: false).ToDictionary(item => item.Index);
+			double datumCoordinate = placements[0].DimLineCoordinateOverride
+				?? rules.GetDimLineCoordinate(dimensions[0], DimensionSide.Left, null, placements[0].Offset);
+			double pinCoordinate = placements[1].DimLineCoordinateOverride
+				?? rules.GetDimLineCoordinate(dimensions[1], DimensionSide.Left, null, placements[1].Offset);
+
+			Assert(placements[0].LayoutBlockId != placements[1].LayoutBlockId
+				&& placements[0].Level < placements[1].Level
+				&& Math.Abs(datumCoordinate - pinCoordinate) >= 5.0 - config.GeometryTolerance
+				&& placements.Values.All(placement => placement.PhysicalOrderValidated),
+				"shared-endpoint datum and pin dimensions with overlapping arrow intervals must use separate levels");
 		}
 
 		private static void IndependentLocalAndGlobalDimensionsMayShareLogicalLevel()
@@ -2157,6 +2202,32 @@ namespace CadAuto.Core.Tests
 			for (int i = 1; i < points.Length; i++)
 			{
 				AddSegment(outline, points[i - 1], points[i], "right-notch");
+			}
+			return outline;
+		}
+
+		private static OutlineFeature2D CreateTopLeftShoulderOutline()
+		{
+			var outline = new OutlineFeature2D
+			{
+				MinX = -33.0,
+				MinY = 0.0,
+				MaxX = 100.0,
+				MaxY = 201.5
+			};
+			var points = new[]
+			{
+				new Point2D(0.0, 0.0),
+				new Point2D(100.0, 0.0),
+				new Point2D(100.0, 201.5),
+				new Point2D(-33.0, 201.5),
+				new Point2D(-33.0, 181.5),
+				new Point2D(0.0, 181.5),
+				new Point2D(0.0, 0.0)
+			};
+			for (int i = 1; i < points.Length; i++)
+			{
+				AddSegment(outline, points[i - 1], points[i], "top-left-shoulder");
 			}
 			return outline;
 		}

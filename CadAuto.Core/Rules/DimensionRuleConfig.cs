@@ -2,153 +2,177 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 
-namespace CadAuto.Core.Rules
+namespace CadAuto.Core.Rules;
+
+public sealed class DimensionRuleConfig
 {
-    public sealed class DimensionRuleConfig
-    {
-        public Dictionary<double, string> HoleFitTolerance { get; private set; }
-        public Dictionary<double, string> CenterDistanceTolerance { get; private set; }
-        public Dictionary<double, string> ThreadMinorDiameterCallout { get; private set; }
+	public Dictionary<double, string> HoleFitTolerance { get; private set; }
 
-        public double GeometryTolerance { get; set; }
-        public double TextHeight { get; set; }
-        public double ArrowSize { get; set; }
-        public double FirstDimOffset { get; set; }
-        public double DimTextClearance { get; set; }
-        public double LeaderOffset { get; set; }
-        public double ThreadArcAngleToleranceDegrees { get; set; }
-        public double ThreadMinorDiameterTolerance { get; set; }
-        public string DatumHoleLocationToleranceText { get; set; }
-        public bool DatumHoleLocationDefaultUseTolerance { get; set; }
-        public string PinCenterDistanceToleranceText { get; set; }
-        public string PinGroupDistanceToleranceText { get; set; }
-        public string PinHoleFitToleranceText { get; set; }
+	public Dictionary<double, string> CenterDistanceTolerance { get; private set; }
 
-        public DimensionRuleConfig()
-        {
-            HoleFitTolerance = new Dictionary<double, string>();
-            CenterDistanceTolerance = new Dictionary<double, string>();
-            ThreadMinorDiameterCallout = new Dictionary<double, string>();
-        }
+	public Dictionary<double, string> ThreadMinorDiameterCallout { get; private set; }
 
-        public static DimensionRuleConfig CreateDefault()
-        {
-            var config = new DimensionRuleConfig
-            {
-                GeometryTolerance = 0.001,
-                TextHeight = 2.5,
-                ArrowSize = 2.5,
-                FirstDimOffset = 10.0,
-                DimTextClearance = 3.0,
-                LeaderOffset = 12.0,
-                ThreadArcAngleToleranceDegrees = 10.0,
-                ThreadMinorDiameterTolerance = 0.25,
-                DatumHoleLocationToleranceText = "<>\u00B10.05",
-                DatumHoleLocationDefaultUseTolerance = false,
-                PinCenterDistanceToleranceText = "\u00B10.02",
-                PinGroupDistanceToleranceText = "\u00B10.05",
-                PinHoleFitToleranceText = "H7"
-            };
+	public double GeometryTolerance { get; set; }
 
-            config.CenterDistanceTolerance[30.0] = "\u00B10.02";
-            config.ThreadMinorDiameterCallout[4.917] = "M6";
-            config.ThreadMinorDiameterCallout[5.0] = "M6";
-            config.ThreadMinorDiameterCallout[6.647] = "M8";
-            config.ThreadMinorDiameterCallout[6.8] = "M8";
-            config.ThreadMinorDiameterCallout[8.376] = "M10";
-            config.ThreadMinorDiameterCallout[8.5] = "M10";
-            config.ThreadMinorDiameterCallout[10.106] = "M12";
-            config.ThreadMinorDiameterCallout[10.2] = "M12";
-            config.ThreadMinorDiameterCallout[13.835] = "M16";
-            config.ThreadMinorDiameterCallout[14.0] = "M16";
-            return config;
-        }
+	public double TextHeight { get; set; }
 
-        public string GetHoleFitTolerance(double diameter)
-        {
-            return TryFindByTolerance(HoleFitTolerance, diameter, out var value) ? value : string.Empty;
-        }
+	public double ArrowSize { get; set; }
 
-        public string GetCenterDistanceTolerance(double distance)
-        {
-            return TryFindByTolerance(CenterDistanceTolerance, distance, out var value) ? value : string.Empty;
-        }
+	public double FirstDimOffset { get; set; }
 
-        public string FormatHoleCallout(double diameter, int count)
-        {
-            return FormatHoleCallout(diameter, count, GetHoleFitTolerance(diameter));
-        }
+	public double DimTextClearance { get; set; }
 
-        public string FormatHoleCallout(double diameter, int count, string fitTolerance)
-        {
-            var diameterText = "%%c" + FormatNumber(diameter) + (fitTolerance ?? string.Empty);
-            return count > 1 ? count.ToString(CultureInfo.InvariantCulture) + "-" + diameterText : diameterText;
-        }
+	public double LeaderOffset { get; set; }
 
-        public string FormatCenterDistanceOverride(double distance)
-        {
-            var tolerance = GetCenterDistanceTolerance(distance);
-            return string.IsNullOrEmpty(tolerance) ? string.Empty : FormatNumber(distance) + tolerance;
-        }
+	public double ThreadArcAngleToleranceDegrees { get; set; }
 
-        public string FormatPinCenterDistanceOverride(double distance)
-        {
-            return FormatNumber(distance) + (PinCenterDistanceToleranceText ?? string.Empty);
-        }
+	public double ThreadMinorDiameterTolerance { get; set; }
 
-        public string FormatPinGroupDistanceOverride(double distance)
-        {
-            return FormatNumber(distance) + (PinGroupDistanceToleranceText ?? string.Empty);
-        }
+	public double ToleranceTextHeightScale { get; set; }
 
-        public string FormatThreadCallout(double diameter)
-        {
-            return "M" + FormatNumber(diameter);
-        }
+	public string DatumHoleLocationToleranceText { get; set; }
 
-        public string GetThreadCalloutForMinorDiameter(double diameter)
-        {
-            foreach (var pair in ThreadMinorDiameterCallout)
-            {
-                if (Math.Abs(pair.Key - diameter) <= ThreadMinorDiameterTolerance)
-                {
-                    return pair.Value;
-                }
-            }
+	public bool DatumHoleLocationDefaultUseTolerance { get; set; }
 
-            return string.Empty;
-        }
+	public string PinCenterDistanceToleranceText { get; set; }
 
-        public string FormatThreadCallout(double diameter, int count)
-        {
-            var text = FormatThreadCallout(diameter);
-            return count > 1 ? count.ToString(CultureInfo.InvariantCulture) + "-" + text : text;
-        }
+	public string PinGroupDistanceToleranceText { get; set; }
 
-        public string FormatThreadCallout(double diameter, int count, string explicitCallout)
-        {
-            var text = string.IsNullOrEmpty(explicitCallout) ? FormatThreadCallout(diameter) : explicitCallout;
-            return count > 1 ? count.ToString(CultureInfo.InvariantCulture) + "-" + text : text;
-        }
+	public string PinHoleFitToleranceText { get; set; }
 
-        public string FormatNumber(double value)
-        {
-            return value.ToString("0.###", CultureInfo.InvariantCulture);
-        }
+	public DimensionRuleConfig()
+	{
+		HoleFitTolerance = new Dictionary<double, string>();
+		CenterDistanceTolerance = new Dictionary<double, string>();
+		ThreadMinorDiameterCallout = new Dictionary<double, string>();
+	}
 
-        private bool TryFindByTolerance(Dictionary<double, string> rules, double actual, out string value)
-        {
-            foreach (var pair in rules)
-            {
-                if (Math.Abs(pair.Key - actual) <= GeometryTolerance)
-                {
-                    value = pair.Value;
-                    return true;
-                }
-            }
+	public static DimensionRuleConfig CreateDefault()
+	{
+		DimensionRuleConfig dimensionRuleConfig = new DimensionRuleConfig
+		{
+			GeometryTolerance = 0.001,
+			TextHeight = 2.5,
+			ArrowSize = 2.5,
+			FirstDimOffset = 10.0,
+			DimTextClearance = 3.0,
+			LeaderOffset = 12.0,
+			ThreadArcAngleToleranceDegrees = 10.0,
+			ThreadMinorDiameterTolerance = 0.25,
+			ToleranceTextHeightScale = 0.8,
+			DatumHoleLocationToleranceText = "<>\\H0.8x;±0.05\\H1x;",
+			DatumHoleLocationDefaultUseTolerance = false,
+			PinCenterDistanceToleranceText = "±0.02",
+			PinGroupDistanceToleranceText = "±0.05",
+			PinHoleFitToleranceText = "H7"
+		};
+		dimensionRuleConfig.CenterDistanceTolerance[30.0] = "±0.02";
+		dimensionRuleConfig.ThreadMinorDiameterCallout[4.917] = "M6";
+		dimensionRuleConfig.ThreadMinorDiameterCallout[5.0] = "M6";
+		dimensionRuleConfig.ThreadMinorDiameterCallout[6.647] = "M8";
+		dimensionRuleConfig.ThreadMinorDiameterCallout[6.8] = "M8";
+		dimensionRuleConfig.ThreadMinorDiameterCallout[8.376] = "M10";
+		dimensionRuleConfig.ThreadMinorDiameterCallout[8.5] = "M10";
+		dimensionRuleConfig.ThreadMinorDiameterCallout[10.106] = "M12";
+		dimensionRuleConfig.ThreadMinorDiameterCallout[10.2] = "M12";
+		dimensionRuleConfig.ThreadMinorDiameterCallout[13.835] = "M16";
+		dimensionRuleConfig.ThreadMinorDiameterCallout[14.0] = "M16";
+		return dimensionRuleConfig;
+	}
 
-            value = string.Empty;
-            return false;
-        }
-    }
+	public string GetHoleFitTolerance(double diameter)
+	{
+		string value;
+		return TryFindByTolerance(HoleFitTolerance, diameter, out value) ? value : string.Empty;
+	}
+
+	public string GetCenterDistanceTolerance(double distance)
+	{
+		string value;
+		return TryFindByTolerance(CenterDistanceTolerance, distance, out value) ? value : string.Empty;
+	}
+
+	public string FormatHoleCallout(double diameter, int count)
+	{
+		return FormatHoleCallout(diameter, count, GetHoleFitTolerance(diameter));
+	}
+
+	public string FormatHoleCallout(double diameter, int count, string fitTolerance)
+	{
+		string text = "%%c" + FormatNumber(diameter) + (fitTolerance ?? string.Empty);
+		return (count > 1) ? (count.ToString(CultureInfo.InvariantCulture) + "-" + text) : text;
+	}
+
+	public string FormatCenterDistanceOverride(double distance)
+	{
+		string centerDistanceTolerance = GetCenterDistanceTolerance(distance);
+		return string.IsNullOrEmpty(centerDistanceTolerance) ? string.Empty : (FormatNumber(distance) + FormatToleranceSuffix(centerDistanceTolerance));
+	}
+
+	public string FormatPinCenterDistanceOverride(double distance)
+	{
+		return FormatNumber(distance) + FormatToleranceSuffix(PinCenterDistanceToleranceText);
+	}
+
+	public string FormatPinGroupDistanceOverride(double distance)
+	{
+		return FormatNumber(distance) + FormatToleranceSuffix(PinGroupDistanceToleranceText);
+	}
+
+	public string FormatThreadCallout(double diameter)
+	{
+		return "M" + FormatNumber(diameter);
+	}
+
+	public string GetThreadCalloutForMinorDiameter(double diameter)
+	{
+		foreach (KeyValuePair<double, string> item in ThreadMinorDiameterCallout)
+		{
+			if (Math.Abs(item.Key - diameter) <= ThreadMinorDiameterTolerance)
+			{
+				return item.Value;
+			}
+		}
+		return string.Empty;
+	}
+
+	public string FormatThreadCallout(double diameter, int count)
+	{
+		string text = FormatThreadCallout(diameter);
+		return (count > 1) ? (count.ToString(CultureInfo.InvariantCulture) + "-" + text) : text;
+	}
+
+	public string FormatThreadCallout(double diameter, int count, string explicitCallout)
+	{
+		string text = (string.IsNullOrEmpty(explicitCallout) ? FormatThreadCallout(diameter) : explicitCallout);
+		return (count > 1) ? (count.ToString(CultureInfo.InvariantCulture) + "-" + text) : text;
+	}
+
+	public string FormatNumber(double value)
+	{
+		return value.ToString("0.###", CultureInfo.InvariantCulture);
+	}
+
+	private string FormatToleranceSuffix(string toleranceText)
+	{
+		if (string.IsNullOrEmpty(toleranceText))
+		{
+			return string.Empty;
+		}
+		return string.Format(CultureInfo.InvariantCulture, "\\H{0:0.###}x;{1}\\H1x;", (ToleranceTextHeightScale <= 0.0) ? 0.8 : ToleranceTextHeightScale, toleranceText);
+	}
+
+	private bool TryFindByTolerance(Dictionary<double, string> rules, double actual, out string value)
+	{
+		foreach (KeyValuePair<double, string> rule in rules)
+		{
+			if (Math.Abs(rule.Key - actual) <= GeometryTolerance)
+			{
+				value = rule.Value;
+				return true;
+			}
+		}
+		value = string.Empty;
+		return false;
+	}
 }

@@ -42,7 +42,9 @@
     <ProjectReference Include="CadAuto.CadAdapter\CadAuto.CadAdapter.csproj"><Project>{33CBB849-3665-4264-A101-C18F9EB8FB58}</Project><Name>CadAuto.CadAdapter</Name></ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="V177Source\**\*.cs" />
+    <Compile Include="Commands.cs" />
+    <Compile Include="PluginEntry.cs" />
+    <Compile Include="Properties\**\*.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

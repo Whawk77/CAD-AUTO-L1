@@ -1,47 +1,44 @@
 using System;
 using System.Globalization;
 
-namespace CadAuto.Core.Geometry
+namespace CadAuto.Core.Geometry;
+
+public struct Point2D : IEquatable<Point2D>
 {
-    public struct Point2D : IEquatable<Point2D>
-    {
-        public Point2D(double x, double y)
-        {
-            X = x;
-            Y = y;
-        }
+	public double X { get; }
 
-        public double X { get; }
-        public double Y { get; }
+	public double Y { get; }
 
-        public double DistanceTo(Point2D other)
-        {
-            var dx = X - other.X;
-            var dy = Y - other.Y;
-            return Math.Sqrt(dx * dx + dy * dy);
-        }
+	public Point2D(double x, double y)
+	{
+		X = x;
+		Y = y;
+	}
 
-        public bool Equals(Point2D other)
-        {
-            return X.Equals(other.X) && Y.Equals(other.Y);
-        }
+	public double DistanceTo(Point2D other)
+	{
+		double num = X - other.X;
+		double num2 = Y - other.Y;
+		return Math.Sqrt(num * num + num2 * num2);
+	}
 
-        public override bool Equals(object obj)
-        {
-            return obj is Point2D && Equals((Point2D)obj);
-        }
+	public bool Equals(Point2D other)
+	{
+		return X.Equals(other.X) && Y.Equals(other.Y);
+	}
 
-        public override int GetHashCode()
-        {
-            unchecked
-            {
-                return (X.GetHashCode() * 397) ^ Y.GetHashCode();
-            }
-        }
+	public override bool Equals(object obj)
+	{
+		return obj is Point2D && Equals((Point2D)obj);
+	}
 
-        public override string ToString()
-        {
-            return string.Format(CultureInfo.InvariantCulture, "({0:0.###},{1:0.###})", X, Y);
-        }
-    }
+	public override int GetHashCode()
+	{
+		return (X.GetHashCode() * 397) ^ Y.GetHashCode();
+	}
+
+	public override string ToString()
+	{
+		return string.Format(CultureInfo.InvariantCulture, "({0:0.###},{1:0.###})", X, Y);
+	}
 }

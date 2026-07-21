@@ -22,7 +22,12 @@ High-priority rules for AI coding agents. Keep this file short.
 - Do not edit source code during documentation-only tasks.
 - Before changing behavior, read the relevant `docs/` pages and inspect the current source.
 - Prefer small, targeted changes that match existing code style.
-- For versioned test DLL outputs, follow the naming rules in `docs/Deployment.md` (never reuse an earlier `-vNNN` folder).
+- **Versioned DLL build (required when the user asks to compile a loadable / test DLL):**
+  - Output under `bin\Debug-vN\` (example: `bin\Debug-v1\AutoFixtureDim.dll`), not a bare overwrite of `bin\Debug\` as the deliverable.
+  - Before each versioned build, inspect `bin\` for existing `Debug-v*` folders, take the highest `N`, and use **`N+1`**. Never reuse an earlier `-vN` folder or overwrite a previous versioned output.
+  - In this worktree the versioned sequence starts at **`-v1`** and must strictly increment thereafter (`-v2`, `-v3`, …).
+  - Keep related outputs of that build together in the same `Debug-vN` folder (`AutoFixtureDim.dll`, `CadAuto.Core.dll`, `CadAuto.CadAdapter.dll`).
+  - See also `docs/Deployment.md` for regression / CAD deploy notes; the increment rule above is mandatory for agents.
 
 ## Product Invariants
 

@@ -1,86 +1,84 @@
+using Autodesk.AutoCAD.Colors;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
 
-namespace CadAuto.CadAdapter.Rendering
+namespace CadAuto.CadAdapter.Rendering;
+
+public sealed class DebugAnnotationRenderer
 {
-    public sealed class DebugAnnotationRenderer
-    {
-        private readonly Database _database;
-        private readonly CadEntityWriter _writer;
-        private readonly ObjectId _textStyleId;
-        private readonly string _annotationLayer;
+	private readonly Database _database;
 
-        public DebugAnnotationRenderer(
-            Database database,
-            CadEntityWriter writer,
-            ObjectId textStyleId,
-            string annotationLayer)
-        {
-            _database = database;
-            _writer = writer;
-            _textStyleId = textStyleId;
-            _annotationLayer = annotationLayer;
-        }
+	private readonly CadEntityWriter _writer;
 
-        public void AddDimensionLabel(
-            string label,
-            Point3d point,
-            double textHeight,
-            Autodesk.AutoCAD.Colors.Color color)
-        {
-            if (string.IsNullOrEmpty(label))
-            {
-                return;
-            }
+	private readonly ObjectId _textStyleId;
 
-            var mtext = new MText();
-            mtext.SetDatabaseDefaults(_database);
-            mtext.Contents = label;
-            mtext.TextHeight = textHeight;
-            mtext.TextStyleId = _textStyleId;
-            mtext.Location = point;
-            mtext.Attachment = AttachmentPoint.MiddleCenter;
-            mtext.Layer = _annotationLayer;
-            mtext.Color = color;
-            _writer.Append(mtext);
-        }
+	private readonly string _annotationLayer;
 
-        public void AddPointLabel(
-            Point2d point,
-            string label,
-            short colorIndex,
-            double xOffset,
-            double yOffset,
-            double textHeight)
-        {
-            if (string.IsNullOrEmpty(label))
-            {
-                return;
-            }
+	public DebugAnnotationRenderer(Database database, CadEntityWriter writer, ObjectId textStyleId, string annotationLayer)
+	{
+		_database = database;
+		_writer = writer;
+		_textStyleId = textStyleId;
+		_annotationLayer = annotationLayer;
+	}
 
-            var labelPoint = new Point3d(point.X + xOffset, point.Y + yOffset, 0.0);
-            var targetPoint = new Point3d(point.X, point.Y, 0.0);
-            AddLine(labelPoint, targetPoint, colorIndex);
+	public void AddDimensionLabel(string label, Point3d point, double textHeight, Color color)
+	{
+		AddDimensionLabel(label, point, point, textHeight, color);
+	}
 
-            var mtext = new MText();
-            mtext.SetDatabaseDefaults(_database);
-            mtext.Contents = label;
-            mtext.TextHeight = textHeight;
-            mtext.TextStyleId = _textStyleId;
-            mtext.Location = labelPoint;
-            mtext.Attachment = AttachmentPoint.MiddleCenter;
-            mtext.Layer = _annotationLayer;
-            mtext.Color = Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, colorIndex);
-            _writer.Append(mtext);
-        }
+	public void AddDimensionLabel(string label, Point3d point, Point3d anchor, double textHeight, Color color)
+	{
+		if (!string.IsNullOrEmpty(label))
+		{
+			if (point.DistanceTo(anchor) > 1E-08)
+			{
+				AddLine(point, anchor, color);
+			}
+			MText mText = new MText();
+			mText.SetDatabaseDefaults(_database);
+			mText.Contents = label;
+			mText.TextHeight = textHeight;
+			mText.TextStyleId = _textStyleId;
+			mText.Location = point;
+			mText.Attachment = AttachmentPoint.MiddleCenter;
+			mText.Layer = _annotationLayer;
+			mText.Color = color;
+			_writer.Append(mText);
+		}
+	}
 
-        public void AddLine(Point3d start, Point3d end, short colorIndex)
-        {
-            var line = new Line(start, end);
-            line.SetDatabaseDefaults(_database);
-            line.Layer = _annotationLayer;
-            line.Color = Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, colorIndex);
-            _writer.Append(line);
-        }
-    }
+	public void AddPointLabel(Point2d point, string label, short colorIndex, double xOffset, double yOffset, double textHeight)
+	{
+		if (!string.IsNullOrEmpty(label))
+		{
+			Point3d point3d = new Point3d(point.X + xOffset, point.Y + yOffset, 0.0);
+			Point3d end = new Point3d(point.X, point.Y, 0.0);
+			AddLine(point3d, end, colorIndex);
+			MText mText = new MText();
+			mText.SetDatabaseDefaults(_database);
+			mText.Contents = label;
+			mText.TextHeight = textHeight;
+			mText.TextStyleId = _textStyleId;
+			mText.Location = point3d;
+			mText.Attachment = AttachmentPoint.MiddleCenter;
+			mText.Layer = _annotationLayer;
+			mText.Color = Color.FromColorIndex(ColorMethod.ByAci, colorIndex);
+			_writer.Append(mText);
+		}
+	}
+
+	public void AddLine(Point3d start, Point3d end, short colorIndex)
+	{
+		AddLine(start, end, Color.FromColorIndex(ColorMethod.ByAci, colorIndex));
+	}
+
+	private void AddLine(Point3d start, Point3d end, Color color)
+	{
+		Line line = new Line(start, end);
+		line.SetDatabaseDefaults(_database);
+		line.Layer = _annotationLayer;
+		line.Color = color;
+		_writer.Append(line);
+	}
 }

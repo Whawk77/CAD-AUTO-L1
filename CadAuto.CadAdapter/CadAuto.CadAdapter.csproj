@@ -41,7 +41,15 @@
     <ProjectReference Include="..\CadAuto.Core\CadAuto.Core.csproj"><Project>{0A29EBA4-7D4C-44EF-B9C8-7D5E25594F4C}</Project><Name>CadAuto.Core</Name></ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="V177Source\**\*.cs" />
+    <Compile Include="AnnotationMetadata.cs" />
+    <Compile Include="AutoCadGeometryConverter.cs" />
+    <Compile Include="Collection\**\*.cs" />
+    <Compile Include="Environment\**\*.cs" />
+    <Compile Include="Mapping\**\*.cs" />
+    <Compile Include="Model\**\*.cs" />
+    <Compile Include="Recognition\**\*.cs" />
+    <Compile Include="Rendering\**\*.cs" />
+    <Compile Include="Properties\**\*.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

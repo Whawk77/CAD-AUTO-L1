@@ -32,7 +32,12 @@
     <Reference Include="System.Core" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="V177Source\**\*.cs" />
+    <Compile Include="Geometry\**\*.cs" />
+    <Compile Include="Model\**\*.cs" />
+    <Compile Include="Planning\**\*.cs" />
+    <Compile Include="Recognition\**\*.cs" />
+    <Compile Include="Rules\**\*.cs" />
+    <Compile Include="Properties\**\*.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

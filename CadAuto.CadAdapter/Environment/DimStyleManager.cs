@@ -1,76 +1,63 @@
+using System;
 using Autodesk.AutoCAD.DatabaseServices;
 
-namespace CadAuto.CadAdapter.Environment
+namespace CadAuto.CadAdapter.Environment;
+
+public static class DimStyleManager
 {
-    public static class DimStyleManager
-    {
-        private static readonly string[] PreferredStyleNames =
-        {
-            "SCALE-1-01",
-            "SCALE-1-02",
-            "SCALE-1-03",
-            "SCALE-1-04",
-            "SCALE-1-06",
-            "SCALE-1-08",
-            "SCALE-1-10"
-        };
+	private static readonly string[] PreferredStyleNames = new string[7] { "SCALE-1-01", "SCALE-1-02", "SCALE-1-03", "SCALE-1-04", "SCALE-1-06", "SCALE-1-08", "SCALE-1-10" };
 
-        public static ObjectId ResolveDimStyle(Database db, Transaction tr)
-        {
-            var table = (DimStyleTable)tr.GetObject(db.DimStyleTableId, OpenMode.ForRead);
-            var currentStyle = (DimStyleTableRecord)tr.GetObject(db.Dimstyle, OpenMode.ForRead);
-            if (IsPreferredStyle(currentStyle.Name))
-            {
-                return db.Dimstyle;
-            }
+	public static ObjectId ResolveDimStyle(Database db, Transaction tr)
+	{
+		DimStyleTable dimStyleTable = (DimStyleTable)tr.GetObject(db.DimStyleTableId, OpenMode.ForRead);
+		DimStyleTableRecord dimStyleTableRecord = (DimStyleTableRecord)tr.GetObject(db.Dimstyle, OpenMode.ForRead);
+		if (IsPreferredStyle(dimStyleTableRecord.Name))
+		{
+			return db.Dimstyle;
+		}
+		string[] preferredStyleNames = PreferredStyleNames;
+		foreach (string key in preferredStyleNames)
+		{
+			if (dimStyleTable.Has(key))
+			{
+				return dimStyleTable[key];
+			}
+		}
+		return db.Dimstyle;
+	}
 
-            foreach (var styleName in PreferredStyleNames)
-            {
-                if (table.Has(styleName))
-                {
-                    return table[styleName];
-                }
-            }
+	public static ObjectId ResolveDiameterCalloutDimStyle(Database db, Transaction tr, ObjectId fallbackDimStyleId)
+	{
+		DimStyleTable dimStyleTable = (DimStyleTable)tr.GetObject(db.DimStyleTableId, OpenMode.ForRead);
+		if (!fallbackDimStyleId.IsNull)
+		{
+			DimStyleTableRecord dimStyleTableRecord = tr.GetObject(fallbackDimStyleId, OpenMode.ForRead) as DimStyleTableRecord;
+			if (dimStyleTableRecord != null)
+			{
+				string key = dimStyleTableRecord.Name + "$3";
+				if (dimStyleTable.Has(key))
+				{
+					return dimStyleTable[key];
+				}
+			}
+		}
+		if (dimStyleTable.Has("SCALE-1-01$3"))
+		{
+			return dimStyleTable["SCALE-1-01$3"];
+		}
+		return fallbackDimStyleId.IsNull ? db.Dimstyle : fallbackDimStyleId;
+	}
 
-            return db.Dimstyle;
-        }
-
-        public static ObjectId ResolveDiameterCalloutDimStyle(Database db, Transaction tr, ObjectId fallbackDimStyleId)
-        {
-            const string diameterCalloutStyleName = "SCALE-1-01$3";
-            var table = (DimStyleTable)tr.GetObject(db.DimStyleTableId, OpenMode.ForRead);
-            if (!fallbackDimStyleId.IsNull)
-            {
-                var fallbackStyle = tr.GetObject(fallbackDimStyleId, OpenMode.ForRead) as DimStyleTableRecord;
-                if (fallbackStyle != null)
-                {
-                    var matchingDiameterStyleName = fallbackStyle.Name + "$3";
-                    if (table.Has(matchingDiameterStyleName))
-                    {
-                        return table[matchingDiameterStyleName];
-                    }
-                }
-            }
-
-            if (table.Has(diameterCalloutStyleName))
-            {
-                return table[diameterCalloutStyleName];
-            }
-
-            return fallbackDimStyleId.IsNull ? db.Dimstyle : fallbackDimStyleId;
-        }
-
-        private static bool IsPreferredStyle(string styleName)
-        {
-            foreach (var preferredStyleName in PreferredStyleNames)
-            {
-                if (string.Equals(styleName, preferredStyleName, System.StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-    }
+	private static bool IsPreferredStyle(string styleName)
+	{
+		string[] preferredStyleNames = PreferredStyleNames;
+		foreach (string b in preferredStyleNames)
+		{
+			if (string.Equals(styleName, b, StringComparison.OrdinalIgnoreCase))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
 }

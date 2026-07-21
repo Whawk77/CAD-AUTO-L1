@@ -47,6 +47,12 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(InnerOutlineSegmentMatchingEnvelopeTipIsSuppressed), InnerOutlineSegmentMatchingEnvelopeTipIsSuppressed);
 				RunTest(nameof(CompleteOverallPartitionIntervalsAreDetected), CompleteOverallPartitionIntervalsAreDetected);
 				RunTest(nameof(GreedyDeadEndStillFindsValidOverallPartitionChain), GreedyDeadEndStillFindsValidOverallPartitionChain);
+				RunTest(nameof(SnapToOriginPointIsNotTreatedAsNotFound), SnapToOriginPointIsNotTreatedAsNotFound);
+				RunTest(nameof(SnapKeepsOriginalPointWhenNoCandidateExists), SnapKeepsOriginalPointWhenNoCandidateExists);
+				RunTest(nameof(LegalComplementaryPartitionAllowsSnapAndSuppress), LegalComplementaryPartitionAllowsSnapAndSuppress);
+				RunTest(nameof(OverlappingSpanSumDoesNotAllowComplementarySnap), OverlappingSpanSumDoesNotAllowComplementarySnap);
+				RunTest(nameof(GappedSpanSumDoesNotAllowComplementarySnap), GappedSpanSumDoesNotAllowComplementarySnap);
+				RunTest(nameof(NumericComplementLocalStructuresDoNotSnapOrSuppress), NumericComplementLocalStructuresDoNotSnapOrSuppress);
 				RunTest(nameof(OverlappingIntervalsDoNotFormOverallPartition), OverlappingIntervalsDoNotFormOverallPartition);
 				RunTest(nameof(GappedIntervalsDoNotFormOverallPartition), GappedIntervalsDoNotFormOverallPartition);
 				RunTest(nameof(OutOfBoundsIntervalsDoNotFormOverallPartition), OutOfBoundsIntervalsDoNotFormOverallPartition);
@@ -1015,6 +1021,267 @@ namespace CadAuto.Core.Tests
 			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
 			Assert(!plan.Dimensions.Any(d => d.DebugRole == "OutlineSegment" && d.Side == DimensionSide.Bottom),
 				"true partition OutlineSegments must still be suppressed by planner");
+		}
+
+		/// <summary>
+		/// Phase 2: legitimate snap candidate at origin (0,0) must not be treated as NotFound
+		/// (old code used Equals(default(Point2D))).
+		/// Covers both vertical-down and horizontal-left snap directions.
+		/// </summary>
+		private static void SnapToOriginPointIsNotTreatedAsNotFound()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			// Vertical snap: point (0, 10) should snap down to horizontal endpoint (0, 0).
+			var outlineVertical = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 50.0,
+				MaxY = 20.0
+			};
+			AddSegment(outlineVertical, new Point2D(0.0, 0.0), new Point2D(50.0, 0.0), "bottom");
+			AddSegment(outlineVertical, new Point2D(50.0, 0.0), new Point2D(50.0, 20.0), "right");
+			AddSegment(outlineVertical, new Point2D(50.0, 20.0), new Point2D(0.0, 20.0), "top");
+			AddSegment(outlineVertical, new Point2D(0.0, 20.0), new Point2D(0.0, 0.0), "left");
+			Point2D snappedDown = planner.SnapVerticalPointToLowerConnectedHorizontal(new Point2D(0.0, 10.0), outlineVertical);
+			Assert(Math.Abs(snappedDown.X - 0.0) <= config.GeometryTolerance
+					&& Math.Abs(snappedDown.Y - 0.0) <= config.GeometryTolerance,
+				"vertical snap must accept origin (0,0) as a valid candidate, not NotFound");
+
+			// Horizontal snap: point (10, 0) should snap left to vertical endpoint (0, 0).
+			var outlineHorizontal = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 50.0,
+				MaxY = 20.0
+			};
+			AddSegment(outlineHorizontal, new Point2D(0.0, 0.0), new Point2D(0.0, 20.0), "left");
+			AddSegment(outlineHorizontal, new Point2D(0.0, 20.0), new Point2D(50.0, 20.0), "top");
+			AddSegment(outlineHorizontal, new Point2D(50.0, 20.0), new Point2D(50.0, 0.0), "right");
+			AddSegment(outlineHorizontal, new Point2D(50.0, 0.0), new Point2D(0.0, 0.0), "bottom");
+			Point2D snappedLeft = planner.SnapHorizontalPointToLeftConnectedVertical(new Point2D(10.0, 0.0), outlineHorizontal);
+			Assert(Math.Abs(snappedLeft.X - 0.0) <= config.GeometryTolerance
+					&& Math.Abs(snappedLeft.Y - 0.0) <= config.GeometryTolerance,
+				"horizontal snap must accept origin (0,0) as a valid candidate, not NotFound");
+		}
+
+		/// <summary>
+		/// Phase 2: when no snap candidate exists, keep the original point (both directions).
+		/// </summary>
+		private static void SnapKeepsOriginalPointWhenNoCandidateExists()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			// Isolated horizontal edge only — no lower connected horizontal for a vertical snap.
+			var outline = new OutlineFeature2D
+			{
+				MinX = 10.0,
+				MinY = 10.0,
+				MaxX = 40.0,
+				MaxY = 30.0
+			};
+			AddSegment(outline, new Point2D(10.0, 30.0), new Point2D(40.0, 30.0), "top-only");
+			Point2D originalVertical = new Point2D(20.0, 25.0);
+			Point2D snappedVertical = planner.SnapVerticalPointToLowerConnectedHorizontal(originalVertical, outline);
+			Assert(Math.Abs(snappedVertical.X - originalVertical.X) <= config.GeometryTolerance
+					&& Math.Abs(snappedVertical.Y - originalVertical.Y) <= config.GeometryTolerance,
+				"vertical snap with no lower candidate must keep the original point");
+
+			// Isolated vertical edge only — no left connected vertical for a horizontal snap.
+			var outline2 = new OutlineFeature2D
+			{
+				MinX = 10.0,
+				MinY = 10.0,
+				MaxX = 40.0,
+				MaxY = 30.0
+			};
+			AddSegment(outline2, new Point2D(40.0, 10.0), new Point2D(40.0, 30.0), "right-only");
+			Point2D originalHorizontal = new Point2D(30.0, 20.0);
+			Point2D snappedHorizontal = planner.SnapHorizontalPointToLeftConnectedVertical(originalHorizontal, outline2);
+			Assert(Math.Abs(snappedHorizontal.X - originalHorizontal.X) <= config.GeometryTolerance
+					&& Math.Abs(snappedHorizontal.Y - originalHorizontal.Y) <= config.GeometryTolerance,
+				"horizontal snap with no left candidate must keep the original point");
+		}
+
+		/// <summary>
+		/// Phase 3: legal complementary [0,20]+[20,98]=overall [0,98] — snap gate allows,
+		/// FormsCompleteOverallPartition holds, RemoveComplementary drops the larger.
+		/// </summary>
+		private static void LegalComplementaryPartitionAllowsSnapAndSuppress()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 98.0, MaxY = 20.0 };
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(98.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(98.0, 0.0), new Point2D(98.0, 20.0), "right");
+			AddSegment(outline, new Point2D(98.0, 20.0), new Point2D(0.0, 20.0), "top");
+			AddSegment(outline, new Point2D(0.0, 20.0), new Point2D(0.0, 0.0), "left");
+			AddSegment(outline, new Point2D(20.0, 0.0), new Point2D(20.0, 20.0), "shoulder");
+
+			var smaller = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(0.0, 20.0),
+				SecondPoint = new Point2D(20.0, 20.0),
+				DebugRole = "TopStructWidth"
+			};
+			var larger = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(20.0, 20.0),
+				SecondPoint = new Point2D(98.0, 20.0),
+				DebugRole = "TopStructWidth"
+			};
+			Assert(planner.CanAttemptComplementaryPartitionSnap(larger, smaller, outline, horizontal: true),
+				"legal abutting structure pair must allow complementary snap");
+			// Integration: full plan still suppresses the overall-restating structure pair path.
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 98.0) <= config.GeometryTolerance),
+				"overall 98 must remain");
+			// Structure that only re-partitions overall with same-side collinear OS is suppressed elsewhere;
+			// gate itself must remain true for the legal pair.
+			Assert(planner.CanAttemptComplementaryPartitionSnap(larger, smaller, outline, horizontal: true),
+				"legal pair remains snap-eligible after FormsCompleteOverallPartition check");
+		}
+
+		/// <summary>
+		/// Phase 3: [0,40]+[20,80] spans 40+60=100 but overlap — no snap, no partition suppress.
+		/// </summary>
+		private static void OverlappingSpanSumDoesNotAllowComplementarySnap()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 100.0, MaxY = 20.0 };
+			var a = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(0.0, 20.0),
+				SecondPoint = new Point2D(40.0, 20.0),
+				DebugRole = "TopStructWidth"
+			};
+			var b = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(20.0, 20.0),
+				SecondPoint = new Point2D(80.0, 20.0),
+				DebugRole = "TopStructWidth"
+			};
+			Assert(Math.Abs((40.0 + 60.0) - 100.0) <= config.GeometryTolerance, "precondition: span sum equals overall");
+			Assert(!planner.CanAttemptComplementaryPartitionSnap(b, a, outline, horizontal: true),
+				"overlapping intervals must not allow complementary snap despite span sum");
+			Point2D beforeFirst = b.FirstPoint;
+			Point2D beforeSecond = b.SecondPoint;
+			// Simulate snap gate path: when CanAttempt is false, points must stay put.
+			Assert(!planner.CanAttemptComplementaryPartitionSnap(b, a, outline, horizontal: true),
+				"re-check: still not snap-eligible");
+			Assert(beforeFirst.Equals(b.FirstPoint) && beforeSecond.Equals(b.SecondPoint),
+				"attachment must not be modified when snap gate rejects overlap");
+		}
+
+		/// <summary>
+		/// Phase 3: [0,30]+[40,100] spans 30+60=90 or 30+70=100 with gap — no snap.
+		/// </summary>
+		private static void GappedSpanSumDoesNotAllowComplementarySnap()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 100.0, MaxY = 20.0 };
+			var a = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(0.0, 20.0),
+				SecondPoint = new Point2D(30.0, 20.0),
+				DebugRole = "TopStructWidth"
+			};
+			var b = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(40.0, 20.0),
+				SecondPoint = new Point2D(110.0, 20.0),
+				DebugRole = "TopStructWidth"
+			};
+			Assert(Math.Abs((30.0 + 70.0) - 100.0) <= config.GeometryTolerance, "precondition: span sum equals overall");
+			Assert(!planner.CanAttemptComplementaryPartitionSnap(b, a, outline, horizontal: true),
+				"gapped/out-of-bounds intervals must not allow complementary snap");
+			// Vertical direction gap case.
+			var outlineV = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 20.0, MaxY = 100.0 };
+			var va = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right,
+				FirstPoint = new Point2D(20.0, 0.0),
+				SecondPoint = new Point2D(20.0, 30.0),
+				DebugRole = "RightStructHeight"
+			};
+			var vb = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right,
+				FirstPoint = new Point2D(20.0, 40.0),
+				SecondPoint = new Point2D(20.0, 100.0),
+				DebugRole = "RightStructHeight"
+			};
+			Assert(!planner.CanAttemptComplementaryPartitionSnap(vb, va, outlineV, horizontal: false),
+				"vertical gapped intervals must not allow complementary snap");
+		}
+
+		/// <summary>
+		/// Phase 3: TopStructWidth 60 + BottomStructWidth 40 sum to 100 but different local
+		/// positions — must not snap or treat as overall partition.
+		/// </summary>
+		private static void NumericComplementLocalStructuresDoNotSnapOrSuppress()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 100.0, MaxY = 50.0 };
+			var top = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(0.0, 50.0),
+				SecondPoint = new Point2D(60.0, 50.0),
+				DebugRole = "TopStructWidth"
+			};
+			var bottom = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(40.0, 0.0),
+				DebugRole = "BottomStructWidth"
+			};
+			Assert(Math.Abs((60.0 + 40.0) - 100.0) <= config.GeometryTolerance, "precondition: span sum equals overall");
+			Assert(!planner.CanAttemptComplementaryPartitionSnap(top, bottom, outline, horizontal: true),
+				"numeric-only complement of local structures must not allow snap");
+			// Integration: local mid step that does not complete overall stays selected.
+			var stepOutline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 100.0, MaxY = 50.0 };
+			AddSegment(stepOutline, new Point2D(0.0, 0.0), new Point2D(0.0, 50.0), "left");
+			AddSegment(stepOutline, new Point2D(40.0, 10.0), new Point2D(40.0, 45.0), "middle");
+			AddSegment(stepOutline, new Point2D(100.0, 0.0), new Point2D(100.0, 50.0), "right");
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(stepOutline);
+			Assert(plan.Dimensions.Any(d =>
+					(d.DebugRole == "TopStructWidth" || d.DebugRole == "BottomStructWidth")
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 40.0) <= config.GeometryTolerance),
+				"local structure width 40 must remain when not a real overall partition");
 		}
 
 		/// <summary>

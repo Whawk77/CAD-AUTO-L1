@@ -2174,46 +2174,133 @@ public sealed class DimensionPlanner
 
 	private void SnapComplementaryHorizontalRemainderEndpoints(IList<PlannedDimension> candidates, OutlineFeature2D outline)
 	{
-		foreach (PlannedDimension dimension in candidates ?? new List<PlannedDimension>())
+		if (candidates == null || outline == null)
 		{
-			double span = GetDimensionSpan(dimension, horizontal: true);
-			if (candidates.Any((PlannedDimension other) => other != dimension && GetDimensionSpan(other, horizontal: true) < span - _config.GeometryTolerance && Math.Abs(GetDimensionSpan(other, horizontal: true) + span - outline.Width) <= _config.GeometryTolerance))
+			return;
+		}
+		foreach (PlannedDimension dimension in candidates)
+		{
+			if (dimension == null)
 			{
-				dimension.FirstPoint = SnapVerticalPointToLowerConnectedHorizontal(dimension.FirstPoint, outline);
-				dimension.SecondPoint = SnapVerticalPointToLowerConnectedHorizontal(dimension.SecondPoint, outline);
+				continue;
 			}
+			// Only snap when a smaller partner forms a *real* overall partition — not mere span sum.
+			if (!candidates.Any((PlannedDimension other) => other != null && other != dimension
+				&& CanAttemptComplementaryPartitionSnap(dimension, other, outline, horizontal: true)))
+			{
+				continue;
+			}
+			dimension.FirstPoint = SnapVerticalPointToLowerConnectedHorizontal(dimension.FirstPoint, outline);
+			dimension.SecondPoint = SnapVerticalPointToLowerConnectedHorizontal(dimension.SecondPoint, outline);
 		}
 	}
 
 	private void SnapComplementaryVerticalRemainderEndpoints(IList<PlannedDimension> candidates, OutlineFeature2D outline)
 	{
-		foreach (PlannedDimension dimension in candidates ?? new List<PlannedDimension>())
+		if (candidates == null || outline == null)
 		{
-			double span = GetDimensionSpan(dimension, horizontal: false);
-			if (candidates.Any((PlannedDimension other) => other != dimension && GetDimensionSpan(other, horizontal: false) < span - _config.GeometryTolerance && Math.Abs(GetDimensionSpan(other, horizontal: false) + span - outline.Height) <= _config.GeometryTolerance))
+			return;
+		}
+		foreach (PlannedDimension dimension in candidates)
+		{
+			if (dimension == null)
 			{
-				dimension.FirstPoint = SnapHorizontalPointToLeftConnectedVertical(dimension.FirstPoint, outline);
-				dimension.SecondPoint = SnapHorizontalPointToLeftConnectedVertical(dimension.SecondPoint, outline);
+				continue;
 			}
+			if (!candidates.Any((PlannedDimension other) => other != null && other != dimension
+				&& CanAttemptComplementaryPartitionSnap(dimension, other, outline, horizontal: false)))
+			{
+				continue;
+			}
+			dimension.FirstPoint = SnapHorizontalPointToLeftConnectedVertical(dimension.FirstPoint, outline);
+			dimension.SecondPoint = SnapHorizontalPointToLeftConnectedVertical(dimension.SecondPoint, outline);
 		}
 	}
 
-	private Point2D SnapVerticalPointToLowerConnectedHorizontal(Point2D point, OutlineFeature2D outline)
+	/// <summary>
+	/// Narrow gate for complementary-remainder endpoint snap.
+	/// Span-sum alone is never enough: requires structure semantics, correct orientation,
+	/// intervals inside overall, and FormsCompleteOverallPartition (no gap / interior overlap /
+	/// out-of-bounds; ends match overall). Snap only adjusts attachment; suppress stays on
+	/// FormsCompleteOverallPartition / multi-piece chain rules.
+	/// </summary>
+	internal bool CanAttemptComplementaryPartitionSnap(
+		PlannedDimension larger,
+		PlannedDimension smaller,
+		OutlineFeature2D outline,
+		bool horizontal)
 	{
-		Point2D point2D = (from p in outline.Segments.Where((Segment2D s) => s.IsHorizontal(_config.GeometryTolerance)).SelectMany((Segment2D s) => new Point2D[2] { s.Start, s.End })
-			where Math.Abs(p.X - point.X) <= _config.GeometryTolerance && p.Y < point.Y - _config.GeometryTolerance
-			orderby p.Y descending
-			select p).FirstOrDefault();
-		return point2D.Equals(default(Point2D)) ? point : point2D;
+		if (larger == null || smaller == null || outline == null)
+		{
+			return false;
+		}
+		// Only structure-width/height candidates participate in this path.
+		if (!IsStructureWidthOrHeightRole(larger.DebugRole) || !IsStructureWidthOrHeightRole(smaller.DebugRole))
+		{
+			return false;
+		}
+		DimensionOrientation expected = horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical;
+		if (larger.Orientation != expected || smaller.Orientation != expected)
+		{
+			return false;
+		}
+		double largerSpan = GetDimensionSpan(larger, horizontal);
+		double smallerSpan = GetDimensionSpan(smaller, horizontal);
+		// Complementary remainder snaps the larger partner only.
+		if (smallerSpan >= largerSpan - _config.GeometryTolerance)
+		{
+			return false;
+		}
+		double overallMin = horizontal ? outline.MinX : outline.MinY;
+		double overallMax = horizontal ? outline.MaxX : outline.MaxY;
+		// Real geometric partition (covers ends, no gap/overlap/out of bounds).
+		if (!FormsCompleteOverallPartition(larger, smaller, overallMin, overallMax, horizontal))
+		{
+			return false;
+		}
+		return true;
 	}
 
-	private Point2D SnapHorizontalPointToLeftConnectedVertical(Point2D point, OutlineFeature2D outline)
+	/// <summary>
+	/// Snap a vertical-edge point down onto a connected horizontal segment endpoint.
+	/// Uses nullable FirstOrDefault so a real hit at (0,0) is not treated as "not found".
+	/// When no candidate exists, returns the original <paramref name="point"/>.
+	/// </summary>
+	internal Point2D SnapVerticalPointToLowerConnectedHorizontal(Point2D point, OutlineFeature2D outline)
 	{
-		Point2D point2D = (from p in outline.Segments.Where((Segment2D s) => s.IsVertical(_config.GeometryTolerance)).SelectMany((Segment2D s) => new Point2D[2] { s.Start, s.End })
-			where Math.Abs(p.Y - point.Y) <= _config.GeometryTolerance && p.X < point.X - _config.GeometryTolerance
-			orderby p.X descending
-			select p).FirstOrDefault();
-		return point2D.Equals(default(Point2D)) ? point : point2D;
+		if (outline == null)
+		{
+			return point;
+		}
+		Point2D? found = outline.Segments
+			.Where((Segment2D s) => s != null && s.IsHorizontal(_config.GeometryTolerance))
+			.SelectMany((Segment2D s) => new Point2D[2] { s.Start, s.End })
+			.Where((Point2D p) => Math.Abs(p.X - point.X) <= _config.GeometryTolerance && p.Y < point.Y - _config.GeometryTolerance)
+			.OrderByDescending((Point2D p) => p.Y)
+			.Select((Point2D p) => (Point2D?)p)
+			.FirstOrDefault();
+		return found ?? point;
+	}
+
+	/// <summary>
+	/// Snap a horizontal-edge point left onto a connected vertical segment endpoint.
+	/// Uses nullable FirstOrDefault so a real hit at (0,0) is not treated as "not found".
+	/// When no candidate exists, returns the original <paramref name="point"/>.
+	/// </summary>
+	internal Point2D SnapHorizontalPointToLeftConnectedVertical(Point2D point, OutlineFeature2D outline)
+	{
+		if (outline == null)
+		{
+			return point;
+		}
+		Point2D? found = outline.Segments
+			.Where((Segment2D s) => s != null && s.IsVertical(_config.GeometryTolerance))
+			.SelectMany((Segment2D s) => new Point2D[2] { s.Start, s.End })
+			.Where((Point2D p) => Math.Abs(p.Y - point.Y) <= _config.GeometryTolerance && p.X < point.X - _config.GeometryTolerance)
+			.OrderByDescending((Point2D p) => p.X)
+			.Select((Point2D p) => (Point2D?)p)
+			.FirstOrDefault();
+		return found ?? point;
 	}
 
 	private List<PlannedDimension> BuildVerticalHeightCandidates(IList<Point2D> points, DimensionSide side, string debugRole)
@@ -3650,7 +3737,12 @@ public sealed class DimensionPlanner
 				list.Add(new Point2D(x, y));
 			}
 		}
-		return list.OrderBy((Point2D p) => Math.Abs(p.Y - preferredY)).FirstOrDefault();
+		// Do not use FirstOrDefault() on Point2D (default (0,0) looks like a hit).
+		if (list.Count == 0)
+		{
+			return new Point2D(x, preferredY);
+		}
+		return list.OrderBy((Point2D p) => Math.Abs(p.Y - preferredY)).First();
 	}
 
 	private Point2D GetSingleArcSlotHorizontalGripPoint(SlotFeature2D slot, double preferredY)

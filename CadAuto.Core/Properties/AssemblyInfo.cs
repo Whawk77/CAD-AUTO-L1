@@ -15,3 +15,4 @@ using System.Runtime.Versioning;
 [assembly: Guid("B61F0C36-33D7-436C-8C2C-F0D4D1BB59B1")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
 [assembly: AssemblyVersion("1.0.0.0")]
+[assembly: InternalsVisibleTo("CadAuto.Core.Tests")]

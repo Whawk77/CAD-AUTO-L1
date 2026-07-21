@@ -47,3 +47,7 @@ autocad-net-c-autocad-autocad-net-source-backup-*/
 # Python bytecode if tools/ ever partially tracked
 __pycache__/
 *.pyc
+
+# Local agent skill copies (optional; not product source)
+.codex/
+

@@ -46,6 +46,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(StructureDuplicateOfEnvelopeOutlineSegmentIsSuppressed), StructureDuplicateOfEnvelopeOutlineSegmentIsSuppressed);
 				RunTest(nameof(InnerOutlineSegmentMatchingEnvelopeTipIsSuppressed), InnerOutlineSegmentMatchingEnvelopeTipIsSuppressed);
 				RunTest(nameof(CompleteOverallPartitionIntervalsAreDetected), CompleteOverallPartitionIntervalsAreDetected);
+				RunTest(nameof(GreedyDeadEndStillFindsValidOverallPartitionChain), GreedyDeadEndStillFindsValidOverallPartitionChain);
 				RunTest(nameof(OverlappingIntervalsDoNotFormOverallPartition), OverlappingIntervalsDoNotFormOverallPartition);
 				RunTest(nameof(GappedIntervalsDoNotFormOverallPartition), GappedIntervalsDoNotFormOverallPartition);
 				RunTest(nameof(OutOfBoundsIntervalsDoNotFormOverallPartition), OutOfBoundsIntervalsDoNotFormOverallPartition);
@@ -77,6 +78,8 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(ThreeStructureWidthsThatPartitionOverallAreSuppressed), ThreeStructureWidthsThatPartitionOverallAreSuppressed);
                 RunTest(nameof(LocalTopStructureWidthIsKeptWhenNotPartitioningOverall), LocalTopStructureWidthIsKeptWhenNotPartitioningOverall);
                 RunTest(nameof(RightArmHeightOnOverallMaxXIsKept), RightArmHeightOnOverallMaxXIsKept);
+                RunTest(nameof(LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment), LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment);
+                RunTest(nameof(BottomStepWidthOnOverallEnvelopeIsKept), BottomStepWidthOnOverallEnvelopeIsKept);
                 RunTest(nameof(HorizontalStructurePointsCreateStepHeights), HorizontalStructurePointsCreateStepHeights);
                 RunTest(nameof(DiagonalFragmentsDoNotCreateStructureDimensions), DiagonalFragmentsDoNotCreateStructureDimensions);
                 RunTest(nameof(BottomInclinedStructurePointsRequireInnerGrooveChamfer), BottomInclinedStructurePointsRequireInnerGrooveChamfer);
@@ -1015,6 +1018,50 @@ namespace CadAuto.Core.Tests
 		}
 
 		/// <summary>
+		/// Phase 1: greedy longest-first would pick [0,60] then die; DFS must still find
+		/// [0,40]+[40,70]+[70,100]. Also verify result is independent of input order.
+		/// </summary>
+		private static void GreedyDeadEndStillFindsValidOverallPartitionChain()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionDeduplicationRules(config);
+			// A=[0,60] decoy, B=[0,40], C=[40,70], D=[70,100]
+			var decoy = CreatePartitionItem(0.0, 0.0, 60.0, 0.0, DimensionKind.Normal, "OutlineSegment");
+			var b = CreatePartitionItem(0.0, 0.0, 40.0, 0.0, DimensionKind.Normal, "OutlineSegment");
+			var c = CreatePartitionItem(40.0, 0.0, 70.0, 0.0, DimensionKind.Normal, "OutlineSegment");
+			var d = CreatePartitionItem(70.0, 0.0, 100.0, 0.0, DimensionKind.Normal, "OutlineSegment");
+
+			void AssertValidChain(IList<DimensionDeduplicationItem> input, string label)
+			{
+				var chain = rules.FindCompleteOverallPartitionChain(input, 0.0, 100.0, horizontal: true);
+				Assert(chain != null && chain.Count == 3,
+					label + ": must find 3-piece chain, not fail on decoy [0,60]");
+				double[] starts = chain.Select(item => Math.Min(item.FirstPoint.X, item.SecondPoint.X)).ToArray();
+				double[] ends = chain.Select(item => Math.Max(item.FirstPoint.X, item.SecondPoint.X)).ToArray();
+				Assert(Math.Abs(starts[0] - 0.0) <= config.GeometryTolerance
+						&& Math.Abs(ends[0] - 40.0) <= config.GeometryTolerance,
+					label + ": first piece must be [0,40]");
+				Assert(Math.Abs(starts[1] - 40.0) <= config.GeometryTolerance
+						&& Math.Abs(ends[1] - 70.0) <= config.GeometryTolerance,
+					label + ": second piece must be [40,70]");
+				Assert(Math.Abs(starts[2] - 70.0) <= config.GeometryTolerance
+						&& Math.Abs(ends[2] - 100.0) <= config.GeometryTolerance,
+					label + ": third piece must be [70,100]");
+				Assert(!chain.Any(item => Math.Abs(Math.Max(item.FirstPoint.X, item.SecondPoint.X) - 60.0) <= config.GeometryTolerance
+						&& Math.Abs(Math.Min(item.FirstPoint.X, item.SecondPoint.X) - 0.0) <= config.GeometryTolerance
+						&& Math.Abs(Math.Abs(item.SecondPoint.X - item.FirstPoint.X) - 60.0) <= config.GeometryTolerance),
+					label + ": decoy [0,60] must not appear in the successful chain");
+			}
+
+			// Decoy first (greedy would pick it and die).
+			AssertValidChain(new List<DimensionDeduplicationItem> { decoy, b, c, d }, "decoy-first");
+			// Order perturbation: legal pieces shuffled, decoy last.
+			AssertValidChain(new List<DimensionDeduplicationItem> { d, c, b, decoy }, "legal-first-shuffled");
+			// Decoy between B and C.
+			AssertValidChain(new List<DimensionDeduplicationItem> { b, decoy, d, c }, "decoy-middle");
+		}
+
+		/// <summary>
 		/// Case 2: lengths 40+60=100 but intervals [0,40] and [20,80] overlap and miss [80,100].
 		/// </summary>
 		private static void OverlappingIntervalsDoNotFormOverallPartition()
@@ -1911,9 +1958,94 @@ namespace CadAuto.Core.Tests
 		}
 
 		/// <summary>
-		/// L-shaped part (overall 91×50, top step width 20, right arm height 20).
-		/// RightStructHeight 20 sits on Overall MaxX with span &lt; OverallHeight — must KEEP
-		/// (real side face), not die as StructureDuplicateOfEnvelopeOutlineSegment.
+		/// L-shape regression after bottom-step fix: TopStructWidth 20 (tower) must not be killed
+		/// by StructureOverallPartition with Top OutlineSegment 71 on the arm (same Side=Top,
+		/// different Y — not collinear). Right arm height 20 must remain.
+		/// </summary>
+		private static void LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 91.0,
+				MaxY = 50.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(91.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(91.0, 0.0), new Point2D(91.0, 20.0), "right-arm");
+			AddSegment(outline, new Point2D(91.0, 20.0), new Point2D(20.0, 20.0), "arm-top");
+			AddSegment(outline, new Point2D(20.0, 20.0), new Point2D(20.0, 39.0), "step-up");
+			AddSegment(outline, new Point2D(20.0, 39.0), new Point2D(9.0, 50.0), "chamfer");
+			AddSegment(outline, new Point2D(9.0, 50.0), new Point2D(0.0, 50.0), "tower-top");
+			AddSegment(outline, new Point2D(0.0, 50.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 91.0) <= config.GeometryTolerance),
+				"overall width 91 must remain");
+			Assert(plan.Dimensions.Any(d =>
+					d.DebugRole == "TopStructWidth"
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 20.0) <= config.GeometryTolerance),
+				"tower top width 20 must remain (not erased by arm-top OutlineSegment via StructureOverallPartition)");
+			Assert(plan.Dimensions.Any(d =>
+					d.DebugRole == "RightStructHeight"
+					&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 20.0) <= config.GeometryTolerance),
+				"right arm height 20 must remain");
+			Assert(plan.Diagnostics.DimensionCandidates
+					.Where(c => c.DebugRole == "TopStructWidth" && Math.Abs(c.Value - 20.0) <= config.GeometryTolerance)
+					.All(c => c.SuppressedReason != "StructureOverallPartition"),
+				"tower top width must not be StructureOverallPartition against non-collinear arm OS");
+		}
+
+		/// <summary>
+		/// Stepped bottom: overall width 215, lower ledge width 120 (from inner step to right end).
+		/// BottomStructWidth 120 shares interval with envelope OutlineSegment but is a real step
+		/// face (span &gt; half overall) — must KEEP, not StructureDuplicateOfEnvelopeOutlineSegment.
+		/// Upper undercut stops short of the step (gap) so StructureOverallPartition cannot form
+		/// 95+120 against overall 215.
+		/// </summary>
+		private static void BottomStepWidthOnOverallEnvelopeIsKept()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 215.0,
+				MaxY = 100.0
+			};
+			// Left undercut Y=40 for X in [0,80]; gap 80→95; lower ledge Y=0 for X in [95,215] (span 120).
+			AddSegment(outline, new Point2D(0.0, 40.0), new Point2D(80.0, 40.0), "upper-bottom");
+			AddSegment(outline, new Point2D(80.0, 40.0), new Point2D(95.0, 40.0), "upper-to-step");
+			AddSegment(outline, new Point2D(95.0, 40.0), new Point2D(95.0, 0.0), "step-down");
+			AddSegment(outline, new Point2D(95.0, 0.0), new Point2D(215.0, 0.0), "lower-ledge");
+			AddSegment(outline, new Point2D(215.0, 0.0), new Point2D(215.0, 100.0), "right");
+			AddSegment(outline, new Point2D(215.0, 100.0), new Point2D(0.0, 100.0), "top");
+			AddSegment(outline, new Point2D(0.0, 100.0), new Point2D(0.0, 40.0), "left");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 215.0) <= config.GeometryTolerance),
+				"overall width 215 must remain");
+			Assert(plan.Dimensions.Any(d =>
+					d.DebugRole == "BottomStructWidth"
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 120.0) <= config.GeometryTolerance),
+				"bottom step/ledge width 120 must remain selected");
+			Assert(plan.Diagnostics.DimensionCandidates
+					.Where(c => c.DebugRole == "BottomStructWidth" && Math.Abs(c.Value - 120.0) <= config.GeometryTolerance)
+					.All(c => c.SuppressedReason != "StructureDuplicateOfEnvelopeOutlineSegment"
+						&& c.SuppressedReason != "StructureOverallPartition"),
+				"bottom step width 120 must not be suppressed as envelope dup or overall partition");
+		}
+
+		/// <summary>
+		/// L-shaped part matching CAD (overall 91×50, left tower width 20, right arm height 20,
+		/// chamfer on tower so riser is not a clean [20,50] OS that would form overall partition
+		/// with RightStructHeight 20). Right arm height on MaxX must KEEP — not die as
+		/// StructureDuplicateOfEnvelopeOutlineSegment (envelope co-suppress is horizontal-only).
 		/// </summary>
 		private static void RightArmHeightOnOverallMaxXIsKept()
 		{
@@ -1925,12 +2057,14 @@ namespace CadAuto.Core.Tests
 				MaxX = 91.0,
 				MaxY = 50.0
 			};
-			// Outer L: tall left block width 20 height 50, right arm height 20 width 71.
+			// L + top-right chamfer on tower (like C11): riser is not a pure 30 vertical that
+			// abuts arm height 20 into overall 50, so StructureOverallPartition does not apply.
 			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(91.0, 0.0), "bottom");
 			AddSegment(outline, new Point2D(91.0, 0.0), new Point2D(91.0, 20.0), "right-arm");
 			AddSegment(outline, new Point2D(91.0, 20.0), new Point2D(20.0, 20.0), "step-top");
-			AddSegment(outline, new Point2D(20.0, 20.0), new Point2D(20.0, 50.0), "step-up");
-			AddSegment(outline, new Point2D(20.0, 50.0), new Point2D(0.0, 50.0), "top-left");
+			AddSegment(outline, new Point2D(20.0, 20.0), new Point2D(20.0, 39.0), "step-up");
+			AddSegment(outline, new Point2D(20.0, 39.0), new Point2D(9.0, 50.0), "chamfer");
+			AddSegment(outline, new Point2D(9.0, 50.0), new Point2D(0.0, 50.0), "top-left");
 			AddSegment(outline, new Point2D(0.0, 50.0), new Point2D(0.0, 0.0), "left");
 
 			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);

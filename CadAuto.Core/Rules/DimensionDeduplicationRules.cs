@@ -286,8 +286,10 @@ public sealed class DimensionDeduplicationRules
 
 	/// <summary>
 	/// BuildOverallPartitionChain: select a subset of items (size ≥ 2) whose measurement
-	/// intervals form a complete contiguous cover of overall. Greedy longest-extension from
-	/// overall min so e.g. [0,9]+[9,20]+[20,91] is found, not only 2-piece pairs.
+	/// intervals form a complete contiguous cover of overall via DFS/backtracking.
+	/// Candidates at each step are ordered by priority (Structure before OutlineSegment,
+	/// then longer reach, then stable input order) but every candidate is tried on failure
+	/// of the preferred path — no single-path greedy dead-end.
 	/// Each piece must lie within overall (tol); adjacent pieces must abut (no gap / interior overlap).
 	/// Returns null when no such cover exists.
 	/// </summary>
@@ -304,58 +306,134 @@ public sealed class DimensionDeduplicationRules
 		{
 			return null;
 		}
-		List<DimensionDeduplicationItem> remaining = items.Where((DimensionDeduplicationItem item) => item != null).ToList();
-		List<DimensionDeduplicationItem> chain = new List<DimensionDeduplicationItem>();
-		double current = oMin;
-		while (current < oMax - tol)
+		// Preserve stable input order for tie-break.
+		List<PartitionCandidate> pool = new List<PartitionCandidate>();
+		for (int i = 0; i < items.Count; i++)
 		{
-			DimensionDeduplicationItem best = null;
-			double bestMax = current;
-			foreach (DimensionDeduplicationItem item in remaining)
+			DimensionDeduplicationItem item = items[i];
+			if (item == null)
 			{
-				Tuple<double, double> iv = ComputeArrowInterval(item, horizontal);
-				if (iv.Item2 - iv.Item1 <= tol)
-				{
-					continue;
-				}
-				// Must stay inside overall (no extension beyond envelope).
-				if (iv.Item1 < oMin - tol || iv.Item2 > oMax + tol)
-				{
-					continue;
-				}
-				if (Math.Abs(iv.Item1 - current) > tol)
-				{
-					continue;
-				}
-				// Prefer longer reach; on equal reach prefer Structure so structure members
-				// enter the chain when they share an interval with OutlineSegment.
-				bool farther = iv.Item2 > bestMax + tol;
-				bool sameReachPreferStructure = best != null
-					&& Math.Abs(iv.Item2 - bestMax) <= tol
-					&& IsStructureWidthOrHeightRole(item.DebugRole)
-					&& !IsStructureWidthOrHeightRole(best.DebugRole);
-				if (farther || sameReachPreferStructure || best == null)
-				{
-					if (best == null || farther || sameReachPreferStructure)
-					{
-						best = item;
-						bestMax = iv.Item2;
-					}
-				}
+				continue;
 			}
-			if (best == null)
+			Tuple<double, double> iv = ComputeArrowInterval(item, horizontal);
+			if (iv.Item2 - iv.Item1 <= tol)
 			{
-				return null;
+				continue;
 			}
-			chain.Add(best);
-			remaining.Remove(best);
-			current = bestMax;
+			if (iv.Item1 < oMin - tol || iv.Item2 > oMax + tol)
+			{
+				continue;
+			}
+			pool.Add(new PartitionCandidate
+			{
+				Item = item,
+				Min = iv.Item1,
+				Max = iv.Item2,
+				InputIndex = i
+			});
 		}
-		if (Math.Abs(current - oMax) > tol || chain.Count < 2)
+		if (pool.Count < 2)
+		{
+			return null;
+		}
+		List<DimensionDeduplicationItem> chain = new List<DimensionDeduplicationItem>();
+		HashSet<int> used = new HashSet<int>();
+		if (!TryBuildOverallPartitionChain(pool, used, chain, oMin, oMax, tol))
+		{
+			return null;
+		}
+		if (chain.Count < 2)
 		{
 			return null;
 		}
 		return chain;
+	}
+
+	/// <summary>
+	/// DFS from <paramref name="current"/> toward overall max. Backtracks when a branch
+	/// cannot advance; tries all candidates whose min abuts current (priority order).
+	/// </summary>
+	private bool TryBuildOverallPartitionChain(
+		List<PartitionCandidate> pool,
+		HashSet<int> used,
+		List<DimensionDeduplicationItem> chain,
+		double current,
+		double oMax,
+		double tol)
+	{
+		if (Math.Abs(current - oMax) <= tol)
+		{
+			return chain.Count >= 2;
+		}
+		if (current >= oMax - tol)
+		{
+			// Overshot without exact abutment (should not happen if candidates stay within overall).
+			return false;
+		}
+		List<PartitionCandidate> candidates = new List<PartitionCandidate>();
+		foreach (PartitionCandidate candidate in pool)
+		{
+			if (used.Contains(candidate.InputIndex))
+			{
+				continue;
+			}
+			if (Math.Abs(candidate.Min - current) > tol)
+			{
+				continue;
+			}
+			// Must strictly advance toward overall max (prevent zero-progress loops under tol).
+			if (candidate.Max <= current + tol)
+			{
+				continue;
+			}
+			candidates.Add(candidate);
+		}
+		if (candidates.Count == 0)
+		{
+			return false;
+		}
+		// Prefer Structure over OutlineSegment; then farther reach; then stable input index.
+		candidates.Sort(ComparePartitionCandidates);
+		foreach (PartitionCandidate candidate in candidates)
+		{
+			used.Add(candidate.InputIndex);
+			chain.Add(candidate.Item);
+			if (TryBuildOverallPartitionChain(pool, used, chain, candidate.Max, oMax, tol))
+			{
+				return true;
+			}
+			chain.RemoveAt(chain.Count - 1);
+			used.Remove(candidate.InputIndex);
+		}
+		return false;
+	}
+
+	private static int ComparePartitionCandidates(PartitionCandidate a, PartitionCandidate b)
+	{
+		bool aStruct = IsStructureWidthOrHeightRole(a.Item.DebugRole);
+		bool bStruct = IsStructureWidthOrHeightRole(b.Item.DebugRole);
+		if (aStruct != bStruct)
+		{
+			return aStruct ? -1 : 1;
+		}
+		// Farther max first (preferred try order only — not exclusive).
+		int maxCmp = b.Max.CompareTo(a.Max);
+		if (maxCmp != 0)
+		{
+			return maxCmp;
+		}
+		return a.InputIndex.CompareTo(b.InputIndex);
+	}
+
+	private sealed class PartitionCandidate
+	{
+		public DimensionDeduplicationItem Item;
+
+		public double Min;
+
+		public double Max;
+
+		public int InputIndex;
 	}
 
 	private static bool IsStructureWidthOrHeightRole(string debugRole)

@@ -513,15 +513,22 @@ public sealed class DimensionPlanner
 			return;
 		}
 		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>(envelopeOutlineSegments);
-		// Same-interval *horizontal* structure duplicates of envelope OS tips only
-		// (e.g. BottomStructWidth 10 == OutlineSegment 10 on overall bottom edge).
-		// Do NOT co-suppress Left/RightStructHeight: on L-shaped parts the short arm height
-		// sits on overall MaxX/MinX with span < OverallHeight and is a real side face
-		// (e.g. RightStructHeight 20 with OverallHeight 50), not an overall-edge fragment.
+		// Same-interval *horizontal* structure co-suppress only for short overall-edge tips
+		// (e.g. BottomStructWidth 10 on overall 75 with matching envelope OS tip).
+		// Do NOT co-suppress substantial step faces on the envelope line
+		// (e.g. bottom ledge width 120 on overall 215) — those are real locating dims.
+		// Left/RightStructHeight never co-suppressed here (short arm height on MaxX, etc.).
+		double overallWidthSpan = maxX - minX;
 		foreach (PlannedDimension structure in plan.Dimensions
 			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
 				&& IsHorizontalStructureWidthRole(d.DebugRole)))
 		{
+			double structureSpan = GetDimensionSpan(structure, horizontal: true);
+			// Short tip: less than half overall width. Step ledges are typically larger.
+			if (structureSpan >= overallWidthSpan * 0.5 - _config.GeometryTolerance)
+			{
+				continue;
+			}
 			if (envelopeOutlineSegments.Any((PlannedDimension os) =>
 				os.Orientation == DimensionOrientation.Horizontal
 				&& IsSameMeasurementInterval(structure, os, horizontal: true)))
@@ -3198,16 +3205,86 @@ public sealed class DimensionPlanner
 		{
 			return;
 		}
-		List<PlannedDimension> partnerPool = plan.Dimensions
+		List<PlannedDimension> outlineSegments = plan.Dimensions
 			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
-				&& IsStructureOverallPartitionPartnerRole(d.DebugRole)
+				&& string.Equals(d.DebugRole, "OutlineSegment", StringComparison.Ordinal)
 				&& d.Orientation == expected)
 			.ToList();
 		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal);
 		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>();
-		CollectStructureOverallPartitionSuppressions(structureDims, partnerPool, overallInterval, horizontal, toSuppress);
-		// Structure-only chain: catches BSW9+BSW11+TSW71 even if coarser OS pieces also cover overall.
-		CollectStructureOverallPartitionSuppressions(structureDims, structureDims, overallInterval, horizontal, toSuppress);
+		double tol = _config.GeometryTolerance;
+		// Per-structure search: only suppress the *focus* structure when it participates in a
+		// complete overall partition with other structures and/or collinear same-side OutlineSegments.
+		// Same Side alone is not enough: L-shape TopStructWidth 20 (tower top) must not be erased
+		// by Top OutlineSegment 71 on the arm (different Y, only shared placement side).
+		foreach (PlannedDimension focus in structureDims)
+		{
+			List<PlannedDimension> partnerPool = new List<PlannedDimension> { focus };
+			foreach (PlannedDimension other in structureDims)
+			{
+				if (other != focus)
+				{
+					partnerPool.Add(other);
+				}
+			}
+			foreach (PlannedDimension os in outlineSegments)
+			{
+				if (os.Side == focus.Side && AreCollinearStructurePartners(focus, os, horizontal, tol))
+				{
+					partnerPool.Add(os);
+				}
+			}
+			if (partnerPool.Count < 2)
+			{
+				continue;
+			}
+			List<DimensionDeduplicationItem> items = new List<DimensionDeduplicationItem>(partnerPool.Count);
+			Dictionary<DimensionDeduplicationItem, PlannedDimension> itemToDim = new Dictionary<DimensionDeduplicationItem, PlannedDimension>();
+			foreach (PlannedDimension partner in partnerPool)
+			{
+				DimensionDeduplicationItem item = ToDeduplicationItem(partner);
+				items.Add(item);
+				itemToDim[item] = partner;
+			}
+			IList<DimensionDeduplicationItem> chain = _dimensionDeduplicationRules.FindCompleteOverallPartitionChain(
+				items,
+				overallInterval.Item1,
+				overallInterval.Item2,
+				horizontal);
+			if (chain == null || chain.Count < 2)
+			{
+				continue;
+			}
+			bool focusOnChain = false;
+			Tuple<double, double> focusInterval = ComputeArrowInterval(focus, horizontal);
+			foreach (DimensionDeduplicationItem chainItem in chain)
+			{
+				if (!itemToDim.TryGetValue(chainItem, out PlannedDimension dim))
+				{
+					continue;
+				}
+				if (dim == focus)
+				{
+					focusOnChain = true;
+					break;
+				}
+				if (IsStructureWidthOrHeightRole(dim.DebugRole)
+					|| string.Equals(dim.DebugRole, "OutlineSegment", StringComparison.Ordinal))
+				{
+					Tuple<double, double> iv = ComputeArrowInterval(dim, horizontal);
+					if (Math.Abs(iv.Item1 - focusInterval.Item1) <= tol
+						&& Math.Abs(iv.Item2 - focusInterval.Item2) <= tol)
+					{
+						focusOnChain = true;
+						break;
+					}
+				}
+			}
+			if (focusOnChain)
+			{
+				toSuppress.Add(focus);
+			}
+		}
 		if (toSuppress.Count == 0)
 		{
 			return;
@@ -3224,67 +3301,45 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	private void CollectStructureOverallPartitionSuppressions(
-		IList<PlannedDimension> structureDims,
-		IList<PlannedDimension> partnerPool,
-		Tuple<double, double> overallInterval,
-		bool horizontal,
-		HashSet<PlannedDimension> toSuppress)
-	{
-		if (structureDims == null || partnerPool == null || partnerPool.Count < 2 || toSuppress == null)
-		{
-			return;
-		}
-		List<DimensionDeduplicationItem> items = new List<DimensionDeduplicationItem>(partnerPool.Count);
-		Dictionary<DimensionDeduplicationItem, PlannedDimension> itemToDim = new Dictionary<DimensionDeduplicationItem, PlannedDimension>();
-		foreach (PlannedDimension partner in partnerPool)
-		{
-			DimensionDeduplicationItem item = ToDeduplicationItem(partner);
-			items.Add(item);
-			itemToDim[item] = partner;
-		}
-		IList<DimensionDeduplicationItem> chain = _dimensionDeduplicationRules.FindCompleteOverallPartitionChain(
-			items,
-			overallInterval.Item1,
-			overallInterval.Item2,
-			horizontal);
-		if (chain == null || chain.Count < 2)
-		{
-			return;
-		}
-		List<Tuple<double, double>> chainIntervals = chain
-			.Select((DimensionDeduplicationItem item) => DimensionDeduplicationRules.ComputeArrowInterval(item, horizontal))
-			.ToList();
-		foreach (DimensionDeduplicationItem chainItem in chain)
-		{
-			if (itemToDim.TryGetValue(chainItem, out PlannedDimension dim)
-				&& IsStructureWidthOrHeightRole(dim.DebugRole))
-			{
-				toSuppress.Add(dim);
-			}
-		}
-		// Same-interval structure siblings of chain pieces (e.g. BSW20 when chain took OS20).
-		double tol = _config.GeometryTolerance;
-		foreach (PlannedDimension structure in structureDims)
-		{
-			if (toSuppress.Contains(structure))
-			{
-				continue;
-			}
-			Tuple<double, double> structureInterval = ComputeArrowInterval(structure, horizontal);
-			if (chainIntervals.Any((Tuple<double, double> iv) =>
-				Math.Abs(iv.Item1 - structureInterval.Item1) <= tol
-				&& Math.Abs(iv.Item2 - structureInterval.Item2) <= tol))
-			{
-				toSuppress.Add(structure);
-			}
-		}
-	}
-
 	private static bool IsStructureOverallPartitionPartnerRole(string debugRole)
 	{
 		return IsStructureWidthOrHeightRole(debugRole)
 			|| string.Equals(debugRole, "OutlineSegment", StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// Structure + OutlineSegment overall-partition partners must be collinear on the
+	/// measurement edge: same Y for horizontal dims, same X for vertical dims.
+	/// Same placement side alone is insufficient (tower top vs arm top both Side=Top).
+	/// </summary>
+	private static bool AreCollinearStructurePartners(PlannedDimension a, PlannedDimension b, bool horizontal, double tol)
+	{
+		if (a == null || b == null)
+		{
+			return false;
+		}
+		if (horizontal)
+		{
+			double aY1 = a.FirstPoint.Y;
+			double aY2 = a.SecondPoint.Y;
+			double bY1 = b.FirstPoint.Y;
+			double bY2 = b.SecondPoint.Y;
+			// Both segments nearly horizontal on the same Y.
+			if (Math.Abs(aY1 - aY2) > tol || Math.Abs(bY1 - bY2) > tol)
+			{
+				return false;
+			}
+			return Math.Abs(aY1 - bY1) <= tol;
+		}
+		double aX1 = a.FirstPoint.X;
+		double aX2 = a.SecondPoint.X;
+		double bX1 = b.FirstPoint.X;
+		double bX2 = b.SecondPoint.X;
+		if (Math.Abs(aX1 - aX2) > tol || Math.Abs(bX1 - bX2) > tol)
+		{
+			return false;
+		}
+		return Math.Abs(aX1 - bX1) <= tol;
 	}
 
 	/// <summary>

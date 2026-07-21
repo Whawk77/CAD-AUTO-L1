@@ -39,7 +39,17 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(EffectiveSpanControlsHorizontalStacking), EffectiveSpanControlsHorizontalStacking);
 				RunTest(nameof(SharedArrowEndpointUsesStrictSpanOrder), SharedArrowEndpointUsesStrictSpanOrder);
 				RunTest(nameof(StructureAlignmentKeyAlignsAdjacentSegmentsOnSameLevel), StructureAlignmentKeyAlignsAdjacentSegmentsOnSameLevel);
+				RunTest(nameof(SlotChainAlignmentKeyAlignsEdgeLocationAndCenterDistance), SlotChainAlignmentKeyAlignsEdgeLocationAndCenterDistance);
 				RunTest(nameof(OutlineSegmentsThatPartitionOverallAreSuppressed), OutlineSegmentsThatPartitionOverallAreSuppressed);
+				RunTest(nameof(ThreeOutlineSegmentsThatPartitionOverallAreSuppressed), ThreeOutlineSegmentsThatPartitionOverallAreSuppressed);
+				RunTest(nameof(OutlineSegmentOnOverallEnvelopeIsSuppressed), OutlineSegmentOnOverallEnvelopeIsSuppressed);
+				RunTest(nameof(StructureDuplicateOfEnvelopeOutlineSegmentIsSuppressed), StructureDuplicateOfEnvelopeOutlineSegmentIsSuppressed);
+				RunTest(nameof(InnerOutlineSegmentMatchingEnvelopeTipIsSuppressed), InnerOutlineSegmentMatchingEnvelopeTipIsSuppressed);
+				RunTest(nameof(CompleteOverallPartitionIntervalsAreDetected), CompleteOverallPartitionIntervalsAreDetected);
+				RunTest(nameof(OverlappingIntervalsDoNotFormOverallPartition), OverlappingIntervalsDoNotFormOverallPartition);
+				RunTest(nameof(GappedIntervalsDoNotFormOverallPartition), GappedIntervalsDoNotFormOverallPartition);
+				RunTest(nameof(OutOfBoundsIntervalsDoNotFormOverallPartition), OutOfBoundsIntervalsDoNotFormOverallPartition);
+				RunTest(nameof(NumericallyComplementaryStructureIntervalsDoNotPartitionOverall), NumericallyComplementaryStructureIntervalsDoNotPartitionOverall);
 				RunTest(nameof(EffectiveSpanControlsVerticalStacking), EffectiveSpanControlsVerticalStacking);
 				RunTest(nameof(NearEqualEffectiveSpansUseSemanticTieBreak), NearEqualEffectiveSpansUseSemanticTieBreak);
 				RunTest(nameof(LayoutBlocksUseBottomV203SpanOrder), LayoutBlocksUseBottomV203SpanOrder);
@@ -63,7 +73,10 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(NonFortyFiveSlopeIsNotChamfer), NonFortyFiveSlopeIsNotChamfer);
                 RunTest(nameof(VerticalStructurePointsCreateStepWidths), VerticalStructurePointsCreateStepWidths);
                 RunTest(nameof(StructureWidthsThatPartitionOverallAreSuppressed), StructureWidthsThatPartitionOverallAreSuppressed);
+                RunTest(nameof(StructureWidthThatPartitionsOverallWithOutlineSegmentIsSuppressed), StructureWidthThatPartitionsOverallWithOutlineSegmentIsSuppressed);
+                RunTest(nameof(ThreeStructureWidthsThatPartitionOverallAreSuppressed), ThreeStructureWidthsThatPartitionOverallAreSuppressed);
                 RunTest(nameof(LocalTopStructureWidthIsKeptWhenNotPartitioningOverall), LocalTopStructureWidthIsKeptWhenNotPartitioningOverall);
+                RunTest(nameof(RightArmHeightOnOverallMaxXIsKept), RightArmHeightOnOverallMaxXIsKept);
                 RunTest(nameof(HorizontalStructurePointsCreateStepHeights), HorizontalStructurePointsCreateStepHeights);
                 RunTest(nameof(DiagonalFragmentsDoNotCreateStructureDimensions), DiagonalFragmentsDoNotCreateStructureDimensions);
                 RunTest(nameof(BottomInclinedStructurePointsRequireInnerGrooveChamfer), BottomInclinedStructurePointsRequireInnerGrooveChamfer);
@@ -654,6 +667,97 @@ namespace CadAuto.Core.Tests
 				"adjacent structure segments must share one rooted layout block");
 		}
 
+		/// <summary>
+		/// U-slot edge location (SlotChainV 10) + inter-slot center distance (SlotChainV 15)
+		/// are one continuous locating chain and must share AlignmentKey / same stacking level.
+		/// </summary>
+		private static void SlotChainAlignmentKeyAlignsEdgeLocationAndCenterDistance()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			// Layout-only: same key as planner will emit for a left vertical slot chain.
+			var outline = CreateRectangle(100.0, 50.0);
+			const string slotChainKey = "SlotChain:L:V:50";
+			var dimensions = new[]
+			{
+				// Edge → first U-slot (SCV2 style)
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.Normal,
+					FirstPoint = new Point2D(50.0, 0.0),
+					SecondPoint = new Point2D(50.0, 10.0),
+					Span = 10.0,
+					AlignmentKey = slotChainKey,
+					AlignmentPriority = 80,
+					ReadingLevel = DimensionReadingLevel.LocalSpacing,
+					SourceFeatureId = "SlotChainV"
+				},
+				// First U-slot → second U-slot center distance (SCV1 style)
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.Normal,
+					FirstPoint = new Point2D(50.0, 10.0),
+					SecondPoint = new Point2D(50.0, 25.0),
+					Span = 15.0,
+					AlignmentKey = slotChainKey,
+					AlignmentPriority = 80,
+					ReadingLevel = DimensionReadingLevel.LocalSpacing,
+					SourceFeatureId = "SlotChainV"
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.OverallHeight,
+					FirstPoint = new Point2D(0.0, 0.0),
+					SecondPoint = new Point2D(0.0, 50.0),
+					Span = 50.0,
+					ForceOuterLevel = true,
+					ReadingLevel = DimensionReadingLevel.Overall,
+					SourceFeatureId = "OverallHeight"
+				}
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Left, outline, 2.5, 1.0, 5.0, 5.0, isHorizontal: false).ToDictionary(item => item.Index);
+
+			Assert(placements[0].Level == placements[1].Level,
+				$"slot edge location and inter-slot center distance must share one stacking level (levels {placements[0].Level}/{placements[1].Level})");
+			Assert(placements[0].LayoutBlockType == "RootedAlignmentLane" && placements[1].LayoutBlockType == "RootedAlignmentLane",
+				"slot chain members must form a rooted alignment lane");
+			Assert(placements[0].LayoutBlockId == placements[1].LayoutBlockId,
+				"slot chain members must share one rooted layout block");
+			Assert(placements[2].Level > placements[0].Level,
+				"overall height must remain outside the slot chain lane");
+
+			// Planner emits the same key for continuous vertical slot anchors.
+			var outline2 = CreateRectangle(100.0, 50.0);
+			var datum = Datum2D.FromOutline(outline2);
+			var slots = new[]
+			{
+				new SlotFeature2D
+				{
+					GroupId = "U1",
+					FirstCenter = new Point2D(50.0, 10.0),
+					SecondCenter = new Point2D(70.0, 10.0),
+					Radius = 5.0,
+					CenterDistance = 20.0
+				},
+				new SlotFeature2D
+				{
+					GroupId = "U2",
+					FirstCenter = new Point2D(50.0, 25.0),
+					SecondCenter = new Point2D(70.0, 25.0),
+					Radius = 5.0,
+					CenterDistance = 20.0
+				}
+			};
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline2, datum, new HoleFeature2D[0], slots);
+			var chain = plan.Dimensions.Where(d => d.DebugRole == "SlotChainV").ToList();
+			Assert(chain.Count >= 2, "expected vertical slot chain segments (edge location + center distance)");
+			Assert(chain.All(d => !string.IsNullOrEmpty(d.AlignmentKey) && d.AlignmentKey.StartsWith("SlotChain:L:V:", StringComparison.Ordinal)),
+				"SlotChainV members must carry SlotChain:L:V alignment keys");
+			Assert(chain.Select(d => d.AlignmentKey).Distinct().Count() == 1,
+				"edge location and inter-slot distance on one column must share one AlignmentKey");
+			Assert(chain.All(d => d.AlignmentPriority == 80),
+				"slot chain alignment priority must be 80");
+		}
+
 		private static void OutlineSegmentsThatPartitionOverallAreSuppressed()
 		{
 			// Collinear bottom edge split into 25 + 232 = overall 257 (repro of ASD4 bottom).
@@ -693,6 +797,318 @@ namespace CadAuto.Core.Tests
 					|| c.SuppressedReason == "ComplementaryOutlineRemainder"
 					|| c.SuppressedReason == "MirroredDuplicate"),
 				"partition OutlineSegments must use partition/remainder/mirror reasons");
+		}
+
+		/// <summary>
+		/// Repro GEN|OutlineSegment1/2/3|GB|B|L*: bottom collinear 9+11+71 = overall 91.
+		/// Pairwise sums are not overall, but the 3-piece chain covers overall and must suppress all.
+		/// </summary>
+		private static void ThreeOutlineSegmentsThatPartitionOverallAreSuppressed()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 91.0,
+				MaxY = 20.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(9.0, 0.0), "bottom-a");
+			AddSegment(outline, new Point2D(9.0, 0.0), new Point2D(20.0, 0.0), "bottom-b");
+			AddSegment(outline, new Point2D(20.0, 0.0), new Point2D(91.0, 0.0), "bottom-c");
+			AddSegment(outline, new Point2D(91.0, 0.0), new Point2D(91.0, 20.0), "right");
+			AddSegment(outline, new Point2D(91.0, 20.0), new Point2D(0.0, 20.0), "top");
+			AddSegment(outline, new Point2D(0.0, 20.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 91.0) <= config.GeometryTolerance),
+				"overall width 91 must remain");
+			Assert(!plan.Dimensions.Any(d => d.DebugRole == "OutlineSegment" && d.Side == DimensionSide.Bottom),
+				"bottom OutlineSegments 9+11+71 that partition overall must not remain selected");
+			var suppressedBottom = plan.Diagnostics.DimensionCandidates
+				.Where(c => c.DebugRole == "OutlineSegment"
+					&& c.PlacementSide == DimensionSide.Bottom.ToString()
+					&& c.IsSuppressed
+					&& c.SuppressedReason == "OutlineSegmentOverallPartition")
+				.ToList();
+			Assert(suppressedBottom.Count >= 3
+					&& suppressedBottom.Any(c => Math.Abs(c.Value - 9.0) <= config.GeometryTolerance)
+					&& suppressedBottom.Any(c => Math.Abs(c.Value - 11.0) <= config.GeometryTolerance)
+					&& suppressedBottom.Any(c => Math.Abs(c.Value - 71.0) <= config.GeometryTolerance),
+				"all three OutlineSegments 9, 11, 71 must be suppressed as overall partition chain");
+
+			// Helper: multi-interval chain detection.
+			var rules = new DimensionDeduplicationRules(config);
+			var chain = new[]
+			{
+				Tuple.Create(0.0, 9.0),
+				Tuple.Create(9.0, 20.0),
+				Tuple.Create(20.0, 91.0)
+			};
+			Assert(rules.FormsCompleteOverallPartitionChain(chain, 0.0, 91.0),
+				"9+11+71 intervals must form a complete overall partition chain");
+			Assert(!rules.FormsCompleteOverallPartitionChain(
+					new[] { Tuple.Create(0.0, 9.0), Tuple.Create(9.0, 20.0) }, 0.0, 91.0),
+				"partial chain that does not reach overall max must not be treated as partition");
+		}
+
+		/// <summary>
+		/// Option 1: outer-envelope OutlineSegment fragment (e.g. right-end 10 on overall 75)
+		/// must suppress when Overall already exists — even if it does not complete a partition chain
+		/// (middle piece removed by chamfer / left gap).
+		/// </summary>
+		private static void OutlineSegmentOnOverallEnvelopeIsSuppressed()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 75.0,
+				MaxY = 40.0
+			};
+			// Bottom: short left (chamfer-like 5), long mid 60, right tip 10 — overall 75.
+			// Even if mid is not a complete partition partner, right tip 10 lies on envelope.
+			AddSegment(outline, new Point2D(0.0, 5.0), new Point2D(5.0, 0.0), "chamfer-bl");
+			AddSegment(outline, new Point2D(5.0, 0.0), new Point2D(65.0, 0.0), "bottom-mid");
+			AddSegment(outline, new Point2D(65.0, 0.0), new Point2D(75.0, 0.0), "bottom-right-tip");
+			AddSegment(outline, new Point2D(75.0, 0.0), new Point2D(75.0, 40.0), "right");
+			AddSegment(outline, new Point2D(75.0, 40.0), new Point2D(0.0, 40.0), "top");
+			AddSegment(outline, new Point2D(0.0, 40.0), new Point2D(0.0, 5.0), "left");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 75.0) <= config.GeometryTolerance),
+				"overall width 75 must remain");
+			Assert(!plan.Dimensions.Any(d => d.DebugRole == "OutlineSegment"
+					&& d.Orientation == DimensionOrientation.Horizontal
+					&& d.Side == DimensionSide.Bottom
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 10.0) <= config.GeometryTolerance),
+				"bottom envelope OutlineSegment tip 10 must not remain selected when Overall exists");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
+					c.DebugRole == "OutlineSegment"
+					&& c.PlacementSide == DimensionSide.Bottom.ToString()
+					&& Math.Abs(c.Value - 10.0) <= config.GeometryTolerance
+					&& c.IsSuppressed
+					&& (c.SuppressedReason == "OutlineSegmentOnOverallEnvelope"
+						|| c.SuppressedReason == "OutlineSegmentOverallPartition"
+						|| c.SuppressedReason == "SuppressedByCornerFeature")),
+				"bottom envelope OutlineSegment 10 must be suppressed (envelope/partition/corner)");
+		}
+
+		/// <summary>
+		/// Same geometry as envelope OS tip 10: BottomStructWidth 10 must also suppress
+		/// (duplicate candidate of the outer-envelope fragment).
+		/// </summary>
+		private static void StructureDuplicateOfEnvelopeOutlineSegmentIsSuppressed()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 75.0,
+				MaxY = 40.0
+			};
+			AddSegment(outline, new Point2D(0.0, 5.0), new Point2D(5.0, 0.0), "chamfer-bl");
+			AddSegment(outline, new Point2D(5.0, 0.0), new Point2D(65.0, 0.0), "bottom-mid");
+			AddSegment(outline, new Point2D(65.0, 0.0), new Point2D(75.0, 0.0), "bottom-right-tip");
+			AddSegment(outline, new Point2D(75.0, 0.0), new Point2D(75.0, 40.0), "right");
+			AddSegment(outline, new Point2D(75.0, 40.0), new Point2D(0.0, 40.0), "top");
+			AddSegment(outline, new Point2D(0.0, 40.0), new Point2D(0.0, 5.0), "left");
+			// Full-height shoulder at tip start so BottomStructWidth 10 is also generated.
+			AddSegment(outline, new Point2D(65.0, 0.0), new Point2D(65.0, 40.0), "shoulder-tip");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(!plan.Dimensions.Any(d =>
+					(d.DebugRole == "BottomStructWidth" || d.DebugRole == "TopStructWidth")
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 10.0) <= config.GeometryTolerance),
+				"structure width 10 that duplicates envelope OutlineSegment tip must not remain selected");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
+					(c.DebugRole == "BottomStructWidth" || c.DebugRole == "TopStructWidth")
+					&& Math.Abs(c.Value - 10.0) <= config.GeometryTolerance
+					&& c.IsSuppressed
+					&& (c.SuppressedReason == "StructureDuplicateOfEnvelopeOutlineSegment"
+						|| c.SuppressedReason == "StructureOverallPartition"
+						|| c.SuppressedReason == "MirroredDuplicate")),
+				"structure width 10 must be suppressed as envelope-OS duplicate (or equivalent)");
+		}
+
+		/// <summary>
+		/// Repro GEN|OutlineSegment1|GB|R|L0: outer right tip OS@MaxX height 5 is envelope-suppressed,
+		/// but an inner vertical at mid-X with the same Y-interval was left selected (Side=Right).
+		/// Same measurement interval as envelope fragment must also suppress.
+		/// Bottom gap prevents left/right 5+40 from forming an overall-height partition chain
+		/// (mirrors CAD case where mid segment is corner-suppressed and tips remain).
+		/// </summary>
+		private static void InnerOutlineSegmentMatchingEnvelopeTipIsSuppressed()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 40.0,
+				MaxY = 45.0
+			};
+			// Bottom gap [0,5] via diagonal so verticals do not start at overall MinY → no 5+40 chain.
+			AddSegment(outline, new Point2D(5.0, 0.0), new Point2D(35.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(0.0, 5.0), new Point2D(5.0, 0.0), "chamfer-bl");
+			AddSegment(outline, new Point2D(35.0, 0.0), new Point2D(40.0, 5.0), "chamfer-br");
+			AddSegment(outline, new Point2D(40.0, 5.0), new Point2D(40.0, 40.0), "right-main");
+			AddSegment(outline, new Point2D(40.0, 40.0), new Point2D(40.0, 45.0), "right-tip");
+			AddSegment(outline, new Point2D(40.0, 45.0), new Point2D(0.0, 45.0), "top");
+			AddSegment(outline, new Point2D(0.0, 45.0), new Point2D(0.0, 40.0), "left-tip");
+			AddSegment(outline, new Point2D(0.0, 40.0), new Point2D(0.0, 5.0), "left-main");
+			// Inner vertical, same Y-interval as outer tips [40,45], X not on envelope → Side=Right.
+			AddSegment(outline, new Point2D(5.0, 40.0), new Point2D(5.0, 45.0), "inner-tip");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallHeight
+					&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 45.0) <= config.GeometryTolerance),
+				"overall height 45 must remain");
+			// Inner tip must not remain; outer tips should be envelope-suppressed.
+			Assert(!plan.Dimensions.Any(d => d.DebugRole == "OutlineSegment"
+					&& d.Orientation == DimensionOrientation.Vertical
+					&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 5.0) <= config.GeometryTolerance
+					&& Math.Abs(d.FirstPoint.X - 5.0) <= config.GeometryTolerance),
+				"inner vertical OutlineSegment tip at X=5 matching envelope tip interval must not remain");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
+					c.DebugRole == "OutlineSegment"
+					&& Math.Abs(c.Value - 5.0) <= config.GeometryTolerance
+					&& c.IsSuppressed
+					&& (c.SuppressedReason == "OutlineSegmentOnOverallEnvelope"
+						|| c.SuppressedReason == "OutlineSegmentSameIntervalAsEnvelopeFragment"
+						|| c.SuppressedReason == "MirroredDuplicate"
+						|| c.SuppressedReason == "DuplicateMeasuredDimension")),
+				"tip OutlineSegments of 5 must be suppressed");
+		}
+
+		/// <summary>
+		/// Case 1: [0,25] + [25,257] = overall [0,257] — true abutment partition.
+		/// </summary>
+		private static void CompleteOverallPartitionIntervalsAreDetected()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionDeduplicationRules(config);
+			var overall = CreatePartitionItem(0.0, 0.0, 257.0, 0.0, DimensionKind.OverallWidth);
+			var a = CreatePartitionItem(0.0, 0.0, 25.0, 0.0, DimensionKind.Normal, "OutlineSegment");
+			var b = CreatePartitionItem(25.0, 0.0, 257.0, 0.0, DimensionKind.Normal, "OutlineSegment");
+
+			Assert(rules.FormsCompleteOverallPartition(a, b, overall, horizontal: true),
+				"abutting [0,25]+[25,257] must form a complete overall partition of 257");
+			// Integration: same geometry still suppresses OutlineSegment pair in the planner.
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 257.0, MaxY = 20.0 };
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(25.0, 0.0), "bottom-left");
+			AddSegment(outline, new Point2D(25.0, 0.0), new Point2D(257.0, 0.0), "bottom-right");
+			AddSegment(outline, new Point2D(257.0, 0.0), new Point2D(257.0, 20.0), "right");
+			AddSegment(outline, new Point2D(257.0, 20.0), new Point2D(0.0, 20.0), "top");
+			AddSegment(outline, new Point2D(0.0, 20.0), new Point2D(0.0, 0.0), "left");
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			Assert(!plan.Dimensions.Any(d => d.DebugRole == "OutlineSegment" && d.Side == DimensionSide.Bottom),
+				"true partition OutlineSegments must still be suppressed by planner");
+		}
+
+		/// <summary>
+		/// Case 2: lengths 40+60=100 but intervals [0,40] and [20,80] overlap and miss [80,100].
+		/// </summary>
+		private static void OverlappingIntervalsDoNotFormOverallPartition()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionDeduplicationRules(config);
+			var overall = CreatePartitionItem(0.0, 0.0, 100.0, 0.0, DimensionKind.OverallWidth);
+			var a = CreatePartitionItem(0.0, 0.0, 40.0, 0.0, DimensionKind.Normal, "OutlineSegment");
+			var b = CreatePartitionItem(20.0, 0.0, 80.0, 0.0, DimensionKind.Normal, "OutlineSegment");
+
+			Assert(Math.Abs((40.0 + 60.0) - 100.0) <= config.GeometryTolerance,
+				"precondition: span sum equals overall");
+			Assert(!rules.FormsCompleteOverallPartition(a, b, overall, horizontal: true),
+				"overlapping intervals must not form overall partition even when span sum matches");
+		}
+
+		/// <summary>
+		/// Case 3: lengths 30+70=100 but [0,30] and [40,110] have a gap (and B overshoots).
+		/// Also pure-gap case [0,30]+[40,100] inside overall.
+		/// </summary>
+		private static void GappedIntervalsDoNotFormOverallPartition()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionDeduplicationRules(config);
+			var overall = CreatePartitionItem(0.0, 0.0, 100.0, 0.0, DimensionKind.OverallWidth);
+			var a = CreatePartitionItem(0.0, 0.0, 30.0, 0.0, DimensionKind.Normal, "OutlineSegment");
+			// Gap only (still within overall): [0,30] + [40,100]
+			var gappedInside = CreatePartitionItem(40.0, 0.0, 100.0, 0.0, DimensionKind.Normal, "OutlineSegment");
+			Assert(!rules.FormsCompleteOverallPartition(a, gappedInside, overall, horizontal: true),
+				"gapped intervals [0,30]+[40,100] must not form overall partition");
+
+			// Classic gap + overshoot with span sum 100: [0,30]+[40,110]
+			var overshoot = CreatePartitionItem(40.0, 0.0, 110.0, 0.0, DimensionKind.Normal, "OutlineSegment");
+			Assert(Math.Abs((30.0 + 70.0) - 100.0) <= config.GeometryTolerance,
+				"precondition: span sum equals overall");
+			Assert(!rules.FormsCompleteOverallPartition(a, overshoot, overall, horizontal: true),
+				"gapped/overshooting intervals must not form overall partition");
+		}
+
+		/// <summary>
+		/// Case 4: lengths sum to overall but one interval extends past overall max.
+		/// </summary>
+		private static void OutOfBoundsIntervalsDoNotFormOverallPartition()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionDeduplicationRules(config);
+			var overall = CreatePartitionItem(0.0, 0.0, 100.0, 0.0, DimensionKind.OverallWidth);
+			// [0,30] + [30,130]: abut but B extends past overall; span sum 130 ≠ 100.
+			// Use span-sum equal case with overshoot: [0,40] + [40,100] is valid;
+			// overshoot-only: [10,50] + [50,110] spans 40+60=100 but does not cover [0,10] and exceeds max.
+			var a = CreatePartitionItem(10.0, 0.0, 50.0, 0.0, DimensionKind.Normal, "OutlineSegment");
+			var b = CreatePartitionItem(50.0, 0.0, 110.0, 0.0, DimensionKind.Normal, "OutlineSegment");
+			Assert(Math.Abs((40.0 + 60.0) - 100.0) <= config.GeometryTolerance,
+				"precondition: span sum equals overall");
+			Assert(!rules.FormsCompleteOverallPartition(a, b, overall, horizontal: true),
+				"intervals that leave overall min uncovered and exceed max must not partition overall");
+		}
+
+		/// <summary>
+		/// Case 5: TopStructWidth 60 and BottomStructWidth 40 at different positions —
+		/// span sum equals overall but intervals do not form a contiguous cover.
+		/// </summary>
+		private static void NumericallyComplementaryStructureIntervalsDoNotPartitionOverall()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionDeduplicationRules(config);
+			var overall = CreatePartitionItem(0.0, 0.0, 100.0, 0.0, DimensionKind.OverallWidth);
+			// Different structural locations: top local step [0,60], bottom local step [0,40]
+			var top = CreatePartitionItem(0.0, 50.0, 60.0, 50.0, DimensionKind.Normal, "TopStructWidth");
+			var bottom = CreatePartitionItem(0.0, 0.0, 40.0, 0.0, DimensionKind.Normal, "BottomStructWidth");
+			Assert(Math.Abs((60.0 + 40.0) - 100.0) <= config.GeometryTolerance,
+				"precondition: span sum equals overall");
+			Assert(!rules.FormsCompleteOverallPartition(top, bottom, overall, horizontal: true),
+				"structure dims at different positions must not partition overall by span sum alone");
+
+			// Another non-cover pair with same spans: top [20,80]=60, bottom [10,50]=40
+			var topMid = CreatePartitionItem(20.0, 50.0, 80.0, 50.0, DimensionKind.Normal, "TopStructWidth");
+			var bottomMid = CreatePartitionItem(10.0, 0.0, 50.0, 0.0, DimensionKind.Normal, "BottomStructWidth");
+			Assert(!rules.FormsCompleteOverallPartition(topMid, bottomMid, overall, horizontal: true),
+				"overlapping/non-covering structure intervals must not form overall partition");
+		}
+
+		private static DimensionDeduplicationItem CreatePartitionItem(
+			double x1, double y1, double x2, double y2, DimensionKind kind, string debugRole = null)
+		{
+			return new DimensionDeduplicationItem
+			{
+				FirstPoint = new Point2D(x1, y1),
+				SecondPoint = new Point2D(x2, y2),
+				Span = Math.Abs(x2 - x1) > 1e-12 ? Math.Abs(x2 - x1) : Math.Abs(y2 - y1),
+				Kind = kind,
+				DebugRole = debugRole ?? string.Empty,
+				OverrideText = string.Empty
+			};
 		}
 
 		private static void EffectiveSpanControlsVerticalStacking()
@@ -1369,6 +1785,103 @@ namespace CadAuto.Core.Tests
 				"structure width 232 (overall remainder) must not remain selected");
 		}
 
+		/// <summary>
+		/// Repro of GEN|BSW1|GB|B|L0: bottom edge split 20+78 = overall 98 with a shoulder.
+		/// BottomStructWidth 20 + OutlineSegment 78 form a true overall partition → structure must suppress.
+		/// </summary>
+		private static void StructureWidthThatPartitionsOverallWithOutlineSegmentIsSuppressed()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 98.0,
+				MaxY = 20.0
+			};
+			// Bottom/top collinear splits + full-height shoulder at x=20 (matches last-run geometry).
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(20.0, 0.0), "bottom-left");
+			AddSegment(outline, new Point2D(20.0, 0.0), new Point2D(98.0, 0.0), "bottom-right");
+			AddSegment(outline, new Point2D(98.0, 0.0), new Point2D(98.0, 20.0), "right");
+			AddSegment(outline, new Point2D(98.0, 20.0), new Point2D(20.0, 20.0), "top-right");
+			AddSegment(outline, new Point2D(20.0, 20.0), new Point2D(0.0, 20.0), "top-left");
+			AddSegment(outline, new Point2D(0.0, 20.0), new Point2D(0.0, 0.0), "left");
+			AddSegment(outline, new Point2D(20.0, 0.0), new Point2D(20.0, 20.0), "shoulder");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 98.0) <= config.GeometryTolerance),
+				"overall width 98 must remain");
+			Assert(!plan.Dimensions.Any(d =>
+					(d.DebugRole == "BottomStructWidth" || d.DebugRole == "TopStructWidth")
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 20.0) <= config.GeometryTolerance),
+				"structure width 20 that partitions overall with OutlineSegment 78 must not remain selected");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
+					(c.DebugRole == "BottomStructWidth" || c.DebugRole == "TopStructWidth")
+					&& Math.Abs(c.Value - 20.0) <= config.GeometryTolerance
+					&& c.IsSuppressed
+					&& c.SuppressedReason == "StructureOverallPartition"),
+				"structure width 20 must be suppressed as StructureOverallPartition with OutlineSegment partner");
+			Assert(!plan.Dimensions.Any(d => d.DebugRole == "OutlineSegment"
+					&& d.Orientation == DimensionOrientation.Horizontal),
+				"OutlineSegment overall partition pieces must also be suppressed");
+		}
+
+		/// <summary>
+		/// Repro last-run BSW 9+11 + TSW 71 = overall 91 (pairwise incomplete, chain complete).
+		/// BuildOverallPartitionChain must suppress all three structure widths.
+		/// </summary>
+		private static void ThreeStructureWidthsThatPartitionOverallAreSuppressed()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 91.0,
+				MaxY = 20.0
+			};
+			// Two shoulders at x=9 and x=20 → structure chain [0,9]+[9,20]+[20,91].
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(9.0, 0.0), "bottom-a");
+			AddSegment(outline, new Point2D(9.0, 0.0), new Point2D(20.0, 0.0), "bottom-b");
+			AddSegment(outline, new Point2D(20.0, 0.0), new Point2D(91.0, 0.0), "bottom-c");
+			AddSegment(outline, new Point2D(91.0, 0.0), new Point2D(91.0, 20.0), "right");
+			AddSegment(outline, new Point2D(91.0, 20.0), new Point2D(20.0, 20.0), "top-c");
+			AddSegment(outline, new Point2D(20.0, 20.0), new Point2D(9.0, 20.0), "top-b");
+			AddSegment(outline, new Point2D(9.0, 20.0), new Point2D(0.0, 20.0), "top-a");
+			AddSegment(outline, new Point2D(0.0, 20.0), new Point2D(0.0, 0.0), "left");
+			AddSegment(outline, new Point2D(9.0, 0.0), new Point2D(9.0, 20.0), "shoulder-9");
+			AddSegment(outline, new Point2D(20.0, 0.0), new Point2D(20.0, 20.0), "shoulder-20");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 91.0) <= config.GeometryTolerance),
+				"overall width 91 must remain");
+			// BSW 9 and 11 (and any TSW that completes the overall chain) must not stay selected.
+			Assert(!plan.Dimensions.Any(d =>
+					(d.DebugRole == "BottomStructWidth" || d.DebugRole == "TopStructWidth")
+					&& (Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 9.0) <= config.GeometryTolerance
+						|| Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 11.0) <= config.GeometryTolerance)),
+				"BottomStructWidth 9 and 11 that partition overall must not remain selected");
+			var structCandidates = plan.Diagnostics.DimensionCandidates
+				.Where(c => c.DebugRole == "BottomStructWidth" || c.DebugRole == "TopStructWidth")
+				.ToList();
+			var bsw9 = structCandidates.Where(c => Math.Abs(c.Value - 9.0) <= config.GeometryTolerance).ToList();
+			var bsw11 = structCandidates.Where(c => Math.Abs(c.Value - 11.0) <= config.GeometryTolerance).ToList();
+			Assert(bsw9.Count > 0 && bsw9.All(c => c.IsSuppressed),
+				"structure width 9 must be generated and suppressed (got: "
+				+ string.Join(",", structCandidates.Select(c => c.DebugRole + "=" + c.Value + "/" + c.SuppressedReason + "/sel=" + c.IsSelected)) + ")");
+			Assert(bsw11.Count > 0 && bsw11.All(c => c.IsSuppressed),
+				"structure width 11 must be generated and suppressed");
+			Assert(bsw9.Any(c => c.SuppressedReason == "StructureOverallPartition")
+					|| bsw11.Any(c => c.SuppressedReason == "StructureOverallPartition"),
+				"at least one of BSW 9/11 must be StructureOverallPartition (chain rule)");
+			Assert(!plan.Dimensions.Any(d => d.DebugRole == "OutlineSegment" && d.Side == DimensionSide.Bottom),
+				"bottom OutlineSegment chain covering overall must also be suppressed by outline rule");
+		}
+
 		private static void LocalTopStructureWidthIsKeptWhenNotPartitioningOverall()
 		{
 			// Local step width 40 on overall 100 — must keep structure width (positioning), not treat as overall partition.
@@ -1395,6 +1908,47 @@ namespace CadAuto.Core.Tests
 						&& Math.Abs(c.Value - 40.0) <= config.GeometryTolerance)
 					.All(c => c.SuppressedReason != "StructureOverallPartition"),
 				"local structure width must not be suppressed as StructureOverallPartition");
+		}
+
+		/// <summary>
+		/// L-shaped part (overall 91×50, top step width 20, right arm height 20).
+		/// RightStructHeight 20 sits on Overall MaxX with span &lt; OverallHeight — must KEEP
+		/// (real side face), not die as StructureDuplicateOfEnvelopeOutlineSegment.
+		/// </summary>
+		private static void RightArmHeightOnOverallMaxXIsKept()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 91.0,
+				MaxY = 50.0
+			};
+			// Outer L: tall left block width 20 height 50, right arm height 20 width 71.
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(91.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(91.0, 0.0), new Point2D(91.0, 20.0), "right-arm");
+			AddSegment(outline, new Point2D(91.0, 20.0), new Point2D(20.0, 20.0), "step-top");
+			AddSegment(outline, new Point2D(20.0, 20.0), new Point2D(20.0, 50.0), "step-up");
+			AddSegment(outline, new Point2D(20.0, 50.0), new Point2D(0.0, 50.0), "top-left");
+			AddSegment(outline, new Point2D(0.0, 50.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallHeight
+					&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 50.0) <= config.GeometryTolerance),
+				"overall height 50 must remain");
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 91.0) <= config.GeometryTolerance),
+				"overall width 91 must remain");
+			Assert(plan.Dimensions.Any(d =>
+					d.DebugRole == "RightStructHeight"
+					&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 20.0) <= config.GeometryTolerance),
+				"right arm height 20 must remain selected on the right side");
+			Assert(plan.Diagnostics.DimensionCandidates
+					.Where(c => c.DebugRole == "RightStructHeight" && Math.Abs(c.Value - 20.0) <= config.GeometryTolerance)
+					.All(c => c.SuppressedReason != "StructureDuplicateOfEnvelopeOutlineSegment"),
+				"right arm height must not be co-suppressed as envelope OS duplicate");
 		}
 
         private static void HorizontalStructurePointsCreateStepHeights()

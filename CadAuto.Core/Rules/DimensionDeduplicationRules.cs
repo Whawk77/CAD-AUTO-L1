@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using CadAuto.Core.Planning;
 
 namespace CadAuto.Core.Rules;
@@ -165,6 +167,207 @@ public sealed class DimensionDeduplicationRules
 	public static double GetSpan(DimensionDeduplicationItem item, bool horizontal)
 	{
 		return horizontal ? Math.Abs(item.SecondPoint.X - item.FirstPoint.X) : Math.Abs(item.SecondPoint.Y - item.FirstPoint.Y);
+	}
+
+	/// <summary>
+	/// True when two dimensions form a real contiguous partition of the overall interval
+	/// along the measurement axis (X if horizontal, Y if vertical).
+	/// Requires endpoint intervals — not merely spanA + spanB ≈ overallSpan.
+	/// Conditions: no interior overlap, no gap, abut end-to-end, union equals overall.
+	/// </summary>
+	public bool FormsCompleteOverallPartition(DimensionDeduplicationItem first, DimensionDeduplicationItem second, DimensionDeduplicationItem overall, bool horizontal)
+	{
+		if (first == null || second == null || overall == null)
+		{
+			return false;
+		}
+		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal);
+		return FormsCompleteOverallPartition(first, second, overallInterval.Item1, overallInterval.Item2, horizontal);
+	}
+
+	/// <summary>
+	/// Same as <see cref="FormsCompleteOverallPartition(DimensionDeduplicationItem, DimensionDeduplicationItem, DimensionDeduplicationItem, bool)"/>
+	/// but overall is given as an axis interval [overallMin, overallMax].
+	/// </summary>
+	public bool FormsCompleteOverallPartition(DimensionDeduplicationItem first, DimensionDeduplicationItem second, double overallMin, double overallMax, bool horizontal)
+	{
+		if (first == null || second == null)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		double oMin = Math.Min(overallMin, overallMax);
+		double oMax = Math.Max(overallMin, overallMax);
+		if (oMax - oMin <= tol)
+		{
+			return false;
+		}
+		Tuple<double, double> a = ComputeArrowInterval(first, horizontal);
+		Tuple<double, double> b = ComputeArrowInterval(second, horizontal);
+		if (a.Item2 - a.Item1 <= tol || b.Item2 - b.Item1 <= tol)
+		{
+			return false;
+		}
+		// Order intervals by start (then by end for stable tie-break).
+		Tuple<double, double> low;
+		Tuple<double, double> high;
+		if (a.Item1 < b.Item1 - tol || (Math.Abs(a.Item1 - b.Item1) <= tol && a.Item2 <= b.Item2 + tol))
+		{
+			low = a;
+			high = b;
+		}
+		else
+		{
+			low = b;
+			high = a;
+		}
+		// Merged range must match overall endpoints.
+		if (Math.Abs(low.Item1 - oMin) > tol)
+		{
+			return false;
+		}
+		if (Math.Abs(high.Item2 - oMax) > tol)
+		{
+			return false;
+		}
+		// Contiguous abutment: no interior overlap and no gap (low.max ≈ high.min).
+		if (Math.Abs(low.Item2 - high.Item1) > tol)
+		{
+			return false;
+		}
+		return true;
+	}
+
+	/// <summary>
+	/// True when 2+ intervals form a contiguous abutment chain that exactly covers
+	/// [overallMin, overallMax] (no gap, no interior overlap, ends match overall).
+	/// Intervals may be unordered; they are sorted by start before validation.
+	/// </summary>
+	public bool FormsCompleteOverallPartitionChain(IList<Tuple<double, double>> intervals, double overallMin, double overallMax)
+	{
+		if (intervals == null || intervals.Count < 2)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		double oMin = Math.Min(overallMin, overallMax);
+		double oMax = Math.Max(overallMin, overallMax);
+		if (oMax - oMin <= tol)
+		{
+			return false;
+		}
+		List<Tuple<double, double>> ordered = intervals
+			.Where((Tuple<double, double> iv) => iv != null && iv.Item2 - iv.Item1 > tol)
+			.OrderBy((Tuple<double, double> iv) => iv.Item1)
+			.ThenBy((Tuple<double, double> iv) => iv.Item2)
+			.ToList();
+		if (ordered.Count < 2)
+		{
+			return false;
+		}
+		if (Math.Abs(ordered[0].Item1 - oMin) > tol)
+		{
+			return false;
+		}
+		if (Math.Abs(ordered[ordered.Count - 1].Item2 - oMax) > tol)
+		{
+			return false;
+		}
+		for (int i = 0; i < ordered.Count - 1; i++)
+		{
+			// Must abut: previous max ≈ next min (no gap, no interior overlap).
+			if (Math.Abs(ordered[i].Item2 - ordered[i + 1].Item1) > tol)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/// <summary>
+	/// BuildOverallPartitionChain: select a subset of items (size ≥ 2) whose measurement
+	/// intervals form a complete contiguous cover of overall. Greedy longest-extension from
+	/// overall min so e.g. [0,9]+[9,20]+[20,91] is found, not only 2-piece pairs.
+	/// Each piece must lie within overall (tol); adjacent pieces must abut (no gap / interior overlap).
+	/// Returns null when no such cover exists.
+	/// </summary>
+	public IList<DimensionDeduplicationItem> FindCompleteOverallPartitionChain(IList<DimensionDeduplicationItem> items, double overallMin, double overallMax, bool horizontal)
+	{
+		if (items == null || items.Count < 2)
+		{
+			return null;
+		}
+		double tol = _config.GeometryTolerance;
+		double oMin = Math.Min(overallMin, overallMax);
+		double oMax = Math.Max(overallMin, overallMax);
+		if (oMax - oMin <= tol)
+		{
+			return null;
+		}
+		List<DimensionDeduplicationItem> remaining = items.Where((DimensionDeduplicationItem item) => item != null).ToList();
+		List<DimensionDeduplicationItem> chain = new List<DimensionDeduplicationItem>();
+		double current = oMin;
+		while (current < oMax - tol)
+		{
+			DimensionDeduplicationItem best = null;
+			double bestMax = current;
+			foreach (DimensionDeduplicationItem item in remaining)
+			{
+				Tuple<double, double> iv = ComputeArrowInterval(item, horizontal);
+				if (iv.Item2 - iv.Item1 <= tol)
+				{
+					continue;
+				}
+				// Must stay inside overall (no extension beyond envelope).
+				if (iv.Item1 < oMin - tol || iv.Item2 > oMax + tol)
+				{
+					continue;
+				}
+				if (Math.Abs(iv.Item1 - current) > tol)
+				{
+					continue;
+				}
+				// Prefer longer reach; on equal reach prefer Structure so structure members
+				// enter the chain when they share an interval with OutlineSegment.
+				bool farther = iv.Item2 > bestMax + tol;
+				bool sameReachPreferStructure = best != null
+					&& Math.Abs(iv.Item2 - bestMax) <= tol
+					&& IsStructureWidthOrHeightRole(item.DebugRole)
+					&& !IsStructureWidthOrHeightRole(best.DebugRole);
+				if (farther || sameReachPreferStructure || best == null)
+				{
+					if (best == null || farther || sameReachPreferStructure)
+					{
+						best = item;
+						bestMax = iv.Item2;
+					}
+				}
+			}
+			if (best == null)
+			{
+				return null;
+			}
+			chain.Add(best);
+			remaining.Remove(best);
+			current = bestMax;
+		}
+		if (Math.Abs(current - oMax) > tol || chain.Count < 2)
+		{
+			return null;
+		}
+		return chain;
+	}
+
+	private static bool IsStructureWidthOrHeightRole(string debugRole)
+	{
+		if (string.IsNullOrEmpty(debugRole))
+		{
+			return false;
+		}
+		return debugRole == "TopStructWidth"
+			|| debugRole == "BottomStructWidth"
+			|| debugRole == "LeftStructHeight"
+			|| debugRole == "RightStructHeight";
 	}
 
 	public static int GetDimensionPreferenceRank(DimensionKind kind)

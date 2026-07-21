@@ -357,24 +357,31 @@ public sealed class DimensionPlanner
 	{
 		SuppressRightStructureHeightsDuplicatingOverallHeight(plan);
 		SuppressLeftStructureHeightsCoveredByRight(plan);
-		// Drop raw OutlineSegment pairs that re-partition overall first (before complementary
-		// remainder removes only the larger partner and leaves the smaller fragment orphaned).
+		// BuildOverallPartitionChain for structure: multi-piece contiguous cover of overall
+		// (structure roles + OutlineSegment partners). Suppress only structure members of the chain.
+		// Run before OutlineSegment overall-partition removal so OS partners still exist.
+		// Partners never include slot/hole Normals. Local structure steps that do not complete
+		// overall are kept (e.g. TopStructWidth=50).
+		SuppressStructureDimensionsThatPartitionOverall(plan, horizontal: true);
+		SuppressStructureDimensionsThatPartitionOverall(plan, horizontal: false);
+		// Drop raw OutlineSegment pairs that re-partition overall (before complementary remainder
+		// removes only the larger partner and leaves the smaller fragment orphaned).
 		// Scoped to OutlineSegment only — do not broaden complementary-remainder to Bottom/Left
-		// or slot/hole Normal dims (e.g. SlotDatumV + SlotCenter can sum to overall height).
+		// or slot/hole Normal dims.
 		SuppressOutlineSegmentsThatPartitionOverall(plan, DimensionSide.Top, horizontal: true);
 		SuppressOutlineSegmentsThatPartitionOverall(plan, DimensionSide.Bottom, horizontal: true);
 		SuppressOutlineSegmentsThatPartitionOverall(plan, DimensionSide.Right, horizontal: false);
 		SuppressOutlineSegmentsThatPartitionOverall(plan, DimensionSide.Left, horizontal: false);
-		// Structure width/height that only re-partition overall (same or opposite side) — drop both.
-		// Do NOT filter envelope edge points at collection time: local top/bottom steps that share
-		// MaxY/MinY can still be real locating dims (e.g. TopStructWidth=50).
-		SuppressStructureDimensionsThatPartitionOverall(plan, horizontal: true);
-		SuppressStructureDimensionsThatPartitionOverall(plan, horizontal: false);
+		// Mirror before envelope: envelope may remove the primary-side outer tip first, which
+		// would orphan a same-interval secondary OutlineSegment (e.g. Right OS@inner X that
+		// matches Left envelope tip) and leave GEN|OutlineSegment*|R|L0 selected.
+		SuppressMirroredDuplicates(plan, DimensionSide.Bottom, DimensionSide.Top, horizontal: true);
+		SuppressMirroredDuplicates(plan, DimensionSide.Left, DimensionSide.Right, horizontal: false);
+		// Outer-envelope collinear OutlineSegment fragments (+ same-interval structure dups).
+		SuppressOutlineSegmentsOnOverallEnvelope(plan);
 		// Existing complementary remainder for structure/normal remainders (Top/Right only).
 		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Top, horizontal: true);
 		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Right, horizontal: false);
-		SuppressMirroredDuplicates(plan, DimensionSide.Bottom, DimensionSide.Top, horizontal: true);
-		SuppressMirroredDuplicates(plan, DimensionSide.Left, DimensionSide.Right, horizontal: false);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Bottom, horizontal: true);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Top, horizontal: true);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Left, horizontal: false);
@@ -395,7 +402,9 @@ public sealed class DimensionPlanner
 			if (candidate.Kind == DimensionKind.Normal && candidate.Side == side)
 			{
 				double span = GetDimensionSpan(candidate, horizontal);
-				if (source.Any((PlannedDimension other) => other != candidate && GetDimensionSpan(other, horizontal) < span - _config.GeometryTolerance && Math.Abs(GetDimensionSpan(other, horizontal) + span - GetDimensionSpan(overall, horizontal)) <= _config.GeometryTolerance))
+				if (source.Any((PlannedDimension other) => other != candidate
+					&& GetDimensionSpan(other, horizontal) < span - _config.GeometryTolerance
+					&& FormsCompleteOverallPartition(candidate, other, overall, horizontal)))
 				{
 					plan.MarkSuppressed(candidate, "ComplementaryOutlineRemainder");
 					plan.Dimensions.RemoveAt(num);
@@ -405,10 +414,10 @@ public sealed class DimensionPlanner
 	}
 
 	/// <summary>
-	/// Suppress OutlineSegment dims that merely partition the overall envelope with another
-	/// same-side span (A + B ≈ Overall). Unlike complementary-remainder (keeps the smaller
-	/// partner), both OutlineSegment partners are dropped — they restate overall without a
-	/// distinct manufacturing meaning (e.g. bottom 25 + 232 with overall 257).
+	/// Suppress OutlineSegment dims that re-partition the overall envelope on the same side.
+	/// Covers both 2-piece pairs (e.g. [0,25]+[25,257]) and multi-piece chains
+	/// (e.g. [0,9]+[9,20]+[20,91] = overall 91). Requires real contiguous cover of overall
+	/// (abut, no gap/overlap) — not mere span sums. All pieces in the covering chain are dropped.
 	/// </summary>
 	private void SuppressOutlineSegmentsThatPartitionOverall(DimensionPlan plan, DimensionSide side, bool horizontal)
 	{
@@ -417,16 +426,51 @@ public sealed class DimensionPlanner
 		{
 			return;
 		}
-		double overallSpan = GetDimensionSpan(overall, horizontal);
-		List<PlannedDimension> sameSide = plan.Dimensions
-			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal && d.Side == side)
+		DimensionOrientation expected = horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical;
+		if (overall.Orientation != expected)
+		{
+			return;
+		}
+		List<PlannedDimension> outlineSegments = plan.Dimensions
+			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+				&& d.Side == side
+				&& d.Orientation == expected
+				&& string.Equals(d.DebugRole, "OutlineSegment", StringComparison.Ordinal))
 			.ToList();
-		// Collect first so partners still see each other (do not remove mid-scan).
-		List<PlannedDimension> toSuppress = sameSide
-			.Where((PlannedDimension candidate) => string.Equals(candidate.DebugRole, "OutlineSegment", StringComparison.Ordinal)
-				&& sameSide.Any((PlannedDimension other) => other != candidate
-					&& Math.Abs(GetDimensionSpan(other, horizontal) + GetDimensionSpan(candidate, horizontal) - overallSpan) <= _config.GeometryTolerance))
-			.ToList();
+		if (outlineSegments.Count < 2)
+		{
+			return;
+		}
+		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal);
+		List<DimensionDeduplicationItem> items = new List<DimensionDeduplicationItem>(outlineSegments.Count);
+		Dictionary<DimensionDeduplicationItem, PlannedDimension> itemToDim = new Dictionary<DimensionDeduplicationItem, PlannedDimension>();
+		foreach (PlannedDimension segment in outlineSegments)
+		{
+			DimensionDeduplicationItem item = ToDeduplicationItem(segment);
+			items.Add(item);
+			itemToDim[item] = segment;
+		}
+		IList<DimensionDeduplicationItem> cover = _dimensionDeduplicationRules.FindCompleteOverallPartitionChain(
+			items,
+			overallInterval.Item1,
+			overallInterval.Item2,
+			horizontal);
+		if (cover == null || cover.Count < 2)
+		{
+			return;
+		}
+		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>();
+		foreach (DimensionDeduplicationItem coverItem in cover)
+		{
+			if (itemToDim.TryGetValue(coverItem, out PlannedDimension match))
+			{
+				toSuppress.Add(match);
+			}
+		}
+		if (toSuppress.Count < 2)
+		{
+			return;
+		}
 		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
 		{
 			PlannedDimension candidate = plan.Dimensions[num];
@@ -437,6 +481,192 @@ public sealed class DimensionPlanner
 			plan.MarkSuppressed(candidate, "OutlineSegmentOverallPartition");
 			plan.Dimensions.RemoveAt(num);
 		}
+	}
+
+	/// <summary>
+	/// Option-1 outer envelope rule: suppress OutlineSegment fragments that lie on the
+	/// overall envelope (top/bottom Y or left/right X) when Overall already exists.
+	/// Also suppress Structure dims that measure the same axis interval as those envelope OS
+	/// pieces (e.g. BottomStructWidth 10 == OutlineSegment 10 on the outer tip) — same geometry,
+	/// two candidates; killing only OS would leave a duplicate BSW.
+	/// Does not touch internal steps (not on envelope) or unrelated structure spans.
+	/// </summary>
+	private void SuppressOutlineSegmentsOnOverallEnvelope(DimensionPlan plan)
+	{
+		PlannedDimension overallWidth = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallWidth);
+		PlannedDimension overallHeight = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallHeight);
+		if (overallWidth == null && overallHeight == null)
+		{
+			return;
+		}
+		if (!TryGetOverallEnvelopeBounds(overallWidth, overallHeight, out double minX, out double maxX, out double minY, out double maxY))
+		{
+			return;
+		}
+		List<PlannedDimension> envelopeOutlineSegments = plan.Dimensions
+			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+				&& string.Equals(d.DebugRole, "OutlineSegment", StringComparison.Ordinal)
+				&& IsDimensionOnOverallEnvelope(d, minX, maxX, minY, maxY))
+			.ToList();
+		if (envelopeOutlineSegments.Count == 0)
+		{
+			return;
+		}
+		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>(envelopeOutlineSegments);
+		// Same-interval *horizontal* structure duplicates of envelope OS tips only
+		// (e.g. BottomStructWidth 10 == OutlineSegment 10 on overall bottom edge).
+		// Do NOT co-suppress Left/RightStructHeight: on L-shaped parts the short arm height
+		// sits on overall MaxX/MinX with span < OverallHeight and is a real side face
+		// (e.g. RightStructHeight 20 with OverallHeight 50), not an overall-edge fragment.
+		foreach (PlannedDimension structure in plan.Dimensions
+			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+				&& IsHorizontalStructureWidthRole(d.DebugRole)))
+		{
+			if (envelopeOutlineSegments.Any((PlannedDimension os) =>
+				os.Orientation == DimensionOrientation.Horizontal
+				&& IsSameMeasurementInterval(structure, os, horizontal: true)))
+			{
+				toSuppress.Add(structure);
+			}
+		}
+		// Same measurement interval as an envelope OS fragment, even if not on the envelope
+		// itself (e.g. inner vertical at X=mid labeled Side=Right that matches outer tip OS@MaxX).
+		foreach (PlannedDimension otherOs in plan.Dimensions
+			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+				&& string.Equals(d.DebugRole, "OutlineSegment", StringComparison.Ordinal)
+				&& !toSuppress.Contains(d)))
+		{
+			bool horizontal = otherOs.Orientation == DimensionOrientation.Horizontal;
+			if (envelopeOutlineSegments.Any((PlannedDimension envOs) =>
+				envOs.Orientation == otherOs.Orientation
+				&& IsSameMeasurementInterval(otherOs, envOs, horizontal)))
+			{
+				toSuppress.Add(otherOs);
+			}
+		}
+		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
+		{
+			PlannedDimension candidate = plan.Dimensions[num];
+			if (!toSuppress.Contains(candidate))
+			{
+				continue;
+			}
+			string reason;
+			if (string.Equals(candidate.DebugRole, "OutlineSegment", StringComparison.Ordinal))
+			{
+				reason = envelopeOutlineSegments.Contains(candidate)
+					? "OutlineSegmentOnOverallEnvelope"
+					: "OutlineSegmentSameIntervalAsEnvelopeFragment";
+			}
+			else
+			{
+				reason = "StructureDuplicateOfEnvelopeOutlineSegment";
+			}
+			plan.MarkSuppressed(candidate, reason);
+			plan.Dimensions.RemoveAt(num);
+		}
+	}
+
+	private bool IsSameMeasurementInterval(PlannedDimension a, PlannedDimension b, bool horizontal)
+	{
+		if (a == null || b == null)
+		{
+			return false;
+		}
+		Tuple<double, double> ia = ComputeArrowInterval(a, horizontal);
+		Tuple<double, double> ib = ComputeArrowInterval(b, horizontal);
+		double tol = _config.GeometryTolerance;
+		return Math.Abs(ia.Item1 - ib.Item1) <= tol && Math.Abs(ia.Item2 - ib.Item2) <= tol;
+	}
+
+	private bool TryGetOverallEnvelopeBounds(
+		PlannedDimension overallWidth,
+		PlannedDimension overallHeight,
+		out double minX,
+		out double maxX,
+		out double minY,
+		out double maxY)
+	{
+		minX = maxX = minY = maxY = 0.0;
+		bool hasX = false;
+		bool hasY = false;
+		// Prefer OverallWidth for X span and OverallHeight for Y span (attachment sides differ).
+		if (overallWidth != null)
+		{
+			minX = Math.Min(overallWidth.FirstPoint.X, overallWidth.SecondPoint.X);
+			maxX = Math.Max(overallWidth.FirstPoint.X, overallWidth.SecondPoint.X);
+			hasX = maxX - minX > _config.GeometryTolerance;
+		}
+		if (overallHeight != null)
+		{
+			minY = Math.Min(overallHeight.FirstPoint.Y, overallHeight.SecondPoint.Y);
+			maxY = Math.Max(overallHeight.FirstPoint.Y, overallHeight.SecondPoint.Y);
+			hasY = maxY - minY > _config.GeometryTolerance;
+			if (!hasX)
+			{
+				minX = Math.Min(overallHeight.FirstPoint.X, overallHeight.SecondPoint.X);
+				maxX = Math.Max(overallHeight.FirstPoint.X, overallHeight.SecondPoint.X);
+				hasX = maxX - minX > _config.GeometryTolerance;
+			}
+		}
+		if (overallWidth != null && !hasY)
+		{
+			// Only width present: both grips share one envelope Y — still enough for that edge.
+			minY = Math.Min(overallWidth.FirstPoint.Y, overallWidth.SecondPoint.Y);
+			maxY = Math.Max(overallWidth.FirstPoint.Y, overallWidth.SecondPoint.Y);
+			hasY = true;
+		}
+		return hasX && hasY;
+	}
+
+	private bool IsDimensionOnOverallEnvelope(
+		PlannedDimension dim,
+		double minX,
+		double maxX,
+		double minY,
+		double maxY)
+	{
+		if (dim == null)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		if (dim.Orientation == DimensionOrientation.Horizontal)
+		{
+			double x1 = Math.Min(dim.FirstPoint.X, dim.SecondPoint.X);
+			double x2 = Math.Max(dim.FirstPoint.X, dim.SecondPoint.X);
+			double span = x2 - x1;
+			// Full-span outer edge is Overall itself; only suppress proper fragments.
+			if (span >= maxX - minX - tol)
+			{
+				return false;
+			}
+			if (x1 < minX - tol || x2 > maxX + tol)
+			{
+				return false;
+			}
+			bool onBottom = Math.Abs(dim.FirstPoint.Y - minY) <= tol && Math.Abs(dim.SecondPoint.Y - minY) <= tol;
+			bool onTop = Math.Abs(dim.FirstPoint.Y - maxY) <= tol && Math.Abs(dim.SecondPoint.Y - maxY) <= tol;
+			return onBottom || onTop;
+		}
+		if (dim.Orientation == DimensionOrientation.Vertical)
+		{
+			double y1 = Math.Min(dim.FirstPoint.Y, dim.SecondPoint.Y);
+			double y2 = Math.Max(dim.FirstPoint.Y, dim.SecondPoint.Y);
+			double span = y2 - y1;
+			if (span >= maxY - minY - tol)
+			{
+				return false;
+			}
+			if (y1 < minY - tol || y2 > maxY + tol)
+			{
+				return false;
+			}
+			bool onLeft = Math.Abs(dim.FirstPoint.X - minX) <= tol && Math.Abs(dim.SecondPoint.X - minX) <= tol;
+			bool onRight = Math.Abs(dim.FirstPoint.X - maxX) <= tol && Math.Abs(dim.SecondPoint.X - maxX) <= tol;
+			return onLeft || onRight;
+		}
+		return false;
 	}
 
 	private void SuppressRightStructureHeightsDuplicatingOverallHeight(DimensionPlan plan)
@@ -1803,7 +2033,7 @@ public sealed class DimensionPlanner
 		}
 		RemoveLongestTopExtensionCandidate(list2, outline);
 		SnapComplementaryHorizontalRemainderEndpoints(list2, outline);
-		RemoveComplementaryOverallRemainderCandidates(list2, outline.Width, horizontal: true);
+		RemoveComplementaryOverallRemainderCandidates(list2, outline.MinX, outline.MaxX, horizontal: true);
 		return list2.Where((PlannedDimension dim) => IsTopSideHorizontalStructureCandidate(dim, outline, ignoredPoints)).ToList();
 	}
 
@@ -1913,11 +2143,11 @@ public sealed class DimensionPlanner
 		}
 		RemoveLongestRightExtensionCandidate(list2, outline);
 		SnapComplementaryVerticalRemainderEndpoints(list2, outline);
-		RemoveComplementaryOverallRemainderCandidates(list2, outline.Height, horizontal: false);
+		RemoveComplementaryOverallRemainderCandidates(list2, outline.MinY, outline.MaxY, horizontal: false);
 		return list2.Where((PlannedDimension dim) => IsRightSideVerticalStructureCandidate(dim, outline, ignoredPoints)).ToList();
 	}
 
-	private void RemoveComplementaryOverallRemainderCandidates(IList<PlannedDimension> candidates, double overallSpan, bool horizontal)
+	private void RemoveComplementaryOverallRemainderCandidates(IList<PlannedDimension> candidates, double overallMin, double overallMax, bool horizontal)
 	{
 		if (candidates == null || candidates.Count < 2)
 		{
@@ -1926,7 +2156,9 @@ public sealed class DimensionPlanner
 		for (int i = candidates.Count - 1; i >= 0; i--)
 		{
 			double span = GetDimensionSpan(candidates[i], horizontal);
-			if (candidates.Any((PlannedDimension other) => other != candidates[i] && GetDimensionSpan(other, horizontal) < span - _config.GeometryTolerance && Math.Abs(GetDimensionSpan(other, horizontal) + span - overallSpan) <= _config.GeometryTolerance))
+			if (candidates.Any((PlannedDimension other) => other != candidates[i]
+				&& GetDimensionSpan(other, horizontal) < span - _config.GeometryTolerance
+				&& FormsCompleteOverallPartition(candidates[i], other, overallMin, overallMax, horizontal)))
 			{
 				candidates.RemoveAt(i);
 			}
@@ -2934,10 +3166,16 @@ public sealed class DimensionPlanner
 	}
 
 	/// <summary>
-	/// Suppress structure width/height dims that only re-partition overall
-	/// (span A + span B ≈ overall), including cross-side pairs such as
-	/// BottomStructWidth 25 + TopStructWidth 232 with OverallWidth 257.
-	/// Local structure steps that do not complete overall are kept (e.g. TopStructWidth 50).
+	/// BuildOverallPartitionChain for structure dims:
+	/// 1) Collect same-axis Structure roles + OutlineSegment partners.
+	/// 2) Project to real 1D intervals.
+	/// 3) Find contiguous cover Overall.Min→Max (abut, no gap/interior overlap, within overall, tol).
+	/// 4) If chain length ≥ 2: suppress Structure members of the chain; also suppress structure
+	///    dims whose interval matches a chain piece (when OS won a same-interval slot).
+	///    Additionally try a structure-only chain so finer structure pieces are not missed when
+	///    coarser OutlineSegments form an alternate cover.
+	/// OutlineSegment members stay for <see cref="SuppressOutlineSegmentsThatPartitionOverall"/>.
+	/// Numeric span sums alone are never sufficient.
 	/// </summary>
 	private void SuppressStructureDimensionsThatPartitionOverall(DimensionPlan plan, bool horizontal)
 	{
@@ -2946,22 +3184,34 @@ public sealed class DimensionPlanner
 		{
 			return;
 		}
-		double overallSpan = GetDimensionSpan(overall, horizontal);
+		DimensionOrientation expected = horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical;
+		if (overall.Orientation != expected)
+		{
+			return;
+		}
 		List<PlannedDimension> structureDims = plan.Dimensions
 			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
 				&& IsStructureWidthOrHeightRole(d.DebugRole)
-				&& (horizontal
-					? d.Orientation == DimensionOrientation.Horizontal
-					: d.Orientation == DimensionOrientation.Vertical))
+				&& d.Orientation == expected)
 			.ToList();
 		if (structureDims.Count == 0)
 		{
 			return;
 		}
-		List<PlannedDimension> toSuppress = structureDims
-			.Where((PlannedDimension candidate) => structureDims.Any((PlannedDimension other) => other != candidate
-				&& Math.Abs(GetDimensionSpan(other, horizontal) + GetDimensionSpan(candidate, horizontal) - overallSpan) <= _config.GeometryTolerance))
+		List<PlannedDimension> partnerPool = plan.Dimensions
+			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+				&& IsStructureOverallPartitionPartnerRole(d.DebugRole)
+				&& d.Orientation == expected)
 			.ToList();
+		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal);
+		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>();
+		CollectStructureOverallPartitionSuppressions(structureDims, partnerPool, overallInterval, horizontal, toSuppress);
+		// Structure-only chain: catches BSW9+BSW11+TSW71 even if coarser OS pieces also cover overall.
+		CollectStructureOverallPartitionSuppressions(structureDims, structureDims, overallInterval, horizontal, toSuppress);
+		if (toSuppress.Count == 0)
+		{
+			return;
+		}
 		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
 		{
 			PlannedDimension candidate = plan.Dimensions[num];
@@ -2974,6 +3224,110 @@ public sealed class DimensionPlanner
 		}
 	}
 
+	private void CollectStructureOverallPartitionSuppressions(
+		IList<PlannedDimension> structureDims,
+		IList<PlannedDimension> partnerPool,
+		Tuple<double, double> overallInterval,
+		bool horizontal,
+		HashSet<PlannedDimension> toSuppress)
+	{
+		if (structureDims == null || partnerPool == null || partnerPool.Count < 2 || toSuppress == null)
+		{
+			return;
+		}
+		List<DimensionDeduplicationItem> items = new List<DimensionDeduplicationItem>(partnerPool.Count);
+		Dictionary<DimensionDeduplicationItem, PlannedDimension> itemToDim = new Dictionary<DimensionDeduplicationItem, PlannedDimension>();
+		foreach (PlannedDimension partner in partnerPool)
+		{
+			DimensionDeduplicationItem item = ToDeduplicationItem(partner);
+			items.Add(item);
+			itemToDim[item] = partner;
+		}
+		IList<DimensionDeduplicationItem> chain = _dimensionDeduplicationRules.FindCompleteOverallPartitionChain(
+			items,
+			overallInterval.Item1,
+			overallInterval.Item2,
+			horizontal);
+		if (chain == null || chain.Count < 2)
+		{
+			return;
+		}
+		List<Tuple<double, double>> chainIntervals = chain
+			.Select((DimensionDeduplicationItem item) => DimensionDeduplicationRules.ComputeArrowInterval(item, horizontal))
+			.ToList();
+		foreach (DimensionDeduplicationItem chainItem in chain)
+		{
+			if (itemToDim.TryGetValue(chainItem, out PlannedDimension dim)
+				&& IsStructureWidthOrHeightRole(dim.DebugRole))
+			{
+				toSuppress.Add(dim);
+			}
+		}
+		// Same-interval structure siblings of chain pieces (e.g. BSW20 when chain took OS20).
+		double tol = _config.GeometryTolerance;
+		foreach (PlannedDimension structure in structureDims)
+		{
+			if (toSuppress.Contains(structure))
+			{
+				continue;
+			}
+			Tuple<double, double> structureInterval = ComputeArrowInterval(structure, horizontal);
+			if (chainIntervals.Any((Tuple<double, double> iv) =>
+				Math.Abs(iv.Item1 - structureInterval.Item1) <= tol
+				&& Math.Abs(iv.Item2 - structureInterval.Item2) <= tol))
+			{
+				toSuppress.Add(structure);
+			}
+		}
+	}
+
+	private static bool IsStructureOverallPartitionPartnerRole(string debugRole)
+	{
+		return IsStructureWidthOrHeightRole(debugRole)
+			|| string.Equals(debugRole, "OutlineSegment", StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// Shared geometric partition check for overall-suppression rules.
+	/// Requires matching measurement orientation and real endpoint coverage of overall.
+	/// </summary>
+	private bool FormsCompleteOverallPartition(PlannedDimension first, PlannedDimension second, PlannedDimension overall, bool horizontal)
+	{
+		if (first == null || second == null || overall == null)
+		{
+			return false;
+		}
+		DimensionOrientation expected = horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical;
+		if (first.Orientation != expected || second.Orientation != expected || overall.Orientation != expected)
+		{
+			return false;
+		}
+		return _dimensionDeduplicationRules.FormsCompleteOverallPartition(
+			ToDeduplicationItem(first),
+			ToDeduplicationItem(second),
+			ToDeduplicationItem(overall),
+			horizontal);
+	}
+
+	private bool FormsCompleteOverallPartition(PlannedDimension first, PlannedDimension second, double overallMin, double overallMax, bool horizontal)
+	{
+		if (first == null || second == null)
+		{
+			return false;
+		}
+		DimensionOrientation expected = horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical;
+		if (first.Orientation != expected || second.Orientation != expected)
+		{
+			return false;
+		}
+		return _dimensionDeduplicationRules.FormsCompleteOverallPartition(
+			ToDeduplicationItem(first),
+			ToDeduplicationItem(second),
+			overallMin,
+			overallMax,
+			horizontal);
+	}
+
 	private static bool IsStructureWidthOrHeightRole(string debugRole)
 	{
 		if (string.IsNullOrEmpty(debugRole))
@@ -2984,6 +3338,12 @@ public sealed class DimensionPlanner
 			|| debugRole == "BottomStructWidth"
 			|| debugRole == "LeftStructHeight"
 			|| debugRole == "RightStructHeight";
+	}
+
+	private static bool IsHorizontalStructureWidthRole(string debugRole)
+	{
+		return string.Equals(debugRole, "TopStructWidth", StringComparison.Ordinal)
+			|| string.Equals(debugRole, "BottomStructWidth", StringComparison.Ordinal);
 	}
 
 	private bool ContainsStructurePoint(IEnumerable<StructurePoint> points, Point2D point)
@@ -3054,10 +3414,14 @@ public sealed class DimensionPlanner
 		{
 			return;
 		}
-		AddHorizontalOutlineReferenceDimension(plan, outline, datumX, ordered[0], DimensionKind.Normal, DimensionSide.Bottom, string.Empty, debugRole);
+		// Edge→first hole + inter-hole spans form one continuous locating chain (e.g. U-slot
+		// edge location + center distance) and must share a dim-line alignment lane.
+		string alignmentKey = GetSlotChainAlignmentKey(DimensionSide.Bottom, horizontal: true, ordered[0].Y);
+		const int alignmentPriority = 80;
+		AddHorizontalOutlineReferenceDimension(plan, outline, datumX, ordered[0], DimensionKind.Normal, DimensionSide.Bottom, string.Empty, debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority);
 		for (int i = 1; i < ordered.Count; i++)
 		{
-			AddHorizontalDim(plan, ordered[i - 1], ordered[i], debugRole);
+			AddHorizontalDim(plan, ordered[i - 1], ordered[i], debugRole, alignmentKey, alignmentPriority);
 		}
 	}
 
@@ -3067,10 +3431,13 @@ public sealed class DimensionPlanner
 		{
 			return;
 		}
-		AddVerticalOutlineReferenceDimension(plan, outline, datumY, ordered[0], DimensionKind.Normal, DimensionSide.Left, string.Empty, debugRole);
+		// Edge→first U-slot location + slot-to-slot center distance stay on one left-side lane.
+		string alignmentKey = GetSlotChainAlignmentKey(DimensionSide.Left, horizontal: false, ordered[0].X);
+		const int alignmentPriority = 80;
+		AddVerticalOutlineReferenceDimension(plan, outline, datumY, ordered[0], DimensionKind.Normal, DimensionSide.Left, string.Empty, debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority);
 		for (int i = 1; i < ordered.Count; i++)
 		{
-			AddVerticalDim(plan, ordered[i - 1], ordered[i], debugRole);
+			AddVerticalDim(plan, ordered[i - 1], ordered[i], debugRole, alignmentKey, alignmentPriority);
 		}
 	}
 
@@ -3113,14 +3480,14 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	private void AddHorizontalDim(DimensionPlan plan, Point2D from, Point2D to, string debugRole)
+	private void AddHorizontalDim(DimensionPlan plan, Point2D from, Point2D to, string debugRole, string alignmentKey = null, int alignmentPriority = 0)
 	{
-		AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Horizontal, DimensionSide.Bottom, from, to, string.Empty, debugRole);
+		AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Horizontal, DimensionSide.Bottom, from, to, string.Empty, debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority);
 	}
 
-	private void AddVerticalDim(DimensionPlan plan, Point2D from, Point2D to, string debugRole)
+	private void AddVerticalDim(DimensionPlan plan, Point2D from, Point2D to, string debugRole, string alignmentKey = null, int alignmentPriority = 0)
 	{
-		AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Vertical, DimensionSide.Left, from, to, string.Empty, debugRole);
+		AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Vertical, DimensionSide.Left, from, to, string.Empty, debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority);
 	}
 
 	private void AddHorizontalDimFromX(DimensionPlan plan, double x, Point2D target, string debugRole)
@@ -3463,6 +3830,24 @@ public sealed class DimensionPlanner
 			_ => side.ToString()
 		};
 		return "Structure:" + sideTag + ":" + (horizontal ? "H" : "V");
+	}
+
+	/// <summary>
+	/// Shared alignment lane for one continuous slot locating chain
+	/// (edge location + inter-slot center distances on the same column/row).
+	/// </summary>
+	private static string GetSlotChainAlignmentKey(DimensionSide side, bool horizontal, double sharedCoordinate)
+	{
+		string sideTag = side switch
+		{
+			DimensionSide.Top => "T",
+			DimensionSide.Bottom => "B",
+			DimensionSide.Left => "L",
+			DimensionSide.Right => "R",
+			_ => side.ToString()
+		};
+		string coord = sharedCoordinate.ToString("0.###", CultureInfo.InvariantCulture);
+		return "SlotChain:" + sideTag + ":" + (horizontal ? "H" : "V") + ":" + coord;
 	}
 
 }

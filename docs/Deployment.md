@@ -3,10 +3,13 @@
 ## Test DLL Naming
 
 - Direct regression builds use a new output folder ending in `-vNNN` for every build; never reuse an earlier folder.
+- Versioned folder names should end in `-vNNN`. When continuing an existing local version sequence, inspect `bin\` for the highest used number and increment; historical guidance started at `-v190` and continued `-v191`, `-v192`, …
+- Core tests and full plugin builds must not share the same `-vNNN` output directory (see `docs/DimensionLayoutRegression.md`).
 - The legacy manual helper `run-cad-test.ps1` copies `bin\Debug\AutoFixtureDim.dll` to an uppercase `LB` filename such as `autofixdim-LB<N>.dll`.
 - The `LB` copy flow is not the four-direction automated regression flow.
 - If AutoCAD locks a loaded DLL, use a fresh `-vNNN` build output for regression instead of overwriting it.
 - Do not use the abandoned historical `autofixdim-v89.dll` behavior as a baseline.
+- A current loadable set for day-to-day work may live under `bin\Debug\` (gitignored); keep only the newest intended set there.
 
 ## CAD Test Script
 

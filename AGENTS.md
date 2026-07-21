@@ -1,7 +1,11 @@
 # AUTOFIXDIM / ASD Agent Rules
 
-This file contains only high-priority rules that future AI coding agents must follow.
-Detailed project knowledge lives in `docs/`.
+High-priority rules for AI coding agents. Keep this file short.
+
+- **Hard constraints** stay here.
+- **Paths, toolchain, build/deploy, command surface** → `docs/Environment.md`, `docs/Deployment.md`.
+- **Recognition / dimension / regression detail** → `docs/RecognitionRules.md`, `docs/DimensionRules.md`, `docs/DimensionLayoutRegression.md`.
+- **Session continuity** → dated `HANDOFF-*.md` (ephemeral; stable conclusions belong in `docs/`).
 
 ## Safety
 
@@ -14,19 +18,11 @@ Detailed project knowledge lives in `docs/`.
 ## Development Workflow
 
 - Do not proactively compile, run tests, launch AutoCAD, or run CAD scripts.
-- Only run build, deployment, `cad-test`, AutoCAD, or `ASD` validation commands when the user explicitly asks.
-- Do not edit source code while doing documentation-only tasks.
-- Before changing behavior, read the relevant docs under `docs/` and inspect the current source.
-- Prefer small, targeted changes that match the existing code style.
-- Store each newly built test DLL set in a new versioned output folder whose name ends in `-vNNN`, starting with `-v190`; increment the suffix for every subsequent build (`-v191`, `-v192`, and so on) and never reuse an earlier build folder.
-
-## Active Project
-
-- Active source: `D:\work\AI\project\autocad-dim`
-- Main project file: `AutoFixtureDim.csproj`
-- Target product: AutoCAD 2020 .NET Framework plugin for fixture-part annotation.
-- Main command: `ASD`.
-- Current compatibility/helper commands in source: `AUTOFIXDIM`, `ASD3`, `ASD4`, `ASD5`, `ASD6`, `ASD7`, `ASDCOREDBG`, `AG1`.
+- Only run build, deployment, `cad-test`, AutoCAD, or `ASD` validation when the user explicitly asks.
+- Do not edit source code during documentation-only tasks.
+- Before changing behavior, read the relevant `docs/` pages and inspect the current source.
+- Prefer small, targeted changes that match existing code style.
+- For versioned test DLL outputs, follow the naming rules in `docs/Deployment.md` (never reuse an earlier `-vNNN` folder).
 
 ## Product Invariants
 
@@ -38,39 +34,41 @@ Detailed project knowledge lives in `docs/`.
 - Dimension and leader attachment points must land on real geometry: edges, arcs, real endpoints, or real intersections.
 - Do not attach annotations to theoretical intersections, virtual sharp corners, centerlines, auxiliary lines, dimension lines, projected points, or floating points.
 - Use AutoCAD diameter control text `%%c`, not Unicode diameter symbols, for diameter callouts.
-
-## Configuration And Rules
-
-- Keep machining constants and tolerance text centralized in `RuleConfig.cs` when practical.
-- Preserve pin-hole fit behavior: any `HoleKind.Pin` uses `PinHoleFitToleranceText`.
-- Preserve same-group pin spacing tolerance from `PinCenterDistanceToleranceText`.
-- Preserve pin-group transfer tolerance from `PinGroupDistanceToleranceText`.
-- Functional-hole dimensions stay with their owning pin group and prefer a nearby valid local boundary.
-- Loose/scatter hole-location chains may use a nearby valid local boundary when it shortens extension lines; the final dimension line must remain outside the real contour interior and must not be sent to a distant global side merely to reduce crowding.
-- Pin-group dimensions may use local boundary placement, but the dimension line must stay outside the real outer contour.
 - Zero-length dimensions must never be emitted.
 
-## Documentation
+## Configuration And Layout Invariants
 
-- Do not update project documentation automatically unless the user asks for documentation work.
+- Keep machining constants and tolerance text centralized in `RuleConfig.cs` when practical.
+- Any `HoleKind.Pin` uses `PinHoleFitToleranceText`.
+- Same-group pin spacing uses `PinCenterDistanceToleranceText`.
+- Pin-group transfer uses `PinGroupDistanceToleranceText`.
+- Functional-hole dimensions stay with their owning pin group and prefer a nearby valid local boundary.
+- Loose/scatter hole-location chains may prefer a nearby valid local boundary when it shortens extension lines; the dimension line must stay outside the real contour interior and must not be sent to a distant global side merely to reduce crowding.
+- Pin-group dimensions may use local boundary placement, but the dimension line must stay outside the real outer contour.
+
+## Documentation Discipline
+
+- Do not update project documentation unless the user asks for documentation work.
 - Use exact dates in documentation; do not write relative time words such as "today", "yesterday", or "recently".
-- Put durable AI instructions here.
-- Put implementation details and evolving project knowledge in:
-  - `docs/Environment.md`
-  - `docs/Deployment.md`
-  - `docs/RecognitionRules.md`
-  - `docs/DimensionRules.md`
-  - `docs/DimensionLayoutRegression.md`
+- Put durable agent instructions here; put evolving implementation knowledge under `docs/`.
+
+## Docs Map
+
+| Topic | File |
+| --- | --- |
+| Paths, runtime, source map, commands | `docs/Environment.md` |
+| Build, versioned DLL, CAD smoke/regression deploy | `docs/Deployment.md` |
+| Feature recognition | `docs/RecognitionRules.md` |
+| Dimension planning rules | `docs/DimensionRules.md` |
+| Four-side layout regression | `docs/DimensionLayoutRegression.md` |
 
 ## graphify
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+This repo has a knowledge graph under `graphify-out/` (query artifacts: `graph.json`, `GRAPH_REPORT.md`, labels, manifest).
 
-When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
-
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
+- For codebase questions, first run `graphify query "<question>"` when `graphify-out/graph.json` exists. Use `graphify path "<A>" "<B>"` and `graphify explain "<concept>"` for focused traversal. Prefer these over full `GRAPH_REPORT.md` or raw greps.
+- Dirty local graphify files after hooks/updates are expected; do not skip graphify for that reason. Skip only if the task is about stale/wrong graph output, or the user says not to use it.
+- If `graphify-out/wiki/index.md` exists, use it for broad navigation.
+- Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review or when query/path/explain are insufficient.
+- After modifying code, run `graphify update .` to refresh the graph (AST-only, no API cost).

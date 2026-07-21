@@ -2,10 +2,17 @@
 
 ## Project Paths
 
-- Workspace: `D:\work\AI\project\L1`
-- Active source: `D:\work\AI\project\autocad-dim`
-- Project file: `AutoFixtureDim.csproj`
-- Build output: `bin\Debug\AutoFixtureDim.dll`
+- This worktree (current agent workspace): `D:\work\AI\project\L1-grok`
+- Main git worktree / shared `.git`: `D:\work\AI\project\L1`
+- Remote: `https://github.com/Whawk77/CAD-AUTO-L1.git`
+- Main project file: `AutoFixtureDim.csproj` (repo root)
+- Active product sources in this repo:
+  - `CadAuto.Core/` — planning, recognition, rules, geometry
+  - `CadAuto.CadAdapter/` — AutoCAD rendering and adapters
+  - `CadAuto.Core.Tests/` — core unit/plan tests
+  - Root plugin entry: `Commands.cs`, `PluginEntry.cs`, `RuleConfig.cs`, …
+- Default build output (may be locked by AutoCAD): `bin\Debug\AutoFixtureDim.dll`
+- Prefer a versioned output folder when AutoCAD holds locks; see `docs/Deployment.md`.
 
 ## Runtime
 
@@ -30,14 +37,12 @@ Notes:
 
 ## Source Map
 
-- `Commands.cs`: AutoCAD command entrypoints and top-level workflow.
-- `GeometryCollector.cs`: selection prompts, datum prompts, and source object collection.
-- `FeatureRecognizer.cs`: outline, hole, pin, thread, slot, chamfer, and fillet recognition.
-- `DimensionDrawer.cs`: linear dimensions, pin groups, loose-hole chains, stacking, suppression, local boundary placement, debug labels, and interactive leaders.
+- `Commands.cs` / `V177Source/AutoFixtureDim/`: AutoCAD command entrypoints and top-level workflow.
+- `CadAuto.Core` planning (`DimensionPlanner`, …): dimension plan generation, pin groups, functional/loose holes, structure dims, suppression.
+- `CadAuto.Core` recognition: outline, hole, pin, thread, slot, chamfer, and fillet recognition.
+- `CadAuto.CadAdapter` rendering (`DimensionDrawer`, …): linear dimensions, stacking, local boundary, leaders, debug labels.
 - `RuleConfig.cs`: machining constants, tolerance text, number formatting, and thread minor-diameter mapping.
-- `DimStyleManager.cs`: dimension style selection.
-- `LayerManager.cs`: annotation layer selection.
-- `AnnotationMetadata.cs`: `AUTOFIXDIM` XData marking and cleanup.
+- Dim style / layer / XData helpers: style selection, annotation layer, `AUTOFIXDIM` marking and cleanup.
 
 ## Current Command Surface
 

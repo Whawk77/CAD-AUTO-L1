@@ -377,6 +377,9 @@ public sealed class DimensionPlanner
 		// matches Left envelope tip) and leave GEN|OutlineSegment*|R|L0 selected.
 		SuppressMirroredDuplicates(plan, DimensionSide.Bottom, DimensionSide.Top, horizontal: true);
 		SuppressMirroredDuplicates(plan, DimensionSide.Left, DimensionSide.Right, horizontal: false);
+		// After mirror keeps structure heights over OS, drop secondary-side vertical OS that only
+		// restate the primary structure stack or the overall residual (left/right step symmetry).
+		SuppressSecondaryVerticalOutlineSegmentsRedundantWithPrimaryStructureStack(plan);
 		// Outer-envelope collinear OutlineSegment fragments (+ same-interval structure dups).
 		SuppressOutlineSegmentsOnOverallEnvelope(plan);
 		// Existing complementary remainder for structure/normal remainders (Top/Right only).
@@ -486,12 +489,14 @@ public sealed class DimensionPlanner
 	/// <summary>
 	/// Option-1 outer envelope rule: suppress OutlineSegment fragments that lie on the
 	/// overall envelope (top/bottom Y or left/right X) when Overall already exists.
-	/// Also suppress Structure dims that measure the same axis interval as those envelope OS
-	/// pieces (e.g. BottomStructWidth 10 == OutlineSegment 10 on the outer tip) — same geometry,
-	/// two candidates; killing only OS would leave a duplicate BSW.
-	/// Does not touch internal steps (not on envelope) or unrelated structure spans.
+	/// Also suppress Structure dims that are true duplicates of those envelope OS tips:
+	/// same measurement interval, same Side, and collinear (same Y for horizontal) —
+	/// e.g. BottomStructWidth 10 == bottom OutlineSegment 10 on the outer tip.
+	/// Does not co-suppress opposite-side / non-collinear structures that only share a 1D
+	/// interval (e.g. top or internal structure [65,75] vs bottom tip OS [65,75]).
+	/// Left/RightStructHeight never co-suppressed here.
 	/// </summary>
-	private void SuppressOutlineSegmentsOnOverallEnvelope(DimensionPlan plan)
+	internal void SuppressOutlineSegmentsOnOverallEnvelope(DimensionPlan plan)
 	{
 		PlannedDimension overallWidth = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallWidth);
 		PlannedDimension overallHeight = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallHeight);
@@ -513,24 +518,26 @@ public sealed class DimensionPlanner
 			return;
 		}
 		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>(envelopeOutlineSegments);
-		// Same-interval *horizontal* structure co-suppress only for short overall-edge tips
-		// (e.g. BottomStructWidth 10 on overall 75 with matching envelope OS tip).
-		// Do NOT co-suppress substantial step faces on the envelope line
-		// (e.g. bottom ledge width 120 on overall 215) — those are real locating dims.
+		// Short overall-edge tip co-suppress: same interval + same Side + collinear.
+		// Do NOT co-suppress substantial step faces (span >= half overall) or cross-edge
+		// same-interval structures (different Side / not collinear).
 		// Left/RightStructHeight never co-suppressed here (short arm height on MaxX, etc.).
 		double overallWidthSpan = maxX - minX;
+		double tol = _config.GeometryTolerance;
 		foreach (PlannedDimension structure in plan.Dimensions
 			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
 				&& IsHorizontalStructureWidthRole(d.DebugRole)))
 		{
 			double structureSpan = GetDimensionSpan(structure, horizontal: true);
 			// Short tip: less than half overall width. Step ledges are typically larger.
-			if (structureSpan >= overallWidthSpan * 0.5 - _config.GeometryTolerance)
+			if (structureSpan >= overallWidthSpan * 0.5 - tol)
 			{
 				continue;
 			}
 			if (envelopeOutlineSegments.Any((PlannedDimension os) =>
 				os.Orientation == DimensionOrientation.Horizontal
+				&& structure.Side == os.Side
+				&& AreCollinearStructurePartners(structure, os, horizontal: true, tol)
 				&& IsSameMeasurementInterval(structure, os, horizontal: true)))
 			{
 				toSuppress.Add(structure);
@@ -704,12 +711,192 @@ public sealed class DimensionPlanner
 		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
 		{
 			PlannedDimension left = plan.Dimensions[num];
-			if (IsLeftStructureHeight(left) && list.Any((PlannedDimension right) => IsVerticalIntervalCoveredByRightStructure(left, right)))
+			if (IsLeftStructureHeight(left) && list.Any((PlannedDimension right) =>
+				_dimensionDeduplicationRules.IsLeftStructureHeightCoveredByRight(
+					ToDeduplicationItem(left), ToDeduplicationItem(right))))
 			{
 				plan.MarkSuppressed(left, "LeftStructureHeightCoveredByRight");
 				plan.Dimensions.RemoveAt(num);
 			}
 		}
+	}
+
+	/// <summary>
+	/// Drop secondary-side vertical OutlineSegments that restate the primary structure-height
+	/// stack or only cover the residual of OverallHeight minus that stack (step symmetry).
+	/// Primary side = larger total Left/Right structure-height span (tie -> Right).
+	/// </summary>
+	internal void SuppressSecondaryVerticalOutlineSegmentsRedundantWithPrimaryStructureStack(DimensionPlan plan)
+	{
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallHeight);
+		if (overall == null)
+		{
+			return;
+		}
+		List<PlannedDimension> leftHeights = plan.Dimensions.Where(IsLeftStructureHeight).ToList();
+		List<PlannedDimension> rightHeights = plan.Dimensions.Where(IsRightStructureHeight).ToList();
+		if (leftHeights.Count == 0 && rightHeights.Count == 0)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		double leftSpan = leftHeights.Sum((PlannedDimension d) => GetDimensionSpan(d, horizontal: false));
+		double rightSpan = rightHeights.Sum((PlannedDimension d) => GetDimensionSpan(d, horizontal: false));
+		bool primaryIsLeft;
+		if (leftSpan > rightSpan + tol)
+		{
+			primaryIsLeft = true;
+		}
+		else if (rightSpan > leftSpan + tol)
+		{
+			primaryIsLeft = false;
+		}
+		else if (leftHeights.Count != rightHeights.Count)
+		{
+			primaryIsLeft = leftHeights.Count > rightHeights.Count;
+		}
+		else
+		{
+			// Historical tie-break: prefer Right as primary structure side.
+			primaryIsLeft = false;
+		}
+		List<PlannedDimension> primary = primaryIsLeft ? leftHeights : rightHeights;
+		if (primary.Count == 0)
+		{
+			return;
+		}
+		DimensionSide secondarySide = primaryIsLeft ? DimensionSide.Right : DimensionSide.Left;
+		Tuple<double, double> overallIv = ComputeArrowInterval(overall, horizontal: false);
+		List<Tuple<double, double>> primaryIvs = primary
+			.Select((PlannedDimension d) => ComputeArrowInterval(d, horizontal: false))
+			.ToList();
+		List<Tuple<double, double>> merged = MergeVerticalIntervals(primaryIvs, tol);
+		List<Tuple<double, double>> residuals = ComputeVerticalResiduals(overallIv, merged, tol);
+
+		// V4b prep: complete overall chain of primary structure + secondary vertical OS.
+		List<PlannedDimension> secondaryOsAll = plan.Dimensions
+			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+				&& d.Orientation == DimensionOrientation.Vertical
+				&& d.Side == secondarySide
+				&& string.Equals(d.DebugRole, "OutlineSegment", StringComparison.Ordinal))
+			.ToList();
+		HashSet<PlannedDimension> osOnCompleteChain = new HashSet<PlannedDimension>();
+		if (secondaryOsAll.Count > 0)
+		{
+			List<DimensionDeduplicationItem> poolItems = new List<DimensionDeduplicationItem>();
+			Dictionary<DimensionDeduplicationItem, PlannedDimension> map = new Dictionary<DimensionDeduplicationItem, PlannedDimension>();
+			foreach (PlannedDimension p in primary)
+			{
+				DimensionDeduplicationItem it = ToDeduplicationItem(p);
+				poolItems.Add(it);
+				map[it] = p;
+			}
+			foreach (PlannedDimension os in secondaryOsAll)
+			{
+				DimensionDeduplicationItem it = ToDeduplicationItem(os);
+				poolItems.Add(it);
+				map[it] = os;
+			}
+			IList<DimensionDeduplicationItem> chain = _dimensionDeduplicationRules.FindCompleteOverallPartitionChain(
+				poolItems,
+				overallIv.Item1,
+				overallIv.Item2,
+				horizontal: false);
+			if (chain != null)
+			{
+				foreach (DimensionDeduplicationItem ci in chain)
+				{
+					if (map.TryGetValue(ci, out PlannedDimension dim)
+						&& string.Equals(dim.DebugRole, "OutlineSegment", StringComparison.Ordinal))
+					{
+						osOnCompleteChain.Add(dim);
+					}
+				}
+			}
+		}
+
+		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
+		{
+			PlannedDimension cand = plan.Dimensions[num];
+			if (cand.Kind != DimensionKind.Normal
+				|| cand.Orientation != DimensionOrientation.Vertical
+				|| cand.Side != secondarySide
+				|| !string.Equals(cand.DebugRole, "OutlineSegment", StringComparison.Ordinal))
+			{
+				continue;
+			}
+			Tuple<double, double> osIv = ComputeArrowInterval(cand, horizontal: false);
+			bool sameAsPrimary = primaryIvs.Any((Tuple<double, double> piv) =>
+				Math.Abs(piv.Item1 - osIv.Item1) <= tol && Math.Abs(piv.Item2 - osIv.Item2) <= tol);
+			bool inResidual = residuals.Any((Tuple<double, double> r) =>
+				osIv.Item1 >= r.Item1 - tol && osIv.Item2 <= r.Item2 + tol);
+			bool onPartitionChain = osOnCompleteChain.Contains(cand);
+			if (!sameAsPrimary && !inResidual && !onPartitionChain)
+			{
+				continue;
+			}
+			string why;
+			if (sameAsPrimary)
+			{
+				why = "SecondaryOutlineSegmentDuplicatesPrimaryStructureHeight";
+			}
+			else if (inResidual)
+			{
+				why = "SecondaryOutlineSegmentOverallResidual";
+			}
+			else
+			{
+				why = "SecondaryOutlineSegmentOverallPartitionWithPrimaryStructure";
+			}
+			plan.MarkSuppressed(cand, why);
+			plan.Dimensions.RemoveAt(num);
+		}
+	}
+
+	private static List<Tuple<double, double>> MergeVerticalIntervals(IList<Tuple<double, double>> intervals, double tol)
+	{
+		List<Tuple<double, double>> sorted = intervals.OrderBy((Tuple<double, double> i) => i.Item1).ToList();
+		List<Tuple<double, double>> merged = new List<Tuple<double, double>>();
+		foreach (Tuple<double, double> iv in sorted)
+		{
+			if (merged.Count == 0)
+			{
+				merged.Add(iv);
+				continue;
+			}
+			Tuple<double, double> last = merged[merged.Count - 1];
+			if (iv.Item1 <= last.Item2 + tol)
+			{
+				merged[merged.Count - 1] = Tuple.Create(last.Item1, Math.Max(last.Item2, iv.Item2));
+			}
+			else
+			{
+				merged.Add(iv);
+			}
+		}
+		return merged;
+	}
+
+	private static List<Tuple<double, double>> ComputeVerticalResiduals(
+		Tuple<double, double> overall,
+		IList<Tuple<double, double>> mergedPrimary,
+		double tol)
+	{
+		List<Tuple<double, double>> residuals = new List<Tuple<double, double>>();
+		double cursor = overall.Item1;
+		foreach (Tuple<double, double> block in mergedPrimary.OrderBy((Tuple<double, double> i) => i.Item1))
+		{
+			if (block.Item1 > cursor + tol)
+			{
+				residuals.Add(Tuple.Create(cursor, block.Item1));
+			}
+			cursor = Math.Max(cursor, block.Item2);
+		}
+		if (overall.Item2 > cursor + tol)
+		{
+			residuals.Add(Tuple.Create(cursor, overall.Item2));
+		}
+		return residuals;
 	}
 
 	private bool IsLeftStructureHeight(PlannedDimension dim)
@@ -727,10 +914,6 @@ public sealed class DimensionPlanner
 		return _dimensionDeduplicationRules.IsSameVerticalInterval(ToDeduplicationItem(a), ToDeduplicationItem(b));
 	}
 
-	private bool IsVerticalIntervalCoveredByRightStructure(PlannedDimension left, PlannedDimension right)
-	{
-		return _dimensionDeduplicationRules.IsLeftStructureHeightCoveredByRight(ToDeduplicationItem(left), ToDeduplicationItem(right));
-	}
 
 	private void SuppressMirroredDuplicates(DimensionPlan plan, DimensionSide primarySide, DimensionSide secondarySide, bool horizontal)
 	{

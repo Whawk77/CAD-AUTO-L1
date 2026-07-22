@@ -44,6 +44,8 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(ThreeOutlineSegmentsThatPartitionOverallAreSuppressed), ThreeOutlineSegmentsThatPartitionOverallAreSuppressed);
 				RunTest(nameof(OutlineSegmentOnOverallEnvelopeIsSuppressed), OutlineSegmentOnOverallEnvelopeIsSuppressed);
 				RunTest(nameof(StructureDuplicateOfEnvelopeOutlineSegmentIsSuppressed), StructureDuplicateOfEnvelopeOutlineSegmentIsSuppressed);
+				RunTest(nameof(EnvelopeStructureSameSideCollinearDuplicateIsSuppressed), EnvelopeStructureSameSideCollinearDuplicateIsSuppressed);
+				RunTest(nameof(StructureSameIntervalAsOppositeEnvelopeTipIsKept), StructureSameIntervalAsOppositeEnvelopeTipIsKept);
 				RunTest(nameof(InnerOutlineSegmentMatchingEnvelopeTipIsSuppressed), InnerOutlineSegmentMatchingEnvelopeTipIsSuppressed);
 				RunTest(nameof(CompleteOverallPartitionIntervalsAreDetected), CompleteOverallPartitionIntervalsAreDetected);
 				RunTest(nameof(GreedyDeadEndStillFindsValidOverallPartitionChain), GreedyDeadEndStillFindsValidOverallPartitionChain);
@@ -86,6 +88,8 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(RightArmHeightOnOverallMaxXIsKept), RightArmHeightOnOverallMaxXIsKept);
                 RunTest(nameof(LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment), LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment);
                 RunTest(nameof(BottomStepWidthOnOverallEnvelopeIsKept), BottomStepWidthOnOverallEnvelopeIsKept);
+                RunTest(nameof(LeftStepStructureHeightsPreferOverRightOutlineSegments), LeftStepStructureHeightsPreferOverRightOutlineSegments);
+                RunTest(nameof(RightStepStructureHeightsPreferOverLeftOutlineSegments), RightStepStructureHeightsPreferOverLeftOutlineSegments);
                 RunTest(nameof(HorizontalStructurePointsCreateStepHeights), HorizontalStructurePointsCreateStepHeights);
                 RunTest(nameof(DiagonalFragmentsDoNotCreateStructureDimensions), DiagonalFragmentsDoNotCreateStructureDimensions);
                 RunTest(nameof(BottomInclinedStructurePointsRequireInnerGrooveChamfer), BottomInclinedStructurePointsRequireInnerGrooveChamfer);
@@ -945,6 +949,130 @@ namespace CadAuto.Core.Tests
 						|| c.SuppressedReason == "StructureOverallPartition"
 						|| c.SuppressedReason == "MirroredDuplicate")),
 				"structure width 10 must be suppressed as envelope-OS duplicate (or equivalent)");
+		}
+
+		/// <summary>
+		/// Positive gate: Bottom envelope OS [65,75]@Y=0 + collinear same-side BottomStructWidth
+		/// [65,75]@Y=0 — structure is a true tip duplicate and must be co-suppressed.
+		/// Isolated unit call avoids other suppress paths so the envelope co-delete rule is explicit.
+		/// </summary>
+		private static void EnvelopeStructureSameSideCollinearDuplicateIsSuppressed()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var plan = new DimensionPlan();
+			var overallWidth = new PlannedDimension
+			{
+				Kind = DimensionKind.OverallWidth,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(75.0, 0.0),
+				DebugRole = "OverallWidth"
+			};
+			var overallHeight = new PlannedDimension
+			{
+				Kind = DimensionKind.OverallHeight,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(0.0, 40.0),
+				DebugRole = "OverallHeight"
+			};
+			var envelopeOs = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(65.0, 0.0),
+				SecondPoint = new Point2D(75.0, 0.0),
+				DebugRole = "OutlineSegment"
+			};
+			var structure = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(65.0, 0.0),
+				SecondPoint = new Point2D(75.0, 0.0),
+				DebugRole = "BottomStructWidth"
+			};
+			plan.Add(overallWidth);
+			plan.Add(overallHeight);
+			plan.Add(envelopeOs);
+			plan.Add(structure);
+
+			planner.SuppressOutlineSegmentsOnOverallEnvelope(plan);
+
+			Assert(plan.Dimensions.Contains(overallWidth), "overall width must remain");
+			Assert(plan.Dimensions.Contains(overallHeight), "overall height must remain");
+			Assert(!plan.Dimensions.Contains(envelopeOs),
+				"bottom envelope OutlineSegment tip [65,75] must be suppressed");
+			Assert(!plan.Dimensions.Contains(structure),
+				"same-side collinear BottomStructWidth [65,75]@Y=0 must be co-suppressed as envelope OS duplicate");
+		}
+
+		/// <summary>
+		/// Negative gate: Bottom envelope OS [65,75]@Y=0 + opposite/internal structure
+		/// [65,75]@Y=35 (TopStructWidth) — same 1D interval only must NOT suppress structure.
+		/// </summary>
+		private static void StructureSameIntervalAsOppositeEnvelopeTipIsKept()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var plan = new DimensionPlan();
+			var overallWidth = new PlannedDimension
+			{
+				Kind = DimensionKind.OverallWidth,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(75.0, 0.0),
+				DebugRole = "OverallWidth"
+			};
+			var overallHeight = new PlannedDimension
+			{
+				Kind = DimensionKind.OverallHeight,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(0.0, 40.0),
+				DebugRole = "OverallHeight"
+			};
+			var envelopeOs = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(65.0, 0.0),
+				SecondPoint = new Point2D(75.0, 0.0),
+				DebugRole = "OutlineSegment"
+			};
+			var structure = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(65.0, 35.0),
+				SecondPoint = new Point2D(75.0, 35.0),
+				DebugRole = "TopStructWidth"
+			};
+			plan.Add(overallWidth);
+			plan.Add(overallHeight);
+			plan.Add(envelopeOs);
+			plan.Add(structure);
+
+			planner.SuppressOutlineSegmentsOnOverallEnvelope(plan);
+
+			Assert(plan.Dimensions.Contains(overallWidth), "overall width must remain");
+			Assert(!plan.Dimensions.Contains(envelopeOs),
+				"bottom envelope OutlineSegment tip must still be suppressed");
+			Assert(plan.Dimensions.Contains(structure),
+				"TopStructWidth [65,75]@Y=35 must be kept — same X interval as bottom tip is not a geometric duplicate");
+			Assert(plan.Diagnostics.DimensionCandidates
+					.Where(c => c.DebugRole == "TopStructWidth" && Math.Abs(c.Value - 10.0) <= config.GeometryTolerance)
+					.All(c => c.SuppressedReason != "StructureDuplicateOfEnvelopeOutlineSegment"),
+				"opposite-edge structure must not be labeled StructureDuplicateOfEnvelopeOutlineSegment");
 		}
 
 		/// <summary>
@@ -2350,6 +2478,158 @@ namespace CadAuto.Core.Tests
 					.Where(c => c.DebugRole == "RightStructHeight" && Math.Abs(c.Value - 20.0) <= config.GeometryTolerance)
 					.All(c => c.SuppressedReason != "StructureDuplicateOfEnvelopeOutlineSegment"),
 				"right arm height must not be co-suppressed as envelope OS duplicate");
+		}
+
+
+		/// <summary>
+		/// Left-side step stack: keep LeftStructHeight 50+30; suppress right vertical OutlineSegments
+		/// 30 (same interval) and 20 (overall residual). Phase-1 left/right symmetry.
+		/// </summary>
+		private static void LeftStepStructureHeightsPreferOverRightOutlineSegments()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var plan = new DimensionPlan();
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallHeight,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(0.0, 100.0),
+				DebugRole = "OverallHeight"
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallWidth,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(100.0, 0.0),
+				DebugRole = "OverallWidth"
+			});
+			var left50 = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(0.0, 50.0),
+				DebugRole = "LeftStructHeight"
+			};
+			var left30 = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(0.0, 50.0),
+				SecondPoint = new Point2D(0.0, 80.0),
+				DebugRole = "LeftStructHeight"
+			};
+			var rightOs30 = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right,
+				FirstPoint = new Point2D(50.0, 80.0),
+				SecondPoint = new Point2D(50.0, 50.0),
+				DebugRole = "OutlineSegment"
+			};
+			var rightOs20 = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right,
+				FirstPoint = new Point2D(80.0, 100.0),
+				SecondPoint = new Point2D(80.0, 80.0),
+				DebugRole = "OutlineSegment"
+			};
+			plan.Add(left50);
+			plan.Add(left30);
+			plan.Add(rightOs30);
+			plan.Add(rightOs20);
+
+			// Mirror then secondary-OS cleanup (same order as SuppressDuplicateDimensions tail).
+			// Use full CreateOutlinePlan-equivalent suppress path via public-ish internals:
+			// call the two new stages by running envelope-adjacent helpers through reflection-free API:
+			// SuppressSecondary is internal; mirror is private — exercise via CreateOutlinePlan geometry below
+			// for integration; this unit path calls internal secondary suppress after manual mirror prefer.
+			planner.SuppressSecondaryVerticalOutlineSegmentsRedundantWithPrimaryStructureStack(plan);
+
+			Assert(plan.Dimensions.Contains(left50), "left structure height 50 must remain");
+			Assert(plan.Dimensions.Contains(left30), "left structure height 30 must remain (primary stack)");
+			Assert(!plan.Dimensions.Contains(rightOs30),
+				"right OutlineSegment 30 must suppress as primary-structure duplicate");
+			Assert(!plan.Dimensions.Contains(rightOs20),
+				"right OutlineSegment 20 must suppress as overall residual");
+		}
+
+		/// <summary>
+		/// Mirror of left-step case: primary RightStructHeight 50+30; left vertical OS 30/20 drop.
+		/// </summary>
+		private static void RightStepStructureHeightsPreferOverLeftOutlineSegments()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var plan = new DimensionPlan();
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallHeight,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(0.0, 100.0),
+				DebugRole = "OverallHeight"
+			});
+			var right50 = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right,
+				FirstPoint = new Point2D(100.0, 0.0),
+				SecondPoint = new Point2D(100.0, 50.0),
+				DebugRole = "RightStructHeight"
+			};
+			var right30 = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right,
+				FirstPoint = new Point2D(100.0, 50.0),
+				SecondPoint = new Point2D(100.0, 80.0),
+				DebugRole = "RightStructHeight"
+			};
+			var leftOs30 = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(50.0, 50.0),
+				SecondPoint = new Point2D(50.0, 80.0),
+				DebugRole = "OutlineSegment"
+			};
+			var leftOs20 = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(20.0, 80.0),
+				SecondPoint = new Point2D(20.0, 100.0),
+				DebugRole = "OutlineSegment"
+			};
+			plan.Add(right50);
+			plan.Add(right30);
+			plan.Add(leftOs30);
+			plan.Add(leftOs20);
+
+			planner.SuppressSecondaryVerticalOutlineSegmentsRedundantWithPrimaryStructureStack(plan);
+
+			Assert(plan.Dimensions.Contains(right50), "right structure height 50 must remain");
+			Assert(plan.Dimensions.Contains(right30), "right structure height 30 must remain");
+			Assert(!plan.Dimensions.Contains(leftOs30),
+				"left OutlineSegment 30 must suppress as primary-structure duplicate");
+			Assert(!plan.Dimensions.Contains(leftOs20),
+				"left OutlineSegment 20 must suppress as overall residual");
 		}
 
         private static void HorizontalStructurePointsCreateStepHeights()

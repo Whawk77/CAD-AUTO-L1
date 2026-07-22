@@ -72,15 +72,40 @@ public sealed class DimensionDeduplicationRules
 		{
 			return false;
 		}
-		double num = Math.Min(left.FirstPoint.Y, left.SecondPoint.Y);
-		double num2 = Math.Max(left.FirstPoint.Y, left.SecondPoint.Y);
-		double num3 = Math.Min(right.FirstPoint.Y, right.SecondPoint.Y);
-		double num4 = Math.Max(right.FirstPoint.Y, right.SecondPoint.Y);
+		return IsVerticalStructureIntervalCoveredByOther(left, right);
+	}
+
+	/// <summary>
+	/// Symmetric opposite of <see cref="IsLeftStructureHeightCoveredByRight"/>.
+	/// </summary>
+	public bool IsRightStructureHeightCoveredByLeft(DimensionDeduplicationItem right, DimensionDeduplicationItem left)
+	{
+		if (!IsRightStructureHeight(right) || !IsLeftStructureHeight(left))
+		{
+			return false;
+		}
+		return IsVerticalStructureIntervalCoveredByOther(right, left);
+	}
+
+	/// <summary>
+	/// True when <paramref name="inner"/> Y-interval is covered by <paramref name="outer"/>
+	/// and they share an endpoint (stacked step relationship).
+	/// </summary>
+	public bool IsVerticalStructureIntervalCoveredByOther(DimensionDeduplicationItem inner, DimensionDeduplicationItem outer)
+	{
+		if (inner == null || outer == null)
+		{
+			return false;
+		}
+		double num = Math.Min(inner.FirstPoint.Y, inner.SecondPoint.Y);
+		double num2 = Math.Max(inner.FirstPoint.Y, inner.SecondPoint.Y);
+		double num3 = Math.Min(outer.FirstPoint.Y, outer.SecondPoint.Y);
+		double num4 = Math.Max(outer.FirstPoint.Y, outer.SecondPoint.Y);
 		if (!(Math.Abs(num - num3) <= _config.GeometryTolerance) && !(Math.Abs(num - num4) <= _config.GeometryTolerance) && !(Math.Abs(num2 - num3) <= _config.GeometryTolerance) && !(Math.Abs(num2 - num4) <= _config.GeometryTolerance))
 		{
 			return false;
 		}
-		return num >= num3 - _config.GeometryTolerance && num2 <= num4 + _config.GeometryTolerance && GetSpan(right, horizontal: false) >= GetSpan(left, horizontal: false) - _config.GeometryTolerance;
+		return num >= num3 - _config.GeometryTolerance && num2 <= num4 + _config.GeometryTolerance && GetSpan(outer, horizontal: false) >= GetSpan(inner, horizontal: false) - _config.GeometryTolerance;
 	}
 
 	public bool IsLeftStructureHeight(DimensionDeduplicationItem item)
@@ -139,7 +164,9 @@ public sealed class DimensionDeduplicationRules
 		{
 			return flag3 ? 1 : (-1);
 		}
-		int num5 = GetDebugRolePreferenceRank(second.DebugRole).CompareTo(GetDebugRolePreferenceRank(first.DebugRole));
+		// Higher DebugRole rank is preferred (Structure > OutlineSegment). Compare first vs
+		// second so return > 0 means first is preferred (same convention as Overall above).
+		int num5 = GetDebugRolePreferenceRank(first.DebugRole).CompareTo(GetDebugRolePreferenceRank(second.DebugRole));
 		if (num5 != 0)
 		{
 			return num5;
@@ -154,7 +181,19 @@ public sealed class DimensionDeduplicationRules
 
 	private static int GetDebugRolePreferenceRank(string debugRole)
 	{
-		return (!string.Equals(debugRole, "OutlineSegment", StringComparison.Ordinal)) ? 1 : 0;
+		if (string.Equals(debugRole, "OutlineSegment", StringComparison.Ordinal))
+		{
+			return 0;
+		}
+		// Structure heights/widths outrank raw outline segments in mirror/dedup.
+		if (string.Equals(debugRole, "LeftStructHeight", StringComparison.Ordinal)
+			|| string.Equals(debugRole, "RightStructHeight", StringComparison.Ordinal)
+			|| string.Equals(debugRole, "TopStructWidth", StringComparison.Ordinal)
+			|| string.Equals(debugRole, "BottomStructWidth", StringComparison.Ordinal))
+		{
+			return 2;
+		}
+		return 1;
 	}
 
 	public static Tuple<double, double> ComputeArrowInterval(DimensionDeduplicationItem item, bool horizontal)

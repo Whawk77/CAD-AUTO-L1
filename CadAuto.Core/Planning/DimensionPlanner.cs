@@ -380,6 +380,8 @@ public sealed class DimensionPlanner
 		// After mirror keeps structure heights over OS, drop secondary-side vertical OS that only
 		// restate the primary structure stack or the overall residual (left/right step symmetry).
 		SuppressSecondaryVerticalOutlineSegmentsRedundantWithPrimaryStructureStack(plan);
+		// Structure>OS mirror can leave short outer tips that only restate overall residual noise.
+		SuppressOrphanOuterVerticalStructureHeightTips(plan);
 		// Outer-envelope collinear OutlineSegment fragments (+ same-interval structure dups).
 		SuppressOutlineSegmentsOnOverallEnvelope(plan);
 		// Existing complementary remainder for structure/normal remainders (Top/Right only).
@@ -683,7 +685,16 @@ public sealed class DimensionPlanner
 		return false;
 	}
 
+	/// <summary>
+	/// Drop Left/Right structure heights that restate OverallHeight (was Right-only).
+	/// Kept entry name for call-site compatibility.
+	/// </summary>
 	private void SuppressRightStructureHeightsDuplicatingOverallHeight(DimensionPlan plan)
+	{
+		SuppressStructureHeightsDuplicatingOverallHeight(plan);
+	}
+
+	private void SuppressStructureHeightsDuplicatingOverallHeight(DimensionPlan plan)
 	{
 		List<PlannedDimension> list = plan.Dimensions.Where((PlannedDimension dim) => dim.Kind == DimensionKind.OverallHeight).ToList();
 		if (list.Count == 0)
@@ -692,12 +703,22 @@ public sealed class DimensionPlanner
 		}
 		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
 		{
-			PlannedDimension right = plan.Dimensions[num];
-			if (IsRightStructureHeight(right) && list.Any((PlannedDimension overall) => IsSameVerticalInterval(right, overall)))
+			PlannedDimension cand = plan.Dimensions[num];
+			bool isRight = IsRightStructureHeight(cand);
+			bool isLeft = IsLeftStructureHeight(cand);
+			if (!isRight && !isLeft)
 			{
-				plan.MarkSuppressed(right, "RightStructureHeightDuplicatesOverallHeight");
-				plan.Dimensions.RemoveAt(num);
+				continue;
 			}
+			if (!list.Any((PlannedDimension overall) => IsSameVerticalInterval(cand, overall)))
+			{
+				continue;
+			}
+			string reason = isRight
+				? "RightStructureHeightDuplicatesOverallHeight"
+				: "LeftStructureHeightDuplicatesOverallHeight";
+			plan.MarkSuppressed(cand, reason);
+			plan.Dimensions.RemoveAt(num);
 		}
 	}
 
@@ -726,6 +747,113 @@ public sealed class DimensionPlanner
 	/// stack or only cover the residual of OverallHeight minus that stack (step symmetry).
 	/// Primary side = larger total Left/Right structure-height span (tie -> Right).
 	/// </summary>
+
+	/// <summary>
+	/// After structure wins mirror vs OutlineSegment, short outer-edge structure heights can
+	/// remain as overall residual tips (e.g. two RightStructHeight 5 on a 45-high part).
+	/// Suppress same-side abutting structure-height chains that are only tip noise:
+	/// no piece spans &gt;= 30% of OverallHeight and the chain covers &lt; 50% of overall.
+	/// Keeps real steps (L-arm ~40% of height, left-step 50+30 chain).
+	/// </summary>
+	internal void SuppressOrphanOuterVerticalStructureHeightTips(DimensionPlan plan)
+	{
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallHeight);
+		if (overall == null)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		double overallSpan = GetDimensionSpan(overall, horizontal: false);
+		if (overallSpan <= tol)
+		{
+			return;
+		}
+		double minPieceToKeep = overallSpan * 0.3;
+		double minChainToKeep = overallSpan * 0.5;
+		foreach (DimensionSide side in new DimensionSide[] { DimensionSide.Left, DimensionSide.Right })
+		{
+			List<PlannedDimension> heights = plan.Dimensions
+				.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+					&& d.Orientation == DimensionOrientation.Vertical
+					&& d.Side == side
+					&& (IsLeftStructureHeight(d) || IsRightStructureHeight(d)))
+				.ToList();
+			if (heights.Count == 0)
+			{
+				continue;
+			}
+			List<List<PlannedDimension>> chains = BuildAbuttingVerticalStructureChains(heights, tol);
+			HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>();
+			foreach (List<PlannedDimension> chain in chains)
+			{
+				double maxPiece = chain.Max((PlannedDimension d) => GetDimensionSpan(d, horizontal: false));
+				List<Tuple<double, double>> ivs = chain
+					.Select((PlannedDimension d) => ComputeArrowInterval(d, horizontal: false))
+					.ToList();
+				List<Tuple<double, double>> merged = MergeVerticalIntervals(ivs, tol);
+				double chainSpan = merged.Sum((Tuple<double, double> m) => m.Item2 - m.Item1);
+				if (maxPiece + tol >= minPieceToKeep || chainSpan + tol >= minChainToKeep)
+				{
+					continue;
+				}
+				foreach (PlannedDimension d in chain)
+				{
+					toSuppress.Add(d);
+				}
+			}
+			if (toSuppress.Count == 0)
+			{
+				continue;
+			}
+			for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
+			{
+				PlannedDimension cand = plan.Dimensions[num];
+				if (!toSuppress.Contains(cand))
+				{
+					continue;
+				}
+				plan.MarkSuppressed(cand, "OrphanOuterVerticalStructureHeightTip");
+				plan.Dimensions.RemoveAt(num);
+			}
+		}
+	}
+
+	private static List<List<PlannedDimension>> BuildAbuttingVerticalStructureChains(IList<PlannedDimension> heights, double tol)
+	{
+		List<PlannedDimension> ordered = heights
+			.OrderBy((PlannedDimension d) => ComputeArrowInterval(d, horizontal: false).Item1)
+			.ToList();
+		List<List<PlannedDimension>> chains = new List<List<PlannedDimension>>();
+		List<PlannedDimension> current = new List<PlannedDimension>();
+		double currentMax = double.NegativeInfinity;
+		foreach (PlannedDimension d in ordered)
+		{
+			Tuple<double, double> iv = ComputeArrowInterval(d, horizontal: false);
+			if (current.Count == 0)
+			{
+				current.Add(d);
+				currentMax = iv.Item2;
+				continue;
+			}
+			if (iv.Item1 <= currentMax + tol)
+			{
+				current.Add(d);
+				currentMax = Math.Max(currentMax, iv.Item2);
+			}
+			else
+			{
+				chains.Add(current);
+				current = new List<PlannedDimension> { d };
+				currentMax = iv.Item2;
+			}
+		}
+		if (current.Count > 0)
+		{
+			chains.Add(current);
+		}
+		return chains;
+	}
+
 	internal void SuppressSecondaryVerticalOutlineSegmentsRedundantWithPrimaryStructureStack(DimensionPlan plan)
 	{
 		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallHeight);
@@ -2306,7 +2434,10 @@ public sealed class DimensionPlanner
 			}
 		}
 		RemoveLongestLeftExtensionCandidate(list2, outline);
-		return list2;
+		// Phase 2: same complementary remainder path as right structure heights.
+		SnapComplementaryVerticalRemainderEndpoints(list2, outline);
+		RemoveComplementaryOverallRemainderCandidates(list2, outline.MinY, outline.MaxY, horizontal: false);
+		return list2.Where((PlannedDimension dim) => IsLeftSideVerticalStructureCandidate(dim, outline, ignoredPoints)).ToList();
 	}
 
 	private IList<PlannedDimension> BuildRightStructureHeightDimensions(OutlineFeature2D outline)
@@ -2920,6 +3051,11 @@ public sealed class DimensionPlanner
 	private bool IsRightSideVerticalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IList<Point2D> ignoredPoints)
 	{
 		return _structureEndpointRules.IsRightSideVerticalStructureCandidate(dim, outline, ignoredPoints);
+	}
+
+	private bool IsLeftSideVerticalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IList<Point2D> ignoredPoints)
+	{
+		return _structureEndpointRules.IsLeftSideVerticalStructureCandidate(dim, outline, ignoredPoints);
 	}
 
 	private bool IsCurrentRightSideStructurePoint(Point2D point, OutlineFeature2D outline, IList<Point2D> ignoredPoints)

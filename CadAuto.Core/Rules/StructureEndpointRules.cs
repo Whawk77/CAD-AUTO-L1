@@ -209,6 +209,11 @@ public sealed class StructureEndpointRules
 		return IsCurrentRightSideStructurePoint(dim.FirstPoint, outline, ignoredPoints) && IsCurrentRightSideStructurePoint(dim.SecondPoint, outline, ignoredPoints);
 	}
 
+	public bool IsLeftSideVerticalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IEnumerable<Point2D> ignoredPoints)
+	{
+		return IsCurrentLeftSideStructurePoint(dim.FirstPoint, outline, ignoredPoints) && IsCurrentLeftSideStructurePoint(dim.SecondPoint, outline, ignoredPoints);
+	}
+
 	public bool IsCurrentBottomSideStructurePoint(Point2D point, OutlineFeature2D outline, IEnumerable<Point2D> ignoredPoints)
 	{
 		if (IsBottomInclinedEndpointStructurePoint(point, outline, ignoredPoints))
@@ -267,6 +272,26 @@ public sealed class StructureEndpointRules
 		}
 		Point2D? rightMostPoint = GetRightMostPoint(list, ignoredPoints);
 		return rightMostPoint.HasValue && PointsEqual(rightMostPoint.Value, point);
+	}
+
+	public bool IsCurrentLeftSideStructurePoint(Point2D point, OutlineFeature2D outline, IEnumerable<Point2D> ignoredPoints)
+	{
+		if (IsSideInclinedEndpointStructurePoint(point, outline, ignoredPoints, DimensionSide.Left))
+		{
+			return true;
+		}
+		List<Segment2D> list = (from s in outline.Segments
+			where s.IsHorizontal(_config.GeometryTolerance)
+			where !s.IsArcChord
+			where s.LengthX > _config.GeometryTolerance
+			where Math.Abs(s.MinY - point.Y) <= _config.GeometryTolerance
+			select s).ToList();
+		if (list.Count == 0)
+		{
+			return false;
+		}
+		Point2D? leftMostPoint = GetLeftMostPoint(list, ignoredPoints);
+		return leftMostPoint.HasValue && PointsEqual(leftMostPoint.Value, point);
 	}
 
 	private bool TryResolveBottomProtrusionWidthSpan(OutlineFeature2D outline, Segment2D segment, ref Point2D leftPoint, ref Point2D rightPoint)
@@ -434,6 +459,14 @@ public sealed class StructureEndpointRules
 		return ((IEnumerable<Point2D>)(from p in segments.SelectMany((Segment2D s) => new Point2D[2] { s.Start, s.End })
 			where !ContainsPoint(ignoredPoints, p)
 			orderby p.X descending, p.Y
+			select p)).Select((Func<Point2D, Point2D?>)((Point2D p) => p)).FirstOrDefault();
+	}
+
+	private Point2D? GetLeftMostPoint(IEnumerable<Segment2D> segments, IEnumerable<Point2D> ignoredPoints)
+	{
+		return ((IEnumerable<Point2D>)(from p in segments.SelectMany((Segment2D s) => new Point2D[2] { s.Start, s.End })
+			where !ContainsPoint(ignoredPoints, p)
+			orderby p.X, p.Y
 			select p)).Select((Func<Point2D, Point2D?>)((Point2D p) => p)).FirstOrDefault();
 	}
 

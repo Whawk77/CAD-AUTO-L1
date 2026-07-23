@@ -95,6 +95,9 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(BottomInclinedStructurePointsRequireInnerGrooveChamfer), BottomInclinedStructurePointsRequireInnerGrooveChamfer);
                 RunTest(nameof(SideInclinedStructurePointsRequireInnerGrooveChamfer), SideInclinedStructurePointsRequireInnerGrooveChamfer);
                 RunTest(nameof(RightStructureHeightDuplicatingOverallHeightIsSuppressed), RightStructureHeightDuplicatingOverallHeightIsSuppressed);
+                RunTest(nameof(LeftStructureHeightDuplicatingOverallHeightIsSuppressed), LeftStructureHeightDuplicatingOverallHeightIsSuppressed);
+                RunTest(nameof(LeftStructureComplementaryRemainderIsRemovedLikeRight), LeftStructureComplementaryRemainderIsRemovedLikeRight);
+                RunTest(nameof(OrphanRightOuterStructureHeightTipsAreSuppressed), OrphanRightOuterStructureHeightTipsAreSuppressed);
                 RunTest(nameof(TwoArcSlotIsRecognized), TwoArcSlotIsRecognized);
                 RunTest(nameof(SingleArcSlotIsRecognized), SingleArcSlotIsRecognized);
                 RunTest(nameof(SlotDimensionsUseCenterAndDatumChainsWithoutPins), SlotDimensionsUseCenterAndDatumChainsWithoutPins);
@@ -2766,6 +2769,59 @@ namespace CadAuto.Core.Tests
                 "isolated 45-degree slope should not create side structure dimensions");
         }
 
+
+		/// <summary>
+		/// Phase 2: Left structure height that restates OverallHeight must suppress (symmetric of right).
+		/// </summary>
+		private static void LeftStructureHeightDuplicatingOverallHeightIsSuppressed()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 73.0,
+				MaxY = 29.038
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(73.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(0.0, 29.038), new Point2D(73.0, 29.038), "top");
+			AddSegment(outline, new Point2D(23.0, 0.0), new Point2D(23.0, 15.5), "left-lower-step");
+			AddSegment(outline, new Point2D(0.0, 29.038), new Point2D(0.5, 29.038), "left-top-step");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallHeight),
+				"overall height should remain");
+			Assert(!plan.Dimensions.Any(d =>
+					d.DebugRole == "LeftStructHeight"
+					&& Math.Abs(GetSpan(d) - 29.038) <= 0.001),
+				"left structure height duplicating overall height should be suppressed");
+		}
+
+		/// <summary>
+		/// Phase 2: left structure complementary pair — larger remainder (~80 with short 20)
+		/// removed at candidate build (same as right RemoveComplementaryOverallRemainderCandidates).
+		/// </summary>
+		private static void LeftStructureComplementaryRemainderIsRemovedLikeRight()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 40.0, MaxY = 100.0 };
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(40.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(40.0, 0.0), new Point2D(40.0, 100.0), "right");
+			AddSegment(outline, new Point2D(40.0, 100.0), new Point2D(0.0, 100.0), "top");
+			AddSegment(outline, new Point2D(0.0, 100.0), new Point2D(0.0, 0.0), "left");
+			AddSegment(outline, new Point2D(0.0, 20.0), new Point2D(15.0, 20.0), "left-shoulder");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			Assert(!plan.Dimensions.Any(d =>
+					d.DebugRole == "LeftStructHeight"
+					&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 80.0) <= config.GeometryTolerance),
+				"left complementary remainder height ~80 must be removed like right-side path");
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallHeight
+					&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 100.0) <= config.GeometryTolerance),
+				"overall height 100 must remain");
+		}
+
         private static void RightStructureHeightDuplicatingOverallHeightIsSuppressed()
         {
             var config = DimensionRuleConfig.CreateDefault();
@@ -2791,6 +2847,55 @@ namespace CadAuto.Core.Tests
                     && Math.Abs(GetSpan(d) - 29.038) <= 0.001),
                 "right structure height duplicating overall height should be suppressed");
         }
+
+
+		/// <summary>
+		/// Two short RightStructHeight tips (5+5 on overall 45) are overall residual noise and
+		/// must suppress (regression: structure&gt;OS mirror had kept them).
+		/// </summary>
+		private static void OrphanRightOuterStructureHeightTipsAreSuppressed()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var plan = new DimensionPlan();
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallHeight,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(0.0, 45.0),
+				DebugRole = "OverallHeight"
+			});
+			var r5a = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right,
+				FirstPoint = new Point2D(40.0, 35.0),
+				SecondPoint = new Point2D(40.0, 40.0),
+				DebugRole = "RightStructHeight"
+			};
+			var r5b = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right,
+				FirstPoint = new Point2D(40.0, 30.0),
+				SecondPoint = new Point2D(40.0, 35.0),
+				DebugRole = "RightStructHeight"
+			};
+			plan.Add(r5a);
+			plan.Add(r5b);
+			planner.SuppressOrphanOuterVerticalStructureHeightTips(plan);
+			Assert(!plan.Dimensions.Contains(r5a) && !plan.Dimensions.Contains(r5b),
+				"orphan right outer structure height tips 5+5 must be suppressed");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
+					c.DebugRole == "RightStructHeight"
+					&& c.IsSuppressed
+					&& c.SuppressedReason == "OrphanOuterVerticalStructureHeightTip"),
+				"expected OrphanOuterVerticalStructureHeightTip reason");
+		}
 
         private static void TwoArcSlotIsRecognized()
         {

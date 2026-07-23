@@ -85,8 +85,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core.Tests/Program.cs": {
-    "mtime": 1784695176.1495981,
-    "ast_hash": "014ef5d3a22a1b82696382f46a9308af",
+    "mtime": 1784698757.398107,
+    "ast_hash": "7843dc329e26380fa62a7c07524be8f4",
     "semantic_hash": ""
   },
   "CadAuto.Core.Tests/Properties/AssemblyInfo.cs": {
@@ -165,8 +165,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.cs": {
-    "mtime": 1784695228.0113018,
-    "ast_hash": "95676151a8597ee30042aaef1f74eccf",
+    "mtime": 1784698741.9915907,
+    "ast_hash": "dd2f4b2a85a9d9af097553af4122b27a",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/HoleCalloutPlan.cs": {
@@ -490,8 +490,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/StructureEndpointRules.cs": {
-    "mtime": 1784522262.1777775,
-    "ast_hash": "5392655fece4d81209db7104f70a2734",
+    "mtime": 1784697143.445275,
+    "ast_hash": "84c72f7c77f6d48cc37da4d8adfd1846",
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/StructureEndpointSpan.cs": {

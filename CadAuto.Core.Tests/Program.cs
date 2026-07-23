@@ -89,8 +89,11 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment), LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment);
                 RunTest(nameof(BottomStepWidthOnOverallEnvelopeIsKept), BottomStepWidthOnOverallEnvelopeIsKept);
 				RunTest(nameof(BottomProtrusionKeepsOuterWidthAndSuppressesInnerLedge), BottomProtrusionKeepsOuterWidthAndSuppressesInnerLedge);
+				RunTest(nameof(RightBottomProtrusionKeepsOuterWidthAndSuppressesInnerLedge), RightBottomProtrusionKeepsOuterWidthAndSuppressesInnerLedge);
+				RunTest(nameof(BottomTwoStageStepKeepsSecondStepWidth), BottomTwoStageStepKeepsSecondStepWidth);
 				RunTest(nameof(BottomFilletedProtrusionWidthIsKept), BottomFilletedProtrusionWidthIsKept);
 				RunTest(nameof(ChamferedTopStepUsesCompositeDimensions), ChamferedTopStepUsesCompositeDimensions);
+				RunTest(nameof(LeftChamferedTopStepUsesLeftCompositeHeight), LeftChamferedTopStepUsesLeftCompositeHeight);
                 RunTest(nameof(LeftStepStructureHeightsPreferOverRightOutlineSegments), LeftStepStructureHeightsPreferOverRightOutlineSegments);
                 RunTest(nameof(RightStepStructureHeightsPreferOverLeftOutlineSegments), RightStepStructureHeightsPreferOverLeftOutlineSegments);
                 RunTest(nameof(HorizontalStructurePointsCreateStepHeights), HorizontalStructurePointsCreateStepHeights);
@@ -2476,6 +2479,70 @@ namespace CadAuto.Core.Tests
 				"inner ledge candidates must record BottomProtrusionInnerRemainder");
 		}
 
+		private static void RightBottomProtrusionKeepsOuterWidthAndSuppressesInnerLedge()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 287.0,
+				MaxY = 110.0
+			};
+			AddSegment(outline, new Point2D(287.0, 0.0), new Point2D(237.0, 0.0), "bottom-protrusion");
+			AddSegment(outline, new Point2D(237.0, 0.0), new Point2D(237.0, 10.0), "protrusion-riser");
+			AddSegment(outline, new Point2D(237.0, 10.0), new Point2D(217.0, 10.0), "inner-ledge");
+			AddSegment(outline, new Point2D(217.0, 10.0), new Point2D(217.0, 110.0), "inner-right");
+			AddSegment(outline, new Point2D(217.0, 110.0), new Point2D(0.0, 110.0), "top-left");
+			AddSegment(outline, new Point2D(0.0, 110.0), new Point2D(0.0, 10.0), "left");
+			AddSegment(outline, new Point2D(0.0, 10.0), new Point2D(217.0, 10.0), "inner-bottom");
+			AddSegment(outline, new Point2D(217.0, 110.0), new Point2D(287.0, 110.0), "top-right");
+			AddSegment(outline, new Point2D(287.0, 110.0), new Point2D(287.0, 0.0), "right");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "BottomStructWidth"
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 50.0) <= config.GeometryTolerance),
+				"mirrored bottom protrusion width 50 must remain selected");
+			Assert(!plan.Dimensions.Any(d => (d.DebugRole == "BottomStructWidth" || d.DebugRole == "OutlineSegment")
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 20.0) <= config.GeometryTolerance),
+				"mirrored inner ledge width 20 must not remain selected");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.IsSuppressed
+					&& Math.Abs(c.Value - 20.0) <= config.GeometryTolerance
+					&& c.SuppressedReason == "BottomProtrusionInnerRemainder"),
+				"mirrored inner ledge candidates must record BottomProtrusionInnerRemainder");
+		}
+
+		private static void BottomTwoStageStepKeepsSecondStepWidth()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 200.0,
+				MaxY = 100.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(50.0, 0.0), "bottom-first-step");
+			AddSegment(outline, new Point2D(50.0, 0.0), new Point2D(50.0, 10.0), "first-riser");
+			AddSegment(outline, new Point2D(50.0, 10.0), new Point2D(70.0, 10.0), "second-step");
+			AddSegment(outline, new Point2D(70.0, 10.0), new Point2D(70.0, 30.0), "second-riser");
+			AddSegment(outline, new Point2D(70.0, 30.0), new Point2D(200.0, 30.0), "body-floor");
+			AddSegment(outline, new Point2D(200.0, 30.0), new Point2D(200.0, 100.0), "right");
+			AddSegment(outline, new Point2D(200.0, 100.0), new Point2D(0.0, 100.0), "top");
+			AddSegment(outline, new Point2D(0.0, 100.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "BottomStructWidth"
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 20.0) <= config.GeometryTolerance),
+				"real second bottom step width 20 must remain selected");
+			Assert(plan.Diagnostics.DimensionCandidates
+					.Where(c => c.DebugRole == "BottomStructWidth" && Math.Abs(c.Value - 20.0) <= config.GeometryTolerance)
+					.All(c => c.SuppressedReason != "BottomProtrusionInnerRemainder"),
+				"real second bottom step width 20 must not be treated as an inner remainder");
+		}
+
 		private static void BottomFilletedProtrusionWidthIsKept()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -2548,6 +2615,49 @@ namespace CadAuto.Core.Tests
 			Assert(plan.Dimensions.Any(d => d.DebugRole == "RightChamferedStepHeight"
 					&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 20.0) <= config.GeometryTolerance),
 				"chamfered top step height 20 must remain selected");
+		}
+
+		private static void LeftChamferedTopStepUsesLeftCompositeHeight()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 90.0,
+				MaxY = 53.5
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(90.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(0.0, 33.5), "left-body");
+			AddSegment(outline, new Point2D(90.0, 33.5), new Point2D(20.0, 33.5), "body-floor");
+			AddSegment(outline, new Point2D(20.0, 33.5), new Point2D(0.0, 33.5), "step-floor");
+			AddSegment(outline, new Point2D(20.0, 33.5), new Point2D(20.0, 47.0), "step-right-low");
+			AddSegment(outline, new Point2D(20.0, 47.0), new Point2D(19.0, 48.0), "step-right-chamfer-low");
+			AddSegment(outline, new Point2D(19.0, 48.0), new Point2D(19.0, 52.5), "step-right-high");
+			AddSegment(outline, new Point2D(19.0, 52.5), new Point2D(20.0, 53.5), "step-right-chamfer-top");
+			AddSegment(outline, new Point2D(20.0, 53.5), new Point2D(0.0, 53.5), "step-top");
+			AddSegment(outline, new Point2D(0.0, 33.5), new Point2D(0.0, 47.0), "step-left-low");
+			AddSegment(outline, new Point2D(0.0, 47.0), new Point2D(1.0, 48.0), "step-left-chamfer-low");
+			AddSegment(outline, new Point2D(1.0, 48.0), new Point2D(1.0, 52.5), "step-left-high");
+			AddSegment(outline, new Point2D(1.0, 52.5), new Point2D(0.0, 53.5), "step-left-chamfer-top");
+			AddSegment(outline, new Point2D(90.0, 53.5), new Point2D(90.0, 0.0), "right");
+			outline.Chamfers.Add(new ChamferFeature2D { StartPoint = new Point2D(20.0, 47.0), EndPoint = new Point2D(19.0, 48.0) });
+			outline.Chamfers.Add(new ChamferFeature2D { StartPoint = new Point2D(19.0, 52.5), EndPoint = new Point2D(20.0, 53.5) });
+			outline.Chamfers.Add(new ChamferFeature2D { StartPoint = new Point2D(0.0, 47.0), EndPoint = new Point2D(1.0, 48.0) });
+			outline.Chamfers.Add(new ChamferFeature2D { StartPoint = new Point2D(1.0, 52.5), EndPoint = new Point2D(0.0, 53.5) });
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "TopChamferedStepWidth"
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 20.0) <= config.GeometryTolerance),
+				"left chamfered top step width 20 must remain selected");
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "LeftChamferedStepHeight"
+					&& d.Side == DimensionSide.Left
+					&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 20.0) <= config.GeometryTolerance),
+				"left chamfered top step height 20 must be placed on the left side");
+			Assert(!plan.Dimensions.Any(d => d.DebugRole == "RightChamferedStepHeight"
+					&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 20.0) <= config.GeometryTolerance),
+				"left chamfered top step must not create a right-side height");
 		}
 
 		/// <summary>

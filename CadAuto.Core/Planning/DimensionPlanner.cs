@@ -405,7 +405,7 @@ public sealed class DimensionPlanner
 			&& s.IsHorizontal(_config.GeometryTolerance)
 			&& Math.Abs(s.MinY - outline.MinY) <= _config.GeometryTolerance))
 		{
-			if (TryGetBottomProtrusionInnerLedge(outline, segment, out Segment2D innerLedge))
+			if (TryGetBottomProtrusionInnerRemainder(outline, segment, out Segment2D innerLedge))
 			{
 				innerLedges.Add(innerLedge);
 			}
@@ -442,59 +442,158 @@ public sealed class DimensionPlanner
 			&& segment.IsHorizontal(_config.GeometryTolerance)
 			&& Math.Abs(segment.MinY - outline.MinY) <= _config.GeometryTolerance
 			&& HasSameSegmentEndpoints(segment, dimension.FirstPoint, dimension.SecondPoint));
-		if (bottomSegment == null || !TryGetBottomProtrusionRiserTop(outline, bottomSegment, out Point2D riserTop))
+		if (bottomSegment == null
+			|| !TryGetBottomProtrusionRiserTop(outline, bottomSegment, out Point2D riserTop, out int interiorDirection))
 		{
 			return false;
 		}
-		return GetBottomProtrusionInnerLedge(outline, riserTop) != null
-			|| outline.Fillets.Any((FilletFeature2D fillet) => PointsEqual(fillet.StartPoint, riserTop) || PointsEqual(fillet.EndPoint, riserTop));
+		return GetBottomProtrusionInnerLedge(outline, riserTop, interiorDirection) != null
+			|| HasBottomProtrusionInteriorFillet(outline, riserTop, interiorDirection);
 	}
 
-	private bool TryGetBottomProtrusionInnerLedge(OutlineFeature2D outline, Segment2D bottomSegment, out Segment2D innerLedge)
+	private bool TryGetBottomProtrusionInnerRemainder(OutlineFeature2D outline, Segment2D bottomSegment, out Segment2D innerLedge)
 	{
 		innerLedge = null;
-		if (!TryGetBottomProtrusionRiserTop(outline, bottomSegment, out Point2D riserTop))
+		if (!TryGetBottomProtrusionRiserTop(outline, bottomSegment, out Point2D riserTop, out int interiorDirection))
 		{
 			return false;
 		}
-		innerLedge = GetBottomProtrusionInnerLedge(outline, riserTop);
-		return innerLedge != null;
+		innerLedge = GetBottomProtrusionInnerLedge(outline, riserTop, interiorDirection);
+		if (innerLedge == null)
+		{
+			return false;
+		}
+		Point2D bodyPoint = PointsEqual(innerLedge.Start, riserTop) ? innerLedge.End : innerLedge.Start;
+		return HasBottomProtrusionBodyWall(outline, bodyPoint);
 	}
 
-	private bool TryGetBottomProtrusionRiserTop(OutlineFeature2D outline, Segment2D bottomSegment, out Point2D riserTop)
+	private bool TryGetBottomProtrusionRiserTop(OutlineFeature2D outline, Segment2D bottomSegment, out Point2D riserTop, out int interiorDirection)
 	{
 		riserTop = default(Point2D);
-		if (outline == null || bottomSegment == null)
+		interiorDirection = 0;
+		if (outline == null || bottomSegment == null
+			|| !bottomSegment.IsHorizontal(_config.GeometryTolerance)
+			|| Math.Abs(bottomSegment.MinY - outline.MinY) > _config.GeometryTolerance
+			|| !_structureEndpointRules.IsHorizontalProtrusionStep(bottomSegment, outline, DimensionSide.Bottom))
 		{
 			return false;
 		}
-		// ponytail: left-bottom protrusion only; add mirrored right-bottom matching when a repro needs it.
-		StructureEndpointSpan span = _structureEndpointRules.ResolveHorizontalStepBoundarySpan(outline, bottomSegment, DimensionSide.Bottom);
-		if (!span.WasResolved || !HasSameSegmentEndpoints(bottomSegment, span.FirstPoint, span.SecondPoint))
+		double tol = _config.GeometryTolerance;
+		Point2D leftPoint = bottomSegment.Start.X <= bottomSegment.End.X ? bottomSegment.Start : bottomSegment.End;
+		Point2D rightPoint = bottomSegment.Start.X <= bottomSegment.End.X ? bottomSegment.End : bottomSegment.Start;
+		bool touchesLeftEnvelope = Math.Abs(leftPoint.X - outline.MinX) <= tol;
+		bool touchesRightEnvelope = Math.Abs(rightPoint.X - outline.MaxX) <= tol;
+		if (touchesLeftEnvelope == touchesRightEnvelope)
 		{
 			return false;
 		}
-		Segment2D riser = outline.Segments.FirstOrDefault((Segment2D segment) => segment != null
-			&& segment.IsVertical(_config.GeometryTolerance)
-			&& (PointsEqual(segment.Start, span.SecondPoint) || PointsEqual(segment.End, span.SecondPoint)));
-		if (riser == null)
+		Point2D riserBase = touchesLeftEnvelope ? rightPoint : leftPoint;
+		interiorDirection = touchesLeftEnvelope ? 1 : -1;
+		bool found = false;
+		double nearestTopY = double.MaxValue;
+		foreach (Segment2D segment in outline.Segments.Where((Segment2D candidate) => candidate != null
+			&& candidate != bottomSegment
+			&& candidate.IsVertical(tol)
+			&& (PointsEqual(candidate.Start, riserBase) || PointsEqual(candidate.End, riserBase))))
 		{
-			return false;
+			Point2D otherPoint = PointsEqual(segment.Start, riserBase) ? segment.End : segment.Start;
+			if (otherPoint.Y > riserBase.Y + tol && otherPoint.Y < nearestTopY)
+			{
+				riserTop = otherPoint;
+				nearestTopY = otherPoint.Y;
+				found = true;
+			}
 		}
-		riserTop = PointsEqual(riser.Start, span.SecondPoint) ? riser.End : riser.Start;
-		if (riserTop.Y <= outline.MinY + _config.GeometryTolerance || riserTop.Y >= outline.MaxY - _config.GeometryTolerance)
-		{
-			return false;
-		}
-		return true;
+		return found && riserTop.Y < outline.MaxY - tol;
 	}
 
-	private Segment2D GetBottomProtrusionInnerLedge(OutlineFeature2D outline, Point2D riserTop)
+	private Segment2D GetBottomProtrusionInnerLedge(OutlineFeature2D outline, Point2D riserTop, int interiorDirection)
 	{
-		return outline.Segments.FirstOrDefault((Segment2D segment) => segment != null
-			&& segment.IsHorizontal(_config.GeometryTolerance)
-			&& (PointsEqual(segment.Start, riserTop) && segment.End.X > riserTop.X + _config.GeometryTolerance
-				|| PointsEqual(segment.End, riserTop) && segment.Start.X > riserTop.X + _config.GeometryTolerance));
+		double tol = _config.GeometryTolerance;
+		foreach (Segment2D segment in outline.Segments.Where((Segment2D candidate) => candidate != null
+			&& candidate.IsHorizontal(tol)
+			&& (PointsEqual(candidate.Start, riserTop) || PointsEqual(candidate.End, riserTop))))
+		{
+			Point2D otherPoint = PointsEqual(segment.Start, riserTop) ? segment.End : segment.Start;
+			if (interiorDirection * (otherPoint.X - riserTop.X) > tol)
+			{
+				return segment;
+			}
+		}
+		return null;
+	}
+
+	private bool HasBottomProtrusionInteriorFillet(OutlineFeature2D outline, Point2D riserTop, int interiorDirection)
+	{
+		double tol = _config.GeometryTolerance;
+		foreach (FilletFeature2D fillet in outline.Fillets)
+		{
+			if (!PointsEqual(fillet.StartPoint, riserTop) && !PointsEqual(fillet.EndPoint, riserTop))
+			{
+				continue;
+			}
+			Point2D otherPoint = PointsEqual(fillet.StartPoint, riserTop) ? fillet.EndPoint : fillet.StartPoint;
+			if (interiorDirection * (otherPoint.X - riserTop.X) > tol && otherPoint.Y > riserTop.Y + tol)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private bool HasBottomProtrusionBodyWall(OutlineFeature2D outline, Point2D bodyPoint)
+	{
+		double tol = _config.GeometryTolerance;
+		double reachedY = bodyPoint.Y;
+		bool advanced;
+		do
+		{
+			advanced = false;
+			foreach (Segment2D segment in outline.Segments.Where((Segment2D candidate) => candidate != null
+				&& candidate.IsVertical(tol)
+				&& Math.Abs(candidate.MinX - bodyPoint.X) <= tol
+				&& candidate.MinY <= reachedY + tol
+				&& candidate.MaxY > reachedY + tol))
+			{
+				reachedY = segment.MaxY;
+				advanced = true;
+			}
+		}
+		while (advanced && reachedY < outline.MaxY - tol);
+		if (reachedY >= outline.MaxY - tol)
+		{
+			return true;
+		}
+		Point2D wallTop = new Point2D(bodyPoint.X, reachedY);
+		return CornerFeatureReachesTopEnvelope(outline, wallTop);
+	}
+
+	private bool CornerFeatureReachesTopEnvelope(OutlineFeature2D outline, Point2D point)
+	{
+		double tol = _config.GeometryTolerance;
+		foreach (ChamferFeature2D chamfer in outline.Chamfers)
+		{
+			if (PointsEqual(chamfer.StartPoint, point) || PointsEqual(chamfer.EndPoint, point))
+			{
+				Point2D otherPoint = PointsEqual(chamfer.StartPoint, point) ? chamfer.EndPoint : chamfer.StartPoint;
+				if (otherPoint.Y >= outline.MaxY - tol)
+				{
+					return true;
+				}
+			}
+		}
+		foreach (FilletFeature2D fillet in outline.Fillets)
+		{
+			if (PointsEqual(fillet.StartPoint, point) || PointsEqual(fillet.EndPoint, point))
+			{
+				Point2D otherPoint = PointsEqual(fillet.StartPoint, point) ? fillet.EndPoint : fillet.StartPoint;
+				if (otherPoint.Y >= outline.MaxY - tol)
+				{
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	private bool HasSameSegmentEndpoints(Segment2D segment, Point2D firstPoint, Point2D secondPoint)
@@ -2457,8 +2556,15 @@ public sealed class DimensionPlanner
 			}
 			AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Horizontal, DimensionSide.Top,
 				lowerLeft, lowerRight, string.Empty, "TopChamferedStepWidth");
-			AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Vertical, DimensionSide.Right,
-				lowerRight, upperRight, string.Empty, "RightChamferedStepHeight");
+			double leftDistance = Math.Abs(upperEdge.MinX - outline.MinX);
+			double rightDistance = Math.Abs(outline.MaxX - upperEdge.MaxX);
+			bool placeHeightOnLeft = leftDistance < rightDistance;
+			DimensionSide heightSide = placeHeightOnLeft ? DimensionSide.Left : DimensionSide.Right;
+			Point2D lowerHeightPoint = placeHeightOnLeft ? lowerLeft : lowerRight;
+			Point2D upperHeightPoint = placeHeightOnLeft ? upperLeft : upperRight;
+			string heightRole = placeHeightOnLeft ? "LeftChamferedStepHeight" : "RightChamferedStepHeight";
+			AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Vertical, heightSide,
+				lowerHeightPoint, upperHeightPoint, string.Empty, heightRole);
 		}
 	}
 

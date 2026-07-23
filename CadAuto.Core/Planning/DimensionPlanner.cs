@@ -363,8 +363,8 @@ public sealed class DimensionPlanner
 		// Run before OutlineSegment overall-partition removal so OS partners still exist.
 		// Partners never include slot/hole Normals. Local structure steps that do not complete
 		// overall are kept (e.g. TopStructWidth=50).
-		SuppressStructureDimensionsThatPartitionOverall(plan, horizontal: true);
-		SuppressStructureDimensionsThatPartitionOverall(plan, horizontal: false);
+		SuppressStructureDimensionsThatPartitionOverall(plan, outline, horizontal: true);
+		SuppressStructureDimensionsThatPartitionOverall(plan, outline, horizontal: false);
 		// Drop raw OutlineSegment pairs that re-partition overall (before complementary remainder
 		// removes only the larger partner and leaves the smaller fragment orphaned).
 		// Scoped to OutlineSegment only — do not broaden complementary-remainder to Bottom/Left
@@ -3765,8 +3765,12 @@ public sealed class DimensionPlanner
 	/// OutlineSegment members stay for <see cref="SuppressOutlineSegmentsThatPartitionOverall"/>.
 	/// Numeric span sums alone are never sufficient.
 	/// </summary>
-	private void SuppressStructureDimensionsThatPartitionOverall(DimensionPlan plan, bool horizontal)
+	private void SuppressStructureDimensionsThatPartitionOverall(DimensionPlan plan, OutlineFeature2D outline, bool horizontal)
 	{
+		if (plan == null || outline == null)
+		{
+			return;
+		}
 		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => horizontal ? (d.Kind == DimensionKind.OverallWidth) : (d.Kind == DimensionKind.OverallHeight));
 		if (overall == null)
 		{
@@ -3780,7 +3784,8 @@ public sealed class DimensionPlanner
 		List<PlannedDimension> structureDims = plan.Dimensions
 			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
 				&& IsStructureWidthOrHeightRole(d.DebugRole)
-				&& d.Orientation == expected)
+				&& d.Orientation == expected
+				&& HasRealStructurePartitionEdge(d, outline, horizontal))
 			.ToList();
 		if (structureDims.Count == 0)
 		{
@@ -3794,23 +3799,25 @@ public sealed class DimensionPlanner
 		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal);
 		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>();
 		double tol = _config.GeometryTolerance;
-		// Per-structure search: only suppress the *focus* structure when it participates in a
-		// complete overall partition with other structures and/or collinear same-side OutlineSegments.
-		// Same Side alone is not enough: L-shape TopStructWidth 20 (tower top) must not be erased
-		// by Top OutlineSegment 71 on the arm (different Y, only shared placement side).
+		// Per-structure search: all members must be real, collinear contour edges on one side.
+		// X/Y projection alone must not join a top step to a bottom ledge.
 		foreach (PlannedDimension focus in structureDims)
 		{
 			List<PlannedDimension> partnerPool = new List<PlannedDimension> { focus };
 			foreach (PlannedDimension other in structureDims)
 			{
-				if (other != focus)
+				if (other != focus
+					&& other.Side == focus.Side
+					&& AreCollinearStructurePartners(focus, other, horizontal, tol))
 				{
 					partnerPool.Add(other);
 				}
 			}
 			foreach (PlannedDimension os in outlineSegments)
 			{
-				if (os.Side == focus.Side && AreCollinearStructurePartners(focus, os, horizontal, tol))
+				if (os.Side == focus.Side
+					&& HasRealStructurePartitionEdge(os, outline, horizontal)
+					&& AreCollinearStructurePartners(focus, os, horizontal, tol))
 				{
 					partnerPool.Add(os);
 				}
@@ -3880,6 +3887,42 @@ public sealed class DimensionPlanner
 			plan.MarkSuppressed(candidate, "StructureOverallPartition");
 			plan.Dimensions.RemoveAt(num);
 		}
+	}
+
+	private bool HasRealStructurePartitionEdge(PlannedDimension dimension, OutlineFeature2D outline, bool horizontal)
+	{
+		if (dimension == null || outline == null)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		if (horizontal)
+		{
+			if (Math.Abs(dimension.FirstPoint.Y - dimension.SecondPoint.Y) > tol)
+			{
+				return false;
+			}
+			double minX = Math.Min(dimension.FirstPoint.X, dimension.SecondPoint.X);
+			double maxX = Math.Max(dimension.FirstPoint.X, dimension.SecondPoint.X);
+			return outline.Segments.Any((Segment2D segment) => segment != null
+				&& !segment.IsArcChord
+				&& segment.IsHorizontal(tol)
+				&& Math.Abs(segment.MinY - dimension.FirstPoint.Y) <= tol
+				&& segment.MinX <= minX + tol
+				&& segment.MaxX >= maxX - tol);
+		}
+		if (Math.Abs(dimension.FirstPoint.X - dimension.SecondPoint.X) > tol)
+		{
+			return false;
+		}
+		double minY = Math.Min(dimension.FirstPoint.Y, dimension.SecondPoint.Y);
+		double maxY = Math.Max(dimension.FirstPoint.Y, dimension.SecondPoint.Y);
+		return outline.Segments.Any((Segment2D segment) => segment != null
+			&& !segment.IsArcChord
+			&& segment.IsVertical(tol)
+			&& Math.Abs(segment.MinX - dimension.FirstPoint.X) <= tol
+			&& segment.MinY <= minY + tol
+			&& segment.MaxY >= maxY - tol);
 	}
 
 	private static bool IsStructureOverallPartitionPartnerRole(string debugRole)

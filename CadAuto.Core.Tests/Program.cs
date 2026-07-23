@@ -82,6 +82,7 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(NonFortyFiveSlopeIsNotChamfer), NonFortyFiveSlopeIsNotChamfer);
                 RunTest(nameof(VerticalStructurePointsCreateStepWidths), VerticalStructurePointsCreateStepWidths);
                 RunTest(nameof(StructureWidthsThatPartitionOverallAreSuppressed), StructureWidthsThatPartitionOverallAreSuppressed);
+                RunTest(nameof(ProjectedCrossLevelStructureWidthsDoNotPartitionOverall), ProjectedCrossLevelStructureWidthsDoNotPartitionOverall);
                 RunTest(nameof(StructureWidthThatPartitionsOverallWithOutlineSegmentIsSuppressed), StructureWidthThatPartitionsOverallWithOutlineSegmentIsSuppressed);
                 RunTest(nameof(ThreeStructureWidthsThatPartitionOverallAreSuppressed), ThreeStructureWidthsThatPartitionOverallAreSuppressed);
                 RunTest(nameof(LocalTopStructureWidthIsKeptWhenNotPartitioningOverall), LocalTopStructureWidthIsKeptWhenNotPartitioningOverall);
@@ -2548,6 +2549,39 @@ namespace CadAuto.Core.Tests
 			Assert(plan.Dimensions.Any(d => d.DebugRole == "RightChamferedStepHeight"
 					&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 20.0) <= config.GeometryTolerance),
 				"chamfered top step height 20 must remain selected");
+		}
+
+		private static void ProjectedCrossLevelStructureWidthsDoNotPartitionOverall()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 96.0,
+				MaxY = 35.5
+			};
+			// Top 25 is real. The next top projection spans 3 in X but drops 15.5 in Y.
+			// Bottom 3 + 68 must not join the top edge into an overall partition.
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(0.0, 35.5), "left");
+			AddSegment(outline, new Point2D(0.0, 35.5), new Point2D(25.0, 35.5), "top-step");
+			AddSegment(outline, new Point2D(25.0, 0.0), new Point2D(25.0, 35.5), "top-riser");
+			AddSegment(outline, new Point2D(28.0, 0.0), new Point2D(28.0, 20.0), "inner-riser");
+			AddSegment(outline, new Point2D(25.0, 0.0), new Point2D(28.0, 0.0), "bottom-step");
+			AddSegment(outline, new Point2D(28.0, 0.0), new Point2D(96.0, 0.0), "bottom-main");
+			AddSegment(outline, new Point2D(96.0, 0.0), new Point2D(96.0, 35.5), "right");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			var top25 = plan.Diagnostics.DimensionCandidates.Where(c => c.DebugRole == "TopStructWidth"
+				&& Math.Abs(c.Value - 25.0) <= config.GeometryTolerance).ToList();
+			var projected3 = plan.Diagnostics.DimensionCandidates.Where(c => c.DebugRole == "TopStructWidth"
+				&& Math.Abs(c.Value - 3.0) <= config.GeometryTolerance).ToList();
+
+			Assert(top25.Count > 0, "real top step width 25 must be generated");
+			Assert(top25.All(c => c.SuppressedReason != "StructureOverallPartition"),
+				"top 25 must not partition overall with lower projected fragments");
+			Assert(projected3.All(c => c.SuppressedReason != "StructureOverallPartition"),
+				"cross-level 3 must not participate in StructureOverallPartition");
 		}
 
 		/// <summary>

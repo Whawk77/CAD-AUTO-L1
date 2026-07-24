@@ -85,8 +85,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core.Tests/Program.cs": {
-    "mtime": 1784789457.4411304,
-    "ast_hash": "44baf7f0fecfd750b567ae5eb18985eb",
+    "mtime": 1784870200.5847614,
+    "ast_hash": "9291384d584a70a7335c2d40824e7bfa",
     "semantic_hash": ""
   },
   "CadAuto.Core.Tests/Properties/AssemblyInfo.cs": {
@@ -165,8 +165,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.cs": {
-    "mtime": 1784789380.7383866,
-    "ast_hash": "9c5920c7661bb1e50de7c0f3a237889f",
+    "mtime": 1784869910.3074527,
+    "ast_hash": "29654634321f7416aca1feb896973fdb",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/HoleCalloutPlan.cs": {
@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "Commands.cs": {
-    "mtime": 1784782952.3249428,
-    "ast_hash": "2916c4f8ca03a88020b3ff8d54a59940",
+    "mtime": 1784859084.2255337,
+    "ast_hash": "09296dce4443b153dc22a26ec374b87f",
     "semantic_hash": ""
   },
   "PluginEntry.cs": {
@@ -295,8 +295,8 @@
     "semantic_hash": ""
   },
   "docs/DimensionRules.md": {
-    "mtime": 1784782952.3309424,
-    "ast_hash": "185bcdfad7ba6c08ca225ab50e7bfb0f",
+    "mtime": 1784870231.7309804,
+    "ast_hash": "841dc81eadc8ec081d32612e72b12755",
     "semantic_hash": ""
   },
   "docs/Environment.md": {
@@ -455,7 +455,7 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/DimensionLayoutRules.cs": {
-    "mtime": 1784782952.1624372,
+    "mtime": 1784798183.5168283,
     "ast_hash": "151b1583f9f0ea2a95276d9f6f62d01a",
     "semantic_hash": ""
   },
@@ -527,6 +527,11 @@
   "docs/fix-Issue1-envelope-structure-co-suppress.md": {
     "mtime": 1784782952.3319428,
     "ast_hash": "7c38eaf7b516065853d952b4da4f65bb",
+    "semantic_hash": ""
+  },
+  "scripts/invoke-asd-repro.ps1": {
+    "mtime": 1784860533.0700428,
+    "ast_hash": "b4a19b69572fcbfbd88c738a2e094ddd",
     "semantic_hash": ""
   }
 }

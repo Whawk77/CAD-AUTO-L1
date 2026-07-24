@@ -20,6 +20,7 @@ Desktop.ini
 # Runtime diagnostics (local CAD runs; do not commit)
 diagnostics/last-run.json
 diagnostics/*.json
+regression/asd-repair/runs/
 
 # graphify: keep query graph + report + labels + manifest; ignore caches/viz/local paths/backups
 graphify-out/cache/

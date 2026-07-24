@@ -65,8 +65,9 @@
   - Right: `Structure:R:V`
 - Alignment priority for structure segments is `70` (below pin/functional-hole keys).
 - Non-adjacent structure segments with the same key may still split into separate rooted lanes when they do not share arrow endpoints.
-- Structure points on the overall envelope edge are **allowed** when they measure a local step (e.g. top recess width 50) — do not drop them just because `Y≈MaxY` / `X≈MinX`.
-- Suppress structure width/height only when they **re-partition overall**: two structure spans (same or opposite side) with `A + B ≈ Overall` → both suppressed (`StructureOverallPartition`). Example: BottomStructWidth 25 + TopStructWidth 232 with OverallWidth 257.
+- Before lower-priority duplicate/partition rules, suppress local Top/Bottom geometry whose two attachment points share `Y≈MinY/MaxY`, and local Left/Right geometry whose two attachment points share `X≈MinX/MaxX` (`LocalGeometryOnOverallEnvelope`).
+- This outer-envelope rule applies only to `TopStructWidth`, `BottomStructWidth`, `LeftStructHeight`, `RightStructHeight`, `OutlineSegment`, `TopChamferedStepWidth`, and `RightChamferedStepHeight`; Overall, hole, pin, datum, slot, and functional dimensions are protected.
+- Internal structure dimensions that do not lie on an outer-envelope axis continue through the existing duplicate and overall-partition rules.
 - Directional 45/135-degree endpoint suppression is side-specific.
 - Top/bottom use horizontal groove context.
 - Left/right use vertical groove context.
@@ -106,6 +107,12 @@ Current follow-up areas:
 - Functional-hole dimensions belonging to one pin group share a separate same-orientation alignment line and do not join the rooted datum chain.
 - Placement checks arrow conflicts, text-box conflicts, and outline coverage.
 - Shared-extension alignment may move eligible dimensions outward, but must not move dimensions whose real arrow endpoints touch another dimension at the same dimension-line level.
+
+## Regression Priority Gate
+
+- Core console regressions run strictly in order: P0 product invariants, P1 user-confirmed production cases, P2 recognition/planning, then P3 layout/diagnostics.
+- A failure stops the remaining tiers and blocks plugin build/CAD validation.
+- P0/P1 expectations change only when the user explicitly approves a rule change.
 
 ## Style And Callouts
 

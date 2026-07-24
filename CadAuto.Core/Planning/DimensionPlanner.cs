@@ -355,6 +355,7 @@ public sealed class DimensionPlanner
 
 	private void SuppressDuplicateDimensions(DimensionPlan plan, OutlineFeature2D outline)
 	{
+		List<PlannedDimension> localGeometryOnEnvelope = FindLocalGeometryOnOverallEnvelope(plan, outline);
 		SuppressRightStructureHeightsDuplicatingOverallHeight(plan);
 		SuppressLeftStructureHeightsCoveredByRight(plan);
 		SuppressBottomProtrusionInnerRemainders(plan, outline);
@@ -365,14 +366,16 @@ public sealed class DimensionPlanner
 		// overall are kept (e.g. TopStructWidth=50).
 		SuppressStructureDimensionsThatPartitionOverall(plan, outline, horizontal: true);
 		SuppressStructureDimensionsThatPartitionOverall(plan, outline, horizontal: false);
+		SuppressDatumRootedOuterStepComplements(plan, outline, horizontal: true);
+		SuppressDatumRootedOuterStepComplements(plan, outline, horizontal: false);
 		// Drop raw OutlineSegment pairs that re-partition overall (before complementary remainder
 		// removes only the larger partner and leaves the smaller fragment orphaned).
 		// Scoped to OutlineSegment only — do not broaden complementary-remainder to Bottom/Left
 		// or slot/hole Normal dims.
-		SuppressOutlineSegmentsThatPartitionOverall(plan, DimensionSide.Top, horizontal: true);
-		SuppressOutlineSegmentsThatPartitionOverall(plan, DimensionSide.Bottom, horizontal: true);
-		SuppressOutlineSegmentsThatPartitionOverall(plan, DimensionSide.Right, horizontal: false);
-		SuppressOutlineSegmentsThatPartitionOverall(plan, DimensionSide.Left, horizontal: false);
+		SuppressOutlineSegmentsThatPartitionOverall(plan, outline, DimensionSide.Top, horizontal: true);
+		SuppressOutlineSegmentsThatPartitionOverall(plan, outline, DimensionSide.Bottom, horizontal: true);
+		SuppressOutlineSegmentsThatPartitionOverall(plan, outline, DimensionSide.Right, horizontal: false);
+		SuppressOutlineSegmentsThatPartitionOverall(plan, outline, DimensionSide.Left, horizontal: false);
 		// Mirror before envelope: envelope may remove the primary-side outer tip first, which
 		// would orphan a same-interval secondary OutlineSegment (e.g. Right OS@inner X that
 		// matches Left envelope tip) and leave GEN|OutlineSegment*|R|L0 selected.
@@ -392,6 +395,72 @@ public sealed class DimensionPlanner
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Top, horizontal: true);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Left, horizontal: false);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Right, horizontal: false);
+		SuppressLocalGeometryOnOverallEnvelope(plan, localGeometryOnEnvelope);
+	}
+
+	internal void SuppressLocalGeometryOnOverallEnvelope(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		SuppressLocalGeometryOnOverallEnvelope(plan, FindLocalGeometryOnOverallEnvelope(plan, outline));
+	}
+
+	private List<PlannedDimension> FindLocalGeometryOnOverallEnvelope(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		List<PlannedDimension> matches = new List<PlannedDimension>();
+		if (plan == null || outline == null)
+		{
+			return matches;
+		}
+		double tol = _config.GeometryTolerance;
+		foreach (PlannedDimension dimension in plan.Dimensions)
+		{
+			if (!IsEnvelopeLocalGeometryRole(dimension.DebugRole))
+			{
+				continue;
+			}
+			bool horizontalSide = dimension.Side == DimensionSide.Top || dimension.Side == DimensionSide.Bottom;
+			bool verticalSide = dimension.Side == DimensionSide.Left || dimension.Side == DimensionSide.Right;
+			bool onHorizontalEnvelope = dimension.Orientation == DimensionOrientation.Horizontal
+				&& horizontalSide
+				&& (Math.Abs(dimension.FirstPoint.Y - outline.MinY) <= tol
+					&& Math.Abs(dimension.SecondPoint.Y - outline.MinY) <= tol
+					|| Math.Abs(dimension.FirstPoint.Y - outline.MaxY) <= tol
+					&& Math.Abs(dimension.SecondPoint.Y - outline.MaxY) <= tol);
+			bool onVerticalEnvelope = dimension.Orientation == DimensionOrientation.Vertical
+				&& verticalSide
+				&& (Math.Abs(dimension.FirstPoint.X - outline.MinX) <= tol
+					&& Math.Abs(dimension.SecondPoint.X - outline.MinX) <= tol
+					|| Math.Abs(dimension.FirstPoint.X - outline.MaxX) <= tol
+					&& Math.Abs(dimension.SecondPoint.X - outline.MaxX) <= tol);
+			if (!onHorizontalEnvelope && !onVerticalEnvelope)
+			{
+				continue;
+			}
+			matches.Add(dimension);
+		}
+		return matches;
+	}
+
+	private static void SuppressLocalGeometryOnOverallEnvelope(
+		DimensionPlan plan,
+		IEnumerable<PlannedDimension> dimensions)
+	{
+		if (plan == null || dimensions == null)
+		{
+			return;
+		}
+		foreach (PlannedDimension dimension in dimensions)
+		{
+			plan.MarkSuppressed(dimension, "LocalGeometryOnOverallEnvelope");
+			plan.Dimensions.Remove(dimension);
+		}
+	}
+
+	private static bool IsEnvelopeLocalGeometryRole(string debugRole)
+	{
+		return IsStructureWidthOrHeightRole(debugRole)
+			|| string.Equals(debugRole, "OutlineSegment", StringComparison.Ordinal)
+			|| string.Equals(debugRole, "TopChamferedStepWidth", StringComparison.Ordinal)
+			|| string.Equals(debugRole, "RightChamferedStepHeight", StringComparison.Ordinal);
 	}
 
 	private void SuppressBottomProtrusionInnerRemainders(DimensionPlan plan, OutlineFeature2D outline)
@@ -448,6 +517,89 @@ public sealed class DimensionPlanner
 		}
 		return GetBottomProtrusionInnerLedge(outline, riserTop) != null
 			|| outline.Fillets.Any((FilletFeature2D fillet) => PointsEqual(fillet.StartPoint, riserTop) || PointsEqual(fillet.EndPoint, riserTop));
+	}
+
+	private bool IsBottomOuterArmResidual(PlannedDimension dimension, OutlineFeature2D outline, DimensionPlan plan)
+	{
+		if (dimension == null || outline == null
+			|| dimension.Orientation != DimensionOrientation.Horizontal)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		bool isBottomStructure = string.Equals(dimension.DebugRole, "BottomStructWidth", StringComparison.Ordinal);
+		bool isInnerOutline = string.Equals(dimension.DebugRole, "OutlineSegment", StringComparison.Ordinal);
+		if (!isBottomStructure && !isInnerOutline)
+		{
+			return false;
+		}
+		if (Math.Abs(dimension.FirstPoint.Y - dimension.SecondPoint.Y) > tol
+			|| Math.Abs(Math.Max(dimension.FirstPoint.X, dimension.SecondPoint.X) - outline.MaxX) > tol
+			|| IsBottomProtrusionWidth(dimension, outline))
+		{
+			return false;
+		}
+		if (isInnerOutline)
+		{
+			double y = dimension.FirstPoint.Y;
+			double minX = Math.Min(dimension.FirstPoint.X, dimension.SecondPoint.X);
+			if (y <= outline.MinY + tol || plan == null)
+			{
+				return false;
+			}
+			Point2D inner = dimension.FirstPoint.X <= dimension.SecondPoint.X
+				? dimension.FirstPoint
+				: dimension.SecondPoint;
+			foreach (PlannedDimension root in plan.Dimensions.Where((PlannedDimension candidate) =>
+				candidate.Orientation == DimensionOrientation.Horizontal
+				&& candidate.Side == DimensionSide.Bottom
+				&& IsDatumRootedOuterStepDimension(candidate, outline)))
+			{
+				double rootMaxX = Math.Max(root.FirstPoint.X, root.SecondPoint.X);
+				if (rootMaxX >= minX - tol)
+				{
+					continue;
+				}
+				foreach (Arc2D transition in outline.Arcs.Where((Arc2D arc) => arc != null
+					&& (PointsEqual(arc.Start, inner) || PointsEqual(arc.End, inner))))
+				{
+					Point2D other = PointsEqual(transition.Start, inner) ? transition.End : transition.Start;
+					if (Math.Abs(other.X - rootMaxX) <= tol
+						&& other.Y > outline.MinY + tol
+						&& IsTooSmallStructureSpan(Math.Abs(inner.X - other.X))
+						&& IsTooSmallStructureSpan(Math.Abs(inner.Y - other.Y))
+						&& HasContinuousStraightOutlineEdge(outline, false, rootMaxX, outline.MinY, other.Y))
+					{
+						return true;
+					}
+				}
+				foreach (Segment2D transition in outline.Segments.Where((Segment2D segment) => segment != null
+					&& !segment.IsArcChord
+					&& !segment.IsHorizontal(tol)
+					&& !segment.IsVertical(tol)
+					&& (PointsEqual(segment.Start, inner) || PointsEqual(segment.End, inner))))
+				{
+					Point2D other = PointsEqual(transition.Start, inner) ? transition.End : transition.Start;
+					if (Math.Abs(other.X - rootMaxX) <= tol
+						&& other.Y > y + tol
+						&& IsTooSmallStructureSpan(Math.Abs(inner.X - other.X))
+						&& HasContinuousStraightOutlineEdge(outline, false, rootMaxX, outline.MinY, other.Y))
+					{
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+		if (Math.Abs(dimension.FirstPoint.Y - outline.MinY) > tol)
+		{
+			return false;
+		}
+		return outline.Segments.Any((Segment2D segment) => segment != null
+			&& !segment.IsArcChord
+			&& segment.IsHorizontal(tol)
+			&& segment.MinY > dimension.FirstPoint.Y + tol
+			&& HasSameHorizontalInterval(dimension, segment));
 	}
 
 	private bool TryGetBottomProtrusionInnerLedge(OutlineFeature2D outline, Segment2D bottomSegment, out Segment2D innerLedge)
@@ -509,6 +661,135 @@ public sealed class DimensionPlanner
 			&& Math.Abs(Math.Max(dimension.FirstPoint.X, dimension.SecondPoint.X) - segment.MaxX) <= _config.GeometryTolerance;
 	}
 
+	private bool HasContinuousStraightOutlineEdge(OutlineFeature2D outline, bool horizontal, double fixedCoordinate, double minimum, double maximum)
+	{
+		double tol = _config.GeometryTolerance;
+		double covered = minimum;
+		foreach (Tuple<double, double> interval in outline.Segments
+			.Where((Segment2D segment) => segment != null
+				&& !segment.IsArcChord
+				&& (horizontal ? segment.IsHorizontal(tol) : segment.IsVertical(tol))
+				&& Math.Abs((horizontal ? segment.MinY : segment.MinX) - fixedCoordinate) <= tol)
+			.Select((Segment2D segment) => horizontal
+				? Tuple.Create(segment.MinX, segment.MaxX)
+				: Tuple.Create(segment.MinY, segment.MaxY))
+			.Where((Tuple<double, double> interval) => interval.Item2 >= minimum - tol && interval.Item1 <= maximum + tol)
+			.OrderBy((Tuple<double, double> interval) => interval.Item1))
+		{
+			if (interval.Item2 < covered - tol)
+			{
+				continue;
+			}
+			if (interval.Item1 > covered + tol)
+			{
+				return false;
+			}
+			covered = Math.Max(covered, interval.Item2);
+			if (covered >= maximum - tol)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private bool IsDatumRootedOuterStepDimension(PlannedDimension dimension, OutlineFeature2D outline)
+	{
+		if (dimension == null || outline == null || dimension.Kind != DimensionKind.Normal)
+		{
+			return false;
+		}
+		// ponytail: datum convention is Bottom/Left; add Top/Right only when a concrete repro requires it.
+		double tol = _config.GeometryTolerance;
+		if (dimension.Orientation == DimensionOrientation.Horizontal && dimension.Side == DimensionSide.Bottom)
+		{
+			double minX = Math.Min(dimension.FirstPoint.X, dimension.SecondPoint.X);
+			double maxX = Math.Max(dimension.FirstPoint.X, dimension.SecondPoint.X);
+			if (Math.Abs(dimension.FirstPoint.Y - outline.MinY) > tol
+				|| Math.Abs(dimension.SecondPoint.Y - outline.MinY) > tol
+				|| Math.Abs(minX - outline.MinX) > tol
+				|| maxX >= outline.MaxX - tol)
+			{
+				return false;
+			}
+			Point2D inner = new Point2D(maxX, outline.MinY);
+			return HasContinuousStraightOutlineEdge(outline, true, outline.MinY, minX, maxX)
+				&& outline.Segments.Any((Segment2D segment) => segment != null
+					&& !segment.IsArcChord
+					&& segment.IsVertical(tol)
+					&& (PointsEqual(segment.Start, inner) && segment.End.Y > inner.Y + tol
+						|| PointsEqual(segment.End, inner) && segment.Start.Y > inner.Y + tol));
+		}
+		if (dimension.Orientation != DimensionOrientation.Vertical || dimension.Side != DimensionSide.Left)
+		{
+			return false;
+		}
+		double minY = Math.Min(dimension.FirstPoint.Y, dimension.SecondPoint.Y);
+		double maxY = Math.Max(dimension.FirstPoint.Y, dimension.SecondPoint.Y);
+		if (Math.Abs(dimension.FirstPoint.X - outline.MinX) > tol
+			|| Math.Abs(dimension.SecondPoint.X - outline.MinX) > tol
+			|| Math.Abs(minY - outline.MinY) > tol
+			|| maxY >= outline.MaxY - tol)
+		{
+			return false;
+		}
+		Point2D upper = new Point2D(outline.MinX, maxY);
+		return HasContinuousStraightOutlineEdge(outline, false, outline.MinX, minY, maxY)
+			&& outline.Segments.Any((Segment2D segment) => segment != null
+				&& !segment.IsArcChord
+				&& segment.IsHorizontal(tol)
+				&& segment.LengthX < outline.Width - tol
+				&& (PointsEqual(segment.Start, upper) && segment.End.X > upper.X + tol
+					|| PointsEqual(segment.End, upper) && segment.Start.X > upper.X + tol));
+	}
+
+	private void SuppressDatumRootedOuterStepComplements(DimensionPlan plan, OutlineFeature2D outline, bool horizontal)
+	{
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) =>
+			horizontal ? d.Kind == DimensionKind.OverallWidth : d.Kind == DimensionKind.OverallHeight);
+		if (overall == null)
+		{
+			return;
+		}
+		DimensionOrientation orientation = horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical;
+		List<PlannedDimension> roots = plan.Dimensions
+			.Where((PlannedDimension d) => d.Orientation == orientation && IsDatumRootedOuterStepDimension(d, outline))
+			.ToList();
+		if (roots.Count == 0)
+		{
+			return;
+		}
+		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>();
+		foreach (PlannedDimension candidate in plan.Dimensions.Where((PlannedDimension d) =>
+			d.Kind == DimensionKind.Normal
+			&& d.Orientation == orientation
+			&& string.Equals(d.DebugRole, "OutlineSegment", StringComparison.Ordinal)
+			&& !roots.Contains(d)))
+		{
+			PlannedDimension root = roots.FirstOrDefault((PlannedDimension item) =>
+				FormsCompleteOverallPartition(item, candidate, overall, horizontal));
+			if (root != null)
+			{
+				toSuppress.Add(candidate);
+				if (horizontal
+					&& AreCollinearStructurePartners(root, candidate, horizontal, _config.GeometryTolerance))
+				{
+					toSuppress.Add(root);
+				}
+			}
+		}
+		for (int i = plan.Dimensions.Count - 1; i >= 0; i--)
+		{
+			PlannedDimension candidate = plan.Dimensions[i];
+			if (!toSuppress.Contains(candidate))
+			{
+				continue;
+			}
+			plan.MarkSuppressed(candidate, "ComplementaryOutlineRemainder");
+			plan.Dimensions.RemoveAt(i);
+		}
+	}
+
 	private void SuppressComplementaryOutlineRemainders(DimensionPlan plan, DimensionSide side, bool horizontal)
 	{
 		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => horizontal ? (d.Kind == DimensionKind.OverallWidth) : (d.Kind == DimensionKind.OverallHeight));
@@ -538,9 +819,10 @@ public sealed class DimensionPlanner
 	/// Suppress OutlineSegment dims that re-partition the overall envelope on the same side.
 	/// Covers both 2-piece pairs (e.g. [0,25]+[25,257]) and multi-piece chains
 	/// (e.g. [0,9]+[9,20]+[20,91] = overall 91). Requires real contiguous cover of overall
-	/// (abut, no gap/overlap) — not mere span sums. All pieces in the covering chain are dropped.
+	/// (abut, no gap/overlap) — not mere span sums. Datum-rooted Bottom/Left steps are excluded;
+	/// all other pieces in the covering chain are dropped.
 	/// </summary>
-	private void SuppressOutlineSegmentsThatPartitionOverall(DimensionPlan plan, DimensionSide side, bool horizontal)
+	private void SuppressOutlineSegmentsThatPartitionOverall(DimensionPlan plan, OutlineFeature2D outline, DimensionSide side, bool horizontal)
 	{
 		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => horizontal ? (d.Kind == DimensionKind.OverallWidth) : (d.Kind == DimensionKind.OverallHeight));
 		if (overall == null)
@@ -634,16 +916,23 @@ public sealed class DimensionPlanner
 		List<PlannedDimension> envelopeOutlineSegments = plan.Dimensions
 			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
 				&& string.Equals(d.DebugRole, "OutlineSegment", StringComparison.Ordinal)
+				&& !IsDatumRootedOuterStepDimension(d, outline)
 				&& IsDimensionOnOverallEnvelope(d, minX, maxX, minY, maxY))
 			.ToList();
-		if (envelopeOutlineSegments.Count == 0)
+		List<PlannedDimension> bottomOuterArmResiduals = plan.Dimensions
+			.Where((PlannedDimension d) => IsBottomOuterArmResidual(d, outline, plan))
+			.ToList();
+		if (envelopeOutlineSegments.Count == 0 && bottomOuterArmResiduals.Count == 0)
 		{
 			return;
 		}
 		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>(envelopeOutlineSegments);
-		// Short overall-edge tip co-suppress: same interval + same Side + collinear.
-		// Do NOT co-suppress substantial step faces (span >= half overall) or cross-edge
-		// same-interval structures (different Side / not collinear).
+		foreach (PlannedDimension residual in bottomOuterArmResiduals)
+		{
+			toSuppress.Add(residual);
+		}
+		// Co-suppress same-edge duplicates. A lower rectangular arm remainder is redundant
+		// even when long; real bottom protrusions and substantial step faces stay.
 		// Left/RightStructHeight never co-suppressed here (short arm height on MaxX, etc.).
 		double overallWidthSpan = maxX - minX;
 		double tol = _config.GeometryTolerance;
@@ -651,6 +940,20 @@ public sealed class DimensionPlanner
 			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
 				&& IsHorizontalStructureWidthRole(d.DebugRole)))
 		{
+			bool matchesEnvelopeOutline = envelopeOutlineSegments.Any((PlannedDimension os) =>
+				os.Orientation == DimensionOrientation.Horizontal
+				&& structure.Side == os.Side
+				&& AreCollinearStructurePartners(structure, os, horizontal: true, tol)
+				&& IsSameMeasurementInterval(structure, os, horizontal: true));
+			if (!matchesEnvelopeOutline)
+			{
+				continue;
+			}
+			if (IsBottomOuterArmResidual(structure, outline, plan))
+			{
+				toSuppress.Add(structure);
+				continue;
+			}
 			if (IsBottomProtrusionWidth(structure, outline))
 			{
 				continue;
@@ -661,14 +964,7 @@ public sealed class DimensionPlanner
 			{
 				continue;
 			}
-			if (envelopeOutlineSegments.Any((PlannedDimension os) =>
-				os.Orientation == DimensionOrientation.Horizontal
-				&& structure.Side == os.Side
-				&& AreCollinearStructurePartners(structure, os, horizontal: true, tol)
-				&& IsSameMeasurementInterval(structure, os, horizontal: true)))
-			{
-				toSuppress.Add(structure);
-			}
+			toSuppress.Add(structure);
 		}
 		// Same measurement interval as an envelope OS fragment, even if not on the envelope
 		// itself (e.g. inner vertical at X=mid labeled Side=Right that matches outer tip OS@MaxX).
@@ -693,7 +989,11 @@ public sealed class DimensionPlanner
 				continue;
 			}
 			string reason;
-			if (string.Equals(candidate.DebugRole, "OutlineSegment", StringComparison.Ordinal))
+			if (IsBottomOuterArmResidual(candidate, outline, plan))
+			{
+				reason = "StructureDuplicateOfEnvelopeOutlineSegment";
+			}
+			else if (string.Equals(candidate.DebugRole, "OutlineSegment", StringComparison.Ordinal))
 			{
 				reason = envelopeOutlineSegments.Contains(candidate)
 					? "OutlineSegmentOnOverallEnvelope"
@@ -1416,7 +1716,7 @@ public sealed class DimensionPlanner
 	private void AddNonPinHoleDatumLocation(DimensionPlan plan, OutlineFeature2D outline, Datum2D datum, HoleFeature2D hole)
 	{
 		AddHorizontalOutlineReferenceDimension(plan, outline, datum.BaseX, hole.Center, DimensionKind.HoleLocation, ChooseHorizontalHoleSide(outline, hole.Center), string.Empty, "HoleDatumX");
-		AddVerticalOutlineReferenceDimension(plan, outline, datum.BaseY, hole.Center, DimensionKind.HoleLocation, ChooseVerticalHoleSide(outline, hole.Center), string.Empty, "HoleDatumY");
+		AddVerticalOutlineReferenceDimension(plan, outline, datum.BaseY, hole.Center, DimensionKind.HoleLocation, ChooseVerticalHoleSide(outline, hole.Center), string.Empty, "HoleDatumY", preservePreferredSide: true);
 	}
 
 	private PinGroupPlan CreatePinPairGroup(HoleFeature2D seed, IList<HoleFeature2D> candidates, HoleFeature2D forcedBasePin, HoleFeature2D referenceBasePin)
@@ -2421,8 +2721,61 @@ public sealed class DimensionPlanner
 		AddHorizontalStructureDimensions(plan, outline, BuildTopStructureWidthDimensions(outline));
 		AddHorizontalStructureDimensions(plan, outline, BuildBottomStructureWidthDimensions(outline));
 		AddVerticalStructureDimensions(plan, outline, BuildLeftStructureHeightDimensions(outline));
+		AddDatumRootedLeftOuterStepDimension(plan, outline);
 		AddVerticalStructureDimensions(plan, outline, BuildRightStructureHeightDimensions(outline));
 		AddChamferedTopStepDimensions(plan, outline);
+	}
+
+	private void AddDatumRootedLeftOuterStepDimension(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		double tol = _config.GeometryTolerance;
+		Segment2D ledge = outline.Segments
+			.Where((Segment2D segment) => segment != null
+				&& !segment.IsArcChord
+				&& segment.IsHorizontal(tol)
+				&& Math.Abs(segment.MinX - outline.MinX) <= tol
+				&& segment.MinY > outline.MinY + tol
+				&& segment.MinY < outline.MaxY - tol
+				&& segment.MaxX < outline.MaxX - tol
+				&& HasContinuousStraightOutlineEdge(outline, false, outline.MinX, outline.MinY, segment.MinY)
+				&& outline.Segments.Any((Segment2D orthogonal) => orthogonal != null
+					&& !orthogonal.IsArcChord
+					&& orthogonal.IsVertical(tol)
+					&& (PointsEqual(orthogonal.Start, new Point2D(segment.MaxX, segment.MinY))
+						|| PointsEqual(orthogonal.End, new Point2D(segment.MaxX, segment.MinY)))))
+			.OrderBy((Segment2D segment) => segment.MinY)
+			.FirstOrDefault();
+		if (ledge == null)
+		{
+			return;
+		}
+		Point2D first = new Point2D(outline.MinX, outline.MinY);
+		Point2D second = new Point2D(outline.MinX, ledge.MinY);
+		if (plan.Dimensions.Any((PlannedDimension dimension) =>
+			dimension.Orientation == DimensionOrientation.Vertical
+			&& dimension.Side == DimensionSide.Left
+			&& Math.Abs(Math.Min(dimension.FirstPoint.Y, dimension.SecondPoint.Y) - first.Y) <= tol
+			&& Math.Abs(Math.Max(dimension.FirstPoint.Y, dimension.SecondPoint.Y) - second.Y) <= tol))
+		{
+			return;
+		}
+		AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Vertical, DimensionSide.Left,
+			first, second, string.Empty, "LeftStructHeight",
+			alignmentKey: GetStructureAlignmentKey(DimensionSide.Left, horizontal: false),
+			alignmentPriority: 70, readingLevel: DimensionReadingLevel.LocalSpacing);
+		PlannedDimension outerStep = plan.Dimensions.Last();
+		for (int i = plan.Dimensions.Count - 2; i >= 0; i--)
+		{
+			PlannedDimension candidate = plan.Dimensions[i];
+			if (!IsLeftStructureHeight(candidate)
+				|| !_dimensionDeduplicationRules.IsVerticalStructureIntervalCoveredByOther(
+					ToDeduplicationItem(candidate), ToDeduplicationItem(outerStep)))
+			{
+				continue;
+			}
+			plan.MarkSuppressed(candidate, "LeftStructureHeightCoveredByDatumRootedOuterStep");
+			plan.Dimensions.RemoveAt(i);
+		}
 	}
 
 	private void AddChamferedTopStepDimensions(DimensionPlan plan, OutlineFeature2D outline)
@@ -3785,6 +4138,7 @@ public sealed class DimensionPlanner
 			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
 				&& IsStructureWidthOrHeightRole(d.DebugRole)
 				&& d.Orientation == expected
+				&& (horizontal || !IsDatumRootedOuterStepDimension(d, outline))
 				&& HasRealStructurePartitionEdge(d, outline, horizontal))
 			.ToList();
 		if (structureDims.Count == 0)
@@ -4076,14 +4430,14 @@ public sealed class DimensionPlanner
 		return true;
 	}
 
-	private bool AddVerticalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredY, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing)
+	private bool AddVerticalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredY, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing, bool preservePreferredSide = false)
 	{
 		if (!OutlineGeometryQuery.TryFindHorizontalBoundaryPoint(outline, preferredY, target.X, _config.GeometryTolerance, out var point))
 		{
 			plan.AddSkippedDimension(kind, DimensionOrientation.Vertical, side, new Point2D(target.X, preferredY), target, "NoRealOutlineAttachment:YDatum=" + preferredY.ToString("0.########", CultureInfo.InvariantCulture), debugRole, debugOwner);
 			return false;
 		}
-		AddDimension(plan, kind, DimensionOrientation.Vertical, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredY, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, readingLevel: readingLevel);
+		AddDimension(plan, kind, DimensionOrientation.Vertical, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredY, preservePreferredSide: preservePreferredSide, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, readingLevel: readingLevel);
 		return true;
 	}
 

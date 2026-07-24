@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.Colors;
@@ -33,42 +34,140 @@ public sealed class Commands
 		CornerOnly
 	}
 
+	private sealed class DiagnosticBounds
+	{
+		public double MinX { get; set; }
+
+		public double MinY { get; set; }
+
+		public double MinZ { get; set; }
+
+		public double MaxX { get; set; }
+
+		public double MaxY { get; set; }
+
+		public double MaxZ { get; set; }
+	}
+
+	private sealed class DiagnosticFileIdentity
+	{
+		public string Path { get; set; }
+
+		public string FileName { get; set; }
+
+		public long SizeBytes { get; set; }
+
+		public string LastWriteTimeUtc { get; set; }
+
+		public string Sha256 { get; set; }
+
+		public string IdentityStatus { get; set; }
+	}
+
+	private sealed class DiagnosticRunContext
+	{
+		public string RunId { get; set; }
+
+		public string Command { get; set; }
+
+		public DiagnosticFileIdentity Drawing { get; set; }
+
+		public DiagnosticFileIdentity Plugin { get; set; }
+
+		public int EntityCount { get; set; }
+
+		public List<string> EntityHandles { get; } = new List<string>();
+
+		public SortedDictionary<string, int> EntityTypeCounts { get; } = new SortedDictionary<string, int>(StringComparer.Ordinal);
+
+		public DiagnosticBounds SelectedGeometryBoundsWcs { get; set; }
+
+		public string SelectedGeometryBoundsStatus { get; set; }
+
+		public DiagnosticBounds RecognizedOutlineBoundsWcs { get; set; }
+
+		public double BaseX { get; set; }
+
+		public double BaseY { get; set; }
+
+		public bool HasDatumHole { get; set; }
+
+		public string DatumHoleHandle { get; set; }
+
+		public Point3d? DatumHoleCenterWcs { get; set; }
+
+		public double? DatumHoleLocationBaseX { get; set; }
+
+		public double? DatumHoleLocationBaseY { get; set; }
+
+		public bool DatumHoleLocationUseToleranceX { get; set; }
+
+		public bool DatumHoleLocationUseToleranceY { get; set; }
+
+		public string AutoCadVersion { get; set; }
+
+		public string InsUnits { get; set; }
+
+		public string UcsName { get; set; }
+
+		public Point3d? UcsOriginWcs { get; set; }
+
+		public Point3d? UcsXDirectionWcs { get; set; }
+
+		public Point3d? UcsYDirectionWcs { get; set; }
+
+		public double DimScale { get; set; }
+
+		public string DimStyle { get; set; }
+	}
+
 	private static readonly string Ag1RoughnessBlockName = "CadAider_国标粗糙度16下";
 
 	[CommandMethod("ASD")]
 	public void Asd()
 	{
-		RunAutoFixDim(clearExistingBeforeGenerate: false);
+		RunAutoFixDim(clearExistingBeforeGenerate: false, commandName: "ASD");
 	}
 
 	[CommandMethod("AUTOFIXDIM")]
 	public void AutoFixDim()
 	{
-		RunAutoFixDim(clearExistingBeforeGenerate: false);
+		RunAutoFixDim(clearExistingBeforeGenerate: false, commandName: "AUTOFIXDIM");
 	}
 
 	[CommandMethod("ASD4")]
 	public void AsdDebug()
 	{
-		RunAutoFixDim(clearExistingBeforeGenerate: true, diagnosticsEnabled: true);
+		RunAutoFixDim(clearExistingBeforeGenerate: true, diagnosticsEnabled: true, commandName: "ASD4");
 	}
 
 	[CommandMethod("ASD5")]
 	public void Asd5()
 	{
-		RunAutoFixDim(clearExistingBeforeGenerate: false, diagnosticsEnabled: false, AutoFixDimOutputScope.OutlineOnly);
+		RunAutoFixDim(clearExistingBeforeGenerate: false, diagnosticsEnabled: false, outputScope: AutoFixDimOutputScope.OutlineOnly, commandName: "ASD5");
 	}
 
 	[CommandMethod("ASD6")]
 	public void Asd6()
 	{
-		RunAutoFixDim(clearExistingBeforeGenerate: false, diagnosticsEnabled: false, AutoFixDimOutputScope.HoleOnly);
+		RunAutoFixDim(clearExistingBeforeGenerate: false, diagnosticsEnabled: false, outputScope: AutoFixDimOutputScope.HoleOnly, commandName: "ASD6");
 	}
 
 	[CommandMethod("ASD7")]
 	public void Asd7()
 	{
-		RunAutoFixDim(clearExistingBeforeGenerate: false, diagnosticsEnabled: false, AutoFixDimOutputScope.CornerOnly);
+		RunAutoFixDim(clearExistingBeforeGenerate: false, diagnosticsEnabled: false, outputScope: AutoFixDimOutputScope.CornerOnly, commandName: "ASD7");
+	}
+
+	[CommandMethod("ASDREPRO")]
+	public void AsdRepro()
+	{
+		Editor editor = Application.DocumentManager.MdiActiveDocument?.Editor;
+		if (editor == null)
+		{
+			return;
+		}
+		RunAutoFixDim(clearExistingBeforeGenerate: true, diagnosticsEnabled: true, outputScope: PromptForReproScope(editor), commandName: "ASDREPRO");
 	}
 
 	[CommandMethod("ASDCOREDBG")]
@@ -556,7 +655,7 @@ public sealed class Commands
 		}
 	}
 
-	private void RunAutoFixDim(bool clearExistingBeforeGenerate, bool diagnosticsEnabled = false, AutoFixDimOutputScope outputScope = AutoFixDimOutputScope.All)
+	private void RunAutoFixDim(bool clearExistingBeforeGenerate, bool diagnosticsEnabled = false, AutoFixDimOutputScope outputScope = AutoFixDimOutputScope.All, string commandName = "ASD")
 	{
 		Document mdiActiveDocument = Application.DocumentManager.MdiActiveDocument;
 		if (mdiActiveDocument == null)
@@ -583,6 +682,7 @@ public sealed class Commands
 		double dimScale = 1.0;
 		DimensionPlan completedLinearPlan = null;
 		IList<HoleFeature> recognizedHoles = null;
+		DiagnosticRunContext diagnosticContext = null;
 		try
 		{
 			using (Transaction transaction = database.TransactionManager.StartTransaction())
@@ -677,6 +777,7 @@ public sealed class Commands
 						}
 					}
 				}
+				diagnosticContext = CreateDiagnosticRunContext(database, transaction, outlineSelection, list5, outlineFeature, datumDefinition, groupId, commandName);
 				if (clearExistingBeforeGenerate)
 				{
 					AnnotationMetadata.EnsureRegApp(database, transaction);
@@ -744,7 +845,7 @@ public sealed class Commands
 				}
 				transaction.Commit();
 			}
-			WriteDimensionRunSummary(editor, completedLinearPlan, outline, recognizedHoles, slotFeatures, outputScope, diagnosticsEnabled, diagnosticSide);
+			WriteDimensionRunSummary(editor, completedLinearPlan, outline, recognizedHoles, slotFeatures, outputScope, diagnosticsEnabled, diagnosticSide, diagnosticContext);
 			if (!diagnosticsEnabled && (flag3 || flag5))
 			{
 				DrawPostLinearInteractiveAnnotations(mdiActiveDocument, config, dimStyleId, objectId, dimScale, annotationLayer, groupId, outline, slotFeatures, flag3, flag5);
@@ -765,25 +866,29 @@ public sealed class Commands
 		}
 	}
 
-	private static void WriteDimensionRunSummary(Editor editor, DimensionPlan plan, OutlineFeature outline, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide)
+	private static void WriteDimensionRunSummary(Editor editor, DimensionPlan plan, OutlineFeature outline, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide, DiagnosticRunContext context)
 	{
-		if (editor == null || plan == null)
+		if (editor == null)
 		{
 			return;
 		}
-		List<DimensionCandidateDiagnostic> skipped = plan.Diagnostics.DimensionCandidates.Where((DimensionCandidateDiagnostic item) => string.Equals(item.DecisionStatus, "Skipped", StringComparison.Ordinal)).ToList();
-		editor.WriteMessage("\nAUTOFIXDIM 线性尺寸汇总: 已生成 {0}，已跳过 {1}，失败 0。", plan.Diagnostics.FinalDimensions.Count, skipped.Count);
-		foreach (DimensionCandidateDiagnostic item in skipped.Take(10))
+		DimensionDiagnosticReport dimensionDiagnosticReport = plan?.Diagnostics ?? new DimensionDiagnosticReport();
+		if (plan != null)
 		{
-			editor.WriteMessage("\n  已跳过 {0}/{1}: {2}", item.Kind, item.DebugRole, item.DecisionReason);
-		}
-		if (skipped.Count > 10)
-		{
-			editor.WriteMessage("\n  另有 {0} 条跳过记录，请查看诊断 JSON。", skipped.Count - 10);
+			List<DimensionCandidateDiagnostic> skipped = dimensionDiagnosticReport.DimensionCandidates.Where((DimensionCandidateDiagnostic item) => string.Equals(item.DecisionStatus, "Skipped", StringComparison.Ordinal)).ToList();
+			editor.WriteMessage("\nAUTOFIXDIM 线性尺寸汇总: 已生成 {0}，已跳过 {1}，失败 0。", dimensionDiagnosticReport.FinalDimensions.Count, skipped.Count);
+			foreach (DimensionCandidateDiagnostic item in skipped.Take(10))
+			{
+				editor.WriteMessage("\n  已跳过 {0}/{1}: {2}", item.Kind, item.DebugRole, item.DecisionReason);
+			}
+			if (skipped.Count > 10)
+			{
+				editor.WriteMessage("\n  另有 {0} 条跳过记录，请查看诊断 JSON。", skipped.Count - 10);
+			}
 		}
 		try
 		{
-			string path = WriteDimensionDiagnosticReport(plan, outline, holes, slots, outputScope, diagnosticsEnabled, diagnosticSide);
+			string path = WriteDimensionDiagnosticReport(dimensionDiagnosticReport, outline, holes, slots, outputScope, diagnosticsEnabled, diagnosticSide, context);
 			editor.WriteMessage("\n诊断报告已输出: {0}", path);
 		}
 		catch (System.Exception ex)
@@ -897,6 +1002,25 @@ public sealed class Commands
 		};
 	}
 
+	private static AutoFixDimOutputScope PromptForReproScope(Editor editor)
+	{
+		PromptKeywordOptions promptKeywordOptions = new PromptKeywordOptions("\n选择复现范围 [全部(A)/外轮廓(O)/孔(H)/倒角圆角(C)]", "All Outline Hole Corner");
+		promptKeywordOptions.AllowNone = true;
+		promptKeywordOptions.Keywords.Default = "All";
+		PromptResult keywords = editor.GetKeywords(promptKeywordOptions);
+		if (keywords.Status != PromptStatus.OK)
+		{
+			return AutoFixDimOutputScope.All;
+		}
+		return keywords.StringResult switch
+		{
+			"Outline" => AutoFixDimOutputScope.OutlineOnly,
+			"Hole" => AutoFixDimOutputScope.HoleOnly,
+			"Corner" => AutoFixDimOutputScope.CornerOnly,
+			_ => AutoFixDimOutputScope.All,
+		};
+	}
+
 	private static void DrawPostLinearInteractiveAnnotations(Document document, DimensionRuleConfig config, ObjectId dimStyleId, ObjectId diameterCalloutDimStyleId, double dimScale, string annotationLayer, string groupId, OutlineFeature outline, IEnumerable<SlotFeature> slotFeatures, bool includeCornerCallouts, bool includeSlotRadiusCallouts)
 	{
 		if (document == null || outline == null)
@@ -980,9 +1104,197 @@ public sealed class Commands
 		return dimensionPlan;
 	}
 
-	private static string WriteDimensionDiagnosticReport(DimensionPlan plan, OutlineFeature outline, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide)
+	private static DiagnosticRunContext CreateDiagnosticRunContext(Database database, Transaction transaction, OutlineSelection selection, IEnumerable<ObjectId> holeSourceIds, OutlineFeature outline, DatumDefinition datum, string runId, string commandName)
 	{
-		DimensionDiagnosticReport diagnostics = plan.Diagnostics;
+		DiagnosticRunContext diagnosticRunContext = new DiagnosticRunContext
+		{
+			RunId = runId ?? string.Empty,
+			Command = commandName ?? string.Empty,
+			Drawing = CreateDiagnosticFileIdentity(database?.Filename),
+			Plugin = CreateDiagnosticFileIdentity(typeof(Commands).Assembly.Location),
+			SelectedGeometryBoundsStatus = "Unavailable",
+			BaseX = datum?.BaseX ?? 0.0,
+			BaseY = datum?.BaseY ?? 0.0,
+			RecognizedOutlineBoundsWcs = ((outline == null) ? null : new DiagnosticBounds
+			{
+				MinX = outline.MinX,
+				MinY = outline.MinY,
+				MinZ = 0.0,
+				MaxX = outline.MaxX,
+				MaxY = outline.MaxY,
+				MaxZ = 0.0
+			}),
+			HasDatumHole = datum?.DatumHole != null,
+			DatumHoleHandle = TryGetHandle(datum?.DatumHole),
+			DatumHoleCenterWcs = ((datum?.DatumHole == null) ? null : new Point3d?(datum.DatumHole.Center)),
+			DatumHoleLocationBaseX = datum?.DatumHoleLocationBaseX,
+			DatumHoleLocationBaseY = datum?.DatumHoleLocationBaseY,
+			DatumHoleLocationUseToleranceX = datum?.DatumHoleLocationUseToleranceX ?? false,
+			DatumHoleLocationUseToleranceY = datum?.DatumHoleLocationUseToleranceY ?? false,
+			AutoCadVersion = GetSystemVariableText("ACADVER"),
+			InsUnits = GetSystemVariableText("INSUNITS"),
+			UcsName = GetSystemVariableText("UCSNAME"),
+			UcsOriginWcs = GetSystemVariablePoint("UCSORG"),
+			UcsXDirectionWcs = GetSystemVariablePoint("UCSXDIR"),
+			UcsYDirectionWcs = GetSystemVariablePoint("UCSYDIR"),
+			DimScale = database?.Dimscale ?? 1.0,
+			DimStyle = GetSystemVariableText("DIMSTYLE")
+		};
+		IEnumerable<ObjectId> source = selection?.SelectedIds ?? Enumerable.Empty<ObjectId>();
+		IEnumerable<ObjectId> second = holeSourceIds ?? Enumerable.Empty<ObjectId>();
+		ObjectId objectId = ((datum?.DatumHole == null) ? ObjectId.Null : (!datum.DatumHole.CircleId.IsNull ? datum.DatumHole.CircleId : datum.DatumHole.SourceId));
+		List<ObjectId> list = source.Concat(second).Concat(objectId.IsNull ? Enumerable.Empty<ObjectId>() : new ObjectId[1] { objectId }).Where((ObjectId id) => !id.IsNull).Distinct().ToList();
+		diagnosticRunContext.EntityCount = list.Count;
+		DiagnosticBounds diagnosticBounds = null;
+		int num = 0;
+		foreach (ObjectId item in list)
+		{
+			try
+			{
+				diagnosticRunContext.EntityHandles.Add(item.Handle.ToString());
+			}
+			catch (System.Exception)
+			{
+			}
+			Entity entity = null;
+			try
+			{
+				entity = transaction.GetObject(item, OpenMode.ForRead, openErased: false) as Entity;
+			}
+			catch (System.Exception)
+			{
+			}
+			if (entity == null)
+			{
+				continue;
+			}
+			string name = entity.GetRXClass()?.DxfName ?? entity.GetType().Name;
+			diagnosticRunContext.EntityTypeCounts[name] = (diagnosticRunContext.EntityTypeCounts.TryGetValue(name, out var value) ? (value + 1) : 1);
+			try
+			{
+				Extents3d geometricExtents = entity.GeometricExtents;
+				ExpandDiagnosticBounds(ref diagnosticBounds, geometricExtents.MinPoint);
+				ExpandDiagnosticBounds(ref diagnosticBounds, geometricExtents.MaxPoint);
+				num++;
+			}
+			catch (System.Exception)
+			{
+			}
+		}
+		diagnosticRunContext.EntityHandles.Sort(StringComparer.Ordinal);
+		diagnosticRunContext.SelectedGeometryBoundsWcs = diagnosticBounds;
+		diagnosticRunContext.SelectedGeometryBoundsStatus = ((num == list.Count && diagnosticRunContext.EntityHandles.Count == list.Count) ? "Ok" : ("Partial:" + num.ToString(CultureInfo.InvariantCulture) + "/" + list.Count.ToString(CultureInfo.InvariantCulture)));
+		return diagnosticRunContext;
+	}
+
+	private static DiagnosticFileIdentity CreateDiagnosticFileIdentity(string path)
+	{
+		DiagnosticFileIdentity diagnosticFileIdentity = new DiagnosticFileIdentity
+		{
+			Path = path ?? string.Empty,
+			FileName = string.IsNullOrEmpty(path) ? string.Empty : Path.GetFileName(path),
+			LastWriteTimeUtc = string.Empty,
+			Sha256 = string.Empty,
+			IdentityStatus = "Missing"
+		};
+		if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+		{
+			return diagnosticFileIdentity;
+		}
+		try
+		{
+			string fullPath = Path.GetFullPath(path);
+			FileInfo fileInfo = new FileInfo(fullPath);
+			diagnosticFileIdentity.Path = fullPath;
+			diagnosticFileIdentity.FileName = fileInfo.Name;
+			diagnosticFileIdentity.SizeBytes = fileInfo.Length;
+			diagnosticFileIdentity.LastWriteTimeUtc = fileInfo.LastWriteTimeUtc.ToString("o", CultureInfo.InvariantCulture);
+			using (FileStream inputStream = File.Open(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+			using (SHA256 sHA = SHA256.Create())
+			{
+				diagnosticFileIdentity.Sha256 = BitConverter.ToString(sHA.ComputeHash(inputStream)).Replace("-", string.Empty);
+			}
+			diagnosticFileIdentity.IdentityStatus = "Ok";
+		}
+		catch (System.Exception ex)
+		{
+			diagnosticFileIdentity.IdentityStatus = "HashUnavailable:" + ex.GetType().Name;
+		}
+		return diagnosticFileIdentity;
+	}
+
+	private static string TryGetHandle(HoleFeature hole)
+	{
+		if (hole == null)
+		{
+			return string.Empty;
+		}
+		ObjectId objectId = !hole.CircleId.IsNull ? hole.CircleId : hole.SourceId;
+		if (objectId.IsNull)
+		{
+			return string.Empty;
+		}
+		try
+		{
+			return objectId.Handle.ToString();
+		}
+		catch (System.Exception)
+		{
+			return string.Empty;
+		}
+	}
+
+	private static string GetSystemVariableText(string name)
+	{
+		try
+		{
+			return Convert.ToString(Application.GetSystemVariable(name), CultureInfo.InvariantCulture) ?? string.Empty;
+		}
+		catch (System.Exception)
+		{
+			return string.Empty;
+		}
+	}
+
+	private static Point3d? GetSystemVariablePoint(string name)
+	{
+		try
+		{
+			object systemVariable = Application.GetSystemVariable(name);
+			return (systemVariable is Point3d point3d) ? new Point3d?(point3d) : null;
+		}
+		catch (System.Exception)
+		{
+			return null;
+		}
+	}
+
+	private static void ExpandDiagnosticBounds(ref DiagnosticBounds bounds, Point3d point)
+	{
+		if (bounds == null)
+		{
+			bounds = new DiagnosticBounds
+			{
+				MinX = point.X,
+				MinY = point.Y,
+				MinZ = point.Z,
+				MaxX = point.X,
+				MaxY = point.Y,
+				MaxZ = point.Z
+			};
+			return;
+		}
+		bounds.MinX = Math.Min(bounds.MinX, point.X);
+		bounds.MinY = Math.Min(bounds.MinY, point.Y);
+		bounds.MinZ = Math.Min(bounds.MinZ, point.Z);
+		bounds.MaxX = Math.Max(bounds.MaxX, point.X);
+		bounds.MaxY = Math.Max(bounds.MaxY, point.Y);
+		bounds.MaxZ = Math.Max(bounds.MaxZ, point.Z);
+	}
+
+	private static string WriteDimensionDiagnosticReport(DimensionDiagnosticReport diagnostics, OutlineFeature outline, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide, DiagnosticRunContext context)
+	{
+		diagnostics = diagnostics ?? new DimensionDiagnosticReport();
 		List<HoleFeature> source = (holes ?? Enumerable.Empty<HoleFeature>()).Where((HoleFeature h) => h != null).ToList();
 		diagnostics.Features.OutlineCount = ((outline != null) ? 1 : 0);
 		diagnostics.Features.HoleCount = source.Count((HoleFeature h) => !h.IsPinHole && !h.IsThreadHole && !h.IsSlotPoint);
@@ -991,10 +1303,19 @@ public sealed class Commands
 		diagnostics.Features.SlotCount = (slots ?? Enumerable.Empty<SlotFeature>()).Count((SlotFeature s) => s != null);
 		diagnostics.Features.ChamferCount = outline?.Chamfers.Count ?? 0;
 		diagnostics.Features.FilletCount = outline?.Fillets.Count ?? 0;
-		string text = Path.Combine(GetProjectRootOrAssemblyDirectory(), "diagnostics");
-		Directory.CreateDirectory(text);
-		string text2 = Path.Combine(text, "last-run.json");
-		File.WriteAllText(text2, SerializeDimensionDiagnosticReport(diagnostics, outputScope, diagnosticsEnabled, diagnosticSide), Encoding.UTF8);
+		string text2 = Environment.GetEnvironmentVariable("AUTOFIXDIM_DIAGNOSTIC_REPORT_PATH");
+		if (string.IsNullOrWhiteSpace(text2))
+		{
+			string text = Path.Combine(GetProjectRootOrAssemblyDirectory(), "diagnostics");
+			Directory.CreateDirectory(text);
+			text2 = Path.Combine(text, "last-run.json");
+		}
+		else
+		{
+			text2 = Path.GetFullPath(text2);
+			Directory.CreateDirectory(Path.GetDirectoryName(text2));
+		}
+		File.WriteAllText(text2, SerializeDimensionDiagnosticReport(diagnostics, outputScope, diagnosticsEnabled, diagnosticSide, context), Encoding.UTF8);
 		return text2;
 	}
 
@@ -1014,19 +1335,169 @@ public sealed class Commands
 		return text ?? Environment.CurrentDirectory;
 	}
 
-	private static string SerializeDimensionDiagnosticReport(DimensionDiagnosticReport report, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide)
+	private static string SerializeDimensionDiagnosticReport(DimensionDiagnosticReport report, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide, DiagnosticRunContext context)
 	{
+		context = context ?? new DiagnosticRunContext
+		{
+			RunId = string.Empty,
+			Command = string.Empty,
+			Drawing = new DiagnosticFileIdentity(),
+			Plugin = new DiagnosticFileIdentity()
+		};
 		StringBuilder stringBuilder = new StringBuilder();
 		stringBuilder.AppendLine("{");
+		AppendJsonProperty(stringBuilder, 1, "schemaVersion", 2, comma: true);
+		AppendJsonProperty(stringBuilder, 1, "runId", context.RunId, comma: true);
 		AppendJsonProperty(stringBuilder, 1, "generatedAt", DateTime.Now.ToString("o", CultureInfo.InvariantCulture), comma: true);
+		AppendJsonProperty(stringBuilder, 1, "command", context.Command, comma: true);
 		AppendJsonProperty(stringBuilder, 1, "commandScope", outputScope.ToString(), comma: true);
 		AppendJsonProperty(stringBuilder, 1, "diagnosticsEnabled", diagnosticsEnabled, comma: true);
 		AppendJsonProperty(stringBuilder, 1, "diagnosticSide", diagnosticSide.ToString(), comma: true);
+		AppendDiagnosticFileIdentity(stringBuilder, 1, "drawing", context.Drawing, comma: true);
+		AppendDiagnosticFileIdentity(stringBuilder, 1, "plugin", context.Plugin, comma: true);
+		AppendJsonProperty(stringBuilder, 1, "coordinateSystem", "WCS", comma: true);
+		AppendDiagnosticSelection(stringBuilder, context, comma: true);
+		AppendDiagnosticDatum(stringBuilder, context, comma: true);
+		AppendDiagnosticEnvironment(stringBuilder, context, comma: true);
 		AppendFeatureCounts(stringBuilder, report.Features, comma: true);
 		AppendDimensionDiagnostics(stringBuilder, 1, "dimensionCandidates", report.DimensionCandidates, comma: true);
 		AppendDimensionDiagnostics(stringBuilder, 1, "finalDimensions", report.FinalDimensions, comma: false);
 		stringBuilder.AppendLine("}");
 		return stringBuilder.ToString();
+	}
+
+	private static void AppendDiagnosticFileIdentity(StringBuilder builder, int indent, string name, DiagnosticFileIdentity identity, bool comma)
+	{
+		identity = identity ?? new DiagnosticFileIdentity();
+		AppendIndent(builder, indent);
+		builder.Append('"').Append(JsonEscape(name)).AppendLine("\": {");
+		AppendJsonProperty(builder, indent + 1, "path", identity.Path, comma: true);
+		AppendJsonProperty(builder, indent + 1, "fileName", identity.FileName, comma: true);
+		AppendJsonProperty(builder, indent + 1, "sizeBytes", identity.SizeBytes, comma: true);
+		AppendJsonProperty(builder, indent + 1, "lastWriteTimeUtc", identity.LastWriteTimeUtc, comma: true);
+		AppendJsonProperty(builder, indent + 1, "sha256", identity.Sha256, comma: true);
+		AppendJsonProperty(builder, indent + 1, "identityStatus", identity.IdentityStatus, comma: false);
+		AppendIndent(builder, indent);
+		builder.Append("}");
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendDiagnosticSelection(StringBuilder builder, DiagnosticRunContext context, bool comma)
+	{
+		AppendIndent(builder, 1);
+		builder.AppendLine("\"selection\": {");
+		AppendJsonProperty(builder, 2, "entityCount", context.EntityCount, comma: true);
+		AppendStringArray(builder, 2, "entityHandles", context.EntityHandles, comma: true);
+		AppendStringIntMap(builder, 2, "entityTypeCounts", context.EntityTypeCounts, comma: true);
+		AppendJsonProperty(builder, 2, "selectedGeometryBoundsStatus", context.SelectedGeometryBoundsStatus, comma: true);
+		AppendDiagnosticBounds(builder, 2, "selectedGeometryBoundsWcs", context.SelectedGeometryBoundsWcs, comma: true);
+		AppendDiagnosticBounds(builder, 2, "recognizedOutlineBoundsWcs", context.RecognizedOutlineBoundsWcs, comma: false);
+		AppendIndent(builder, 1);
+		builder.Append("}");
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendDiagnosticDatum(StringBuilder builder, DiagnosticRunContext context, bool comma)
+	{
+		AppendIndent(builder, 1);
+		builder.AppendLine("\"datum\": {");
+		AppendJsonProperty(builder, 2, "baseX", context.BaseX, comma: true);
+		AppendJsonProperty(builder, 2, "baseY", context.BaseY, comma: true);
+		AppendJsonProperty(builder, 2, "hasDatumHole", context.HasDatumHole, comma: true);
+		AppendJsonProperty(builder, 2, "holeHandle", context.DatumHoleHandle, comma: true);
+		AppendNullablePoint(builder, 2, "holeCenterWcs", context.DatumHoleCenterWcs, comma: true);
+		AppendNullableJsonProperty(builder, 2, "xBaseCoordinate", context.DatumHoleLocationBaseX, comma: true);
+		AppendNullableJsonProperty(builder, 2, "yBaseCoordinate", context.DatumHoleLocationBaseY, comma: true);
+		AppendJsonProperty(builder, 2, "useToleranceX", context.DatumHoleLocationUseToleranceX, comma: true);
+		AppendJsonProperty(builder, 2, "useToleranceY", context.DatumHoleLocationUseToleranceY, comma: false);
+		AppendIndent(builder, 1);
+		builder.Append("}");
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendDiagnosticEnvironment(StringBuilder builder, DiagnosticRunContext context, bool comma)
+	{
+		AppendIndent(builder, 1);
+		builder.AppendLine("\"environment\": {");
+		AppendJsonProperty(builder, 2, "autoCadVersion", context.AutoCadVersion, comma: true);
+		AppendJsonProperty(builder, 2, "insUnits", context.InsUnits, comma: true);
+		AppendJsonProperty(builder, 2, "ucsName", context.UcsName, comma: true);
+		AppendNullablePoint(builder, 2, "ucsOriginWcs", context.UcsOriginWcs, comma: true);
+		AppendNullablePoint(builder, 2, "ucsXDirectionWcs", context.UcsXDirectionWcs, comma: true);
+		AppendNullablePoint(builder, 2, "ucsYDirectionWcs", context.UcsYDirectionWcs, comma: true);
+		AppendJsonProperty(builder, 2, "dimScale", context.DimScale, comma: true);
+		AppendJsonProperty(builder, 2, "dimStyle", context.DimStyle, comma: false);
+		AppendIndent(builder, 1);
+		builder.Append("}");
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendDiagnosticBounds(StringBuilder builder, int indent, string name, DiagnosticBounds bounds, bool comma)
+	{
+		if (bounds == null)
+		{
+			AppendJsonNullProperty(builder, indent, name, comma);
+			return;
+		}
+		AppendIndent(builder, indent);
+		builder.Append('"').Append(JsonEscape(name)).AppendLine("\": {");
+		AppendJsonProperty(builder, indent + 1, "minX", bounds.MinX, comma: true);
+		AppendJsonProperty(builder, indent + 1, "minY", bounds.MinY, comma: true);
+		AppendJsonProperty(builder, indent + 1, "minZ", bounds.MinZ, comma: true);
+		AppendJsonProperty(builder, indent + 1, "maxX", bounds.MaxX, comma: true);
+		AppendJsonProperty(builder, indent + 1, "maxY", bounds.MaxY, comma: true);
+		AppendJsonProperty(builder, indent + 1, "maxZ", bounds.MaxZ, comma: false);
+		AppendIndent(builder, indent);
+		builder.Append("}");
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendNullablePoint(StringBuilder builder, int indent, string name, Point3d? point, bool comma)
+	{
+		if (!point.HasValue)
+		{
+			AppendJsonNullProperty(builder, indent, name, comma);
+			return;
+		}
+		AppendIndent(builder, indent);
+		builder.Append('"').Append(JsonEscape(name)).AppendLine("\": {");
+		AppendJsonProperty(builder, indent + 1, "x", point.Value.X, comma: true);
+		AppendJsonProperty(builder, indent + 1, "y", point.Value.Y, comma: true);
+		AppendJsonProperty(builder, indent + 1, "z", point.Value.Z, comma: false);
+		AppendIndent(builder, indent);
+		builder.Append("}");
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendStringArray(StringBuilder builder, int indent, string name, IEnumerable<string> values, bool comma)
+	{
+		AppendIndent(builder, indent);
+		builder.Append('"').Append(JsonEscape(name)).Append("\": [");
+		List<string> list = (values ?? Enumerable.Empty<string>()).ToList();
+		for (int i = 0; i < list.Count; i++)
+		{
+			if (i > 0)
+			{
+				builder.Append(", ");
+			}
+			builder.Append('"').Append(JsonEscape(list[i] ?? string.Empty)).Append('"');
+		}
+		builder.Append("]");
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendStringIntMap(StringBuilder builder, int indent, string name, IEnumerable<KeyValuePair<string, int>> values, bool comma)
+	{
+		AppendIndent(builder, indent);
+		builder.Append('"').Append(JsonEscape(name)).AppendLine("\": {");
+		List<KeyValuePair<string, int>> list = (values ?? Enumerable.Empty<KeyValuePair<string, int>>()).ToList();
+		for (int i = 0; i < list.Count; i++)
+		{
+			AppendJsonProperty(builder, indent + 1, list[i].Key, list[i].Value, i < list.Count - 1);
+		}
+		AppendIndent(builder, indent);
+		builder.Append("}");
+		builder.AppendLine(comma ? "," : string.Empty);
 	}
 
 	private static void AppendFeatureCounts(StringBuilder builder, FeatureDiagnosticCounts counts, bool comma)
@@ -1116,6 +1587,14 @@ public sealed class Commands
 	}
 
 	private static void AppendJsonProperty(StringBuilder builder, int indent, string name, int value, bool comma)
+	{
+		AppendIndent(builder, indent);
+		builder.Append('"').Append(JsonEscape(name)).Append("\": ")
+			.Append(value.ToString(CultureInfo.InvariantCulture));
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendJsonProperty(StringBuilder builder, int indent, string name, long value, bool comma)
 	{
 		AppendIndent(builder, indent);
 		builder.Append('"').Append(JsonEscape(name)).Append("\": ")

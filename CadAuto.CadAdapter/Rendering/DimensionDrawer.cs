@@ -208,6 +208,11 @@ public sealed class DimensionDrawer
 		return _entityWriter.Scale(value);
 	}
 
+	private void RecordRenderSuppressed(DeferredDim dim, string reason)
+	{
+		_dimensionDiagnosticReport?.RecordRenderSuppressed(dim.DiagnosticId, reason);
+	}
+
 	private void SuppressMirroredHorizontalDuplicates()
 	{
 		for (int num = _topDims.Count - 1; num >= 0; num--)
@@ -215,6 +220,7 @@ public sealed class DimensionDrawer
 			DeferredDim top = _topDims[num];
 			if (CanSuppressMirroredHorizontalDimension(top) && _bottomDims.Any((DeferredDim bottom) => CanSuppressMirroredHorizontalDimension(bottom) && IsDuplicate(top, bottom, isHorizontal: true)))
 			{
+				RecordRenderSuppressed(top, "MirroredHorizontal");
 				_topDims.RemoveAt(num);
 			}
 		}
@@ -233,6 +239,7 @@ public sealed class DimensionDrawer
 			DeferredDim right = _rightDims[num];
 			if (CanSuppressMirroredVerticalDimension(right) && _leftDims.Any((DeferredDim left) => CanSuppressMirroredVerticalDimension(left) && IsDuplicate(right, left, isHorizontal: false)))
 			{
+				RecordRenderSuppressed(right, "MirroredVertical");
 				_rightDims.RemoveAt(num);
 			}
 		}
@@ -256,10 +263,12 @@ public sealed class DimensionDrawer
 				{
 					if (CompareDuplicatePreference(deferredDim, deferredDim2) > 0)
 					{
+						RecordRenderSuppressed(deferredDim2, "MirroredHoleRelated");
 						primaryDims.RemoveAt(num2);
 					}
 					else
 					{
+						RecordRenderSuppressed(deferredDim, "MirroredHoleRelated");
 						secondaryDims.RemoveAt(num);
 					}
 					break;
@@ -295,6 +304,7 @@ public sealed class DimensionDrawer
 			{
 				if (IsSameMeasuredDimension(dims[i], dims[num2], isHorizontal))
 				{
+					RecordRenderSuppressed(dims[num2], "DuplicateMeasured");
 					dims.RemoveAt(num2);
 				}
 			}
@@ -831,11 +841,18 @@ public sealed class DimensionDrawer
 
 	public void DrawDimensionPlan(DimensionPlan plan)
 	{
+		DrawDimensionPlan(plan, null);
+	}
+
+	public void DrawDimensionPlan(DimensionPlan plan, DimensionDiagnosticReport diagnostics)
+	{
 		if (plan == null)
 		{
 			return;
 		}
-		_dimensionDiagnosticReport = plan.Diagnostics;
+		// A scope-filtered plan copy carries an empty diagnostics report; the caller
+		// passes the source plan's report so render-stage suppressions stay visible.
+		_dimensionDiagnosticReport = diagnostics ?? plan.Diagnostics;
 		foreach (DimensionPlanCadItem item in _dimensionPlanMapper.Map(plan))
 		{
 			AddPlannedDimension(item);

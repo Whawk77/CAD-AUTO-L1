@@ -17,6 +17,22 @@ public sealed class DimensionDiagnosticReport
 		FinalDimensions = new List<DimensionCandidateDiagnostic>();
 	}
 
+	public void RecordRenderSuppressed(int diagnosticId, string reason)
+	{
+		foreach (DimensionCandidateDiagnostic diagnostic in DimensionCandidates)
+		{
+			if (diagnostic.Id == diagnosticId)
+			{
+				diagnostic.IsSelected = false;
+				diagnostic.IsSuppressed = true;
+				diagnostic.SuppressedReason = reason ?? string.Empty;
+				diagnostic.DecisionStatus = "RenderSuppressed";
+				diagnostic.DecisionReason = reason ?? string.Empty;
+			}
+		}
+		FinalDimensions.RemoveAll(diagnostic => diagnostic.Id == diagnosticId);
+	}
+
 	public void RecordFinalPlacement(int diagnosticId, int stackingLevel, double stackingOffset, double resolvedDimLineCoordinate, bool usesLocalBoundary, bool hasAlignmentCoordinateOverride, string alignmentLaneKey, int alignmentLaneMemberCount, string alignmentDecision, string layoutBlockId, string layoutBlockType, double effectiveSpan, int effectiveOrder, string orderingReason, string promotedByConflictWith, double physicalOutwardDistance, bool physicalOrderValidated)
 	{
 		RecordFinalPlacement(DimensionCandidates, diagnosticId, stackingLevel, stackingOffset, resolvedDimLineCoordinate, usesLocalBoundary, hasAlignmentCoordinateOverride, alignmentLaneKey, alignmentLaneMemberCount, alignmentDecision, layoutBlockId, layoutBlockType, effectiveSpan, effectiveOrder, orderingReason, promotedByConflictWith, physicalOutwardDistance, physicalOrderValidated);

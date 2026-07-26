@@ -1107,7 +1107,7 @@ public sealed class Commands
 		List<HoleFeature2D> holes2 = CadToCoreModelMapper.ToCoreHoles(source);
 		List<SlotFeature2D> slots2 = CadToCoreModelMapper.ToCoreSlots(slots);
 		DimensionPlan dimensionPlan = new DimensionPlanner(config).CreateDimensionPlan(outline2, datum2, holes2, slots2);
-		drawer.DrawDimensionPlan(FilterDimensionPlan(dimensionPlan, outputScope));
+		drawer.DrawDimensionPlan(FilterDimensionPlan(dimensionPlan, outputScope), dimensionPlan.Diagnostics);
 		drawer.FlushStackedDimensions(outline);
 		return dimensionPlan;
 	}
@@ -1771,6 +1771,10 @@ public sealed class Commands
 			if (ShouldRenderPlannedDimension(dimension, outputScope))
 			{
 				dimensionPlan.Dimensions.Add(dimension);
+			}
+			else
+			{
+				source.Diagnostics.RecordRenderSuppressed(dimension.DiagnosticId, "OutOfCommandScope:" + outputScope);
 			}
 		}
 		return dimensionPlan;

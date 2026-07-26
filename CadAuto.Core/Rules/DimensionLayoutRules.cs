@@ -193,7 +193,9 @@ public sealed class DimensionLayoutRules
 		}
 		ApplyAlignmentCoordinateOverrides(placements, dimensions, alignmentLanes, side, outline);
 		ApplyRootedLayoutBlockCoordinateOverrides(placements, dimensions, side, outline);
+		HashSet<string> unifiedLaneKeys = CaptureUnifiedAlignmentLaneKeys(placements, dimensions, side, outline);
 		EnsureLayoutBlockPhysicalOutwardOrder(placements, dimensions, layoutBlocks, side, outline, perLevelSpacing, isHorizontal);
+		RestoreSplitAlignmentLanes(placements, dimensions, side, outline, unifiedLaneKeys);
 		EnsureOverallPhysicalOutermostOffset(placements, dimensions, side, outline, perLevelSpacing);
 		UpdatePhysicalOrderDiagnostics(placements, dimensions, layoutBlocks, side, outline, isHorizontal);
 		return placements;
@@ -842,6 +844,77 @@ public sealed class DimensionLayoutRules
 				placement.DimLineCoordinateOverride = coordinate;
 			}
 			outer.PromotedByConflictWith = promotedBy;
+		}
+	}
+
+	/// <summary>
+	/// Records which alignment lanes actually share one dimension-line coordinate BEFORE the
+	/// outward-order pass runs. Lanes that were deliberately left unaligned - a preserve-level
+	/// lane with a single member, or one whose shared coordinate would enter the outline
+	/// interior - must not be forced together afterwards.
+	/// </summary>
+	private HashSet<string> CaptureUnifiedAlignmentLaneKeys(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, DimensionSide side, OutlineFeature2D outline)
+	{
+		HashSet<string> unifiedLaneKeys = new HashSet<string>(StringComparer.Ordinal);
+		foreach (IGrouping<string, DimensionStackingPlacement> lane in placements
+			.Where(placement => !string.IsNullOrEmpty(placement.AlignmentLaneKey))
+			.GroupBy(placement => placement.AlignmentLaneKey, StringComparer.Ordinal))
+		{
+			List<DimensionStackingPlacement> members = lane.ToList();
+			if (members.Count < 2)
+			{
+				continue;
+			}
+			double firstRank = GetPlacementPhysicalOutwardRank(members[0], dimensions, side, outline);
+			if (members.All(placement => Math.Abs(GetPlacementPhysicalOutwardRank(placement, dimensions, side, outline) - firstRank) <= _config.GeometryTolerance))
+			{
+				unifiedLaneKeys.Add(lane.Key);
+			}
+		}
+		return unifiedLaneKeys;
+	}
+
+	/// <summary>
+	/// EnsureLayoutBlockPhysicalOutwardOrder moves whole LAYOUT BLOCKS, but an alignment lane can
+	/// span several blocks (PreserveAlignmentLevel members become individual SingleDimension
+	/// blocks). Promoting one member therefore breaks the lane, and no later pass restores it.
+	/// Lanes that were unified beforehand are re-unified at their outermost member, which keeps
+	/// the promotion that caused the split while honouring the AGENTS.md rule that
+	/// functional-hole dimensions stay with their owning pin group.
+	/// </summary>
+	private void RestoreSplitAlignmentLanes(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, DimensionSide side, OutlineFeature2D outline, HashSet<string> unifiedLaneKeys)
+	{
+		if (unifiedLaneKeys == null || unifiedLaneKeys.Count == 0)
+		{
+			return;
+		}
+		foreach (IGrouping<string, DimensionStackingPlacement> lane in placements
+			.Where(placement => !string.IsNullOrEmpty(placement.AlignmentLaneKey) && unifiedLaneKeys.Contains(placement.AlignmentLaneKey))
+			.GroupBy(placement => placement.AlignmentLaneKey, StringComparer.Ordinal))
+		{
+			List<DimensionStackingPlacement> members = lane.ToList();
+			if (members.Count < 2)
+			{
+				continue;
+			}
+			double maximumRank = members.Max(placement => GetPlacementPhysicalOutwardRank(placement, dimensions, side, outline));
+			double minimumRank = members.Min(placement => GetPlacementPhysicalOutwardRank(placement, dimensions, side, outline));
+			if (maximumRank - minimumRank <= _config.GeometryTolerance)
+			{
+				continue;
+			}
+			double coordinate = (side == DimensionSide.Bottom || side == DimensionSide.Left) ? (0.0 - maximumRank) : maximumRank;
+			string promotedBy = members
+				.Select(placement => placement.PromotedByConflictWith)
+				.FirstOrDefault(value => !string.IsNullOrEmpty(value)) ?? string.Empty;
+			foreach (DimensionStackingPlacement placement in members)
+			{
+				placement.DimLineCoordinateOverride = coordinate;
+				if (string.IsNullOrEmpty(placement.PromotedByConflictWith))
+				{
+					placement.PromotedByConflictWith = promotedBy;
+				}
+			}
 		}
 	}
 

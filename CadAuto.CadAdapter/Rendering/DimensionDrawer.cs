@@ -1242,9 +1242,25 @@ public sealed class DimensionDrawer
 		};
 	}
 
-	private static OutlineFeature2D ToCoreOutlineOrNull(OutlineFeature outline)
+	private OutlineFeature _outlineConversionSource;
+
+	private OutlineFeature2D _outlineConversionResult;
+
+	private OutlineFeature2D ToCoreOutlineOrNull(OutlineFeature outline)
 	{
-		return (outline == null) ? null : CadToCoreModelMapper.ToCoreOutline(outline);
+		if (outline == null)
+		{
+			return null;
+		}
+		// Per-instance memoization keyed by reference identity: the per-dimension layout
+		// loops re-convert the same outline dozens of times. Must stay an instance field -
+		// a static cache would leak state across documents.
+		if (!ReferenceEquals(outline, _outlineConversionSource))
+		{
+			_outlineConversionSource = outline;
+			_outlineConversionResult = CadToCoreModelMapper.ToCoreOutline(outline);
+		}
+		return _outlineConversionResult;
 	}
 
 	private static DimensionKind ToDimensionKind(DimensionType type)

@@ -639,7 +639,7 @@ public sealed class Commands
 			DimensionPlan dimensionPlan2 = CreateCoreDebugRenderPlan(dimensionPlan);
 			string text = EnsureCoreDebugLayer(database, transaction);
 			BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
-			DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, objectId, DimStyleManager.ResolveDiameterCalloutDimStyle(database, transaction, objectId), (database.Dimscale <= 0.0) ? 1.0 : database.Dimscale, text, "ASDCOREDBG", annotationKind: AnnotationMetadata.KindCoreDebug);
+			DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, objectId, DimStyleManager.ResolveDiameterCalloutDimStyle(database, transaction, objectId), (database.Dimscale <= 0.0) ? 1.0 : database.Dimscale, text, DateTime.Now.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture), annotationKind: AnnotationMetadata.KindCoreDebug);
 			dimensionDrawer.DrawDimensionPlan(dimensionPlan2);
 			dimensionDrawer.FlushStackedDimensions(outlineFeature);
 			WriteCoreDebugSummary(editor, outlineFeature, list5, list7.Count, dimensionPlan, dimensionPlan2, holeCalloutPlans, text);
@@ -665,7 +665,7 @@ public sealed class Commands
 		Database database = mdiActiveDocument.Database;
 		Editor editor = mdiActiveDocument.Editor;
 		DimensionRuleConfig config = DimensionRuleConfig.CreateDefault();
-		string groupId = DateTime.Now.ToString("yyyyMMddHHmmssfff");
+		string groupId = DateTime.Now.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
 		DiagnosticDimensionSide diagnosticSide = (diagnosticsEnabled ? PromptForDiagnosticSide(editor) : DiagnosticDimensionSide.All);
 		bool flag = outputScope != AutoFixDimOutputScope.CornerOnly;
 		bool flag2 = outputScope == AutoFixDimOutputScope.All || outputScope == AutoFixDimOutputScope.HoleOnly;
@@ -797,7 +797,6 @@ public sealed class Commands
 				}
 				IList<HoleCalloutPlan> list13 = list12;
 				BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
-				AnnotationMetadata.EnsureRegApp(database, transaction);
 				DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, objectId2, objectId3, num, text, groupId, diagnosticsEnabled, diagnosticSide);
 				if (flag)
 				{
@@ -1033,7 +1032,6 @@ public sealed class Commands
 		{
 			using Transaction transaction = database.TransactionManager.StartTransaction();
 			BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
-			AnnotationMetadata.EnsureRegApp(database, transaction);
 			DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, dimStyleId, diameterCalloutDimStyleId, dimScale, annotationLayer, groupId);
 			if (includeCornerCallouts)
 			{

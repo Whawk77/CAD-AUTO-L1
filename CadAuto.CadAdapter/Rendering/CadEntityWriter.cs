@@ -38,6 +38,7 @@ public sealed class CadEntityWriter
 		_annotationLayer = annotationLayer;
 		_groupId = groupId;
 		_kind = kind ?? AnnotationMetadata.KindDimension;
+		AnnotationMetadata.EnsureRegApp(database, transaction);
 	}
 
 	public void AddRotatedDimension(double rotation, Point3d xLine1, Point3d xLine2, Point3d dimLinePoint, string overrideText, bool useSegmentedExtensionLines, bool useCustomTextPosition = false, Point3d customTextPosition = default(Point3d))

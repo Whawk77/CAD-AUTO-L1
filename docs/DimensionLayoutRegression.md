@@ -66,16 +66,13 @@ $nextVersion
 
 ## 1. 核心回归
 
-把下面的 `vNNN` 和 `obj-testNNN` 替换成同一个新编号：
+把下面的 `vNNN` 替换成新编号。中间产物（`obj\`）从不会被 AutoCAD 锁住，无需版本化覆盖；被锁的只有输出目录里的 DLL/PDB。测试 exe 也不会被 AutoCAD 加载，保留符号可以让失败栈带行号：
 
 ```powershell
 dotnet msbuild CadAuto.Core.Tests\CadAuto.Core.Tests.csproj `
   /t:Build `
   /p:Configuration=Debug `
   "/p:OutputPath=..\bin\CoreRegression-vNNN\" `
-  "/p:BaseIntermediateOutputPath=obj-testNNN\" `
-  /p:DebugType=None `
-  /p:DebugSymbols=false `
   /v:minimal
 
 .\bin\CoreRegression-vNNN\CadAuto.Core.Tests.exe

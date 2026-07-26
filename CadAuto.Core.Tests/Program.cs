@@ -84,6 +84,7 @@ namespace CadAuto.Core.Tests
             nameof(PinAlignmentKeySplitsStrictVerticalOverlapsIntoLanes),
             nameof(FunctionalHoleAlignmentUsesSeparateSameOrientationLane),
             nameof(FunctionalHoleAlignmentPreservesV198Stacking),
+            nameof(FunctionalHoleAlignmentLaneSurvivesOutwardPromotion),
             nameof(PreferredSideLockedHoleLocationUsesLocalBoundary),
             nameof(ExplicitLocalLooseChainUsesNearbyConcaveBoundary),
             nameof(HoleLocationDimensionsUseSegmentedExtensionLines),
@@ -204,6 +205,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(HoleBetweenPinPairAttachesAsFunctionalHole), HoleBetweenPinPairAttachesAsFunctionalHole);
 				RunTest(nameof(FunctionalHoleAlignmentUsesSeparateSameOrientationLane), FunctionalHoleAlignmentUsesSeparateSameOrientationLane);
 				RunTest(nameof(FunctionalHoleAlignmentPreservesV198Stacking), FunctionalHoleAlignmentPreservesV198Stacking);
+				RunTest(nameof(FunctionalHoleAlignmentLaneSurvivesOutwardPromotion), FunctionalHoleAlignmentLaneSurvivesOutwardPromotion);
                 RunTest(nameof(PreferredSideLockedHoleLocationUsesLocalBoundary), PreferredSideLockedHoleLocationUsesLocalBoundary);
                 RunTest(nameof(ExplicitLocalLooseChainUsesNearbyConcaveBoundary), ExplicitLocalLooseChainUsesNearbyConcaveBoundary);
                 RunTest(nameof(LooseHolesUseChainDimensions), LooseHolesUseChainDimensions);
@@ -3884,6 +3886,42 @@ namespace CadAuto.Core.Tests
 			Assert(byIndex[3].DimLineCoordinateOverride.HasValue && byIndex[4].DimLineCoordinateOverride.HasValue
 				&& Math.Abs(byIndex[3].DimLineCoordinateOverride.Value - byIndex[4].DimLineCoordinateOverride.Value) <= config.GeometryTolerance,
 				"safe PG1 functional-hole dimensions must remain collinear without moving outward");
+		}
+
+		/// <summary>
+		/// Two functional-hole dimensions share an alignment key with PreserveAlignmentLevel, so
+		/// BuildLayoutBlocks gives them separate SingleDimension blocks while BuildAlignmentLanes
+		/// still unifies their dimension-line coordinate. When only one of them collides with an
+		/// inner block, EnsureLayoutBlockPhysicalOutwardOrder pushes that BLOCK outward and the
+		/// shared lane coordinate is silently lost - AGENTS.md requires functional-hole dimensions
+		/// to stay with their owning pin group.
+		/// </summary>
+		private static void FunctionalHoleAlignmentLaneSurvivesOutwardPromotion()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(10.0, 0.0), SecondPoint = new Point2D(40.0, 0.0), Span = 30.0, AlignmentKey = "PG1:FunctionalHoles:H", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(100.0, 0.0), SecondPoint = new Point2D(130.0, 0.0), Span = 30.0, AlignmentKey = "PG1:FunctionalHoles:H", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing },
+				// Smaller span, so it sorts inner; its arrow interval strictly overlaps member 0
+				// only, which is what makes the promotion asymmetric.
+				new DimensionLayoutItem { Kind = DimensionKind.Normal, FirstPoint = new Point2D(25.0, 0.0), SecondPoint = new Point2D(45.0, 0.0), Span = 20.0, ReadingLevel = DimensionReadingLevel.LocalSpacing }
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Top, null, 2.5, 1.25, 5.0, 5.0, isHorizontal: true);
+			var byIndex = placements.ToDictionary(item => item.Index);
+
+			// Non-vacuity guard: if the outward promotion never fires, this scenario proves
+			// nothing and must fail loudly rather than pass by accident.
+			Assert(!string.IsNullOrEmpty(byIndex[0].PromotedByConflictWith) || !string.IsNullOrEmpty(byIndex[1].PromotedByConflictWith),
+				"scenario did not trigger an outward promotion - the repro no longer covers the lane-splitting path");
+
+			Assert(byIndex[0].DimLineCoordinateOverride.HasValue && byIndex[1].DimLineCoordinateOverride.HasValue,
+				"both functional-hole lane members must keep an alignment coordinate override");
+			Assert(Math.Abs(byIndex[0].DimLineCoordinateOverride.Value - byIndex[1].DimLineCoordinateOverride.Value) <= config.GeometryTolerance,
+				"functional-hole alignment lane must move as one when a member is pushed outward");
+			Assert(string.Equals(byIndex[0].AlignmentLaneKey, byIndex[1].AlignmentLaneKey, StringComparison.Ordinal)
+				&& !string.IsNullOrEmpty(byIndex[0].AlignmentLaneKey),
+				"both lane members must still report the same alignment lane key");
 		}
 
 		private static void PinAlignmentAnchorFallsBackWithStableOrdering()

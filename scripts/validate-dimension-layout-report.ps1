@@ -7,7 +7,9 @@ param(
 
     [string]$ReportPath,
 
-    [double]$CoordinateTolerance = 0.001
+    [double]$CoordinateTolerance = 0.001,
+
+    [datetime]$RunStartedAt = [datetime]::MinValue
 )
 
 $ErrorActionPreference = "Stop"
@@ -112,6 +114,25 @@ if (-not (Test-Path -LiteralPath $ReportPath -PathType Leaf)) {
 }
 
 $report = Get-Content -Raw -Encoding UTF8 -LiteralPath $ReportPath | ConvertFrom-Json
+
+# Run-identity guards: a report that merely has the right side may still be a stale
+# archive from an earlier run or a different drawing.
+if (-not (Test-HasProperty -Object $report -Name "runId") -or [string]::IsNullOrWhiteSpace([string]$report.runId)) {
+    throw "Report has no runId - not produced by a current ASD4 run."
+}
+if (Test-HasProperty -Object $report -Name "error") {
+    throw "Report records a FAILED run: $($report.error.type): $($report.error.message)"
+}
+if (-not (Test-HasProperty -Object $report -Name "drawing") -or [string]$report.drawing.sha256 -ne [string]$case.fixtureSha256) {
+    throw "Report drawing sha256 '$($report.drawing.sha256)' does not match fixture hash '$($case.fixtureSha256)' - report came from a different drawing."
+}
+if ($RunStartedAt -ne [datetime]::MinValue) {
+    $generatedAt = [datetime]::Parse([string]$report.generatedAt, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind)
+    if ($generatedAt -lt $RunStartedAt) {
+        throw "Report generatedAt '$generatedAt' predates run start '$RunStartedAt' - stale report."
+    }
+}
+
 $side = [string]$case.diagnosticSide
 if ([string]$report.diagnosticSide -ne $side) {
     throw "Expected diagnostic side '$side', found '$($report.diagnosticSide)'."

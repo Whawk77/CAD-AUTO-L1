@@ -5,6 +5,16 @@
 (setq *v203-datum-hole-center* '(245.5 15.0 0.0))
 (setq *v203-datum-corner* '(305.0 0.0 0.0))
 (setq *v203-trace-file* nil)
+(setq *v203-report-file* nil)
+
+;; Freshness gate: when *v203-report-file* points at diagnostics/last-run.json,
+;; COMPLETE is only written if the report file actually changed during this run.
+(defun v203-report-systime ()
+  (if (and *v203-report-file* (findfile *v203-report-file*))
+    (vl-file-systime *v203-report-file*)
+    nil
+  )
+)
 
 (defun v203-trace (message / stream)
   (if *v203-trace-file*
@@ -49,7 +59,7 @@
   )
 )
 
-(defun v203-run-side (side / old-cmdecho old-osmode selection datum-circle)
+(defun v203-run-side (side / old-cmdecho old-osmode selection datum-circle report-before)
   (setq old-cmdecho (getvar "CMDECHO"))
   (setq old-osmode (getvar "OSMODE"))
   (setvar "CMDECHO" 1)
@@ -70,6 +80,7 @@
               (cdr (assoc 5 (entget datum-circle)))
             )
           )
+          (setq report-before (v203-report-systime))
           (vl-cmdf
             "ASD4"
             (v203-side-keyword side)
@@ -81,7 +92,12 @@
             *v203-datum-corner*
             ""
           )
-          (v203-trace (strcat "COMPLETE side=" side))
+          (if (or (null *v203-report-file*)
+                  (and (v203-report-systime)
+                       (not (equal (v203-report-systime) report-before))))
+            (v203-trace (strcat "COMPLETE side=" side))
+            (v203-trace (strcat "ERROR stale-report side=" side))
+          )
         )
         (v203-trace "ERROR datum circle not found")
       )

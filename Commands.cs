@@ -1333,8 +1333,11 @@ public sealed class Commands
 		return text ?? Environment.CurrentDirectory;
 	}
 
+	private static int _nonFiniteJsonValueCount;
+
 	private static string SerializeDimensionDiagnosticReport(DimensionDiagnosticReport report, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide, DiagnosticRunContext context)
 	{
+		_nonFiniteJsonValueCount = 0;
 		context = context ?? new DiagnosticRunContext
 		{
 			RunId = string.Empty,
@@ -1359,7 +1362,8 @@ public sealed class Commands
 		AppendDiagnosticEnvironment(stringBuilder, context, comma: true);
 		AppendFeatureCounts(stringBuilder, report.Features, comma: true);
 		AppendDimensionDiagnostics(stringBuilder, 1, "dimensionCandidates", report.DimensionCandidates, comma: true);
-		AppendDimensionDiagnostics(stringBuilder, 1, "finalDimensions", report.FinalDimensions, comma: false);
+		AppendDimensionDiagnostics(stringBuilder, 1, "finalDimensions", report.FinalDimensions, comma: true);
+		AppendJsonProperty(stringBuilder, 1, "nonFiniteValueCount", _nonFiniteJsonValueCount, comma: false);
 		stringBuilder.AppendLine("}");
 		return stringBuilder.ToString();
 	}
@@ -1602,6 +1606,13 @@ public sealed class Commands
 
 	private static void AppendJsonProperty(StringBuilder builder, int indent, string name, double value, bool comma)
 	{
+		if (double.IsNaN(value) || double.IsInfinity(value))
+		{
+			// A bare NaN/Infinity token would make the whole file unparseable JSON.
+			_nonFiniteJsonValueCount++;
+			AppendJsonNullProperty(builder, indent, name, comma);
+			return;
+		}
 		AppendIndent(builder, indent);
 		builder.Append('"').Append(JsonEscape(name)).Append("\": ")
 			.Append(value.ToString("0.########", CultureInfo.InvariantCulture));
@@ -1664,9 +1675,39 @@ public sealed class Commands
 		{
 			return string.Empty;
 		}
-		return value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r")
-			.Replace("\n", "\\n")
-			.Replace("\t", "\\t");
+		StringBuilder stringBuilder = new StringBuilder(value.Length + 8);
+		foreach (char c in value)
+		{
+			switch (c)
+			{
+			case '\\':
+				stringBuilder.Append("\\\\");
+				break;
+			case '"':
+				stringBuilder.Append("\\\"");
+				break;
+			case '\r':
+				stringBuilder.Append("\\r");
+				break;
+			case '\n':
+				stringBuilder.Append("\\n");
+				break;
+			case '\t':
+				stringBuilder.Append("\\t");
+				break;
+			default:
+				if (c < ' ')
+				{
+					stringBuilder.Append("\\u").Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
+				}
+				else
+				{
+					stringBuilder.Append(c);
+				}
+				break;
+			}
+		}
+		return stringBuilder.ToString();
 	}
 
 	private static DimensionPlan FilterDimensionPlan(DimensionPlan source, AutoFixDimOutputScope outputScope)

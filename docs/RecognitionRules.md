@@ -14,9 +14,9 @@
 - Hole recognition is based on the current user selection/window selection.
 - Normal holes come from selected valid circles inside the outline.
 - Pin holes are circles matched to CadAider pin markers.
-- Any recognized `HoleKind.Pin` gets `PinHoleFitToleranceText` from `RuleConfig.cs`.
+- Any recognized `HoleKind.Pin` gets `PinHoleFitToleranceText` from `CadAuto.Core/Rules/DimensionRuleConfig.cs`.
 - Thread holes are recognized from confirmed thread arcs and minor-circle mapping.
-- Thread minor-diameter callouts are configured in `RuleConfig.cs`.
+- Thread minor-diameter callouts are configured in `CadAuto.Core/Rules/DimensionRuleConfig.cs`.
 - Thread minor circles are used to infer thread callouts and should not also create independent normal diameter callouts.
 
 ## Datum Recognition

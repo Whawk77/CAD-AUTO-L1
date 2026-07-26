@@ -192,7 +192,7 @@ Copy-Item `
   '<运行目录>\report-vNNN.json'
 ```
 
-检查归档文件的修改时间、`selectedSide`、`sourceDrawing` 和 v203 布局诊断字段，确保它属于该方向和该次运行。
+检查归档文件的修改时间、`diagnosticSide`、`drawing.fileName` 和 v203 布局诊断字段，确保它属于该方向和该次运行。
 
 ## 7. 校验该方向
 

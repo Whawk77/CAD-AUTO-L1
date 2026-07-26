@@ -43,7 +43,7 @@ High-priority rules for AI coding agents. Keep this file short.
 
 ## Configuration And Layout Invariants
 
-- Keep machining constants and tolerance text centralized in `RuleConfig.cs` when practical.
+- Keep machining constants and tolerance text centralized in `CadAuto.Core/Rules/DimensionRuleConfig.cs` when practical.
 - Any `HoleKind.Pin` uses `PinHoleFitToleranceText`.
 - Same-group pin spacing uses `PinCenterDistanceToleranceText`.
 - Pin-group transfer uses `PinGroupDistanceToleranceText`.

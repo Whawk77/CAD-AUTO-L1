@@ -735,6 +735,15 @@ public sealed class FeatureRecognizer
 		return num;
 	}
 
+	/// <summary>
+	/// PRECONDITION: <paramref name="polyline"/> must be closed. The segment loop wraps with
+	/// (i + 1) % count unconditionally, so an open polyline would gain a phantom closing edge
+	/// (and use the last vertex bulge for it). GeometryCollector only ever reports a closed
+	/// polyline as the primary outline, so ASD cannot reach this method with an open one; a
+	/// future caller that bypasses the collector must check Closed itself or route open
+	/// polylines through the loose-geometry fallback. Note AddEntityKeyPoints' Polyline and
+	/// Polyline2d branches DO test Closed - the asymmetry is intentional, not an oversight.
+	/// </summary>
 	private OutlineFeature RecognizeLightweightOutline(Polyline polyline)
 	{
 		OutlineFeature outlineFeature = CreateEmptyOutline();
@@ -1476,6 +1485,8 @@ public sealed class FeatureRecognizer
 		return list;
 	}
 
+	private const double PinMarkerFallbackHitRadius = 1.0;
+
 	private bool HasPinMarker(Point3d center, double radius, IEnumerable<Point3d> markerPoints)
 	{
 		foreach (Point3d markerPoint in markerPoints)
@@ -1485,7 +1496,11 @@ public sealed class FeatureRecognizer
 				return true;
 			}
 		}
-		double num = Math.Max(radius * 0.0, 1.0);
+		// NOTE: this was 'Math.Max(radius * 0.0, 1.0)', i.e. identically 1.0 - the radius term
+		// was multiplied by zero. Kept bit-identical pending a decision on whether the marker
+		// hit radius was meant to scale with the hole (see report V2); do not 'restore' a
+		// factor without a real drawing to verify against.
+		double num = PinMarkerFallbackHitRadius;
 		foreach (Point3d markerPoint2 in markerPoints)
 		{
 			if (center.DistanceTo(markerPoint2) <= num)

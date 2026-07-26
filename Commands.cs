@@ -240,7 +240,7 @@ public sealed class Commands
 				BlockTableRecord blockTableRecord = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
 				blockTableRecord.AppendEntity(line);
 				transaction.AddNewlyCreatedDBObject(line, add: true);
-				AnnotationMetadata.Mark(line, groupId);
+				AnnotationMetadata.Mark(line, groupId, AnnotationMetadata.KindAg1);
 				double num2 = ((database.Dimscale <= 0.0) ? 1.0 : database.Dimscale);
 				double num3 = dimensionRuleConfig.LeaderOffset * num2;
 				ObjectId dimStyleId = DimStyleManager.ResolveDimStyle(database, transaction);
@@ -485,7 +485,7 @@ public sealed class Commands
 		mText.Attachment = ((textPoint.X < arrowPoint.X) ? AttachmentPoint.MiddleRight : AttachmentPoint.MiddleLeft);
 		space.AppendEntity(mText);
 		tr.AddNewlyCreatedDBObject(mText, add: true);
-		AnnotationMetadata.Mark(mText, groupId);
+		AnnotationMetadata.Mark(mText, groupId, AnnotationMetadata.KindAg1);
 		Leader leader = new Leader();
 		leader.SetDatabaseDefaults(db);
 		leader.DimensionStyle = dimStyleId;
@@ -495,7 +495,7 @@ public sealed class Commands
 		tr.AddNewlyCreatedDBObject(leader, add: true);
 		leader.Annotation = mText.ObjectId;
 		leader.EvaluateLeader();
-		AnnotationMetadata.Mark(leader, groupId);
+		AnnotationMetadata.Mark(leader, groupId, AnnotationMetadata.KindAg1);
 	}
 
 	private static void InsertAg1RoughnessBlock(Database db, Transaction tr, BlockTableRecord space, Point3d insertPoint, string layerName, ObjectId dimStyleId, string groupId)
@@ -511,7 +511,7 @@ public sealed class Commands
 			blockReference.Rotation = Math.PI;
 			space.AppendEntity(blockReference);
 			tr.AddNewlyCreatedDBObject(blockReference, add: true);
-			AnnotationMetadata.Mark(blockReference, groupId);
+			AnnotationMetadata.Mark(blockReference, groupId, AnnotationMetadata.KindAg1);
 		}
 	}
 
@@ -639,7 +639,7 @@ public sealed class Commands
 			DimensionPlan dimensionPlan2 = CreateCoreDebugRenderPlan(dimensionPlan);
 			string text = EnsureCoreDebugLayer(database, transaction);
 			BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
-			DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, objectId, DimStyleManager.ResolveDiameterCalloutDimStyle(database, transaction, objectId), (database.Dimscale <= 0.0) ? 1.0 : database.Dimscale, text, "ASDCOREDBG");
+			DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, objectId, DimStyleManager.ResolveDiameterCalloutDimStyle(database, transaction, objectId), (database.Dimscale <= 0.0) ? 1.0 : database.Dimscale, text, "ASDCOREDBG", annotationKind: AnnotationMetadata.KindCoreDebug);
 			dimensionDrawer.DrawDimensionPlan(dimensionPlan2);
 			dimensionDrawer.FlushStackedDimensions(outlineFeature);
 			WriteCoreDebugSummary(editor, outlineFeature, list5, list7.Count, dimensionPlan, dimensionPlan2, holeCalloutPlans, text);

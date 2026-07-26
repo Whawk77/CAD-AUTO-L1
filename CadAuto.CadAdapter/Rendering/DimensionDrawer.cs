@@ -811,7 +811,7 @@ public sealed class DimensionDrawer
 		}
 	}
 
-	public DimensionDrawer(Database db, Transaction tr, BlockTableRecord space, DimensionRuleConfig config, ObjectId dimStyleId, ObjectId diameterCalloutDimStyleId, double dimScale, string annotationLayer, string groupId, bool diagnosticsEnabled = false, DiagnosticDimensionSide diagnosticSide = DiagnosticDimensionSide.All)
+	public DimensionDrawer(Database db, Transaction tr, BlockTableRecord space, DimensionRuleConfig config, ObjectId dimStyleId, ObjectId diameterCalloutDimStyleId, double dimScale, string annotationLayer, string groupId, bool diagnosticsEnabled = false, DiagnosticDimensionSide diagnosticSide = DiagnosticDimensionSide.All, string annotationKind = null)
 	{
 		_config = config;
 		_dimStyleId = dimStyleId;
@@ -823,7 +823,7 @@ public sealed class DimensionDrawer
 		_space = space;
 		_dimensionDeduplicationRules = new DimensionDeduplicationRules(config);
 		_dimensionLayoutRules = new DimensionLayoutRules(config);
-		_entityWriter = new CadEntityWriter(db, tr, space, config, dimStyleId, _dimScale, annotationLayer, groupId);
+		_entityWriter = new CadEntityWriter(db, tr, space, config, dimStyleId, _dimScale, annotationLayer, groupId, annotationKind ?? AnnotationMetadata.KindDimension);
 		_cornerCalloutRenderer = new CornerCalloutRenderer(db, _entityWriter, config, diameterCalloutDimStyleId, annotationLayer);
 		_debugAnnotationRenderer = new DebugAnnotationRenderer(db, _entityWriter, _entityWriter.GetDimStyleTextStyle(dimStyleId), annotationLayer);
 		_extensionLineRenderer = new DimensionExtensionLineRenderer(db, _entityWriter, annotationLayer);

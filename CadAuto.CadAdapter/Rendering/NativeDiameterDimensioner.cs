@@ -244,7 +244,7 @@ public static class NativeDiameterDimensioner
 		dimension.UsingDefaultTextPosition = false;
 		dimension.TextPosition = textPoint;
 		dimension.RecomputeDimensionBlock(forceUpdate: true);
-		AnnotationMetadata.Mark(dimension, groupId);
+		AnnotationMetadata.Mark(dimension, groupId, AnnotationMetadata.KindDimension);
 		if (hole.IsPinHole)
 		{
 			InsertPinRoughnessBlock(db, transaction, blockTableRecord, hole, dimension.TextPosition, annotationLayer, dimStyleId, calloutText, groupId);
@@ -265,7 +265,7 @@ public static class NativeDiameterDimensioner
 			blockReference.Rotation = Math.PI;
 			space.AppendEntity(blockReference);
 			tr.AddNewlyCreatedDBObject(blockReference, add: true);
-			AnnotationMetadata.Mark(blockReference, groupId);
+			AnnotationMetadata.Mark(blockReference, groupId, AnnotationMetadata.KindDimension);
 		}
 	}
 

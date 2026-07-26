@@ -23,6 +23,12 @@ public static class AnnotationMetadata
 
 	public const string AppName = "AUTOFIXDIM";
 
+	public const string KindDimension = "Dimension";
+
+	public const string KindAg1 = "Ag1";
+
+	public const string KindCoreDebug = "CoreDebug";
+
 	public static void EnsureRegApp(Database db, Transaction tr)
 	{
 		RegAppTable regAppTable = (RegAppTable)tr.GetObject(db.RegAppTableId, OpenMode.ForRead);
@@ -38,12 +44,33 @@ public static class AnnotationMetadata
 		}
 	}
 
-	public static void Mark(Entity entity, string groupId)
+	public static void Mark(Entity entity, string groupId, string kind)
 	{
-		using (ResultBuffer resultBuffer = new ResultBuffer(new TypedValue(1001, AppName), new TypedValue(1000, "GroupId"), new TypedValue(1000, groupId ?? string.Empty)))
+		using (ResultBuffer resultBuffer = new ResultBuffer(new TypedValue(1001, AppName), new TypedValue(1000, "GroupId"), new TypedValue(1000, groupId ?? string.Empty), new TypedValue(1000, "Kind"), new TypedValue(1000, kind ?? KindDimension), new TypedValue(1000, "SchemaVersion"), new TypedValue(1070, (short)1)))
 		{
 			entity.XData = resultBuffer;
 		}
+	}
+
+	public static string GetKind(Entity entity)
+	{
+		using (ResultBuffer resultBuffer = entity.GetXDataForApplication(AppName))
+		{
+			if (resultBuffer == null)
+			{
+				return string.Empty;
+			}
+			TypedValue[] array = resultBuffer.AsArray();
+			for (int i = 0; i < array.Length - 1; i++)
+			{
+				if (array[i].TypeCode == 1000 && string.Equals(array[i].Value as string, "Kind", StringComparison.Ordinal) && array[i + 1].TypeCode == 1000)
+				{
+					return (array[i + 1].Value as string) ?? KindDimension;
+				}
+			}
+		}
+		// Entities marked before the Kind field existed are regenerable dimensions.
+		return KindDimension;
 	}
 
 	public static bool IsMarked(Entity entity)

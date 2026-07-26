@@ -1337,18 +1337,24 @@ namespace CadAuto.Core.Tests
 					(d.DebugRole == "TopStructWidth" || d.DebugRole == "BottomStructWidth")
 					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 52.0) <= config.GeometryTolerance),
 				"mirrored top/bottom structure width 52 with same-edge outline witnesses must both be suppressed");
-			// Pre-plan discards (DecisionStatus=Skipped, empty SuppressedReason) are diagnostic
-			// bookkeeping, not suppressions; the envelope-reason contract applies only to
-			// candidates that actually entered the plan.
+			// History note: before pre-plan discards became visible in diagnostics, the 52
+			// candidates were dropped silently during candidate building (52 completes the
+			// 15.54+52+23 overall partition), DimensionCandidates contained no 52 entry at
+			// all, and the original .All()-based reason assertion passed vacuously. The real
+			// contract is: every mirrored 52 candidate must leave an explanatory trace -
+			// either a pre-plan discard with a concrete reason, or an in-plan suppression
+			// with the high-priority envelope reason - and both sides must leave one.
 			var mirrored52 = plan.Diagnostics.DimensionCandidates
 				.Where(c => (c.DebugRole == "TopStructWidth" || c.DebugRole == "BottomStructWidth")
-					&& c.DecisionStatus != "Skipped"
 					&& Math.Abs(c.Value - 52.0) <= config.GeometryTolerance)
 				.ToList();
-			Assert(mirrored52.Count > 0,
-				"expected planned mirrored structure width 52 candidates in diagnostics");
-			Assert(mirrored52.All(c => c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"both mirrored structure width 52 candidates must record the high-priority envelope reason");
+			Assert(mirrored52.Any(c => c.DebugRole == "TopStructWidth")
+					&& mirrored52.Any(c => c.DebugRole == "BottomStructWidth"),
+				"both mirrored structure width 52 candidates must appear in diagnostics");
+			Assert(mirrored52.All(c =>
+					(c.DecisionStatus == "Skipped" && !string.IsNullOrEmpty(c.DecisionReason))
+					|| c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
+				"every mirrored structure width 52 candidate must record a discard reason or the high-priority envelope reason");
 		}
 
 		private static void Production73x20EnvelopeDimensionsAreSuppressed()

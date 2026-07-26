@@ -1810,13 +1810,18 @@ public sealed class Commands
 
 	private static bool IsHoleDimension(PlannedDimension dimension)
 	{
-		DimensionKind kind = dimension.Kind;
-		DimensionKind dimensionKind = kind;
-		if ((uint)(dimensionKind - 3) <= 5u)
+		switch (dimension.Kind)
 		{
+		case DimensionKind.HoleDiameter:
+		case DimensionKind.PinDistance:
+		case DimensionKind.PinGroupDistance:
+		case DimensionKind.HoleLocation:
+		case DimensionKind.DatumHoleLocationX:
+		case DimensionKind.DatumHoleLocationY:
 			return true;
+		default:
+			return false;
 		}
-		return false;
 	}
 
 	private static bool IsSlotDimension(PlannedDimension dimension)

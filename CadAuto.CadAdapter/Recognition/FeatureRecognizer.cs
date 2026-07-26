@@ -115,6 +115,7 @@ public sealed class FeatureRecognizer
 		IList<Point3d> list2 = CollectPinMarkers(contextIds, list, tr);
 		IList<ThreadArcInfo> list3 = CollectThreadArcInfos(list, tr);
 		IList<ThreadMinorCircleInfo> minorCircles = CollectThreadMinorCircles(list, tr, list3);
+		List<Circle> selectionCircles = MaterializeSelectionCircles(list, tr);
 		List<HoleFeature> list4 = new List<HoleFeature>();
 		int num = 0;
 		int num2 = 0;
@@ -184,7 +185,7 @@ public sealed class FeatureRecognizer
 				continue;
 			}
 			Arc arc = entity as Arc;
-			if (arc != null && IsConfirmedThreadArc(arc, list, tr))
+			if (arc != null && IsConfirmedThreadArc(arc, selectionCircles))
 			{
 				string text = FindThreadMinorCallout(arc.Center, minorCircles);
 				if (string.IsNullOrEmpty(text))
@@ -394,11 +395,12 @@ public sealed class FeatureRecognizer
 	{
 		List<SlotArcCandidate> arcs = new List<SlotArcCandidate>();
 		List<SlotLineCandidate> list = new List<SlotLineCandidate>();
+		List<Circle> selectionCircles = MaterializeSelectionCircles(sourceIds, tr);
 		foreach (ObjectId sourceId in sourceIds)
 		{
 			Entity entity = tr.GetObject(sourceId, OpenMode.ForRead) as Entity;
 			Arc arc = entity as Arc;
-			if (arc != null && IsDrawingLayer(arc.Layer) && !IsConfirmedThreadArc(arc, sourceIds, tr) && IsHalfArc(arc))
+			if (arc != null && IsDrawingLayer(arc.Layer) && !IsConfirmedThreadArc(arc, selectionCircles) && IsHalfArc(arc))
 			{
 				arcs.Add(new SlotArcCandidate
 				{
@@ -1509,22 +1511,38 @@ public sealed class FeatureRecognizer
 		return num >= num2 - _config.GeometryTolerance;
 	}
 
-	private bool IsConfirmedThreadArc(Arc arc, IEnumerable<ObjectId> sourceIds, Transaction tr)
+	private bool IsConfirmedThreadArc(Arc arc, IList<Circle> selectionCircles)
 	{
 		if (!IsDrawingLayer(arc.Layer) || !IsThreadArc(arc))
 		{
 			return false;
 		}
+		foreach (Circle circle in selectionCircles)
+		{
+			if (arc.Center.DistanceTo(circle.Center) <= _config.GeometryTolerance && circle.Radius < arc.Radius - _config.GeometryTolerance)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static List<Circle> MaterializeSelectionCircles(IEnumerable<ObjectId> sourceIds, Transaction tr)
+	{
+		List<Circle> list = new List<Circle>();
+		if (sourceIds == null)
+		{
+			return list;
+		}
 		foreach (ObjectId sourceId in sourceIds)
 		{
 			Circle circle = tr.GetObject(sourceId, OpenMode.ForRead) as Circle;
-			if (circle == null || arc.Center.DistanceTo(circle.Center) > _config.GeometryTolerance || !(circle.Radius < arc.Radius - _config.GeometryTolerance))
+			if (circle != null)
 			{
-				continue;
+				list.Add(circle);
 			}
-			return true;
 		}
-		return false;
+		return list;
 	}
 
 	private IList<ThreadArcInfo> CollectThreadArcInfos(IEnumerable<ObjectId> sourceIds, Transaction tr)
@@ -1534,10 +1552,11 @@ public sealed class FeatureRecognizer
 		{
 			return list;
 		}
+		List<Circle> selectionCircles = MaterializeSelectionCircles(sourceIds, tr);
 		foreach (ObjectId sourceId in sourceIds)
 		{
 			Arc arc = tr.GetObject(sourceId, OpenMode.ForRead) as Arc;
-			if (arc != null && IsConfirmedThreadArc(arc, sourceIds, tr))
+			if (arc != null && IsConfirmedThreadArc(arc, selectionCircles))
 			{
 				list.Add(new ThreadArcInfo
 				{

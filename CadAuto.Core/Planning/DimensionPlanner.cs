@@ -2860,7 +2860,7 @@ public sealed class DimensionPlanner
 
 	internal IList<PlannedDimension> BuildLeftStructureHeightDimensions(OutlineFeature2D outline, DimensionPlan plan = null)
 	{
-		List<Point2D> ignoredPoints = new List<Point2D>();
+		List<IgnoredPoint> ignoredPoints = new List<IgnoredPoint>();
 		List<PlannedDimension> list2;
 		while (true)
 		{
@@ -2870,12 +2870,12 @@ public sealed class DimensionPlanner
 				return new List<PlannedDimension>();
 			}
 			list2 = BuildVerticalHeightCandidates(list, DimensionSide.Left, "LeftStructHeight");
-			List<Point2D> leftExtensionCrossingPoints = GetLeftExtensionCrossingPoints(list2, outline);
+			List<IgnoredPoint> leftExtensionCrossingPoints = GetLeftExtensionCrossingPoints(list2, outline);
 			if (leftExtensionCrossingPoints.Count == 0)
 			{
 				break;
 			}
-			if (!AddIgnoredPoints(ignoredPoints, leftExtensionCrossingPoints))
+			if (!AddIgnoredPointMetadata(ignoredPoints, leftExtensionCrossingPoints))
 			{
 				return new List<PlannedDimension>();
 			}
@@ -2895,7 +2895,7 @@ public sealed class DimensionPlanner
 
 	internal IList<PlannedDimension> BuildRightStructureHeightDimensions(OutlineFeature2D outline, DimensionPlan plan = null)
 	{
-		List<Point2D> ignoredPoints = new List<Point2D>();
+		List<IgnoredPoint> ignoredPoints = new List<IgnoredPoint>();
 		List<PlannedDimension> list2;
 		while (true)
 		{
@@ -2905,12 +2905,12 @@ public sealed class DimensionPlanner
 				return new List<PlannedDimension>();
 			}
 			list2 = BuildVerticalHeightCandidates(list, DimensionSide.Right, "RightStructHeight");
-			List<Point2D> rightExtensionCrossingPoints = GetRightExtensionCrossingPoints(list2, outline);
+			List<IgnoredPoint> rightExtensionCrossingPoints = GetRightExtensionCrossingPoints(list2, outline);
 			if (rightExtensionCrossingPoints.Count == 0)
 			{
 				break;
 			}
-			if (!AddIgnoredPoints(ignoredPoints, rightExtensionCrossingPoints))
+			if (!AddIgnoredPointMetadata(ignoredPoints, rightExtensionCrossingPoints))
 			{
 				return new List<PlannedDimension>();
 			}
@@ -3148,7 +3148,7 @@ public sealed class DimensionPlanner
 
 	internal IList<PlannedDimension> BuildBottomStructureWidthDimensions(OutlineFeature2D outline, DimensionPlan plan = null)
 	{
-		List<Point2D> ignoredPoints = new List<Point2D>();
+		List<IgnoredPoint> ignoredPoints = new List<IgnoredPoint>();
 		List<PlannedDimension> list2;
 		while (true)
 		{
@@ -3158,12 +3158,12 @@ public sealed class DimensionPlanner
 				return new List<PlannedDimension>();
 			}
 			list2 = BuildHorizontalWidthCandidates(list, DimensionSide.Bottom, "BottomStructWidth");
-			List<Point2D> bottomExtensionCrossingPoints = GetBottomExtensionCrossingPoints(list2, outline);
+			List<IgnoredPoint> bottomExtensionCrossingPoints = GetBottomExtensionCrossingPoints(list2, outline);
 			if (bottomExtensionCrossingPoints.Count == 0)
 			{
 				break;
 			}
-			if (!AddIgnoredPoints(ignoredPoints, bottomExtensionCrossingPoints))
+			if (!AddIgnoredPointMetadata(ignoredPoints, bottomExtensionCrossingPoints))
 			{
 				return new List<PlannedDimension>();
 			}
@@ -3179,7 +3179,7 @@ public sealed class DimensionPlanner
 		return kept;
 	}
 
-	private List<Point2D> BuildBottomSideHorizontalStructurePoints(OutlineFeature2D outline, IList<Point2D> ignoredPoints)
+	private List<Point2D> BuildBottomSideHorizontalStructurePoints(OutlineFeature2D outline, IList<IgnoredPoint> ignoredPoints)
 	{
 		List<Point2D> list = (from g in GroupVerticalSegmentsByX(outline)
 			select GetBottomMostPoint(g, ignoredPoints) into p
@@ -3198,7 +3198,7 @@ public sealed class DimensionPlanner
 			select p).ToList();
 	}
 
-	private List<Point2D> BuildLeftSideVerticalStructurePoints(OutlineFeature2D outline, IList<Point2D> ignoredPoints)
+	private List<Point2D> BuildLeftSideVerticalStructurePoints(OutlineFeature2D outline, IList<IgnoredPoint> ignoredPoints)
 	{
 		List<Point2D> list = (from g in GroupHorizontalSegmentsByY(outline)
 			select GetLeftMostPoint(g, ignoredPoints) into p
@@ -3217,7 +3217,7 @@ public sealed class DimensionPlanner
 			select p).ToList();
 	}
 
-	private List<Point2D> BuildRightSideVerticalStructurePoints(OutlineFeature2D outline, IList<Point2D> ignoredPoints)
+	private List<Point2D> BuildRightSideVerticalStructurePoints(OutlineFeature2D outline, IList<IgnoredPoint> ignoredPoints)
 	{
 		List<Point2D> list = (from g in GroupHorizontalSegmentsByY(outline)
 			select GetRightMostPoint(g, ignoredPoints) into p
@@ -3297,11 +3297,11 @@ public sealed class DimensionPlanner
 			select p).First();
 	}
 
-	private Point2D? GetBottomMostPoint(IEnumerable<Segment2D> segments, IList<Point2D> ignoredPoints)
+	private Point2D? GetBottomMostPoint(IEnumerable<Segment2D> segments, IList<IgnoredPoint> ignoredPoints)
 	{
 		List<Segment2D> source = segments.ToList();
 		return ((IEnumerable<Point2D>)(from p in source.SelectMany((Segment2D s) => new Point2D[2] { s.Start, s.End })
-			where !ContainsPoint(ignoredPoints, p)
+			where !ContainsIgnoredPoint(ignoredPoints, p)
 			orderby p.Y, p.X
 			select p)).Select((Func<Point2D, Point2D?>)((Point2D p) => p)).FirstOrDefault();
 	}
@@ -3318,10 +3318,10 @@ public sealed class DimensionPlanner
 			select p).First();
 	}
 
-	private Point2D? GetLeftMostPoint(IEnumerable<Segment2D> segments, IList<Point2D> ignoredPoints)
+	private Point2D? GetLeftMostPoint(IEnumerable<Segment2D> segments, IList<IgnoredPoint> ignoredPoints)
 	{
 		return ((IEnumerable<Point2D>)(from p in segments.SelectMany((Segment2D s) => new Point2D[2] { s.Start, s.End })
-			where !ContainsPoint(ignoredPoints, p)
+			where !ContainsIgnoredPoint(ignoredPoints, p)
 			orderby p.X, p.Y
 			select p)).Select((Func<Point2D, Point2D?>)((Point2D p) => p)).FirstOrDefault();
 	}
@@ -3338,10 +3338,10 @@ public sealed class DimensionPlanner
 			select p).First();
 	}
 
-	private Point2D? GetRightMostPoint(IEnumerable<Segment2D> segments, IList<Point2D> ignoredPoints)
+	private Point2D? GetRightMostPoint(IEnumerable<Segment2D> segments, IList<IgnoredPoint> ignoredPoints)
 	{
 		return ((IEnumerable<Point2D>)(from p in segments.SelectMany((Segment2D s) => new Point2D[2] { s.Start, s.End })
-			where !ContainsPoint(ignoredPoints, p)
+			where !ContainsIgnoredPoint(ignoredPoints, p)
 			orderby p.X descending, p.Y
 			select p)).Select((Func<Point2D, Point2D?>)((Point2D p) => p)).FirstOrDefault();
 	}
@@ -3384,22 +3384,22 @@ public sealed class DimensionPlanner
 		return Math.Abs(a.X - b.X) <= _config.GeometryTolerance && Math.Abs(a.Y - b.Y) <= _config.GeometryTolerance;
 	}
 
-	private List<Point2D> GetBottomExtensionCrossingPoints(IList<PlannedDimension> candidates, OutlineFeature2D outline)
+	private List<IgnoredPoint> GetBottomExtensionCrossingPoints(IList<PlannedDimension> candidates, OutlineFeature2D outline)
 	{
-		List<Point2D> list = new List<Point2D>();
+		List<IgnoredPoint> list = new List<IgnoredPoint>();
 		foreach (PlannedDimension candidate in candidates)
 		{
 			AddBottomCrossingPoint(list, candidate.FirstPoint, outline);
 			AddBottomCrossingPoint(list, candidate.SecondPoint, outline);
-			AddDirectionalInclinedEndpoint(list, candidate.FirstPoint, outline, invertDirection: false);
-			AddDirectionalInclinedEndpoint(list, candidate.SecondPoint, outline, invertDirection: false);
+			AddDirectionalInclinedIgnoredPoint(list, candidate.FirstPoint, outline, invertDirection: false);
+			AddDirectionalInclinedIgnoredPoint(list, candidate.SecondPoint, outline, invertDirection: false);
 		}
 		return list;
 	}
 
-	private List<Point2D> GetLeftExtensionCrossingPoints(IList<PlannedDimension> candidates, OutlineFeature2D outline)
+	private List<IgnoredPoint> GetLeftExtensionCrossingPoints(IList<PlannedDimension> candidates, OutlineFeature2D outline)
 	{
-		List<Point2D> list = new List<Point2D>();
+		List<IgnoredPoint> list = new List<IgnoredPoint>();
 		foreach (PlannedDimension candidate in candidates)
 		{
 			AddLeftCrossingPoint(list, candidate.FirstPoint, outline);
@@ -3410,9 +3410,9 @@ public sealed class DimensionPlanner
 		return list;
 	}
 
-	private List<Point2D> GetRightExtensionCrossingPoints(IList<PlannedDimension> candidates, OutlineFeature2D outline)
+	private List<IgnoredPoint> GetRightExtensionCrossingPoints(IList<PlannedDimension> candidates, OutlineFeature2D outline)
 	{
-		List<Point2D> list = new List<Point2D>();
+		List<IgnoredPoint> list = new List<IgnoredPoint>();
 		foreach (PlannedDimension candidate in candidates)
 		{
 			AddRightCrossingPoint(list, candidate.FirstPoint, outline);
@@ -3423,58 +3423,52 @@ public sealed class DimensionPlanner
 		return list;
 	}
 
-	private void AddLeftCrossingPoint(IList<Point2D> points, Point2D featurePoint, OutlineFeature2D outline)
+	private void AddLeftCrossingPoint(IList<IgnoredPoint> points, Point2D featurePoint, OutlineFeature2D outline)
 	{
-		if (LeftExtensionCrossesOutline(featurePoint, outline) && !ContainsPoint(points, featurePoint))
+		if (LeftExtensionCrossesOutline(featurePoint, outline) && !ContainsIgnoredPoint(points, featurePoint))
 		{
-			points.Add(featurePoint);
-		}
-	}
-
-	private void AddRightCrossingPoint(IList<Point2D> points, Point2D featurePoint, OutlineFeature2D outline)
-	{
-		if (RightExtensionCrossesOutline(featurePoint, outline) && !ContainsPoint(points, featurePoint))
-		{
-			points.Add(featurePoint);
-		}
-	}
-
-	private void AddBottomCrossingPoint(IList<Point2D> points, Point2D featurePoint, OutlineFeature2D outline)
-	{
-		if (BottomExtensionCrossesOutline(featurePoint, outline) && !ContainsPoint(points, featurePoint))
-		{
-			points.Add(featurePoint);
-		}
-	}
-
-	private void AddDirectionalInclinedEndpoint(IList<Point2D> points, Point2D point, OutlineFeature2D outline, bool invertDirection)
-	{
-		if (!ContainsPoint(points, point) && !IsEnvelopeSidePoint(point, outline) && !string.IsNullOrEmpty(GetDirectionalInclinedIgnoreReason(point, outline, invertDirection)))
-		{
-			points.Add(point);
-		}
-	}
-
-	private void AddSideDirectionalInclinedEndpoint(IList<Point2D> points, Point2D point, OutlineFeature2D outline, DimensionSide side)
-	{
-		if (!ContainsPoint(points, point) && !IsEnvelopeHorizontalSidePoint(point, outline) && ShouldIgnoreSideDirectionalInclinedEndpoint(point, outline, side))
-		{
-			points.Add(point);
-		}
-	}
-
-	private bool AddIgnoredPoints(IList<Point2D> ignoredPoints, IEnumerable<Point2D> crossingPoints)
-	{
-		bool result = false;
-		foreach (Point2D crossingPoint in crossingPoints)
-		{
-			if (!ContainsPoint(ignoredPoints, crossingPoint))
+			points.Add(new IgnoredPoint
 			{
-				ignoredPoints.Add(crossingPoint);
-				result = true;
-			}
+				Point = featurePoint,
+				Reason = "LeftExtensionCrossesOutline"
+			});
 		}
-		return result;
+	}
+
+	private void AddRightCrossingPoint(IList<IgnoredPoint> points, Point2D featurePoint, OutlineFeature2D outline)
+	{
+		if (RightExtensionCrossesOutline(featurePoint, outline) && !ContainsIgnoredPoint(points, featurePoint))
+		{
+			points.Add(new IgnoredPoint
+			{
+				Point = featurePoint,
+				Reason = "RightExtensionCrossesOutline"
+			});
+		}
+	}
+
+	private void AddBottomCrossingPoint(IList<IgnoredPoint> points, Point2D featurePoint, OutlineFeature2D outline)
+	{
+		if (BottomExtensionCrossesOutline(featurePoint, outline) && !ContainsIgnoredPoint(points, featurePoint))
+		{
+			points.Add(new IgnoredPoint
+			{
+				Point = featurePoint,
+				Reason = "BottomExtensionCrossesOutline"
+			});
+		}
+	}
+
+	private void AddSideDirectionalInclinedEndpoint(IList<IgnoredPoint> points, Point2D point, OutlineFeature2D outline, DimensionSide side)
+	{
+		if (!ContainsIgnoredPoint(points, point) && !IsEnvelopeHorizontalSidePoint(point, outline) && ShouldIgnoreSideDirectionalInclinedEndpoint(point, outline, side))
+		{
+			points.Add(new IgnoredPoint
+			{
+				Point = point,
+				Reason = side.ToString() + "DirectionalInclinedEndpoint"
+			});
+		}
 	}
 
 	private void RemoveLongestBottomExtensionCandidate(IList<PlannedDimension> candidates, OutlineFeature2D outline)
@@ -3492,22 +3486,22 @@ public sealed class DimensionPlanner
 		_structureEndpointRules.RemoveLongestExtensionCandidate(candidates, outline, DimensionSide.Right);
 	}
 
-	private bool IsBottomSideHorizontalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IList<Point2D> ignoredPoints)
+	private bool IsBottomSideHorizontalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IList<IgnoredPoint> ignoredPoints)
 	{
-		return _structureEndpointRules.IsBottomSideHorizontalStructureCandidate(dim, outline, ignoredPoints);
+		return _structureEndpointRules.IsBottomSideHorizontalStructureCandidate(dim, outline, ignoredPoints.Select((IgnoredPoint p) => p.Point).ToList());
 	}
 
-	private bool IsRightSideVerticalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IList<Point2D> ignoredPoints)
+	private bool IsRightSideVerticalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IList<IgnoredPoint> ignoredPoints)
 	{
-		return _structureEndpointRules.IsRightSideVerticalStructureCandidate(dim, outline, ignoredPoints);
+		return _structureEndpointRules.IsRightSideVerticalStructureCandidate(dim, outline, ignoredPoints.Select((IgnoredPoint p) => p.Point).ToList());
 	}
 
-	private bool IsLeftSideVerticalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IList<Point2D> ignoredPoints)
+	private bool IsLeftSideVerticalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IList<IgnoredPoint> ignoredPoints)
 	{
-		return _structureEndpointRules.IsLeftSideVerticalStructureCandidate(dim, outline, ignoredPoints);
+		return _structureEndpointRules.IsLeftSideVerticalStructureCandidate(dim, outline, ignoredPoints.Select((IgnoredPoint p) => p.Point).ToList());
 	}
 
-	private void AddSideInclinedEndpointStructurePoints(IList<Point2D> points, OutlineFeature2D outline, IList<Point2D> ignoredPoints, DimensionSide side)
+	private void AddSideInclinedEndpointStructurePoints(IList<Point2D> points, OutlineFeature2D outline, IList<IgnoredPoint> ignoredPoints, DimensionSide side)
 	{
 		foreach (Segment2D item in from s in (from s in outline.Segments
 				where !s.IsHorizontal(_config.GeometryTolerance)
@@ -3521,15 +3515,15 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	private void AddSideInclinedEndpointStructurePoint(IList<Point2D> points, Point2D point, OutlineFeature2D outline, IList<Point2D> ignoredPoints)
+	private void AddSideInclinedEndpointStructurePoint(IList<Point2D> points, Point2D point, OutlineFeature2D outline, IList<IgnoredPoint> ignoredPoints)
 	{
-		if (!ContainsPoint(points, point) && !ContainsPoint(ignoredPoints, point) && !IsEnvelopeHorizontalSidePoint(point, outline))
+		if (!ContainsPoint(points, point) && !ContainsIgnoredPoint(ignoredPoints, point) && !IsEnvelopeHorizontalSidePoint(point, outline))
 		{
 			points.Add(point);
 		}
 	}
 
-	private void AddBottomInclinedEndpointStructurePoints(IList<Point2D> points, OutlineFeature2D outline, IList<Point2D> ignoredPoints)
+	private void AddBottomInclinedEndpointStructurePoints(IList<Point2D> points, OutlineFeature2D outline, IList<IgnoredPoint> ignoredPoints)
 	{
 		foreach (Segment2D item in from s in outline.Segments
 			where !s.IsHorizontal(_config.GeometryTolerance)
@@ -3542,9 +3536,9 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	private void AddBottomInclinedEndpointStructurePoint(IList<Point2D> points, Point2D point, OutlineFeature2D outline, IList<Point2D> ignoredPoints)
+	private void AddBottomInclinedEndpointStructurePoint(IList<Point2D> points, Point2D point, OutlineFeature2D outline, IList<IgnoredPoint> ignoredPoints)
 	{
-		if (!ContainsPoint(points, point) && !ContainsPoint(ignoredPoints, point) && !IsEnvelopeSidePoint(point, outline))
+		if (!ContainsPoint(points, point) && !ContainsIgnoredPoint(ignoredPoints, point) && !IsEnvelopeSidePoint(point, outline))
 		{
 			points.Add(point);
 		}

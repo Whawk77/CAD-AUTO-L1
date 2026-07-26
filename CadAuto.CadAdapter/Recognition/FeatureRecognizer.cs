@@ -560,16 +560,12 @@ public sealed class FeatureRecognizer
 
 	private bool IsHalfArc(Arc arc)
 	{
-		double arcSweep = GetArcSweep(arc);
-		return Math.Abs(arcSweep - Math.PI) <= Math.PI / 12.0;
+		return SlotArcRules.IsHalfSweep(GetArcSweep(arc), _config);
 	}
 
 	private bool IsHalfArc(OutlineArc arc)
 	{
-		double distanceTo = arc.Start.GetDistanceTo(arc.End);
-		double num = arc.Radius * 2.0;
-		double num2 = Math.Max(_config.GeometryTolerance, Math.Max(arc.Radius, 1.0) * 0.05);
-		return arc.Radius > _config.GeometryTolerance && Math.Abs(distanceTo - num) <= num2;
+		return arc.Radius > _config.GeometryTolerance && SlotArcRules.IsHalfSweep(arc.SweepRadians, _config);
 	}
 
 	private SlotArcCandidate ToSlotArcCandidate(OutlineArc arc)

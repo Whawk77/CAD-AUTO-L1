@@ -3572,7 +3572,8 @@ namespace CadAuto.Core.Tests
                 Center = new Point2D(20.0, 10.0),
                 Start = new Point2D(20.0, 5.0),
                 End = new Point2D(20.0, 15.0),
-                Radius = 5.0
+                Radius = 5.0,
+                Bulge = -1.0
             });
             geometry.Arcs.Add(new Arc2D
             {
@@ -3580,7 +3581,8 @@ namespace CadAuto.Core.Tests
                 Center = new Point2D(60.0, 10.0),
                 Start = new Point2D(60.0, 15.0),
                 End = new Point2D(60.0, 5.0),
-                Radius = 5.0
+                Radius = 5.0,
+                Bulge = -1.0
             });
             geometry.Segments.Add(new Segment2D(new Point2D(20.0, 15.0), new Point2D(60.0, 15.0)) { SourceKey = "l1" });
             geometry.Segments.Add(new Segment2D(new Point2D(20.0, 5.0), new Point2D(60.0, 5.0)) { SourceKey = "l2" });
@@ -3603,7 +3605,8 @@ namespace CadAuto.Core.Tests
                 Center = new Point2D(20.0, 20.0),
                 Start = new Point2D(20.0, 15.0),
                 End = new Point2D(20.0, 25.0),
-                Radius = 5.0
+                Radius = 5.0,
+                Bulge = -1.0
             });
             geometry.Segments.Add(new Segment2D(new Point2D(20.0, 15.0), new Point2D(40.0, 15.0)) { SourceKey = "l1" });
             geometry.Segments.Add(new Segment2D(new Point2D(20.0, 25.0), new Point2D(40.0, 25.0)) { SourceKey = "l2" });

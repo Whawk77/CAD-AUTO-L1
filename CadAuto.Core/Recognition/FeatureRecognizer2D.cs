@@ -335,10 +335,7 @@ public sealed class FeatureRecognizer2D
 
 	private bool IsHalfArc(Arc2D arc)
 	{
-		double num = arc.Start.DistanceTo(arc.End);
-		double num2 = arc.Radius * 2.0;
-		double num3 = Math.Max(_config.GeometryTolerance, Math.Max(arc.Radius, 1.0) * 0.05);
-		return arc.Radius > _config.GeometryTolerance && Math.Abs(num - num2) <= num3;
+		return arc.Radius > _config.GeometryTolerance && SlotArcRules.IsHalfSweep(SlotArcRules.SweepFromBulge(arc.Bulge), _config);
 	}
 
 	private bool CanPairSlotArcs(SlotArcCandidate first, SlotArcCandidate second, out bool horizontal)

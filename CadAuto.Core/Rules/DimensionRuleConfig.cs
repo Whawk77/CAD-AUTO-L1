@@ -26,6 +26,8 @@ public sealed class DimensionRuleConfig
 
 	public double ThreadArcAngleToleranceDegrees { get; set; }
 
+	public double HalfArcSweepToleranceDegrees { get; set; }
+
 	public double ThreadMinorDiameterTolerance { get; set; }
 
 	public double ToleranceTextHeightScale { get; set; }
@@ -60,6 +62,8 @@ public sealed class DimensionRuleConfig
 			// Conservative first rollout: 10.0 would also accept 260-270 degree
 			// non-thread arcs. Widen only after a clean production run.
 			ThreadArcAngleToleranceDegrees = 2.0,
+			// Slot end arcs: same 15 degree band the Arc-entity path always used.
+			HalfArcSweepToleranceDegrees = 15.0,
 			ThreadMinorDiameterTolerance = 0.25,
 			ToleranceTextHeightScale = 0.8,
 			DatumHoleLocationToleranceText = "<>\\H0.8x;±0.05\\H1x;",

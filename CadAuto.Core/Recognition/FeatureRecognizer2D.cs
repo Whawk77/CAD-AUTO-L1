@@ -8,6 +8,12 @@ using CadAuto.Core.Rules;
 
 namespace CadAuto.Core.Recognition;
 
+/// <summary>
+/// NOT the production recognizer. ASD runs CadAuto.CadAdapter/Recognition/FeatureRecognizer;
+/// this class is consumed exclusively by CadAuto.Core.Tests and the two implementations have
+/// not been unified. When changing recognition behavior, change the adapter recognizer first
+/// and mirror the rule here so the test suite keeps constraining production.
+/// </summary>
 public sealed class FeatureRecognizer2D
 {
 	private sealed class SlotArcCandidate

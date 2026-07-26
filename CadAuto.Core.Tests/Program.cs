@@ -12,6 +12,8 @@ namespace CadAuto.Core.Tests
     internal static class Program
     {
         private static int _passedTests;
+        private static int _selectedTests;
+        private static readonly List<Tuple<string, string>> FailedTests = new List<Tuple<string, string>>();
         private static readonly List<Tuple<string, Action>> RegisteredTests = new List<Tuple<string, Action>>();
         private static readonly HashSet<string> P0Tests = new HashSet<string>
         {
@@ -88,8 +90,9 @@ namespace CadAuto.Core.Tests
             nameof(HoleCalloutsUsePinClustersAndFitText)
         };
 
-        private static int Main()
+        private static int Main(string[] args)
         {
+            string filter = args.Length > 0 ? args[0] : null;
             try
             {
                 RunTest(nameof(RectangularOutlineKeepsOverallDimensions), RectangularOutlineKeepsOverallDimensions);
@@ -208,9 +211,13 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(HoleLocationDimensionsUseSegmentedExtensionLines), HoleLocationDimensionsUseSegmentedExtensionLines);
                 RunTest(nameof(HoleCalloutsGroupByRowsWithoutPins), HoleCalloutsGroupByRowsWithoutPins);
                 RunTest(nameof(HoleCalloutsUsePinClustersAndFitText), HoleCalloutsUsePinClustersAndFitText);
-                RunRegisteredTests();
-                Console.WriteLine("CadAuto.Core.Tests passed: " + _passedTests + ".");
-                return 0;
+                RunRegisteredTests(filter);
+                Console.WriteLine("CadAuto.Core.Tests: " + _passedTests + "/" + _selectedTests + " passed.");
+                foreach (Tuple<string, string> failure in FailedTests)
+                {
+                    Console.WriteLine("FAILED " + failure.Item1 + " :: " + failure.Item2);
+                }
+                return FailedTests.Count == 0 ? 0 : 1;
             }
             catch (Exception ex)
             {
@@ -224,22 +231,65 @@ namespace CadAuto.Core.Tests
             RegisteredTests.Add(Tuple.Create(name, test));
         }
 
-        private static void RunRegisteredTests()
+        private static void RunRegisteredTests(string filter)
         {
             for (int priority = 0; priority <= 3; priority++)
             {
                 List<Tuple<string, Action>> tests = RegisteredTests
                     .Where(test => GetTestPriority(test.Item1) == priority)
+                    .Where(test => MatchesFilter(test.Item1, priority, filter))
                     .ToList();
+                if (tests.Count == 0)
+                {
+                    continue;
+                }
+                _selectedTests += tests.Count;
                 Console.WriteLine("START P" + priority + " count=" + tests.Count);
+                int failedInTier = 0;
                 foreach (Tuple<string, Action> test in tests)
                 {
-                    test.Item2();
+                    try
+                    {
+                        test.Item2();
+                    }
+                    catch (Exception ex)
+                    {
+                        failedInTier++;
+                        FailedTests.Add(Tuple.Create(test.Item1, ex.Message));
+                        Console.WriteLine("FAIL P" + priority + " " + test.Item1 + " :: " + ex.Message);
+                        if (priority == 0)
+                        {
+                            // P0 invariants are prerequisites for every later tier; abort the run.
+                            Console.WriteLine("TIER FAIL P0 aborting remaining tiers.");
+                            return;
+                        }
+                        continue;
+                    }
                     _passedTests++;
                     Console.WriteLine("PASS P" + priority + " " + test.Item1);
                 }
-                Console.WriteLine("TIER PASS P" + priority + " count=" + tests.Count);
+                if (failedInTier == 0)
+                {
+                    Console.WriteLine("TIER PASS P" + priority + " count=" + tests.Count);
+                }
+                else
+                {
+                    Console.WriteLine("TIER FAIL P" + priority + " failed=" + failedInTier);
+                }
             }
+        }
+
+        private static bool MatchesFilter(string name, int priority, string filter)
+        {
+            if (string.IsNullOrEmpty(filter))
+            {
+                return true;
+            }
+            if (filter.Equals("P" + priority, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+            return name.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static int GetTestPriority(string name)

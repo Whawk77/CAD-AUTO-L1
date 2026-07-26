@@ -172,7 +172,7 @@ COMPLETE side=Top
 
 判定规则：
 
-- 出现 `COMPLETE side=<方向>`：进入报告归档。
+- 出现 `COMPLETE side=<方向>`：进入报告归档。COMPLETE 带新鲜度门控：在加载 LSP 后、执行 V203* 命令前设置 `(setq *v203-report-file* "<项目根>\\diagnostics\\last-run.json")`，则只有该文件在本次运行中确实被改写才会写 COMPLETE，否则写 `ERROR stale-report side=<方向>`。不设置该变量时保持旧行为（无门控）。
 - 出现 `ERROR`：本方向失败，保留 DWG、SCR、trace 和 `last-run.json` 排查。
 - 未出现 `COMPLETE` 且 AutoCAD 已退出：本方向失败。
 - 固定 fixture 正常选择数为 `98`；数量变化时先检查图样、选择窗口和 fixture 哈希，不要直接修改期望文件。
@@ -189,7 +189,7 @@ Copy-Item `
   '<运行目录>\report-vNNN.json'
 ```
 
-检查归档文件的修改时间、`diagnosticSide`、`drawing.fileName` 和 v203 布局诊断字段，确保它属于该方向和该次运行。
+检查归档文件的修改时间、`diagnosticSide`、`drawing.fileName` 和 v203 布局诊断字段，确保它属于该方向和该次运行。校验脚本现在会自动核对 `runId` 非空、报告不含 `error` 节点、`drawing.sha256` 等于 `cases.json` 的 `fixtureSha256`；另可传 `-RunStartedAt <本次运行开始时间>` 让脚本拒绝 `generatedAt` 早于运行开始的陈旧报告。
 
 ## 7. 校验该方向
 

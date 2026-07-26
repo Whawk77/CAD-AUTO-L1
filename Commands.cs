@@ -580,6 +580,7 @@ public sealed class Commands
 			else
 			{
 				outlineFeature = featureRecognizer.RecognizeOutline(outlineSelection.EntityIds, transaction);
+				ReportEnvelopeSkippedEntities(editor, featureRecognizer);
 			}
 			DatumDefinition datumDefinition = DatumDefinition.FromOutline(outlineFeature);
 			IList<SlotFeature> list = featureRecognizer.RecognizeOutlineSlotFeatures(outlineFeature);
@@ -711,6 +712,7 @@ public sealed class Commands
 				else
 				{
 					outlineFeature = featureRecognizer.RecognizeOutline(outlineSelection.EntityIds, transaction);
+					ReportEnvelopeSkippedEntities(editor, featureRecognizer);
 				}
 				DatumDefinition datumDefinition = DatumDefinition.FromOutline(outlineFeature);
 				IList<SlotFeature> list3;
@@ -873,6 +875,15 @@ public sealed class Commands
 			editor.WriteMessage("\nAUTOFIXDIM 发生异常: {0}: {1}", ex4.GetType().Name, ex4.Message);
 			WriteDimensionRunSummary(editor, completedLinearPlan, outline, recognizedHoles, slotFeatures, outputScope, diagnosticsEnabled, diagnosticSide, diagnosticContext, ex4);
 		}
+	}
+
+	private static void ReportEnvelopeSkippedEntities(Editor editor, FeatureRecognizer recognizer)
+	{
+		if (editor == null || recognizer == null || recognizer.LastEnvelopeSkippedEntityIds.Count == 0)
+		{
+			return;
+		}
+		editor.WriteMessage("\n已排除 {0} 个不含线/弧几何的对象（例如独立圆），它们不参与外形包围盒计算。", recognizer.LastEnvelopeSkippedEntityIds.Count);
 	}
 
 	private static void WriteDimensionRunSummary(Editor editor, DimensionPlan plan, OutlineFeature outline, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide, DiagnosticRunContext context, System.Exception error = null)

@@ -63,6 +63,12 @@ public sealed class FeatureRecognizer
 
 	public IList<SlotFeature> LastRecognizedSlots { get; private set; } = new List<SlotFeature>();
 
+	/// <summary>
+	/// Entities from the loose-geometry fallback that contributed no line or arc geometry
+	/// (a bare Circle, for example) and were therefore excluded from the outline envelope.
+	/// </summary>
+	public IList<ObjectId> LastEnvelopeSkippedEntityIds { get; private set; } = new List<ObjectId>();
+
 	public FeatureRecognizer(DimensionRuleConfig config)
 	{
 		_config = config;
@@ -89,22 +95,59 @@ public sealed class FeatureRecognizer
 
 	public OutlineFeature RecognizeOutline(IEnumerable<ObjectId> outlineEntityIds, Transaction tr)
 	{
+		// The stored envelope must be derivable from the same line and arc geometry Core sees.
+		// A bare Circle contributes four quadrant vertices but no segment or arc, so letting it
+		// widen the envelope would guarantee a post-validation mismatch. Such entities are
+		// excluded and reported through LastEnvelopeSkippedEntityIds instead.
 		OutlineFeature outlineFeature = CreateEmptyOutline();
+		List<ObjectId> skipped = new List<ObjectId>();
 		foreach (ObjectId outlineEntityId in outlineEntityIds)
 		{
 			Entity entity = tr.GetObject(outlineEntityId, OpenMode.ForRead) as Entity;
-			if (!(entity == null))
+			if (entity == null)
 			{
-				AddEntityExtents(outlineFeature, entity);
-				AddEntityKeyPoints(outlineFeature, entity, tr);
+				continue;
+			}
+			int vertexCount = outlineFeature.Vertices.Count;
+			int segmentCount = outlineFeature.Segments.Count;
+			int arcCount = outlineFeature.Arcs.Count;
+			AddEntityKeyPoints(outlineFeature, entity, tr);
+			if (outlineFeature.Segments.Count == segmentCount && outlineFeature.Arcs.Count == arcCount)
+			{
+				while (outlineFeature.Vertices.Count > vertexCount)
+				{
+					outlineFeature.Vertices.RemoveAt(outlineFeature.Vertices.Count - 1);
+				}
+				skipped.Add(outlineEntityId);
 			}
 		}
+		LastEnvelopeSkippedEntityIds = skipped;
+		RebuildEnvelopeFromVertices(outlineFeature);
 		if (outlineFeature.MinX == double.MaxValue)
 		{
 			throw new InvalidOperationException("Unable to calculate outline extents from DRAWING objects.");
 		}
 		RecognizeOutlineCornerFeatures(outlineFeature);
 		return outlineFeature;
+	}
+
+	/// <summary>
+	/// Recomputes the stored envelope from the vertices that survived filtering. AddVertex only
+	/// ever grows the envelope, so rolling back excluded entities requires a full recompute.
+	/// </summary>
+	private static void RebuildEnvelopeFromVertices(OutlineFeature outline)
+	{
+		outline.MinX = double.MaxValue;
+		outline.MinY = double.MaxValue;
+		outline.MaxX = double.MinValue;
+		outline.MaxY = double.MinValue;
+		foreach (Point2d vertex in outline.Vertices)
+		{
+			outline.MinX = Math.Min(outline.MinX, vertex.X);
+			outline.MaxX = Math.Max(outline.MaxX, vertex.X);
+			outline.MinY = Math.Min(outline.MinY, vertex.Y);
+			outline.MaxY = Math.Max(outline.MaxY, vertex.Y);
+		}
 	}
 
 	public IList<HoleFeature> RecognizeHoles(IEnumerable<ObjectId> sourceIds, Transaction tr, IEnumerable<ObjectId> contextIds)
@@ -746,8 +789,12 @@ public sealed class FeatureRecognizer
 	/// </summary>
 	private OutlineFeature RecognizeLightweightOutline(Polyline polyline)
 	{
+		// No AddEntityExtents here: GeometricExtents is a second, differently-derived source for
+		// the same envelope (it includes polyline width and is reported in the entity's own plane),
+		// and Core re-derives the envelope from segments and arcs alone. Any disagreement beyond
+		// GeometryTolerance made DimensionPlanPostValidator abort the whole command. The vertex and
+		// arc-envelope points below already cover every extreme point of a closed polyline.
 		OutlineFeature outlineFeature = CreateEmptyOutline();
-		AddEntityExtents(outlineFeature, polyline);
 		List<Point2d> list = new List<Point2d>();
 		for (int i = 0; i < polyline.NumberOfVertices; i++)
 		{
@@ -773,8 +820,8 @@ public sealed class FeatureRecognizer
 
 	private OutlineFeature RecognizePolyline2dOutline(Polyline2d polyline, Transaction tr)
 	{
+		// See RecognizeLightweightOutline: the stored envelope must have a single source.
 		OutlineFeature outlineFeature = CreateEmptyOutline();
-		AddEntityExtents(outlineFeature, polyline);
 		List<Point2d> list = new List<Point2d>();
 		List<double> list2 = new List<double>();
 		foreach (ObjectId item in polyline)
@@ -818,21 +865,6 @@ public sealed class FeatureRecognizer
 			MaxX = double.MinValue,
 			MaxY = double.MinValue
 		};
-	}
-
-	private static void AddEntityExtents(OutlineFeature outline, Entity entity)
-	{
-		try
-		{
-			Extents3d geometricExtents = entity.GeometricExtents;
-			outline.MinX = Math.Min(outline.MinX, geometricExtents.MinPoint.X);
-			outline.MaxX = Math.Max(outline.MaxX, geometricExtents.MaxPoint.X);
-			outline.MinY = Math.Min(outline.MinY, geometricExtents.MinPoint.Y);
-			outline.MaxY = Math.Max(outline.MaxY, geometricExtents.MaxPoint.Y);
-		}
-		catch
-		{
-		}
 	}
 
 	private void AddEntityKeyPoints(OutlineFeature outline, Entity entity, Transaction tr)

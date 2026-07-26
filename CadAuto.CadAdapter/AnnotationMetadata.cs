@@ -26,12 +26,12 @@ public static class AnnotationMetadata
 	public static void EnsureRegApp(Database db, Transaction tr)
 	{
 		RegAppTable regAppTable = (RegAppTable)tr.GetObject(db.RegAppTableId, OpenMode.ForRead);
-		if (!regAppTable.Has("AUTOFIXDIM"))
+		if (!regAppTable.Has(AppName))
 		{
 			regAppTable.UpgradeOpen();
 			RegAppTableRecord regAppTableRecord = new RegAppTableRecord
 			{
-				Name = "AUTOFIXDIM"
+				Name = AppName
 			};
 			regAppTable.Add(regAppTableRecord);
 			tr.AddNewlyCreatedDBObject(regAppTableRecord, add: true);
@@ -40,18 +40,21 @@ public static class AnnotationMetadata
 
 	public static void Mark(Entity entity, string groupId)
 	{
-		entity.XData = new ResultBuffer(new TypedValue(1001, "AUTOFIXDIM"), new TypedValue(1000, "GroupId"), new TypedValue(1000, groupId ?? string.Empty));
+		using (ResultBuffer resultBuffer = new ResultBuffer(new TypedValue(1001, AppName), new TypedValue(1000, "GroupId"), new TypedValue(1000, groupId ?? string.Empty)))
+		{
+			entity.XData = resultBuffer;
+		}
 	}
 
 	public static bool IsMarked(Entity entity)
 	{
-		using ResultBuffer resultBuffer = entity.GetXDataForApplication("AUTOFIXDIM");
+		using ResultBuffer resultBuffer = entity.GetXDataForApplication(AppName);
 		return resultBuffer != null;
 	}
 
 	public static string GetGroupId(Entity entity)
 	{
-		using (ResultBuffer resultBuffer = entity.GetXDataForApplication("AUTOFIXDIM"))
+		using (ResultBuffer resultBuffer = entity.GetXDataForApplication(AppName))
 		{
 			if (resultBuffer == null)
 			{

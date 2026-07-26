@@ -4,7 +4,11 @@ param(
 
     [string]$ReportPath,
 
-    [double]$GeometryTolerance = 0.001
+    [double]$GeometryTolerance = 0.001,
+
+    [datetime]$RunStartedAt = [datetime]::MinValue,
+
+    [switch]$AllowNotReady
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,10 +25,40 @@ if ($case.Count -ne 1) {
 }
 $case = $case[0]
 
+if ($case.fixtureReady -ne $true -and -not $AllowNotReady) {
+    throw "Case '$CaseId' has fixtureReady=false - it has never passed a real run. Use -AllowNotReady for the bring-up run, and only set fixtureReady=true after a genuine pass."
+}
+
+$fixturePath = Join-Path (Join-Path $projectRoot "regression\hole-slot") ([string]$case.fixture)
+if (-not (Test-Path -LiteralPath $fixturePath -PathType Leaf)) {
+    throw "Fixture was not found: $fixturePath"
+}
+$fixtureHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $fixturePath).Hash
+if ($fixtureHash -ne [string]$case.fixtureSha256) {
+    throw "Fixture hash mismatch for '$CaseId'. Expected $($case.fixtureSha256), found $fixtureHash."
+}
+
 if (-not (Test-Path -LiteralPath $ReportPath -PathType Leaf)) {
     throw "Diagnostic report was not found: $ReportPath"
 }
 $report = Get-Content -Raw -Encoding UTF8 -LiteralPath $ReportPath | ConvertFrom-Json
+
+# Run-identity guards (same contract as validate-dimension-layout-report.ps1).
+if (-not ($report.PSObject.Properties.Name -contains "runId") -or [string]::IsNullOrWhiteSpace([string]$report.runId)) {
+    throw "Report has no runId - not produced by a current run."
+}
+if ($report.PSObject.Properties.Name -contains "error") {
+    throw "Report records a FAILED run: $($report.error.type): $($report.error.message)"
+}
+if (-not ($report.PSObject.Properties.Name -contains "drawing") -or [string]$report.drawing.sha256 -ne [string]$case.fixtureSha256) {
+    throw "Report drawing sha256 '$($report.drawing.sha256)' does not match fixture hash - report came from a different drawing."
+}
+if ($RunStartedAt -ne [datetime]::MinValue) {
+    $generatedAt = [datetime]::Parse([string]$report.generatedAt, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind)
+    if ($generatedAt -lt $RunStartedAt) {
+        throw "Report generatedAt '$generatedAt' predates run start '$RunStartedAt' - stale report."
+    }
+}
 $requiredFields = @(
     "firstPointX", "firstPointY", "secondPointX", "secondPointY",
     "measurementMinimum", "measurementMaximum", "isSelected",

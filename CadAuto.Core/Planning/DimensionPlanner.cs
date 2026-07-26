@@ -1243,7 +1243,7 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	private static List<List<PlannedDimension>> BuildAbuttingVerticalStructureChains(IList<PlannedDimension> heights, double tol)
+	internal static List<List<PlannedDimension>> BuildAbuttingVerticalStructureChains(IList<PlannedDimension> heights, double tol)
 	{
 		List<PlannedDimension> ordered = heights
 			.OrderBy((PlannedDimension d) => ComputeArrowInterval(d, horizontal: false).Item1)
@@ -1406,7 +1406,7 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	private static List<Tuple<double, double>> MergeVerticalIntervals(IList<Tuple<double, double>> intervals, double tol)
+	internal static List<Tuple<double, double>> MergeVerticalIntervals(IList<Tuple<double, double>> intervals, double tol)
 	{
 		List<Tuple<double, double>> sorted = intervals.OrderBy((Tuple<double, double> i) => i.Item1).ToList();
 		List<Tuple<double, double>> merged = new List<Tuple<double, double>>();
@@ -1430,7 +1430,7 @@ public sealed class DimensionPlanner
 		return merged;
 	}
 
-	private static List<Tuple<double, double>> ComputeVerticalResiduals(
+	internal static List<Tuple<double, double>> ComputeVerticalResiduals(
 		Tuple<double, double> overall,
 		IList<Tuple<double, double>> mergedPrimary,
 		double tol)
@@ -2767,7 +2767,7 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	private IList<PlannedDimension> BuildTopStructureWidthDimensions(OutlineFeature2D outline)
+	internal IList<PlannedDimension> BuildTopStructureWidthDimensions(OutlineFeature2D outline)
 	{
 		List<IgnoredPoint> ignoredPoints = new List<IgnoredPoint>();
 		List<PlannedDimension> list2;
@@ -2852,7 +2852,7 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	private IList<PlannedDimension> BuildLeftStructureHeightDimensions(OutlineFeature2D outline)
+	internal IList<PlannedDimension> BuildLeftStructureHeightDimensions(OutlineFeature2D outline)
 	{
 		List<Point2D> ignoredPoints = new List<Point2D>();
 		List<PlannedDimension> list2;
@@ -2881,7 +2881,7 @@ public sealed class DimensionPlanner
 		return list2.Where((PlannedDimension dim) => IsLeftSideVerticalStructureCandidate(dim, outline, ignoredPoints)).ToList();
 	}
 
-	private IList<PlannedDimension> BuildRightStructureHeightDimensions(OutlineFeature2D outline)
+	internal IList<PlannedDimension> BuildRightStructureHeightDimensions(OutlineFeature2D outline)
 	{
 		List<Point2D> ignoredPoints = new List<Point2D>();
 		List<PlannedDimension> list2;
@@ -3113,7 +3113,7 @@ public sealed class DimensionPlanner
 			select p).ToList();
 	}
 
-	private IList<PlannedDimension> BuildBottomStructureWidthDimensions(OutlineFeature2D outline)
+	internal IList<PlannedDimension> BuildBottomStructureWidthDimensions(OutlineFeature2D outline)
 	{
 		List<Point2D> ignoredPoints = new List<Point2D>();
 		List<PlannedDimension> list2;
@@ -4079,7 +4079,7 @@ public sealed class DimensionPlanner
 	/// measurement edge: same Y for horizontal dims, same X for vertical dims.
 	/// Same placement side alone is insufficient (tower top vs arm top both Side=Top).
 	/// </summary>
-	private static bool AreCollinearStructurePartners(PlannedDimension a, PlannedDimension b, bool horizontal, double tol)
+	internal static bool AreCollinearStructurePartners(PlannedDimension a, PlannedDimension b, bool horizontal, double tol)
 	{
 		if (a == null || b == null)
 		{

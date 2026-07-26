@@ -3136,6 +3136,9 @@ public sealed class DimensionPlanner
 			}
 		}
 		RemoveLongestBottomExtensionCandidate(list2, outline);
+		// ponytail: Bottom intentionally skips the complementary-remainder snap/removal that
+		// Top/Left/Right run here (Bottom is the datum side); add it only when a concrete
+		// repro shows a bottom remainder duplicate.
 		return list2.Where((PlannedDimension dim) => IsBottomSideHorizontalStructureCandidate(dim, outline, ignoredPoints)).ToList();
 	}
 

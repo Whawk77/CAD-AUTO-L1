@@ -1387,13 +1387,16 @@ public sealed class FeatureRecognizer
 		OutlineSegment axisNeighborAtPoint2 = GetAxisNeighborAtPoint(outline, chamfer, chamfer.Start, horizontal: false);
 		OutlineSegment axisNeighborAtPoint3 = GetAxisNeighborAtPoint(outline, chamfer, chamfer.End, horizontal: true);
 		OutlineSegment axisNeighborAtPoint4 = GetAxisNeighborAtPoint(outline, chamfer, chamfer.End, horizontal: false);
-		if (axisNeighborAtPoint != null && axisNeighborAtPoint4 != null)
+		// Reference inequality guards a degenerate case: a zero-length segment sits on both
+		// chamfer endpoints and can satisfy the horizontal and the vertical query at once,
+		// which would report a single segment as its own perpendicular partner.
+		if (axisNeighborAtPoint != null && axisNeighborAtPoint4 != null && axisNeighborAtPoint != axisNeighborAtPoint4)
 		{
 			firstNeighbor = axisNeighborAtPoint;
 			secondNeighbor = axisNeighborAtPoint4;
 			return true;
 		}
-		if (axisNeighborAtPoint2 != null && axisNeighborAtPoint3 != null)
+		if (axisNeighborAtPoint2 != null && axisNeighborAtPoint3 != null && axisNeighborAtPoint2 != axisNeighborAtPoint3)
 		{
 			firstNeighbor = axisNeighborAtPoint2;
 			secondNeighbor = axisNeighborAtPoint3;

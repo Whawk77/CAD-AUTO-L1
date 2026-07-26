@@ -24,6 +24,46 @@ public sealed class DimensionPlanner
 		public string Reason { get; set; }
 	}
 
+	// Every MarkSuppressed reason emitted by this planner, in one place.
+	private static class SuppressReason
+	{
+		public const string LocalGeometryOnOverallEnvelope = "LocalGeometryOnOverallEnvelope";
+
+		public const string BottomProtrusionInnerRemainder = "BottomProtrusionInnerRemainder";
+
+		public const string ComplementaryOutlineRemainder = "ComplementaryOutlineRemainder";
+
+		public const string OutlineSegmentOverallPartition = "OutlineSegmentOverallPartition";
+
+		public const string StructureDuplicateOfEnvelopeOutlineSegment = "StructureDuplicateOfEnvelopeOutlineSegment";
+
+		public const string OutlineSegmentOnOverallEnvelope = "OutlineSegmentOnOverallEnvelope";
+
+		public const string OutlineSegmentSameIntervalAsEnvelopeFragment = "OutlineSegmentSameIntervalAsEnvelopeFragment";
+
+		public const string RightStructureHeightDuplicatesOverallHeight = "RightStructureHeightDuplicatesOverallHeight";
+
+		public const string LeftStructureHeightDuplicatesOverallHeight = "LeftStructureHeightDuplicatesOverallHeight";
+
+		public const string LeftStructureHeightCoveredByRight = "LeftStructureHeightCoveredByRight";
+
+		public const string OrphanOuterVerticalStructureHeightTip = "OrphanOuterVerticalStructureHeightTip";
+
+		public const string SecondaryOutlineSegmentDuplicatesPrimaryStructureHeight = "SecondaryOutlineSegmentDuplicatesPrimaryStructureHeight";
+
+		public const string SecondaryOutlineSegmentOverallResidual = "SecondaryOutlineSegmentOverallResidual";
+
+		public const string SecondaryOutlineSegmentOverallPartitionWithPrimaryStructure = "SecondaryOutlineSegmentOverallPartitionWithPrimaryStructure";
+
+		public const string MirroredDuplicate = "MirroredDuplicate";
+
+		public const string DuplicateMeasuredDimension = "DuplicateMeasuredDimension";
+
+		public const string LeftStructureHeightCoveredByDatumRootedOuterStep = "LeftStructureHeightCoveredByDatumRootedOuterStep";
+
+		public const string StructureOverallPartition = "StructureOverallPartition";
+	}
+
 	private sealed class FunctionalHoleGroupPlan
 	{
 		public PinGroupPlan PinGroup { get; set; }
@@ -353,6 +393,29 @@ public sealed class DimensionPlanner
 		}
 	}
 
+	// Suppression pipeline: 23 passes over 13 rules. THE ORDER IS PRODUCT BEHAVIOR -
+	// each inline note below records a constraint that was learned the hard way; keep
+	// the notes adjacent to the calls they explain. Stages:
+	//   0. capture   - FindLocalGeometryOnOverallEnvelope snapshots candidates BEFORE
+	//                  any pass mutates the plan; the matching suppress is pass 23.
+	//   1. structure vs overall (passes 1-7)  - height dedup vs overall, bottom
+	//                  protrusion remainders, structure partition chains (H then V),
+	//                  datum-rooted outer-step complements. Must run before stage 2 so
+	//                  OutlineSegment partners still exist when chains are built.
+	//   2. OutlineSegment partition (passes 8-11, four sides) - scoped to
+	//                  OutlineSegment only.
+	//   3. mirror dedup (passes 12-13) - must precede stage 5; envelope could remove
+	//                  the primary-side outer tip first and orphan a same-interval
+	//                  secondary OutlineSegment.
+	//   4. secondary-side cleanup (passes 14-15) - after mirror keeps structure
+	//                  heights over OS.
+	//   5. envelope collinear fragments (pass 16).
+	//   6. complementary remainders (passes 17-18) - Top/Right only by design.
+	//   7. measured duplicates (passes 19-22, four sides).
+	//   8. deferred local-geometry suppress (pass 23) using the stage-0 snapshot.
+	// This method runs twice per full plan (once inside CreateOutlinePlan, once after
+	// hole/slot dimensions are added) - outline candidates see it twice, hole/slot
+	// candidates once.
 	private void SuppressDuplicateDimensions(DimensionPlan plan, OutlineFeature2D outline)
 	{
 		List<PlannedDimension> localGeometryOnEnvelope = FindLocalGeometryOnOverallEnvelope(plan, outline);
@@ -450,7 +513,7 @@ public sealed class DimensionPlanner
 		}
 		foreach (PlannedDimension dimension in dimensions)
 		{
-			plan.MarkSuppressed(dimension, "LocalGeometryOnOverallEnvelope");
+			plan.MarkSuppressed(dimension, SuppressReason.LocalGeometryOnOverallEnvelope);
 			plan.Dimensions.Remove(dimension);
 		}
 	}
@@ -494,7 +557,7 @@ public sealed class DimensionPlanner
 			{
 				continue;
 			}
-			plan.MarkSuppressed(candidate, "BottomProtrusionInnerRemainder");
+			plan.MarkSuppressed(candidate, SuppressReason.BottomProtrusionInnerRemainder);
 			plan.Dimensions.RemoveAt(num);
 		}
 	}
@@ -785,7 +848,7 @@ public sealed class DimensionPlanner
 			{
 				continue;
 			}
-			plan.MarkSuppressed(candidate, "ComplementaryOutlineRemainder");
+			plan.MarkSuppressed(candidate, SuppressReason.ComplementaryOutlineRemainder);
 			plan.Dimensions.RemoveAt(i);
 		}
 	}
@@ -808,7 +871,7 @@ public sealed class DimensionPlanner
 					&& GetDimensionSpan(other, horizontal) < span - _config.GeometryTolerance
 					&& FormsCompleteOverallPartition(candidate, other, overall, horizontal)))
 				{
-					plan.MarkSuppressed(candidate, "ComplementaryOutlineRemainder");
+					plan.MarkSuppressed(candidate, SuppressReason.ComplementaryOutlineRemainder);
 					plan.Dimensions.RemoveAt(num);
 				}
 			}
@@ -881,7 +944,7 @@ public sealed class DimensionPlanner
 			{
 				continue;
 			}
-			plan.MarkSuppressed(candidate, "OutlineSegmentOverallPartition");
+			plan.MarkSuppressed(candidate, SuppressReason.OutlineSegmentOverallPartition);
 			plan.Dimensions.RemoveAt(num);
 		}
 	}
@@ -991,17 +1054,17 @@ public sealed class DimensionPlanner
 			string reason;
 			if (IsBottomOuterArmResidual(candidate, outline, plan))
 			{
-				reason = "StructureDuplicateOfEnvelopeOutlineSegment";
+				reason = SuppressReason.StructureDuplicateOfEnvelopeOutlineSegment;
 			}
 			else if (string.Equals(candidate.DebugRole, "OutlineSegment", StringComparison.Ordinal))
 			{
 				reason = envelopeOutlineSegments.Contains(candidate)
-					? "OutlineSegmentOnOverallEnvelope"
-					: "OutlineSegmentSameIntervalAsEnvelopeFragment";
+					? SuppressReason.OutlineSegmentOnOverallEnvelope
+					: SuppressReason.OutlineSegmentSameIntervalAsEnvelopeFragment;
 			}
 			else
 			{
-				reason = "StructureDuplicateOfEnvelopeOutlineSegment";
+				reason = SuppressReason.StructureDuplicateOfEnvelopeOutlineSegment;
 			}
 			plan.MarkSuppressed(candidate, reason);
 			plan.Dimensions.RemoveAt(num);
@@ -1140,8 +1203,8 @@ public sealed class DimensionPlanner
 				continue;
 			}
 			string reason = isRight
-				? "RightStructureHeightDuplicatesOverallHeight"
-				: "LeftStructureHeightDuplicatesOverallHeight";
+				? SuppressReason.RightStructureHeightDuplicatesOverallHeight
+				: SuppressReason.LeftStructureHeightDuplicatesOverallHeight;
 			plan.MarkSuppressed(cand, reason);
 			plan.Dimensions.RemoveAt(num);
 		}
@@ -1161,7 +1224,7 @@ public sealed class DimensionPlanner
 				_dimensionDeduplicationRules.IsLeftStructureHeightCoveredByRight(
 					ToDeduplicationItem(left), ToDeduplicationItem(right))))
 			{
-				plan.MarkSuppressed(left, "LeftStructureHeightCoveredByRight");
+				plan.MarkSuppressed(left, SuppressReason.LeftStructureHeightCoveredByRight);
 				plan.Dimensions.RemoveAt(num);
 			}
 		}
@@ -1237,7 +1300,7 @@ public sealed class DimensionPlanner
 				{
 					continue;
 				}
-				plan.MarkSuppressed(cand, "OrphanOuterVerticalStructureHeightTip");
+				plan.MarkSuppressed(cand, SuppressReason.OrphanOuterVerticalStructureHeightTip);
 				plan.Dimensions.RemoveAt(num);
 			}
 		}
@@ -1391,15 +1454,15 @@ public sealed class DimensionPlanner
 			string why;
 			if (sameAsPrimary)
 			{
-				why = "SecondaryOutlineSegmentDuplicatesPrimaryStructureHeight";
+				why = SuppressReason.SecondaryOutlineSegmentDuplicatesPrimaryStructureHeight;
 			}
 			else if (inResidual)
 			{
-				why = "SecondaryOutlineSegmentOverallResidual";
+				why = SuppressReason.SecondaryOutlineSegmentOverallResidual;
 			}
 			else
 			{
-				why = "SecondaryOutlineSegmentOverallPartitionWithPrimaryStructure";
+				why = SuppressReason.SecondaryOutlineSegmentOverallPartitionWithPrimaryStructure;
 			}
 			plan.MarkSuppressed(cand, why);
 			plan.Dimensions.RemoveAt(num);
@@ -1481,7 +1544,7 @@ public sealed class DimensionPlanner
 					continue;
 				}
 				PlannedDimension plannedDimension = ((CompareDuplicatePreference(item, item2) > 0) ? item2 : item);
-				plan.MarkSuppressed(plannedDimension, "MirroredDuplicate");
+				plan.MarkSuppressed(plannedDimension, SuppressReason.MirroredDuplicate);
 				plan.Dimensions.Remove(plannedDimension);
 				break;
 			}
@@ -1524,7 +1587,7 @@ public sealed class DimensionPlanner
 			{
 				if (IsSameMeasuredDimension(list[num], list[num4], horizontal))
 				{
-					plan.MarkSuppressed(list[num4], "DuplicateMeasuredDimension");
+					plan.MarkSuppressed(list[num4], SuppressReason.DuplicateMeasuredDimension);
 					plan.Dimensions.Remove(list[num4]);
 					list.RemoveAt(num4);
 				}
@@ -2686,7 +2749,7 @@ public sealed class DimensionPlanner
 			{
 				continue;
 			}
-			plan.MarkSuppressed(candidate, "LeftStructureHeightCoveredByDatumRootedOuterStep");
+			plan.MarkSuppressed(candidate, SuppressReason.LeftStructureHeightCoveredByDatumRootedOuterStep);
 			plan.Dimensions.RemoveAt(i);
 		}
 	}
@@ -4067,7 +4130,7 @@ public sealed class DimensionPlanner
 			{
 				continue;
 			}
-			plan.MarkSuppressed(candidate, "StructureOverallPartition");
+			plan.MarkSuppressed(candidate, SuppressReason.StructureOverallPartition);
 			plan.Dimensions.RemoveAt(num);
 		}
 	}

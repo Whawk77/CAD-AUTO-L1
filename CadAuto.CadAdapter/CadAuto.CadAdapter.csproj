@@ -42,7 +42,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AnnotationMetadata.cs" />
-    <Compile Include="AutoCadGeometryConverter.cs" />
     <Compile Include="Collection\**\*.cs" />
     <Compile Include="Environment\**\*.cs" />
     <Compile Include="Mapping\**\*.cs" />

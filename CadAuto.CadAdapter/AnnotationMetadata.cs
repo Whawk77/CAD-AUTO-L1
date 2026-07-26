@@ -101,13 +101,25 @@ public static class AnnotationMetadata
 
 	public static int ClearGeneratedAnnotations(Database db, Transaction tr)
 	{
+		return ClearGeneratedAnnotations(db, tr, new string[2] { KindDimension, KindCoreDebug });
+	}
+
+	/// <summary>
+	/// Erases plugin-generated annotations whose Kind is in <paramref name="kinds"/>.
+	/// Entities marked before the Kind field existed read back as KindDimension.
+	/// </summary>
+	public static int ClearGeneratedAnnotations(Database db, Transaction tr, IEnumerable<string> kinds)
+	{
 		EnsureRegApp(db, tr);
+		HashSet<string> allowedKinds = new HashSet<string>(kinds ?? new string[0], StringComparer.Ordinal);
 		int num = 0;
 		BlockTable blockTable = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
 		foreach (ObjectId item in blockTable)
 		{
 			BlockTableRecord blockTableRecord = (BlockTableRecord)tr.GetObject(item, OpenMode.ForRead);
-			if (blockTableRecord.IsFromExternalReference || blockTableRecord.IsDependent)
+			// Writers only ever append to the current space; walking block DEFINITIONS would
+			// erase annotations that the user turned into a block, changing every insertion.
+			if (blockTableRecord.IsFromExternalReference || blockTableRecord.IsDependent || !blockTableRecord.IsLayout)
 			{
 				continue;
 			}
@@ -115,7 +127,7 @@ public static class AnnotationMetadata
 			foreach (ObjectId item2 in blockTableRecord)
 			{
 				Entity entity = tr.GetObject(item2, OpenMode.ForRead, openErased: false) as Entity;
-				if (entity != null && IsMarked(entity))
+				if (entity != null && IsMarked(entity) && allowedKinds.Contains(GetKind(entity)))
 				{
 					list.Add(item2);
 				}
@@ -160,7 +172,7 @@ public static class AnnotationMetadata
 		foreach (ObjectId item in blockTable)
 		{
 			BlockTableRecord blockTableRecord = (BlockTableRecord)tr.GetObject(item, OpenMode.ForRead);
-			if (blockTableRecord.IsFromExternalReference || blockTableRecord.IsDependent)
+			if (blockTableRecord.IsFromExternalReference || blockTableRecord.IsDependent || !blockTableRecord.IsLayout)
 			{
 				continue;
 			}

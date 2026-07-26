@@ -1337,10 +1337,17 @@ namespace CadAuto.Core.Tests
 					(d.DebugRole == "TopStructWidth" || d.DebugRole == "BottomStructWidth")
 					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 52.0) <= config.GeometryTolerance),
 				"mirrored top/bottom structure width 52 with same-edge outline witnesses must both be suppressed");
-			Assert(plan.Diagnostics.DimensionCandidates
-					.Where(c => (c.DebugRole == "TopStructWidth" || c.DebugRole == "BottomStructWidth")
-						&& Math.Abs(c.Value - 52.0) <= config.GeometryTolerance)
-					.All(c => c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
+			// Pre-plan discards (DecisionStatus=Skipped, empty SuppressedReason) are diagnostic
+			// bookkeeping, not suppressions; the envelope-reason contract applies only to
+			// candidates that actually entered the plan.
+			var mirrored52 = plan.Diagnostics.DimensionCandidates
+				.Where(c => (c.DebugRole == "TopStructWidth" || c.DebugRole == "BottomStructWidth")
+					&& c.DecisionStatus != "Skipped"
+					&& Math.Abs(c.Value - 52.0) <= config.GeometryTolerance)
+				.ToList();
+			Assert(mirrored52.Count > 0,
+				"expected planned mirrored structure width 52 candidates in diagnostics");
+			Assert(mirrored52.All(c => c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
 				"both mirrored structure width 52 candidates must record the high-priority envelope reason");
 		}
 

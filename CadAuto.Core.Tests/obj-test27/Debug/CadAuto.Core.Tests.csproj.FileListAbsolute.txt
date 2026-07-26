@@ -1,9 +1,0 @@
-C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\63204e87a69a5183\CadAuto.Core.Tests\bin\TestBuild27\CadAuto.Core.Tests.exe
-C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\63204e87a69a5183\CadAuto.Core.Tests\bin\TestBuild27\CadAuto.Core.Tests.pdb
-C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\63204e87a69a5183\CadAuto.Core.Tests\bin\TestBuild27\CadAuto.Core.dll
-C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\63204e87a69a5183\CadAuto.Core.Tests\bin\TestBuild27\CadAuto.Core.pdb
-C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\63204e87a69a5183\CadAuto.Core.Tests\obj-test27\Debug\CadAuto.Core.Tests.csproj.AssemblyReference.cache
-C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\63204e87a69a5183\CadAuto.Core.Tests\obj-test27\Debug\CadAuto.Core.Tests.csproj.CoreCompileInputs.cache
-C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\63204e87a69a5183\CadAuto.Core.Tests\obj-test27\Debug\CadAuto..246D6116.Up2Date
-C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\63204e87a69a5183\CadAuto.Core.Tests\obj-test27\Debug\CadAuto.Core.Tests.exe
-C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\63204e87a69a5183\CadAuto.Core.Tests\obj-test27\Debug\CadAuto.Core.Tests.pdb

@@ -1499,16 +1499,7 @@ public sealed class FeatureRecognizer
 
 	private bool IsThreadArc(Arc arc)
 	{
-		double num;
-		for (num = arc.EndAngle - arc.StartAngle; num < 0.0; num += Math.PI * 2.0)
-		{
-		}
-		while (num > Math.PI * 2.0)
-		{
-			num -= Math.PI * 2.0;
-		}
-		double num2 = 4.71238898038469;
-		return num >= num2 - _config.GeometryTolerance;
+		return ThreadArcRules.IsThreadSweep(GetArcSweep(arc), _config);
 	}
 
 	private bool IsConfirmedThreadArc(Arc arc, IList<Circle> selectionCircles)

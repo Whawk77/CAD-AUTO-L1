@@ -57,7 +57,9 @@ public sealed class DimensionRuleConfig
 			FirstDimOffset = 10.0,
 			DimTextClearance = 3.0,
 			LeaderOffset = 12.0,
-			ThreadArcAngleToleranceDegrees = 10.0,
+			// Conservative first rollout: 10.0 would also accept 260-270 degree
+			// non-thread arcs. Widen only after a clean production run.
+			ThreadArcAngleToleranceDegrees = 2.0,
 			ThreadMinorDiameterTolerance = 0.25,
 			ToleranceTextHeightScale = 0.8,
 			DatumHoleLocationToleranceText = "<>\\H0.8x;±0.05\\H1x;",

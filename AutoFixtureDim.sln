@@ -1,0 +1,39 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoFixtureDim", "AutoFixtureDim.csproj", "{F6C921D7-38F5-4C7D-B278-11451A77F65A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CadAuto.Core", "CadAuto.Core\CadAuto.Core.csproj", "{C02F0A83-F636-47FB-A70E-9251A35E7239}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CadAuto.CadAdapter", "CadAuto.CadAdapter\CadAuto.CadAdapter.csproj", "{0A29EBA4-7D4C-44EF-B9C8-7D5E25594F4C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CadAuto.Core.Tests", "CadAuto.Core.Tests\CadAuto.Core.Tests.csproj", "{33CBB849-3665-4264-A101-C18F9EB8FB58}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F6C921D7-38F5-4C7D-B278-11451A77F65A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F6C921D7-38F5-4C7D-B278-11451A77F65A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F6C921D7-38F5-4C7D-B278-11451A77F65A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F6C921D7-38F5-4C7D-B278-11451A77F65A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C02F0A83-F636-47FB-A70E-9251A35E7239}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C02F0A83-F636-47FB-A70E-9251A35E7239}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C02F0A83-F636-47FB-A70E-9251A35E7239}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C02F0A83-F636-47FB-A70E-9251A35E7239}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0A29EBA4-7D4C-44EF-B9C8-7D5E25594F4C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0A29EBA4-7D4C-44EF-B9C8-7D5E25594F4C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0A29EBA4-7D4C-44EF-B9C8-7D5E25594F4C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0A29EBA4-7D4C-44EF-B9C8-7D5E25594F4C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{33CBB849-3665-4264-A101-C18F9EB8FB58}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{33CBB849-3665-4264-A101-C18F9EB8FB58}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{33CBB849-3665-4264-A101-C18F9EB8FB58}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{33CBB849-3665-4264-A101-C18F9EB8FB58}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

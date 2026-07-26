@@ -1636,83 +1636,6 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	private IEnumerable<List<HoleFeature2D>> GroupNonPinHolesByCoordinate(IList<HoleFeature2D> holes, bool horizontal)
-	{
-		double tolerance = GetFunctionalHoleAlignmentTolerance();
-		List<List<HoleFeature2D>> list = new List<List<HoleFeature2D>>();
-		foreach (HoleFeature2D item in holes.OrderBy((HoleFeature2D h) => horizontal ? h.Center.Y : h.Center.X))
-		{
-			double coordinate = (horizontal ? item.Center.Y : item.Center.X);
-			List<HoleFeature2D> list2 = list.FirstOrDefault((List<HoleFeature2D> g) => Math.Abs(g.Average((HoleFeature2D h) => horizontal ? h.Center.Y : h.Center.X) - coordinate) <= tolerance);
-			if (list2 == null)
-			{
-				list2 = new List<HoleFeature2D>();
-				list.Add(list2);
-			}
-			list2.Add(item);
-		}
-		return from g in list
-			where g.Count >= 2
-			orderby g.Average((HoleFeature2D h) => horizontal ? h.Center.Y : h.Center.X)
-			select (from h in g
-				orderby horizontal ? h.Center.X : h.Center.Y, horizontal ? h.Center.Y : h.Center.X
-				select h).ToList();
-	}
-
-	private void AddNonPinHoleHorizontalChain(DimensionPlan plan, OutlineFeature2D outline, Datum2D datum, IList<HoleFeature2D> row)
-	{
-		List<HoleFeature2D> list = (from h in row
-			orderby h.Center.X, h.Center.Y
-			select h).ToList();
-		if (list.Count != 0)
-		{
-			DimensionSide side = ChooseLooseDimensionSide(outline, list, horizontal: true);
-			AddHorizontalOutlineReferenceDimension(plan, outline, datum.BaseX, list[0].Center, DimensionKind.HoleLocation, side, string.Empty, "HoleChainH", null, preferFeatureLocalPlacement: true);
-			for (int num = 1; num < list.Count; num++)
-			{
-				AddDimension(plan, DimensionKind.HoleLocation, DimensionOrientation.Horizontal, side, list[num - 1].Center, list[num].Center, string.Empty, "HoleChainH", null, preferFeatureLocalPlacement: true);
-			}
-		}
-	}
-
-	private void AddNonPinHoleVerticalChain(DimensionPlan plan, OutlineFeature2D outline, Datum2D datum, IList<HoleFeature2D> column)
-	{
-		List<HoleFeature2D> list = (from h in column
-			orderby h.Center.Y, h.Center.X
-			select h).ToList();
-		if (list.Count != 0)
-		{
-			DimensionSide side = ChooseLooseDimensionSide(outline, list, horizontal: false);
-			AddVerticalOutlineReferenceDimension(plan, outline, datum.BaseY, list[0].Center, DimensionKind.HoleLocation, side, string.Empty, "HoleChainV", null, preferFeatureLocalPlacement: true);
-			for (int num = 1; num < list.Count; num++)
-			{
-				AddDimension(plan, DimensionKind.HoleLocation, DimensionOrientation.Vertical, side, list[num - 1].Center, list[num].Center, string.Empty, "HoleChainV", null, preferFeatureLocalPlacement: true);
-			}
-		}
-	}
-
-	private void AddNonPinHoleRowLocation(DimensionPlan plan, OutlineFeature2D outline, Datum2D datum, IList<HoleFeature2D> row)
-	{
-		HoleFeature2D holeFeature2D = (from h in row
-			orderby Math.Abs(h.Center.X - datum.BaseX), h.Center.X
-			select h).FirstOrDefault();
-		if (holeFeature2D != null)
-		{
-			AddVerticalOutlineReferenceDimension(plan, outline, datum.BaseY, holeFeature2D.Center, DimensionKind.HoleLocation, ChooseVerticalHoleSide(outline, holeFeature2D.Center), string.Empty, "HoleRowY");
-		}
-	}
-
-	private void AddNonPinHoleColumnLocation(DimensionPlan plan, OutlineFeature2D outline, Datum2D datum, IList<HoleFeature2D> column)
-	{
-		HoleFeature2D holeFeature2D = (from h in column
-			orderby Math.Abs(h.Center.Y - datum.BaseY), h.Center.Y
-			select h).FirstOrDefault();
-		if (holeFeature2D != null)
-		{
-			AddHorizontalOutlineReferenceDimension(plan, outline, datum.BaseX, holeFeature2D.Center, DimensionKind.HoleLocation, ChooseHorizontalHoleSide(outline, holeFeature2D.Center), string.Empty, "HoleColumnX");
-		}
-	}
-
 	private void AddNonPinHoleDatumLocation(DimensionPlan plan, OutlineFeature2D outline, Datum2D datum, HoleFeature2D hole)
 	{
 		AddHorizontalOutlineReferenceDimension(plan, outline, datum.BaseX, hole.Center, DimensionKind.HoleLocation, ChooseHorizontalHoleSide(outline, hole.Center), string.Empty, "HoleDatumX");
@@ -3314,18 +3237,6 @@ public sealed class DimensionPlanner
 		return list;
 	}
 
-	private Point2D? GetTopMostPoint(IEnumerable<Segment2D> segments)
-	{
-		List<Point2D> list = segments.SelectMany((Segment2D s) => new Point2D[2] { s.Start, s.End }).ToList();
-		if (list.Count == 0)
-		{
-			return null;
-		}
-		return (from p in list
-			orderby p.Y descending, p.X
-			select p).First();
-	}
-
 	private StructurePoint GetTopMostStructurePoint(IEnumerable<Segment2D> segments, IList<IgnoredPoint> ignoredPoints)
 	{
 		List<Segment2D> source = segments.ToList();
@@ -3556,26 +3467,6 @@ public sealed class DimensionPlanner
 		return _structureEndpointRules.IsBottomSideHorizontalStructureCandidate(dim, outline, ignoredPoints);
 	}
 
-	private bool IsCurrentBottomSideStructurePoint(Point2D point, OutlineFeature2D outline, IList<Point2D> ignoredPoints)
-	{
-		if (IsBottomInclinedEndpointStructurePoint(point, outline, ignoredPoints))
-		{
-			return true;
-		}
-		List<Segment2D> list = (from s in outline.Segments
-			where s.IsVertical(_config.GeometryTolerance)
-			where !s.IsArcChord
-			where s.LengthY > _config.GeometryTolerance
-			where Math.Abs(s.MinX - point.X) <= _config.GeometryTolerance
-			select s).ToList();
-		if (list.Count == 0)
-		{
-			return false;
-		}
-		Point2D? bottomMostPoint = GetBottomMostPoint(list, ignoredPoints);
-		return bottomMostPoint.HasValue && PointsEqual(bottomMostPoint.Value, point);
-	}
-
 	private bool IsRightSideVerticalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IList<Point2D> ignoredPoints)
 	{
 		return _structureEndpointRules.IsRightSideVerticalStructureCandidate(dim, outline, ignoredPoints);
@@ -3584,26 +3475,6 @@ public sealed class DimensionPlanner
 	private bool IsLeftSideVerticalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IList<Point2D> ignoredPoints)
 	{
 		return _structureEndpointRules.IsLeftSideVerticalStructureCandidate(dim, outline, ignoredPoints);
-	}
-
-	private bool IsCurrentRightSideStructurePoint(Point2D point, OutlineFeature2D outline, IList<Point2D> ignoredPoints)
-	{
-		if (IsSideInclinedEndpointStructurePoint(point, outline, ignoredPoints, DimensionSide.Right))
-		{
-			return true;
-		}
-		List<Segment2D> list = (from s in outline.Segments
-			where s.IsHorizontal(_config.GeometryTolerance)
-			where !s.IsArcChord
-			where s.LengthX > _config.GeometryTolerance
-			where Math.Abs(s.MinY - point.Y) <= _config.GeometryTolerance
-			select s).ToList();
-		if (list.Count == 0)
-		{
-			return false;
-		}
-		Point2D? rightMostPoint = GetRightMostPoint(list, ignoredPoints);
-		return rightMostPoint.HasValue && PointsEqual(rightMostPoint.Value, point);
 	}
 
 	private void AddSideInclinedEndpointStructurePoints(IList<Point2D> points, OutlineFeature2D outline, IList<Point2D> ignoredPoints, DimensionSide side)
@@ -3628,20 +3499,6 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	private bool IsSideInclinedEndpointStructurePoint(Point2D point, OutlineFeature2D outline, IList<Point2D> ignoredPoints, DimensionSide side)
-	{
-		if (ContainsPoint(ignoredPoints, point) || IsEnvelopeHorizontalSidePoint(point, outline))
-		{
-			return false;
-		}
-		return (from s in (from s in outline.Segments
-				where !s.IsHorizontal(_config.GeometryTolerance)
-				where !s.IsVertical(_config.GeometryTolerance)
-				select s).Where(IsFortyFiveDegreeSegment)
-			where IsSideInnerGrooveChamferSegment(s, outline, side)
-			select s).Any((Segment2D s) => PointsEqual(point, s.Start) || PointsEqual(point, s.End));
-	}
-
 	private void AddBottomInclinedEndpointStructurePoints(IList<Point2D> points, OutlineFeature2D outline, IList<Point2D> ignoredPoints)
 	{
 		foreach (Segment2D item in from s in outline.Segments
@@ -3661,19 +3518,6 @@ public sealed class DimensionPlanner
 		{
 			points.Add(point);
 		}
-	}
-
-	private bool IsBottomInclinedEndpointStructurePoint(Point2D point, OutlineFeature2D outline, IList<Point2D> ignoredPoints)
-	{
-		if (ContainsPoint(ignoredPoints, point) || IsEnvelopeSidePoint(point, outline))
-		{
-			return false;
-		}
-		return (from s in outline.Segments
-			where !s.IsHorizontal(_config.GeometryTolerance)
-			where !s.IsVertical(_config.GeometryTolerance)
-			where IsInnerGrooveChamferSegment(s, outline, isTopSide: false)
-			select s).Any((Segment2D s) => PointsEqual(point, s.Start) || PointsEqual(point, s.End));
 	}
 
 	private bool BottomExtensionCrossesOutline(Point2D featurePoint, OutlineFeature2D outline)
@@ -3837,26 +3681,6 @@ public sealed class DimensionPlanner
 		return _structureEndpointRules.IsTopSideHorizontalStructureCandidate(dim, outline, ignoredPoints.Select((IgnoredPoint p) => p.Point).ToList());
 	}
 
-	private bool IsCurrentTopSideStructurePoint(Point2D point, OutlineFeature2D outline, IList<IgnoredPoint> ignoredPoints)
-	{
-		if (IsTopInclinedEndpointStructurePoint(point, outline, ignoredPoints))
-		{
-			return true;
-		}
-		List<Segment2D> list = (from s in outline.Segments
-			where s.IsVertical(_config.GeometryTolerance)
-			where !s.IsArcChord
-			where s.LengthY > _config.GeometryTolerance
-			where Math.Abs(s.MinX - point.X) <= _config.GeometryTolerance
-			select s).ToList();
-		if (list.Count == 0)
-		{
-			return false;
-		}
-		StructurePoint topMostStructurePoint = GetTopMostStructurePoint(list, ignoredPoints);
-		return topMostStructurePoint != null && PointsEqual(topMostStructurePoint.Point, point);
-	}
-
 	private void AddTopInclinedEndpointStructurePoints(IList<StructurePoint> points, OutlineFeature2D outline, IList<IgnoredPoint> ignoredPoints)
 	{
 		foreach (Segment2D item in from s in (from s in outline.Segments
@@ -3881,20 +3705,6 @@ public sealed class DimensionPlanner
 				Source = "TopInclinedEndpoint"
 			});
 		}
-	}
-
-	private bool IsTopInclinedEndpointStructurePoint(Point2D point, OutlineFeature2D outline, IList<IgnoredPoint> ignoredPoints)
-	{
-		if (ContainsIgnoredPoint(ignoredPoints, point) || IsEnvelopeSidePoint(point, outline))
-		{
-			return false;
-		}
-		return (from s in (from s in outline.Segments
-				where !s.IsHorizontal(_config.GeometryTolerance)
-				where !s.IsVertical(_config.GeometryTolerance)
-				select s).Where(IsFortyFiveDegreeSegment)
-			where IsInnerGrooveChamferSegment(s, outline, isTopSide: true)
-			select s).Any((Segment2D s) => PointsEqual(point, s.Start) || PointsEqual(point, s.End));
 	}
 
 	private void AddTopSlopeEndpointStructurePoints(IList<StructurePoint> points, OutlineFeature2D outline, IList<IgnoredPoint> ignoredPoints)
@@ -4091,11 +3901,6 @@ public sealed class DimensionPlanner
 		return _structureSuppressionRules.IsSideDirectionalIgnoredEndpoint(point, segment, side);
 	}
 
-	private bool IsDirectionalInclinedEndpoint(Point2D point, Segment2D segment, bool invertDirection)
-	{
-		return _structureSuppressionRules.IsDirectionalIgnoredEndpoint(point, segment, invertDirection);
-	}
-
 	private bool IsEnvelopeSidePoint(Point2D point, OutlineFeature2D outline)
 	{
 		return _structureSuppressionRules.IsEnvelopeSidePoint(point, outline);
@@ -4277,12 +4082,6 @@ public sealed class DimensionPlanner
 			&& Math.Abs(segment.MinX - dimension.FirstPoint.X) <= tol
 			&& segment.MinY <= minY + tol
 			&& segment.MaxY >= maxY - tol);
-	}
-
-	private static bool IsStructureOverallPartitionPartnerRole(string debugRole)
-	{
-		return IsStructureWidthOrHeightRole(debugRole)
-			|| string.Equals(debugRole, "OutlineSegment", StringComparison.Ordinal);
 	}
 
 	/// <summary>
@@ -4523,40 +4322,6 @@ public sealed class DimensionPlanner
 		AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Vertical, DimensionSide.Left, from, to, string.Empty, debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority);
 	}
 
-	private void AddHorizontalDimFromX(DimensionPlan plan, double x, Point2D target, string debugRole)
-	{
-		AddHorizontalDim(plan, new Point2D(x, target.Y), target, debugRole);
-	}
-
-	private void AddVerticalDimFromY(DimensionPlan plan, double y, Point2D target, string debugRole)
-	{
-		AddVerticalDim(plan, new Point2D(target.X, y), target, debugRole);
-	}
-
-	private void AddHorizontalChainFromDatum(DimensionPlan plan, double datumX, IList<Point2D> ordered, string debugRole)
-	{
-		if (ordered != null && ordered.Count != 0)
-		{
-			AddHorizontalDimFromX(plan, datumX, ordered[0], debugRole);
-			for (int i = 1; i < ordered.Count; i++)
-			{
-				AddHorizontalDim(plan, ordered[i - 1], ordered[i], debugRole);
-			}
-		}
-	}
-
-	private void AddVerticalChainFromDatum(DimensionPlan plan, double datumY, IList<Point2D> ordered, string debugRole)
-	{
-		if (ordered != null && ordered.Count != 0)
-		{
-			AddVerticalDimFromY(plan, datumY, ordered[0], debugRole);
-			for (int i = 1; i < ordered.Count; i++)
-			{
-				AddVerticalDim(plan, ordered[i - 1], ordered[i], debugRole);
-			}
-		}
-	}
-
 	private List<List<Point2D>> GroupSlotAnchorsByCoordinate(IEnumerable<SlotFeature2D> slots, Datum2D datum, Func<Point2D, double> coordinate)
 	{
 		List<List<Point2D>> list = new List<List<Point2D>>();
@@ -4608,32 +4373,6 @@ public sealed class DimensionPlanner
 		{
 			AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Horizontal, DimensionSide.Bottom, firstPoint, singleArcSlotHorizontalGripPoint, _config.FormatNumber(num), "SingleArcSlotDatum", slot.GroupId);
 		}
-	}
-
-	private Point2D FindOutlinePointAtX(OutlineFeature2D outline, double x, double preferredY)
-	{
-		List<Point2D> list = new List<Point2D>();
-		foreach (Point2D vertex in outline.Vertices)
-		{
-			if (Math.Abs(vertex.X - x) <= _config.GeometryTolerance)
-			{
-				list.Add(vertex);
-			}
-		}
-		foreach (Segment2D item in outline.Segments.Where((Segment2D s) => s.IsVertical(_config.GeometryTolerance)))
-		{
-			if (!(Math.Abs(item.Start.X - x) > _config.GeometryTolerance))
-			{
-				double y = Math.Max(item.MinY, Math.Min(item.MaxY, preferredY));
-				list.Add(new Point2D(x, y));
-			}
-		}
-		// Do not use FirstOrDefault() on Point2D (default (0,0) looks like a hit).
-		if (list.Count == 0)
-		{
-			return new Point2D(x, preferredY);
-		}
-		return list.OrderBy((Point2D p) => Math.Abs(p.Y - preferredY)).First();
 	}
 
 	private Point2D GetSingleArcSlotHorizontalGripPoint(SlotFeature2D slot, double preferredY)
@@ -4765,11 +4504,6 @@ public sealed class DimensionPlanner
 		double num = a.X - b.X;
 		double num2 = a.Y - b.Y;
 		return num * num + num2 * num2;
-	}
-
-	private Point2D Midpoint(Point2D a, Point2D b)
-	{
-		return new Point2D((a.X + b.X) / 2.0, (a.Y + b.Y) / 2.0);
 	}
 
 	private DimensionSide ChooseHorizontalHoleSide(OutlineFeature2D outline, Datum2D datum, Point2D point)

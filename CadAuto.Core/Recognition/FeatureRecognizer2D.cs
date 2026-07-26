@@ -692,22 +692,36 @@ public sealed class FeatureRecognizer2D
 
 	private bool TryGetChamferAxisNeighbors(OutlineFeature2D outline, Segment2D chamfer, out Segment2D firstNeighbor, out Segment2D secondNeighbor)
 	{
-		firstNeighbor = FindAxisNeighborAtPoint(outline, chamfer, chamfer.Start);
-		secondNeighbor = FindAxisNeighborAtPoint(outline, chamfer, chamfer.End);
-		return firstNeighbor != null && secondNeighbor != null && firstNeighbor != secondNeighbor && ArePerpendicularAxisSegments(firstNeighbor, secondNeighbor);
+		// Mirrors the production recognizer: try (horizontal@Start, vertical@End) then
+		// (vertical@Start, horizontal@End); a single longest-neighbor per endpoint misses
+		// step corners where the longest neighbor has the wrong orientation.
+		firstNeighbor = null;
+		secondNeighbor = null;
+		Segment2D horizontalAtStart = FindAxisNeighborAtPoint(outline, chamfer, chamfer.Start, horizontal: true);
+		Segment2D verticalAtStart = FindAxisNeighborAtPoint(outline, chamfer, chamfer.Start, horizontal: false);
+		Segment2D horizontalAtEnd = FindAxisNeighborAtPoint(outline, chamfer, chamfer.End, horizontal: true);
+		Segment2D verticalAtEnd = FindAxisNeighborAtPoint(outline, chamfer, chamfer.End, horizontal: false);
+		if (horizontalAtStart != null && verticalAtEnd != null && horizontalAtStart != verticalAtEnd)
+		{
+			firstNeighbor = horizontalAtStart;
+			secondNeighbor = verticalAtEnd;
+			return true;
+		}
+		if (verticalAtStart != null && horizontalAtEnd != null && verticalAtStart != horizontalAtEnd)
+		{
+			firstNeighbor = verticalAtStart;
+			secondNeighbor = horizontalAtEnd;
+			return true;
+		}
+		return false;
 	}
 
-	private Segment2D FindAxisNeighborAtPoint(OutlineFeature2D outline, Segment2D chamfer, Point2D point)
+	private Segment2D FindAxisNeighborAtPoint(OutlineFeature2D outline, Segment2D chamfer, Point2D point, bool horizontal)
 	{
 		return (from segment in outline.Segments
-			where segment != chamfer && !segment.IsArcChord && (segment.IsHorizontal(_config.GeometryTolerance) || segment.IsVertical(_config.GeometryTolerance)) && (PointsEqual(segment.Start, point) || PointsEqual(segment.End, point))
+			where segment != chamfer && !segment.IsArcChord && (PointsEqual(segment.Start, point) || PointsEqual(segment.End, point)) && (horizontal ? segment.IsHorizontal(_config.GeometryTolerance) : segment.IsVertical(_config.GeometryTolerance))
 			orderby segment.Length descending
 			select segment).FirstOrDefault();
-	}
-
-	private bool ArePerpendicularAxisSegments(Segment2D first, Segment2D second)
-	{
-		return (first.IsHorizontal(_config.GeometryTolerance) && second.IsVertical(_config.GeometryTolerance)) || (first.IsVertical(_config.GeometryTolerance) && second.IsHorizontal(_config.GeometryTolerance));
 	}
 
 	private bool PointsEqual(Point2D a, Point2D b)

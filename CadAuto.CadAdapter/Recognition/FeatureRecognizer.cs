@@ -765,6 +765,25 @@ public sealed class FeatureRecognizer
 		return new Point2d(arc.Center.X - num6 / num7 * arc.Radius, arc.Center.Y + num5 / num7 * arc.Radius);
 	}
 
+	/// <summary>
+	/// Signed bulge for a standalone Arc entity: magnitude from the swept angle, sign from the
+	/// traversal direction in WCS (an Arc always runs counter-clockwise in its OWN plane, so a
+	/// negative Normal.Z means clockwise once observed in WCS).
+	/// </summary>
+	private static double GetArcBulge(Arc arc)
+	{
+		double sweep = GetArcSweep(arc);
+		// tan(sweep / 4) diverges as sweep approaches a full turn; clamp just below it so a
+		// near-complete arc yields a large but finite bulge instead of Infinity or NaN.
+		double maxSweep = Math.PI * 2.0 - 1E-06;
+		if (sweep > maxSweep)
+		{
+			sweep = maxSweep;
+		}
+		double magnitude = Math.Tan(sweep / 4.0);
+		return (arc.Normal.Z >= 0.0) ? magnitude : (0.0 - magnitude);
+	}
+
 	private static double GetArcSweep(Arc arc)
 	{
 		double num;
@@ -886,6 +905,12 @@ public sealed class FeatureRecognizer
 			Point2d point2d4 = new Point2d(arc.EndPoint.X, arc.EndPoint.Y);
 			AddVertex(outline, point2d3);
 			AddVertex(outline, point2d4);
+			// StartAngle/EndAngle are measured in the arc's own OCS. Mirrored geometry leaves
+			// Normal.Z negative, which makes those angles meaningless as WCS angles and reverses
+			// the traversal direction. Encode direction in the bulge SIGN (the only thing Core's
+			// IsAngleOnArc reads, via sweep = 4*atan(bulge)) and let the bulge overload recover
+			// the angles from the WCS start and end points instead.
+			double arcBulge = GetArcBulge(arc);
 			outline.Arcs.Add(new OutlineArc
 			{
 				Start = point2d3,
@@ -893,9 +918,9 @@ public sealed class FeatureRecognizer
 				Center = new Point2d(arc.Center.X, arc.Center.Y),
 				Radius = arc.Radius,
 				SourceId = entity.ObjectId,
-				Bulge = Math.Tan(GetArcSweep(arc) / 4.0)
+				Bulge = arcBulge
 			});
-			AddArcEnvelopePoints(outline, point2d3, point2d4, new Point2d(arc.Center.X, arc.Center.Y), arc.Radius, arc.StartAngle, arc.EndAngle, counterClockwise: true);
+			AddArcEnvelopePoints(outline, point2d3, point2d4, new Point2d(arc.Center.X, arc.Center.Y), arc.Radius, arcBulge);
 			return;
 		}
 		Circle circle = entity as Circle;

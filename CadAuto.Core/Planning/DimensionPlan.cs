@@ -50,6 +50,14 @@ public sealed class DimensionPlan
 		}
 	}
 
+	public void AddDiscardedCandidate(PlannedDimension dimension, string reason)
+	{
+		if (dimension != null)
+		{
+			AddSkippedDimension(dimension.Kind, dimension.Orientation, dimension.Side, dimension.FirstPoint, dimension.SecondPoint, reason, dimension.DebugRole, dimension.DebugOwner);
+		}
+	}
+
 	public void AddSkippedDimension(DimensionKind kind, DimensionOrientation orientation, DimensionSide side, Point2D requestedFirstPoint, Point2D secondPoint, string reason, string debugRole, string debugOwner = null)
 	{
 		string text = reason ?? string.Empty;

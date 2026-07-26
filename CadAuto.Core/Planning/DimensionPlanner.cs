@@ -2631,11 +2631,11 @@ public sealed class DimensionPlanner
 
 	private void AddStepOutlineDimensions(DimensionPlan plan, OutlineFeature2D outline)
 	{
-		AddHorizontalStructureDimensions(plan, outline, BuildTopStructureWidthDimensions(outline));
-		AddHorizontalStructureDimensions(plan, outline, BuildBottomStructureWidthDimensions(outline));
-		AddVerticalStructureDimensions(plan, outline, BuildLeftStructureHeightDimensions(outline));
+		AddHorizontalStructureDimensions(plan, outline, BuildTopStructureWidthDimensions(outline, plan));
+		AddHorizontalStructureDimensions(plan, outline, BuildBottomStructureWidthDimensions(outline, plan));
+		AddVerticalStructureDimensions(plan, outline, BuildLeftStructureHeightDimensions(outline, plan));
 		AddDatumRootedLeftOuterStepDimension(plan, outline);
-		AddVerticalStructureDimensions(plan, outline, BuildRightStructureHeightDimensions(outline));
+		AddVerticalStructureDimensions(plan, outline, BuildRightStructureHeightDimensions(outline, plan));
 		AddChamferedTopStepDimensions(plan, outline);
 	}
 
@@ -2767,7 +2767,7 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	internal IList<PlannedDimension> BuildTopStructureWidthDimensions(OutlineFeature2D outline)
+	internal IList<PlannedDimension> BuildTopStructureWidthDimensions(OutlineFeature2D outline, DimensionPlan plan = null)
 	{
 		List<IgnoredPoint> ignoredPoints = new List<IgnoredPoint>();
 		List<PlannedDimension> list2;
@@ -2790,10 +2790,16 @@ public sealed class DimensionPlanner
 				return new List<PlannedDimension>();
 			}
 		}
+		List<PlannedDimension> snapshot = new List<PlannedDimension>(list2);
 		RemoveLongestTopExtensionCandidate(list2, outline);
+		RecordDiscardedCandidates(plan, snapshot, list2, "LongestExtensionCandidate");
 		SnapComplementaryHorizontalRemainderEndpoints(list2, outline);
+		snapshot = new List<PlannedDimension>(list2);
 		RemoveComplementaryOverallRemainderCandidates(list2, outline.MinX, outline.MaxX, horizontal: true);
-		return list2.Where((PlannedDimension dim) => IsTopSideHorizontalStructureCandidate(dim, outline, ignoredPoints)).ToList();
+		RecordDiscardedCandidates(plan, snapshot, list2, "ComplementaryOverallRemainder");
+		List<PlannedDimension> kept = list2.Where((PlannedDimension dim) => IsTopSideHorizontalStructureCandidate(dim, outline, ignoredPoints)).ToList();
+		RecordDiscardedCandidates(plan, list2, kept, "NotTopSideStructureCandidate");
+		return kept;
 	}
 
 	private List<PlannedDimension> BuildHorizontalWidthCandidates(IList<Point2D> points, DimensionSide side, string debugRole)
@@ -2852,7 +2858,7 @@ public sealed class DimensionPlanner
 		}
 	}
 
-	internal IList<PlannedDimension> BuildLeftStructureHeightDimensions(OutlineFeature2D outline)
+	internal IList<PlannedDimension> BuildLeftStructureHeightDimensions(OutlineFeature2D outline, DimensionPlan plan = null)
 	{
 		List<Point2D> ignoredPoints = new List<Point2D>();
 		List<PlannedDimension> list2;
@@ -2874,14 +2880,20 @@ public sealed class DimensionPlanner
 				return new List<PlannedDimension>();
 			}
 		}
+		List<PlannedDimension> snapshot = new List<PlannedDimension>(list2);
 		RemoveLongestLeftExtensionCandidate(list2, outline);
+		RecordDiscardedCandidates(plan, snapshot, list2, "LongestExtensionCandidate");
 		// Phase 2: same complementary remainder path as right structure heights.
 		SnapComplementaryVerticalRemainderEndpoints(list2, outline);
+		snapshot = new List<PlannedDimension>(list2);
 		RemoveComplementaryOverallRemainderCandidates(list2, outline.MinY, outline.MaxY, horizontal: false);
-		return list2.Where((PlannedDimension dim) => IsLeftSideVerticalStructureCandidate(dim, outline, ignoredPoints)).ToList();
+		RecordDiscardedCandidates(plan, snapshot, list2, "ComplementaryOverallRemainder");
+		List<PlannedDimension> kept = list2.Where((PlannedDimension dim) => IsLeftSideVerticalStructureCandidate(dim, outline, ignoredPoints)).ToList();
+		RecordDiscardedCandidates(plan, list2, kept, "NotLeftSideStructureCandidate");
+		return kept;
 	}
 
-	internal IList<PlannedDimension> BuildRightStructureHeightDimensions(OutlineFeature2D outline)
+	internal IList<PlannedDimension> BuildRightStructureHeightDimensions(OutlineFeature2D outline, DimensionPlan plan = null)
 	{
 		List<Point2D> ignoredPoints = new List<Point2D>();
 		List<PlannedDimension> list2;
@@ -2903,10 +2915,31 @@ public sealed class DimensionPlanner
 				return new List<PlannedDimension>();
 			}
 		}
+		List<PlannedDimension> snapshot = new List<PlannedDimension>(list2);
 		RemoveLongestRightExtensionCandidate(list2, outline);
+		RecordDiscardedCandidates(plan, snapshot, list2, "LongestExtensionCandidate");
 		SnapComplementaryVerticalRemainderEndpoints(list2, outline);
+		snapshot = new List<PlannedDimension>(list2);
 		RemoveComplementaryOverallRemainderCandidates(list2, outline.MinY, outline.MaxY, horizontal: false);
-		return list2.Where((PlannedDimension dim) => IsRightSideVerticalStructureCandidate(dim, outline, ignoredPoints)).ToList();
+		RecordDiscardedCandidates(plan, snapshot, list2, "ComplementaryOverallRemainder");
+		List<PlannedDimension> kept = list2.Where((PlannedDimension dim) => IsRightSideVerticalStructureCandidate(dim, outline, ignoredPoints)).ToList();
+		RecordDiscardedCandidates(plan, list2, kept, "NotRightSideStructureCandidate");
+		return kept;
+	}
+
+	private static void RecordDiscardedCandidates(DimensionPlan plan, IList<PlannedDimension> before, IList<PlannedDimension> after, string reason)
+	{
+		if (plan == null)
+		{
+			return;
+		}
+		foreach (PlannedDimension candidate in before)
+		{
+			if (!after.Contains(candidate))
+			{
+				plan.AddDiscardedCandidate(candidate, reason);
+			}
+		}
 	}
 
 	private void RemoveComplementaryOverallRemainderCandidates(IList<PlannedDimension> candidates, double overallMin, double overallMax, bool horizontal)
@@ -3113,7 +3146,7 @@ public sealed class DimensionPlanner
 			select p).ToList();
 	}
 
-	internal IList<PlannedDimension> BuildBottomStructureWidthDimensions(OutlineFeature2D outline)
+	internal IList<PlannedDimension> BuildBottomStructureWidthDimensions(OutlineFeature2D outline, DimensionPlan plan = null)
 	{
 		List<Point2D> ignoredPoints = new List<Point2D>();
 		List<PlannedDimension> list2;
@@ -3135,11 +3168,15 @@ public sealed class DimensionPlanner
 				return new List<PlannedDimension>();
 			}
 		}
+		List<PlannedDimension> snapshot = new List<PlannedDimension>(list2);
 		RemoveLongestBottomExtensionCandidate(list2, outline);
+		RecordDiscardedCandidates(plan, snapshot, list2, "LongestExtensionCandidate");
 		// ponytail: Bottom intentionally skips the complementary-remainder snap/removal that
 		// Top/Left/Right run here (Bottom is the datum side); add it only when a concrete
 		// repro shows a bottom remainder duplicate.
-		return list2.Where((PlannedDimension dim) => IsBottomSideHorizontalStructureCandidate(dim, outline, ignoredPoints)).ToList();
+		List<PlannedDimension> kept = list2.Where((PlannedDimension dim) => IsBottomSideHorizontalStructureCandidate(dim, outline, ignoredPoints)).ToList();
+		RecordDiscardedCandidates(plan, list2, kept, "NotBottomSideStructureCandidate");
+		return kept;
 	}
 
 	private List<Point2D> BuildBottomSideHorizontalStructurePoints(OutlineFeature2D outline, IList<Point2D> ignoredPoints)

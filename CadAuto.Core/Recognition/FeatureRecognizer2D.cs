@@ -473,7 +473,18 @@ public sealed class FeatureRecognizer2D
 			double num4 = num + num3 / 2.0;
 			return new Point2D(arc.Center.X + Math.Cos(num4) * arc.Radius, arc.Center.Y + Math.Sin(num4) * arc.Radius);
 		}
-		return new Point2D((arc.Start.X + arc.End.X) / 2.0, (arc.Start.Y + arc.End.Y) / 2.0);
+		// Low-bulge fallback must still land on the circumference (chord-normal offset,
+		// matching the production GetOutlineArcMidPoint): for a half-arc slot the chord
+		// midpoint equals the slot center, and ArcLeaderTarget must never point at empty
+		// space inside the slot.
+		double chordX = arc.End.X - arc.Start.X;
+		double chordY = arc.End.Y - arc.Start.Y;
+		double chordLength = Math.Sqrt(chordX * chordX + chordY * chordY);
+		if (chordLength <= 1E-09)
+		{
+			return new Point2D(arc.Center.X + arc.Radius, arc.Center.Y);
+		}
+		return new Point2D(arc.Center.X - chordY / chordLength * arc.Radius, arc.Center.Y + chordX / chordLength * arc.Radius);
 	}
 
 	private static string CreateSlotGroupId(int slotIndex)

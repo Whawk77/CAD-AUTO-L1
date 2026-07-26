@@ -181,7 +181,7 @@ LSP 侧新增可选门控：加载 LSP 后、执行 `V203*` 前设置
 - `fixtureReady` 只有在该 case **真正跑通**之后才改成 `true`，**一条一条改**。
 - 绝不要为了让脚本变绿而批量把 `fixtureReady` 置 true——那会把仅存的防线也废掉。
 
-**待你确认**：`HS05` 的 case id 是 `HS05-multiple-pin-datum`（语义：多个候选需用户确认），但磁盘文件名是 `HS05-unique-pin-datum`（语义：唯一候选自动选中）。请打开该 DWG 数一下合法销孔候选数，然后决定是改 case 语义还是改文件名。我只改了指向,没有动语义。
+**待你确认**：`HS05` 的 case id 是 `HS05-multiple-pin-datum`（语义：多个候选需用户确认），但磁盘文件名是 `HS05-unique-pin-datum`（语义：唯一候选自动选中）。请打开该 DWG 数一下合法销孔候选数，然后决定是改 case 语义还是改文件名。我只改了指向，没有动语义。
 
 ### 5.3 CI
 

@@ -1,0 +1,48 @@
+name: core-ci
+
+# Builds and runs ONLY CadAuto.Core + CadAuto.Core.Tests (zero AutoCAD
+# dependencies). Never build AutoFixtureDim or CadAuto.CadAdapter here -
+# AcMgd/AcDbMgd/AcCoreMgd do not exist on hosted runners. The -vN versioned
+# output convention exists to dodge AutoCAD file locks and does not apply in CI.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  core-tests:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guard - no tracked build products
+        shell: pwsh
+        run: |
+          $tracked = git ls-files | Where-Object { $_ -match '(^|/)(bin|obj|obj-test[0-9]*)/' }
+          if ($tracked) {
+            $tracked | ForEach-Object { Write-Host "tracked build product: $_" }
+            throw "Build products must not be tracked (found $($tracked.Count))."
+          }
+
+      - name: Guard - AutoCAD references stay Private=False
+        shell: pwsh
+        run: |
+          foreach ($proj in @('AutoFixtureDim.csproj', 'CadAuto.CadAdapter\CadAuto.CadAdapter.csproj')) {
+            [xml]$xml = Get-Content $proj
+            $acadRefs = $xml.Project.ItemGroup.Reference | Where-Object { $_.Include -match '^Ac(Core)?(Db)?Mgd$' }
+            if (-not $acadRefs) { throw "No AutoCAD references found in $proj - reference layout changed?" }
+            foreach ($ref in $acadRefs) {
+              if ($ref.Private -ne 'False') {
+                throw "$proj reference $($ref.Include) must have <Private>False</Private> (NETLOAD assembly conflicts otherwise)."
+              }
+            }
+          }
+
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build CadAuto.Core.Tests
+        run: msbuild CadAuto.Core.Tests\CadAuto.Core.Tests.csproj /t:Build /p:Configuration=Release /v:minimal
+
+      - name: Run core tests
+        run: CadAuto.Core.Tests\bin\Release\CadAuto.Core.Tests.exe

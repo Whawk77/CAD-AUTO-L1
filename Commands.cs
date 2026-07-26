@@ -1415,7 +1415,17 @@ public sealed class Commands
 		AppendFeatureCounts(stringBuilder, report.Features, comma: true);
 		AppendDimensionDiagnostics(stringBuilder, 1, "dimensionCandidates", report.DimensionCandidates, comma: true);
 		AppendDimensionDiagnostics(stringBuilder, 1, "finalDimensions", report.FinalDimensions, comma: true);
-		AppendJsonProperty(stringBuilder, 1, "nonFiniteValueCount", _nonFiniteJsonValueCount, comma: false);
+		AppendJsonProperty(stringBuilder, 1, "nonFiniteValueCount", _nonFiniteJsonValueCount, comma: true);
+		AppendIndent(stringBuilder, 1);
+		stringBuilder.AppendLine("\"warnings\": [");
+		for (int warningIndex = 0; warningIndex < report.Warnings.Count; warningIndex++)
+		{
+			AppendIndent(stringBuilder, 2);
+			stringBuilder.Append('"').Append(JsonEscape(report.Warnings[warningIndex])).Append('"');
+			stringBuilder.AppendLine((warningIndex < report.Warnings.Count - 1) ? "," : string.Empty);
+		}
+		AppendIndent(stringBuilder, 1);
+		stringBuilder.AppendLine("]");
 		stringBuilder.AppendLine("}");
 		return stringBuilder.ToString();
 	}

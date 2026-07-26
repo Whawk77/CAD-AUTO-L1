@@ -10,11 +10,15 @@ public sealed class DimensionDiagnosticReport
 
 	public List<DimensionCandidateDiagnostic> FinalDimensions { get; private set; }
 
+	/// <summary>Non-fatal problems recorded during planning or validation.</summary>
+	public List<string> Warnings { get; private set; }
+
 	public DimensionDiagnosticReport()
 	{
 		Features = new FeatureDiagnosticCounts();
 		DimensionCandidates = new List<DimensionCandidateDiagnostic>();
 		FinalDimensions = new List<DimensionCandidateDiagnostic>();
+		Warnings = new List<string>();
 	}
 
 	public void RecordRenderSuppressed(int diagnosticId, string reason)

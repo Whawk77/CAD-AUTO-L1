@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using CadAuto.Core.Geometry;
 using CadAuto.Core.Model;
@@ -30,7 +31,7 @@ public sealed class DimensionPlanPostValidator
 		{
 			throw new InvalidOperationException("The selected outline has no verifiable line or arc geometry for dimension attachment.");
 		}
-		ValidateStoredEnvelope(outline, envelope);
+		ValidateStoredEnvelope(plan, outline, envelope);
 		ValidateOverallDimension(plan, outline, DimensionKind.OverallWidth, DimensionOrientation.Horizontal, DimensionSide.Bottom, envelope.MinX, envelope.MaxX);
 		ValidateOverallDimension(plan, outline, DimensionKind.OverallHeight, DimensionOrientation.Vertical, DimensionSide.Left, envelope.MinY, envelope.MaxY);
 		ValidateNoZeroLengthLinearDimensions(plan.Dimensions);
@@ -61,15 +62,30 @@ public sealed class DimensionPlanPostValidator
 		}
 	}
 
-	private void ValidateStoredEnvelope(OutlineFeature2D outline, OutlineEnvelope2D envelope)
+	private void ValidateStoredEnvelope(DimensionPlan plan, OutlineFeature2D outline, OutlineEnvelope2D envelope)
 	{
 		if (!IsFinite(outline.MinX) || !IsFinite(outline.MaxX) || !IsFinite(outline.MinY) || !IsFinite(outline.MaxY) || outline.MinX > outline.MaxX || outline.MinY > outline.MaxY)
 		{
 			throw new InvalidOperationException("The selected outline has invalid envelope values.");
 		}
-		if (!NearlyEqual(outline.MinX, envelope.MinX) || !NearlyEqual(outline.MaxX, envelope.MaxX) || !NearlyEqual(outline.MinY, envelope.MinY) || !NearlyEqual(outline.MaxY, envelope.MaxY))
+		if (NearlyEqual(outline.MinX, envelope.MinX) && NearlyEqual(outline.MaxX, envelope.MaxX) && NearlyEqual(outline.MinY, envelope.MinY) && NearlyEqual(outline.MaxY, envelope.MaxY))
 		{
-			throw new InvalidOperationException("The selected outline envelope does not match its real line and arc geometry.");
+			return;
+		}
+		// Reconcile rather than abort. Aborting here was the only path that produced no output at
+		// all, and the recognizer no longer has a second envelope source that can drift (see the
+		// envelope-source unification), so a surviving mismatch is a residual numeric one. The
+		// real-geometry derivation wins; the remaining checks below still run against it, so a
+		// large discrepancy will surface as an overall-dimension violation instead of a blanket
+		// failure with no diagnostic.
+		plan.Diagnostics.Warnings.Add(string.Format(CultureInfo.InvariantCulture, "StoredEnvelopeReconciled: stored=({0:0.####},{1:0.####})-({2:0.####},{3:0.####}) derived=({4:0.####},{5:0.####})-({6:0.####},{7:0.####})", outline.MinX, outline.MinY, outline.MaxX, outline.MaxY, envelope.MinX, envelope.MinY, envelope.MaxX, envelope.MaxY));
+		outline.MinX = envelope.MinX;
+		outline.MaxX = envelope.MaxX;
+		outline.MinY = envelope.MinY;
+		outline.MaxY = envelope.MaxY;
+		if (!IsFinite(outline.MinX) || !IsFinite(outline.MaxX) || !IsFinite(outline.MinY) || !IsFinite(outline.MaxY) || outline.MinX > outline.MaxX || outline.MinY > outline.MaxY)
+		{
+			throw new InvalidOperationException("The selected outline envelope could not be reconciled with its real line and arc geometry.");
 		}
 	}
 

@@ -3205,6 +3205,12 @@ namespace CadAuto.Core.Tests
 				"right OutlineSegment 30 must suppress as primary-structure duplicate");
 			Assert(!plan.Dimensions.Contains(rightOs20),
 				"right OutlineSegment 20 must suppress as overall residual");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.IsSuppressed
+					&& c.SuppressedReason == "SecondaryOutlineSegmentDuplicatesPrimaryStructureHeight"),
+				"expected SecondaryOutlineSegmentDuplicatesPrimaryStructureHeight reason");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.IsSuppressed
+					&& c.SuppressedReason == "SecondaryOutlineSegmentOverallResidual"),
+				"expected SecondaryOutlineSegmentOverallResidual reason");
 		}
 
 		/// <summary>
@@ -3273,6 +3279,12 @@ namespace CadAuto.Core.Tests
 				"left OutlineSegment 30 must suppress as primary-structure duplicate");
 			Assert(!plan.Dimensions.Contains(leftOs20),
 				"left OutlineSegment 20 must suppress as overall residual");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.IsSuppressed
+					&& c.SuppressedReason == "SecondaryOutlineSegmentDuplicatesPrimaryStructureHeight"),
+				"expected SecondaryOutlineSegmentDuplicatesPrimaryStructureHeight reason");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.IsSuppressed
+					&& c.SuppressedReason == "SecondaryOutlineSegmentOverallResidual"),
+				"expected SecondaryOutlineSegmentOverallResidual reason");
 		}
 
         private static void HorizontalStructurePointsCreateStepHeights()

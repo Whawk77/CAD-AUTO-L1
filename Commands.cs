@@ -119,6 +119,14 @@ public sealed class Commands
 		public double DimScale { get; set; }
 
 		public string DimStyle { get; set; }
+
+		public string ResolvedDimStyleName { get; set; }
+
+		public double? StyleDimscale { get; set; }
+
+		public double? EffectiveTextHeight { get; set; }
+
+		public double? EffectiveArrowSize { get; set; }
 	}
 
 	private static readonly string Ag1RoughnessBlockName = "CadAider_国标粗糙度16下";
@@ -1140,6 +1148,27 @@ public sealed class Commands
 			DimScale = database?.Dimscale ?? 1.0,
 			DimStyle = GetSystemVariableText("DIMSTYLE")
 		};
+		try
+		{
+			ObjectId resolvedDimStyleId = DimStyleManager.ResolveDimStyle(database, transaction);
+			if (!resolvedDimStyleId.IsNull)
+			{
+				DimStyleTableRecord dimStyleTableRecord = (DimStyleTableRecord)transaction.GetObject(resolvedDimStyleId, OpenMode.ForRead);
+				diagnosticRunContext.ResolvedDimStyleName = dimStyleTableRecord.Name;
+				diagnosticRunContext.StyleDimscale = dimStyleTableRecord.Dimscale;
+				double effectiveDimScale = ((dimStyleTableRecord.Dimscale > 1E-09) ? dimStyleTableRecord.Dimscale : (database?.Dimscale ?? 1.0));
+				if (effectiveDimScale <= 0.0)
+				{
+					effectiveDimScale = 1.0;
+				}
+				diagnosticRunContext.EffectiveTextHeight = dimStyleTableRecord.Dimtxt * effectiveDimScale;
+				diagnosticRunContext.EffectiveArrowSize = dimStyleTableRecord.Dimasz * effectiveDimScale;
+			}
+		}
+		catch (System.Exception)
+		{
+			// Observability only - never fail the run over style metrics.
+		}
 		IEnumerable<ObjectId> source = selection?.SelectedIds ?? Enumerable.Empty<ObjectId>();
 		IEnumerable<ObjectId> second = holeSourceIds ?? Enumerable.Empty<ObjectId>();
 		ObjectId objectId = ((datum?.DatumHole == null) ? ObjectId.Null : (!datum.DatumHole.CircleId.IsNull ? datum.DatumHole.CircleId : datum.DatumHole.SourceId));
@@ -1440,7 +1469,11 @@ public sealed class Commands
 		AppendNullablePoint(builder, 2, "ucsXDirectionWcs", context.UcsXDirectionWcs, comma: true);
 		AppendNullablePoint(builder, 2, "ucsYDirectionWcs", context.UcsYDirectionWcs, comma: true);
 		AppendJsonProperty(builder, 2, "dimScale", context.DimScale, comma: true);
-		AppendJsonProperty(builder, 2, "dimStyle", context.DimStyle, comma: false);
+		AppendJsonProperty(builder, 2, "dimStyle", context.DimStyle, comma: true);
+		AppendJsonProperty(builder, 2, "resolvedDimStyleName", context.ResolvedDimStyleName ?? string.Empty, comma: true);
+		AppendNullableJsonProperty(builder, 2, "styleDimscale", context.StyleDimscale, comma: true);
+		AppendNullableJsonProperty(builder, 2, "effectiveTextHeight", context.EffectiveTextHeight, comma: true);
+		AppendNullableJsonProperty(builder, 2, "effectiveArrowSize", context.EffectiveArrowSize, comma: false);
 		AppendIndent(builder, 1);
 		builder.Append("}");
 		builder.AppendLine(comma ? "," : string.Empty);

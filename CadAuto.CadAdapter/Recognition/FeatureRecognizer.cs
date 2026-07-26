@@ -57,6 +57,8 @@ public sealed class FeatureRecognizer
 
 	private const double BulgeEpsilon = 1E-12;
 
+	private const double PinMarkerFallbackDistance = 1.0;
+
 	private static readonly bool DiagnosticsEnabled;
 
 	private readonly DimensionRuleConfig _config;
@@ -73,6 +75,10 @@ public sealed class FeatureRecognizer
 		Polyline polyline = entity as Polyline;
 		if (polyline != null)
 		{
+			if (!polyline.Closed)
+			{
+				throw new InvalidOperationException("Outline Polyline must be closed.");
+			}
 			OutlineFeature outlineFeature = RecognizeLightweightOutline(polyline);
 			RecognizeOutlineCornerFeatures(outlineFeature);
 			return outlineFeature;
@@ -80,6 +86,10 @@ public sealed class FeatureRecognizer
 		Polyline2d polyline2d = entity as Polyline2d;
 		if (polyline2d != null)
 		{
+			if (!polyline2d.Closed)
+			{
+				throw new InvalidOperationException("Outline Polyline2d must be closed.");
+			}
 			OutlineFeature outlineFeature = RecognizePolyline2dOutline(polyline2d, tr);
 			RecognizeOutlineCornerFeatures(outlineFeature);
 			return outlineFeature;
@@ -1484,7 +1494,7 @@ public sealed class FeatureRecognizer
 				return true;
 			}
 		}
-		double num = Math.Max(radius * 0.0, 1.0);
+		double num = PinMarkerFallbackDistance;
 		foreach (Point3d markerPoint2 in markerPoints)
 		{
 			if (center.DistanceTo(markerPoint2) <= num)
@@ -1497,16 +1507,7 @@ public sealed class FeatureRecognizer
 
 	private bool IsThreadArc(Arc arc)
 	{
-		double num;
-		for (num = arc.EndAngle - arc.StartAngle; num < 0.0; num += Math.PI * 2.0)
-		{
-		}
-		while (num > Math.PI * 2.0)
-		{
-			num -= Math.PI * 2.0;
-		}
-		double num2 = 4.71238898038469;
-		return num >= num2 - _config.GeometryTolerance;
+		return ThreadArcRules.IsThreadSweep(arc.EndAngle - arc.StartAngle, _config);
 	}
 
 	private bool IsConfirmedThreadArc(Arc arc, IEnumerable<ObjectId> sourceIds, Transaction tr)

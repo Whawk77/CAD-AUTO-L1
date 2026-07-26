@@ -66,16 +66,13 @@ $nextVersion
 
 ## 1. 核心回归
 
-把下面的 `vNNN` 和 `obj-testNNN` 替换成同一个新编号：
+把下面的 `vNNN` 替换成一个新编号：
 
 ```powershell
 dotnet msbuild CadAuto.Core.Tests\CadAuto.Core.Tests.csproj `
   /t:Build `
   /p:Configuration=Debug `
   "/p:OutputPath=..\bin\CoreRegression-vNNN\" `
-  "/p:BaseIntermediateOutputPath=obj-testNNN\" `
-  /p:DebugType=None `
-  /p:DebugSymbols=false `
   /v:minimal
 
 .\bin\CoreRegression-vNNN\CadAuto.Core.Tests.exe
@@ -140,6 +137,8 @@ powershell -ExecutionPolicy Bypass `
 (command "_.NETLOAD" "D:/work/AI/project/autocad-dim/bin/BlockSpanLayout-vNNN/AutoFixtureDim.dll")
 (load "D:/work/AI/project/autocad-dim/scripts/cad-v203-layout-test.lsp")
 (setq *v203-trace-file* "D:/work/AI/project/autocad-dim/regression/dimension-layout/runs/<case-id>/<timestamp>/lsp-trace.txt")
+(setq *v203-report-file* "D:/work/AI/project/autocad-dim/regression/dimension-layout/runs/<case-id>/<timestamp>/report-vNNN.json")
+(setenv "AUTOFIXDIM_DIAGNOSTIC_REPORT_PATH" *v203-report-file*)
 V203TOP
 _.QSAVE
 _.QUIT
@@ -182,17 +181,11 @@ COMPLETE side=Top
 
 不要用强制结束 AutoCAD 代替错误排查。若 AutoCAD 因保存提示或模态窗口未退出，先检查窗口状态与 trace。
 
-## 6. 立即归档诊断报告
+## 6. 核对本次诊断报告
 
-看到 `COMPLETE` 后，在执行下一方向前复制报告：
+驱动脚本通过 `AUTOFIXDIM_DIAGNOSTIC_REPORT_PATH` 让插件直接写入该方向的独立 `report-vNNN.json`。LSP 只有确认该文件由本次命令新建或刷新后才写 `COMPLETE`。
 
-```powershell
-Copy-Item `
-  .\diagnostics\last-run.json `
-  '<运行目录>\report-vNNN.json'
-```
-
-检查归档文件的修改时间、`selectedSide`、`sourceDrawing` 和 v203 布局诊断字段，确保它属于该方向和该次运行。
+检查报告的修改时间、`runId`、`generatedAt`、`diagnosticSide`、`drawing.fileName`、`drawing.sha256` 和 v203 布局诊断字段，确保它属于该方向和该次运行。
 
 ## 7. 校验该方向
 

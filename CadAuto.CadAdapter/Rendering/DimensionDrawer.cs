@@ -176,21 +176,6 @@ public sealed class DimensionDrawer
 		return _entityWriter.GetDimStyleTextStyle(dimStyleId);
 	}
 
-	private string GetCurrentLayerName()
-	{
-		return _entityWriter.GetCurrentLayerName();
-	}
-
-	private Color GetCurrentEntityColor()
-	{
-		return _entityWriter.GetCurrentEntityColor();
-	}
-
-	private Color GetDimStyleTextColor(ObjectId dimStyleId)
-	{
-		return _entityWriter.GetDimStyleTextColor(dimStyleId);
-	}
-
 	private double GetDimStyleTextHeight(ObjectId dimStyleId)
 	{
 		return _entityWriter.GetDimStyleTextHeight(dimStyleId);
@@ -218,11 +203,6 @@ public sealed class DimensionDrawer
 		return num.ToString(text, CultureInfo.InvariantCulture);
 	}
 
-	private void Append(Entity entity)
-	{
-		_entityWriter.Append(entity);
-	}
-
 	private double Scale(double value)
 	{
 		return _entityWriter.Scale(value);
@@ -235,6 +215,7 @@ public sealed class DimensionDrawer
 			DeferredDim top = _topDims[num];
 			if (CanSuppressMirroredHorizontalDimension(top) && _bottomDims.Any((DeferredDim bottom) => CanSuppressMirroredHorizontalDimension(bottom) && IsDuplicate(top, bottom, isHorizontal: true)))
 			{
+				RecordRenderSuppressed(top, "MirroredHorizontal");
 				_topDims.RemoveAt(num);
 			}
 		}
@@ -253,6 +234,7 @@ public sealed class DimensionDrawer
 			DeferredDim right = _rightDims[num];
 			if (CanSuppressMirroredVerticalDimension(right) && _leftDims.Any((DeferredDim left) => CanSuppressMirroredVerticalDimension(left) && IsDuplicate(right, left, isHorizontal: false)))
 			{
+				RecordRenderSuppressed(right, "MirroredVertical");
 				_rightDims.RemoveAt(num);
 			}
 		}
@@ -276,10 +258,12 @@ public sealed class DimensionDrawer
 				{
 					if (CompareDuplicatePreference(deferredDim, deferredDim2) > 0)
 					{
+						RecordRenderSuppressed(deferredDim2, "MirroredHoleRelated");
 						primaryDims.RemoveAt(num2);
 					}
 					else
 					{
+						RecordRenderSuppressed(deferredDim, "MirroredHoleRelated");
 						secondaryDims.RemoveAt(num);
 					}
 					break;
@@ -315,10 +299,16 @@ public sealed class DimensionDrawer
 			{
 				if (IsSameMeasuredDimension(dims[i], dims[num2], isHorizontal))
 				{
+					RecordRenderSuppressed(dims[num2], "DuplicateMeasured");
 					dims.RemoveAt(num2);
 				}
 			}
 		}
+	}
+
+	private void RecordRenderSuppressed(DeferredDim dim, string reason)
+	{
+		_dimensionDiagnosticReport?.RecordRenderSuppressed(dim.DiagnosticId, reason);
 	}
 
 	private bool IsSameMeasuredDimension(DeferredDim a, DeferredDim b, bool isHorizontal)
@@ -555,66 +545,10 @@ public sealed class DimensionDrawer
 		return _dimensionLayoutRules.TryGetLocalDimLineCoordinate(ToLayoutItem(dim), ToCoreDimensionSide(side), ToCoreOutlineOrNull(outline), offset, out coordinate);
 	}
 
-	private bool TryGetDimensionLocalBoundary(DeferredDim dim, DimSide side, OutlineFeature outline, out double boundary)
-	{
-		return _dimensionLayoutRules.TryGetDimensionLocalBoundary(ToLayoutItem(dim), ToCoreDimensionSide(side), ToCoreOutlineOrNull(outline), out boundary);
-	}
-
-	private bool DimensionLineEntersOutlineInterior(DeferredDim dim, DimSide side, double coordinate, OutlineFeature outline)
-	{
-		return _dimensionLayoutRules.DimensionLineEntersOutlineInterior(ToLayoutItem(dim), ToCoreDimensionSide(side), coordinate, ToCoreOutlineOrNull(outline));
-	}
-
-	private bool IsPointOnAnyOutlineSegment(Point2d point, OutlineFeature outline)
-	{
-		return _dimensionLayoutRules.IsPointOnAnyOutlineSegment(new Point2D(point.X, point.Y), ToCoreOutlineOrNull(outline));
-	}
-
-	private bool TryGetLocalHoleLocationBoundary(DeferredDim dim, DimSide side, OutlineFeature outline, out double boundary)
-	{
-		return _dimensionLayoutRules.TryGetLocalHoleLocationBoundary(ToLayoutItem(dim), ToCoreDimensionSide(side), ToCoreOutlineOrNull(outline), out boundary);
-	}
-
-	private bool CanUseLocalDimensionBoundary(DeferredDim dim)
-	{
-		return _dimensionLayoutRules.CanUseLocalDimensionBoundary(ToLayoutItem(dim));
-	}
-
-	private double IntervalOverlap(double firstMin, double firstMax, double secondMin, double secondMax)
-	{
-		return _dimensionLayoutRules.IntervalOverlap(firstMin, firstMax, secondMin, secondMax);
-	}
-
 	private TextBounds ComputePlacedTextBounds(DeferredDim dim, Point3d dimLinePoint, bool isHorizontal, double textHeight)
 	{
 		TextBounds2D bounds = _dimensionLayoutRules.ComputePlacedTextBounds(ToLayoutItem(dim), new Point2D(dimLinePoint.X, dimLinePoint.Y), isHorizontal, textHeight);
 		return ToTextBounds(bounds);
-	}
-
-	private (double A, double B) ComputeTextInterval(DeferredDim dim, bool isHorizontal, double textHeight)
-	{
-		Tuple<double, double> tuple = _dimensionLayoutRules.ComputeTextInterval(ToLayoutItem(dim), isHorizontal, textHeight);
-		return (A: tuple.Item1, B: tuple.Item2);
-	}
-
-	private double GetDimensionTextLength(DeferredDim dim, double textHeight)
-	{
-		return _dimensionLayoutRules.GetDimensionTextLength(ToLayoutItem(dim), textHeight);
-	}
-
-	private string GetDimensionText(DeferredDim dim)
-	{
-		return _dimensionLayoutRules.GetDimensionText(ToLayoutItem(dim));
-	}
-
-	private bool TextCoversOutline(DeferredDim dim, DimSide side, double offset, double textHeight, OutlineFeature outline, bool isHorizontal)
-	{
-		return _dimensionLayoutRules.TextCoversOutline(ToLayoutItem(dim), ToCoreDimensionSide(side), offset, textHeight, ToCoreOutlineOrNull(outline), isHorizontal);
-	}
-
-	private bool IsGlobalBoundaryCoordinate(double coordinate, DimSide side, OutlineFeature outline)
-	{
-		return _dimensionLayoutRules.IsGlobalBoundaryCoordinate(coordinate, ToCoreDimensionSide(side), ToCoreOutlineOrNull(outline));
 	}
 
 	public void FlushStackedDimensions(OutlineFeature outline)
@@ -628,17 +562,41 @@ public sealed class DimensionDrawer
 		{
 			FlushSide(_bottomDims, DimSide.Bottom, outline, perLevelSpacing);
 		}
+		else
+		{
+			RecordDiagnosticSideSuppressed(_bottomDims);
+		}
 		if (ShouldFlushDiagnosticSide(DimSide.Top))
 		{
 			FlushSide(_topDims, DimSide.Top, outline, perLevelSpacing);
+		}
+		else
+		{
+			RecordDiagnosticSideSuppressed(_topDims);
 		}
 		if (ShouldFlushDiagnosticSide(DimSide.Left))
 		{
 			FlushSide(_leftDims, DimSide.Left, outline, perLevelSpacing);
 		}
+		else
+		{
+			RecordDiagnosticSideSuppressed(_leftDims);
+		}
 		if (ShouldFlushDiagnosticSide(DimSide.Right))
 		{
 			FlushSide(_rightDims, DimSide.Right, outline, perLevelSpacing);
+		}
+		else
+		{
+			RecordDiagnosticSideSuppressed(_rightDims);
+		}
+	}
+
+	private void RecordDiagnosticSideSuppressed(IEnumerable<DeferredDim> dims)
+	{
+		foreach (DeferredDim dim in dims)
+		{
+			RecordRenderSuppressed(dim, "OutOfDiagnosticSide:" + _diagnosticSide);
 		}
 	}
 
@@ -882,7 +840,7 @@ public sealed class DimensionDrawer
 		}
 	}
 
-	public DimensionDrawer(Database db, Transaction tr, BlockTableRecord space, DimensionRuleConfig config, ObjectId dimStyleId, ObjectId diameterCalloutDimStyleId, double dimScale, string annotationLayer, string groupId, bool diagnosticsEnabled = false, DiagnosticDimensionSide diagnosticSide = DiagnosticDimensionSide.All)
+	public DimensionDrawer(Database db, Transaction tr, BlockTableRecord space, DimensionRuleConfig config, ObjectId dimStyleId, ObjectId diameterCalloutDimStyleId, double dimScale, string annotationLayer, string groupId, bool diagnosticsEnabled = false, DiagnosticDimensionSide diagnosticSide = DiagnosticDimensionSide.All, string annotationKind = AnnotationMetadata.KindDimension)
 	{
 		_config = config;
 		_dimStyleId = dimStyleId;
@@ -894,7 +852,7 @@ public sealed class DimensionDrawer
 		_space = space;
 		_dimensionDeduplicationRules = new DimensionDeduplicationRules(config);
 		_dimensionLayoutRules = new DimensionLayoutRules(config);
-		_entityWriter = new CadEntityWriter(db, tr, space, config, dimStyleId, _dimScale, annotationLayer, groupId);
+		_entityWriter = new CadEntityWriter(db, tr, space, config, dimStyleId, _dimScale, annotationLayer, groupId, annotationKind);
 		_cornerCalloutRenderer = new CornerCalloutRenderer(db, _entityWriter, config, diameterCalloutDimStyleId, annotationLayer);
 		_debugAnnotationRenderer = new DebugAnnotationRenderer(db, _entityWriter, _entityWriter.GetDimStyleTextStyle(dimStyleId), annotationLayer);
 		_extensionLineRenderer = new DimensionExtensionLineRenderer(db, _entityWriter, annotationLayer);
@@ -1274,17 +1232,6 @@ public sealed class DimensionDrawer
 		};
 	}
 
-	private static DimensionTextPlacementItem ToTextPlacementItem(PlacedDim placed)
-	{
-		return new DimensionTextPlacementItem
-		{
-			Dimension = ToLayoutItem(placed.Dim),
-			Side = ToCoreDimensionSide(placed.Side),
-			DimLinePoint = new Point2D(placed.DimLinePoint.X, placed.DimLinePoint.Y),
-			TextBounds = ToCoreTextBounds(placed.TextBounds)
-		};
-	}
-
 	private static TextBounds2D ToCoreTextBounds(TextBounds bounds)
 	{
 		return new TextBounds2D
@@ -1331,20 +1278,6 @@ public sealed class DimensionDrawer
 	{
 		Point2D dimLinePoint = _dimensionLayoutRules.GetDimLinePoint(ToLayoutItem(dim), ToCoreDimensionSide(side), ToCoreOutlineOrNull(outline), offset);
 		return new Point3d(dimLinePoint.X, dimLinePoint.Y, 0.0);
-	}
-
-	private double GetDimLineCoordinate(DeferredDim dim, DimSide side, OutlineFeature outline, double offset)
-	{
-		return _dimensionLayoutRules.GetDimLineCoordinate(ToLayoutItem(dim), ToCoreDimensionSide(side), ToCoreOutlineOrNull(outline), offset);
-	}
-
-	private (double A, double B) ComputeArrowInterval(DeferredDim dim, bool isHorizontal)
-	{
-		if (isHorizontal)
-		{
-			return (A: Math.Min(dim.XLine1.X, dim.XLine2.X), B: Math.Max(dim.XLine1.X, dim.XLine2.X));
-		}
-		return (A: Math.Min(dim.XLine1.Y, dim.XLine2.Y), B: Math.Max(dim.XLine1.Y, dim.XLine2.Y));
 	}
 
 	private static Point2d Midpoint(Point2d a, Point2d b)

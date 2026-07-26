@@ -119,6 +119,12 @@ public sealed class Commands
 		public double DimScale { get; set; }
 
 		public string DimStyle { get; set; }
+
+		public string ErrorType { get; set; }
+
+		public string ErrorMessage { get; set; }
+
+		public string ErrorStackTrace { get; set; }
 	}
 
 	private static readonly string Ag1RoughnessBlockName = "CadAider_国标粗糙度16下";
@@ -189,7 +195,7 @@ public sealed class Commands
 		try
 		{
 			using Transaction transaction = database.TransactionManager.StartTransaction();
-			int num = AnnotationMetadata.ClearLatestGeneratedAnnotations(database, transaction);
+			int num = AnnotationMetadata.ClearLatestGeneratedAnnotations(database, transaction, AnnotationMetadata.KindDimension, AnnotationMetadata.KindCoreDebug);
 			transaction.Commit();
 			editor.WriteMessage("\nAUTOFIXDIM 已清除最近一次插件标注 {0} 个。", num);
 		}
@@ -240,7 +246,7 @@ public sealed class Commands
 				BlockTableRecord blockTableRecord = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
 				blockTableRecord.AppendEntity(line);
 				transaction.AddNewlyCreatedDBObject(line, add: true);
-				AnnotationMetadata.Mark(line, groupId);
+				AnnotationMetadata.Mark(line, groupId, AnnotationMetadata.KindAg1);
 				double num2 = ((database.Dimscale <= 0.0) ? 1.0 : database.Dimscale);
 				double num3 = dimensionRuleConfig.LeaderOffset * num2;
 				ObjectId dimStyleId = DimStyleManager.ResolveDimStyle(database, transaction);
@@ -485,7 +491,7 @@ public sealed class Commands
 		mText.Attachment = ((textPoint.X < arrowPoint.X) ? AttachmentPoint.MiddleRight : AttachmentPoint.MiddleLeft);
 		space.AppendEntity(mText);
 		tr.AddNewlyCreatedDBObject(mText, add: true);
-		AnnotationMetadata.Mark(mText, groupId);
+		AnnotationMetadata.Mark(mText, groupId, AnnotationMetadata.KindAg1);
 		Leader leader = new Leader();
 		leader.SetDatabaseDefaults(db);
 		leader.DimensionStyle = dimStyleId;
@@ -495,7 +501,7 @@ public sealed class Commands
 		tr.AddNewlyCreatedDBObject(leader, add: true);
 		leader.Annotation = mText.ObjectId;
 		leader.EvaluateLeader();
-		AnnotationMetadata.Mark(leader, groupId);
+		AnnotationMetadata.Mark(leader, groupId, AnnotationMetadata.KindAg1);
 	}
 
 	private static void InsertAg1RoughnessBlock(Database db, Transaction tr, BlockTableRecord space, Point3d insertPoint, string layerName, ObjectId dimStyleId, string groupId)
@@ -511,7 +517,7 @@ public sealed class Commands
 			blockReference.Rotation = Math.PI;
 			space.AppendEntity(blockReference);
 			tr.AddNewlyCreatedDBObject(blockReference, add: true);
-			AnnotationMetadata.Mark(blockReference, groupId);
+			AnnotationMetadata.Mark(blockReference, groupId, AnnotationMetadata.KindAg1);
 		}
 	}
 
@@ -639,7 +645,8 @@ public sealed class Commands
 			DimensionPlan dimensionPlan2 = CreateCoreDebugRenderPlan(dimensionPlan);
 			string text = EnsureCoreDebugLayer(database, transaction);
 			BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
-			DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, objectId, DimStyleManager.ResolveDiameterCalloutDimStyle(database, transaction, objectId), (database.Dimscale <= 0.0) ? 1.0 : database.Dimscale, text, "ASDCOREDBG");
+			string groupId = DateTime.Now.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
+			DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, objectId, DimStyleManager.ResolveDiameterCalloutDimStyle(database, transaction, objectId), (database.Dimscale <= 0.0) ? 1.0 : database.Dimscale, text, groupId, annotationKind: AnnotationMetadata.KindCoreDebug);
 			dimensionDrawer.DrawDimensionPlan(dimensionPlan2);
 			dimensionDrawer.FlushStackedDimensions(outlineFeature);
 			WriteCoreDebugSummary(editor, outlineFeature, list5, list7.Count, dimensionPlan, dimensionPlan2, holeCalloutPlans, text);
@@ -665,7 +672,7 @@ public sealed class Commands
 		Database database = mdiActiveDocument.Database;
 		Editor editor = mdiActiveDocument.Editor;
 		DimensionRuleConfig config = DimensionRuleConfig.CreateDefault();
-		string groupId = DateTime.Now.ToString("yyyyMMddHHmmssfff");
+		string groupId = DateTime.Now.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
 		DiagnosticDimensionSide diagnosticSide = (diagnosticsEnabled ? PromptForDiagnosticSide(editor) : DiagnosticDimensionSide.All);
 		bool flag = outputScope != AutoFixDimOutputScope.CornerOnly;
 		bool flag2 = outputScope == AutoFixDimOutputScope.All || outputScope == AutoFixDimOutputScope.HoleOnly;
@@ -682,7 +689,7 @@ public sealed class Commands
 		double dimScale = 1.0;
 		DimensionPlan completedLinearPlan = null;
 		IList<HoleFeature> recognizedHoles = null;
-		DiagnosticRunContext diagnosticContext = null;
+		DiagnosticRunContext diagnosticContext = CreateInitialDiagnosticRunContext(database, groupId, commandName);
 		try
 		{
 			using (Transaction transaction = database.TransactionManager.StartTransaction())
@@ -777,11 +784,11 @@ public sealed class Commands
 						}
 					}
 				}
-				diagnosticContext = CreateDiagnosticRunContext(database, transaction, outlineSelection, list5, outlineFeature, datumDefinition, groupId, commandName);
+				diagnosticContext = CreateDiagnosticRunContext(database, transaction, outlineSelection, list5, outlineFeature, datumDefinition, groupId, commandName, diagnosticContext);
 				if (clearExistingBeforeGenerate)
 				{
 					AnnotationMetadata.EnsureRegApp(database, transaction);
-					int num2 = AnnotationMetadata.ClearGeneratedAnnotations(database, transaction);
+					int num2 = AnnotationMetadata.ClearGeneratedAnnotations(database, transaction, AnnotationMetadata.KindDimension, AnnotationMetadata.KindCoreDebug);
 					editor.WriteMessage("\n已清除旧插件标注 {0} 个。", num2);
 				}
 				List<SlotFeature> list10 = (flag4 ? featureRecognizer.LastRecognizedSlots.Concat(list4).ToList() : new List<SlotFeature>());
@@ -858,11 +865,13 @@ public sealed class Commands
 		}
 		catch (Autodesk.AutoCAD.Runtime.Exception ex3)
 		{
-			editor.WriteMessage("\nAUTOFIXDIM 取消或失败: {0}", ex3.Message);
+			editor.WriteMessage("\nAUTOFIXDIM 取消或失败 [{0}]: {1}", ex3.GetType().Name, ex3.Message);
+			WriteFailureDimensionRunSummary(editor, completedLinearPlan, outline, recognizedHoles, slotFeatures, outputScope, diagnosticsEnabled, diagnosticSide, diagnosticContext, ex3);
 		}
 		catch (System.Exception ex4)
 		{
-			editor.WriteMessage("\nAUTOFIXDIM 发生异常: {0}", ex4.Message);
+			editor.WriteMessage("\nAUTOFIXDIM 发生异常 [{0}]: {1}", ex4.GetType().Name, ex4.Message);
+			WriteFailureDimensionRunSummary(editor, completedLinearPlan, outline, recognizedHoles, slotFeatures, outputScope, diagnosticsEnabled, diagnosticSide, diagnosticContext, ex4);
 		}
 	}
 
@@ -876,7 +885,8 @@ public sealed class Commands
 		if (plan != null)
 		{
 			List<DimensionCandidateDiagnostic> skipped = dimensionDiagnosticReport.DimensionCandidates.Where((DimensionCandidateDiagnostic item) => string.Equals(item.DecisionStatus, "Skipped", StringComparison.Ordinal)).ToList();
-			editor.WriteMessage("\nAUTOFIXDIM 线性尺寸汇总: 已生成 {0}，已跳过 {1}，失败 0。", dimensionDiagnosticReport.FinalDimensions.Count, skipped.Count);
+			int failedCount = string.IsNullOrEmpty(context?.ErrorType) ? 0 : 1;
+			editor.WriteMessage("\nAUTOFIXDIM 线性尺寸汇总: 已生成 {0}，已跳过 {1}，失败 {2}。", dimensionDiagnosticReport.FinalDimensions.Count, skipped.Count, failedCount);
 			foreach (DimensionCandidateDiagnostic item in skipped.Take(10))
 			{
 				editor.WriteMessage("\n  已跳过 {0}/{1}: {2}", item.Kind, item.DebugRole, item.DecisionReason);
@@ -894,6 +904,22 @@ public sealed class Commands
 		catch (System.Exception ex)
 		{
 			editor.WriteMessage("\n诊断报告写入失败，标注结果已保留: {0}", ex.Message);
+		}
+	}
+
+	private static void WriteFailureDimensionRunSummary(Editor editor, DimensionPlan plan, OutlineFeature outline, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide, DiagnosticRunContext context, System.Exception error)
+	{
+		try
+		{
+			context = context ?? new DiagnosticRunContext();
+			context.ErrorType = error?.GetType().FullName ?? string.Empty;
+			context.ErrorMessage = error?.Message ?? string.Empty;
+			context.ErrorStackTrace = error?.StackTrace ?? string.Empty;
+			WriteDimensionRunSummary(editor, plan, outline, holes, slots, outputScope, diagnosticsEnabled, diagnosticSide, context);
+		}
+		catch (System.Exception diagnosticError)
+		{
+			editor?.WriteMessage("\n失败诊断写入失败，原始异常已保留: {0}", diagnosticError.Message);
 		}
 	}
 
@@ -1104,42 +1130,27 @@ public sealed class Commands
 		return dimensionPlan;
 	}
 
-	private static DiagnosticRunContext CreateDiagnosticRunContext(Database database, Transaction transaction, OutlineSelection selection, IEnumerable<ObjectId> holeSourceIds, OutlineFeature outline, DatumDefinition datum, string runId, string commandName)
+	private static DiagnosticRunContext CreateDiagnosticRunContext(Database database, Transaction transaction, OutlineSelection selection, IEnumerable<ObjectId> holeSourceIds, OutlineFeature outline, DatumDefinition datum, string runId, string commandName, DiagnosticRunContext diagnosticRunContext)
 	{
-		DiagnosticRunContext diagnosticRunContext = new DiagnosticRunContext
+		diagnosticRunContext = diagnosticRunContext ?? CreateInitialDiagnosticRunContext(database, runId, commandName);
+		diagnosticRunContext.BaseX = datum?.BaseX ?? 0.0;
+		diagnosticRunContext.BaseY = datum?.BaseY ?? 0.0;
+		diagnosticRunContext.RecognizedOutlineBoundsWcs = ((outline == null) ? null : new DiagnosticBounds
 		{
-			RunId = runId ?? string.Empty,
-			Command = commandName ?? string.Empty,
-			Drawing = CreateDiagnosticFileIdentity(database?.Filename),
-			Plugin = CreateDiagnosticFileIdentity(typeof(Commands).Assembly.Location),
-			SelectedGeometryBoundsStatus = "Unavailable",
-			BaseX = datum?.BaseX ?? 0.0,
-			BaseY = datum?.BaseY ?? 0.0,
-			RecognizedOutlineBoundsWcs = ((outline == null) ? null : new DiagnosticBounds
-			{
-				MinX = outline.MinX,
-				MinY = outline.MinY,
-				MinZ = 0.0,
-				MaxX = outline.MaxX,
-				MaxY = outline.MaxY,
-				MaxZ = 0.0
-			}),
-			HasDatumHole = datum?.DatumHole != null,
-			DatumHoleHandle = TryGetHandle(datum?.DatumHole),
-			DatumHoleCenterWcs = ((datum?.DatumHole == null) ? null : new Point3d?(datum.DatumHole.Center)),
-			DatumHoleLocationBaseX = datum?.DatumHoleLocationBaseX,
-			DatumHoleLocationBaseY = datum?.DatumHoleLocationBaseY,
-			DatumHoleLocationUseToleranceX = datum?.DatumHoleLocationUseToleranceX ?? false,
-			DatumHoleLocationUseToleranceY = datum?.DatumHoleLocationUseToleranceY ?? false,
-			AutoCadVersion = GetSystemVariableText("ACADVER"),
-			InsUnits = GetSystemVariableText("INSUNITS"),
-			UcsName = GetSystemVariableText("UCSNAME"),
-			UcsOriginWcs = GetSystemVariablePoint("UCSORG"),
-			UcsXDirectionWcs = GetSystemVariablePoint("UCSXDIR"),
-			UcsYDirectionWcs = GetSystemVariablePoint("UCSYDIR"),
-			DimScale = database?.Dimscale ?? 1.0,
-			DimStyle = GetSystemVariableText("DIMSTYLE")
-		};
+			MinX = outline.MinX,
+			MinY = outline.MinY,
+			MinZ = 0.0,
+			MaxX = outline.MaxX,
+			MaxY = outline.MaxY,
+			MaxZ = 0.0
+		});
+		diagnosticRunContext.HasDatumHole = datum?.DatumHole != null;
+		diagnosticRunContext.DatumHoleHandle = TryGetHandle(datum?.DatumHole);
+		diagnosticRunContext.DatumHoleCenterWcs = ((datum?.DatumHole == null) ? null : new Point3d?(datum.DatumHole.Center));
+		diagnosticRunContext.DatumHoleLocationBaseX = datum?.DatumHoleLocationBaseX;
+		diagnosticRunContext.DatumHoleLocationBaseY = datum?.DatumHoleLocationBaseY;
+		diagnosticRunContext.DatumHoleLocationUseToleranceX = datum?.DatumHoleLocationUseToleranceX ?? false;
+		diagnosticRunContext.DatumHoleLocationUseToleranceY = datum?.DatumHoleLocationUseToleranceY ?? false;
 		IEnumerable<ObjectId> source = selection?.SelectedIds ?? Enumerable.Empty<ObjectId>();
 		IEnumerable<ObjectId> second = holeSourceIds ?? Enumerable.Empty<ObjectId>();
 		ObjectId objectId = ((datum?.DatumHole == null) ? ObjectId.Null : (!datum.DatumHole.CircleId.IsNull ? datum.DatumHole.CircleId : datum.DatumHole.SourceId));
@@ -1185,6 +1196,28 @@ public sealed class Commands
 		diagnosticRunContext.SelectedGeometryBoundsWcs = diagnosticBounds;
 		diagnosticRunContext.SelectedGeometryBoundsStatus = ((num == list.Count && diagnosticRunContext.EntityHandles.Count == list.Count) ? "Ok" : ("Partial:" + num.ToString(CultureInfo.InvariantCulture) + "/" + list.Count.ToString(CultureInfo.InvariantCulture)));
 		return diagnosticRunContext;
+	}
+
+	private static DiagnosticRunContext CreateInitialDiagnosticRunContext(Database database, string runId, string commandName)
+	{
+		return new DiagnosticRunContext
+		{
+			RunId = runId ?? string.Empty,
+			Command = commandName ?? string.Empty,
+			Drawing = CreateDiagnosticFileIdentity(database?.Filename),
+			Plugin = CreateDiagnosticFileIdentity(typeof(Commands).Assembly.Location),
+			SelectedGeometryBoundsStatus = "Unavailable",
+			BaseX = 0.0,
+			BaseY = 0.0,
+			AutoCadVersion = GetSystemVariableText("ACADVER"),
+			InsUnits = GetSystemVariableText("INSUNITS"),
+			UcsName = GetSystemVariableText("UCSNAME"),
+			UcsOriginWcs = GetSystemVariablePoint("UCSORG"),
+			UcsXDirectionWcs = GetSystemVariablePoint("UCSXDIR"),
+			UcsYDirectionWcs = GetSystemVariablePoint("UCSYDIR"),
+			DimScale = database?.Dimscale ?? 1.0,
+			DimStyle = GetSystemVariableText("DIMSTYLE")
+		};
 	}
 
 	private static DiagnosticFileIdentity CreateDiagnosticFileIdentity(string path)
@@ -1359,11 +1392,29 @@ public sealed class Commands
 		AppendDiagnosticSelection(stringBuilder, context, comma: true);
 		AppendDiagnosticDatum(stringBuilder, context, comma: true);
 		AppendDiagnosticEnvironment(stringBuilder, context, comma: true);
+		AppendDiagnosticError(stringBuilder, context, comma: true);
 		AppendFeatureCounts(stringBuilder, report.Features, comma: true);
 		AppendDimensionDiagnostics(stringBuilder, 1, "dimensionCandidates", report.DimensionCandidates, comma: true);
 		AppendDimensionDiagnostics(stringBuilder, 1, "finalDimensions", report.FinalDimensions, comma: false);
 		stringBuilder.AppendLine("}");
 		return stringBuilder.ToString();
+	}
+
+	private static void AppendDiagnosticError(StringBuilder builder, DiagnosticRunContext context, bool comma)
+	{
+		if (string.IsNullOrEmpty(context.ErrorType))
+		{
+			AppendJsonNullProperty(builder, 1, "error", comma);
+			return;
+		}
+		AppendIndent(builder, 1);
+		builder.AppendLine("\"error\": {");
+		AppendJsonProperty(builder, 2, "type", context.ErrorType, comma: true);
+		AppendJsonProperty(builder, 2, "message", context.ErrorMessage, comma: true);
+		AppendJsonProperty(builder, 2, "stackTrace", context.ErrorStackTrace, comma: false);
+		AppendIndent(builder, 1);
+		builder.Append("}");
+		builder.AppendLine(comma ? "," : string.Empty);
 	}
 
 	private static void AppendDiagnosticFileIdentity(StringBuilder builder, int indent, string name, DiagnosticFileIdentity identity, bool comma)
@@ -1605,8 +1656,15 @@ public sealed class Commands
 	private static void AppendJsonProperty(StringBuilder builder, int indent, string name, double value, bool comma)
 	{
 		AppendIndent(builder, indent);
-		builder.Append('"').Append(JsonEscape(name)).Append("\": ")
-			.Append(value.ToString("0.########", CultureInfo.InvariantCulture));
+		builder.Append('"').Append(JsonEscape(name)).Append("\": ");
+		if (double.IsNaN(value) || double.IsInfinity(value))
+		{
+			builder.Append("null");
+		}
+		else
+		{
+			builder.Append(value.ToString("0.########", CultureInfo.InvariantCulture));
+		}
 		builder.AppendLine(comma ? "," : string.Empty);
 	}
 
@@ -1666,9 +1724,45 @@ public sealed class Commands
 		{
 			return string.Empty;
 		}
-		return value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r")
-			.Replace("\n", "\\n")
-			.Replace("\t", "\\t");
+		StringBuilder builder = new StringBuilder(value.Length);
+		foreach (char character in value)
+		{
+			switch (character)
+			{
+			case '\\':
+				builder.Append("\\\\");
+				break;
+			case '"':
+				builder.Append("\\\"");
+				break;
+			case '\b':
+				builder.Append("\\b");
+				break;
+			case '\f':
+				builder.Append("\\f");
+				break;
+			case '\n':
+				builder.Append("\\n");
+				break;
+			case '\r':
+				builder.Append("\\r");
+				break;
+			case '\t':
+				builder.Append("\\t");
+				break;
+			default:
+				if (character < ' ')
+				{
+					builder.Append("\\u").Append(((int)character).ToString("x4", CultureInfo.InvariantCulture));
+				}
+				else
+				{
+					builder.Append(character);
+				}
+				break;
+			}
+		}
+		return builder.ToString();
 	}
 
 	private static DimensionPlan FilterDimensionPlan(DimensionPlan source, AutoFixDimOutputScope outputScope)
@@ -1677,16 +1771,16 @@ public sealed class Commands
 		{
 			return source;
 		}
-		DimensionPlan dimensionPlan = new DimensionPlan();
-		foreach (PinGroupPlan pinGroup in source.PinGroups)
-		{
-			dimensionPlan.PinGroups.Add(pinGroup);
-		}
+		DimensionPlan dimensionPlan = source.CreateRenderProjection();
 		foreach (PlannedDimension dimension in source.Dimensions)
 		{
 			if (ShouldRenderPlannedDimension(dimension, outputScope))
 			{
 				dimensionPlan.Dimensions.Add(dimension);
+			}
+			else
+			{
+				source.Diagnostics.RecordRenderSuppressed(dimension.DiagnosticId, "OutOfCommandScope:" + outputScope);
 			}
 		}
 		return dimensionPlan;
@@ -1722,13 +1816,18 @@ public sealed class Commands
 
 	private static bool IsHoleDimension(PlannedDimension dimension)
 	{
-		DimensionKind kind = dimension.Kind;
-		DimensionKind dimensionKind = kind;
-		if ((uint)(dimensionKind - 3) <= 5u)
+		switch (dimension.Kind)
 		{
+		case DimensionKind.HoleDiameter:
+		case DimensionKind.DatumHoleLocationX:
+		case DimensionKind.DatumHoleLocationY:
+		case DimensionKind.PinDistance:
+		case DimensionKind.PinGroupDistance:
+		case DimensionKind.HoleLocation:
 			return true;
+		default:
+			return false;
 		}
-		return false;
 	}
 
 	private static bool IsSlotDimension(PlannedDimension dimension)

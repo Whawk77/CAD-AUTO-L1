@@ -696,15 +696,6 @@ public sealed class GeometryCollector
 
 	private static bool IsThreadArc(Arc arc, DimensionRuleConfig config)
 	{
-		double num;
-		for (num = arc.EndAngle - arc.StartAngle; num < 0.0; num += Math.PI * 2.0)
-		{
-		}
-		while (num > Math.PI * 2.0)
-		{
-			num -= Math.PI * 2.0;
-		}
-		double num2 = 4.71238898038469;
-		return num >= num2 - config.GeometryTolerance;
+		return ThreadArcRules.IsThreadSweep(arc.EndAngle - arc.StartAngle, config);
 	}
 }

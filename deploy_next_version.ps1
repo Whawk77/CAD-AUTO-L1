@@ -8,10 +8,23 @@ $ErrorActionPreference = "Stop"
 
 $defaultToolboxDir = -join ([char[]](0x4E0D, 0x52A0, 0x73ED, 0x7684, 0x5C0F, 0x5218, 0x005F, 0x5DE5, 0x5177, 0x7BB1))
 if ([string]::IsNullOrWhiteSpace($DeployDir)) {
-    $DeployDir = Join-Path (Join-Path "D:\app" $defaultToolboxDir) "dll"
+    if (-not [string]::IsNullOrWhiteSpace($env:AUTOFIXDIM_DEPLOY_DIR)) {
+        $DeployDir = $env:AUTOFIXDIM_DEPLOY_DIR
+    }
+    else {
+        $DeployDir = Join-Path (Join-Path "D:\app" $defaultToolboxDir) "dll"
+    }
 }
 
 $resolvedSource = Resolve-Path -LiteralPath $SourceDll
+$sourceDir = Split-Path -Parent $resolvedSource.Path
+$requiredAssemblies = @("AutoFixtureDim.dll", "CadAuto.Core.dll", "CadAuto.CadAdapter.dll")
+foreach ($assemblyName in $requiredAssemblies) {
+    $assemblyPath = Join-Path $sourceDir $assemblyName
+    if (-not (Test-Path -LiteralPath $assemblyPath -PathType Leaf)) {
+        throw "Missing required assembly: $assemblyPath"
+    }
+}
 if (-not (Test-Path -LiteralPath $DeployDir -PathType Container)) {
     throw "Deploy directory does not exist: $DeployDir"
 }

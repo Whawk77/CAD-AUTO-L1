@@ -25,7 +25,9 @@ public sealed class CadEntityWriter
 
 	private readonly string _groupId;
 
-	public CadEntityWriter(Database database, Transaction transaction, BlockTableRecord space, DimensionRuleConfig config, ObjectId dimStyleId, double dimScale, string annotationLayer, string groupId)
+	private readonly string _annotationKind;
+
+	public CadEntityWriter(Database database, Transaction transaction, BlockTableRecord space, DimensionRuleConfig config, ObjectId dimStyleId, double dimScale, string annotationLayer, string groupId, string annotationKind = AnnotationMetadata.KindDimension)
 	{
 		_database = database;
 		_transaction = transaction;
@@ -35,6 +37,8 @@ public sealed class CadEntityWriter
 		_dimScale = ((dimScale <= 0.0) ? 1.0 : dimScale);
 		_annotationLayer = annotationLayer;
 		_groupId = groupId;
+		_annotationKind = string.IsNullOrEmpty(annotationKind) ? AnnotationMetadata.KindDimension : annotationKind;
+		AnnotationMetadata.EnsureRegApp(database, transaction);
 	}
 
 	public void AddRotatedDimension(double rotation, Point3d xLine1, Point3d xLine2, Point3d dimLinePoint, string overrideText, bool useSegmentedExtensionLines, bool useCustomTextPosition = false, Point3d customTextPosition = default(Point3d))
@@ -165,7 +169,7 @@ public sealed class CadEntityWriter
 	{
 		_space.AppendEntity(entity);
 		_transaction.AddNewlyCreatedDBObject(entity, add: true);
-		AnnotationMetadata.Mark(entity, _groupId);
+		AnnotationMetadata.Mark(entity, _groupId, _annotationKind);
 	}
 
 	public double Scale(double value)

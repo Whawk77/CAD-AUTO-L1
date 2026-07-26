@@ -5,6 +5,7 @@
 (setq *v203-datum-hole-center* '(245.5 15.0 0.0))
 (setq *v203-datum-corner* '(305.0 0.0 0.0))
 (setq *v203-trace-file* nil)
+(setq *v203-report-file* nil)
 
 (defun v203-trace (message / stream)
   (if *v203-trace-file*
@@ -49,7 +50,14 @@
   )
 )
 
-(defun v203-run-side (side / old-cmdecho old-osmode selection datum-circle)
+(defun v203-file-stamp (path)
+  (if (and path (findfile path))
+    (vl-file-systime path)
+    nil
+  )
+)
+
+(defun v203-run-side (side / old-cmdecho old-osmode selection datum-circle report-stamp-before report-stamp-after)
   (setq old-cmdecho (getvar "CMDECHO"))
   (setq old-osmode (getvar "OSMODE"))
   (setvar "CMDECHO" 1)
@@ -62,6 +70,7 @@
       (setq datum-circle (v203-find-datum-circle selection))
       (if datum-circle
         (progn
+          (setq report-stamp-before (v203-file-stamp *v203-report-file*))
           (v203-trace
             (strcat
               "INPUT selection="
@@ -81,7 +90,17 @@
             *v203-datum-corner*
             ""
           )
-          (v203-trace (strcat "COMPLETE side=" side))
+          (setq report-stamp-after (v203-file-stamp *v203-report-file*))
+          (cond
+            ((null *v203-report-file*)
+              (v203-trace "ERROR diagnostic report path is not configured"))
+            ((null report-stamp-after)
+              (v203-trace "ERROR diagnostic report was not created"))
+            ((equal report-stamp-before report-stamp-after)
+              (v203-trace "ERROR diagnostic report was not refreshed"))
+            (T
+              (v203-trace (strcat "COMPLETE side=" side)))
+          )
         )
         (v203-trace "ERROR datum circle not found")
       )

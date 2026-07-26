@@ -23,35 +23,80 @@ public static class AnnotationMetadata
 
 	public const string AppName = "AUTOFIXDIM";
 
+	public const string KindDimension = "Dimension";
+
+	public const string KindAg1 = "Ag1";
+
+	public const string KindCoreDebug = "CoreDebug";
+
+	private const short CurrentSchemaVersion = 1;
+
 	public static void EnsureRegApp(Database db, Transaction tr)
 	{
 		RegAppTable regAppTable = (RegAppTable)tr.GetObject(db.RegAppTableId, OpenMode.ForRead);
-		if (!regAppTable.Has("AUTOFIXDIM"))
+		if (!regAppTable.Has(AppName))
 		{
 			regAppTable.UpgradeOpen();
 			RegAppTableRecord regAppTableRecord = new RegAppTableRecord
 			{
-				Name = "AUTOFIXDIM"
+				Name = AppName
 			};
 			regAppTable.Add(regAppTableRecord);
 			tr.AddNewlyCreatedDBObject(regAppTableRecord, add: true);
 		}
 	}
 
-	public static void Mark(Entity entity, string groupId)
+	public static void Mark(Entity entity, string groupId, string kind = KindDimension)
 	{
-		entity.XData = new ResultBuffer(new TypedValue(1001, "AUTOFIXDIM"), new TypedValue(1000, "GroupId"), new TypedValue(1000, groupId ?? string.Empty));
+		List<TypedValue> values = new List<TypedValue>();
+		using (ResultBuffer existing = entity.XData)
+		{
+			if (existing != null)
+			{
+				bool skipCurrentApplication = false;
+				foreach (TypedValue value in existing.AsArray())
+				{
+					if (value.TypeCode == 1001)
+					{
+						skipCurrentApplication = string.Equals(value.Value as string, AppName, StringComparison.Ordinal);
+					}
+					if (!skipCurrentApplication)
+					{
+						values.Add(value);
+					}
+				}
+			}
+		}
+		values.Add(new TypedValue(1001, AppName));
+		values.Add(new TypedValue(1000, "GroupId"));
+		values.Add(new TypedValue(1000, groupId ?? string.Empty));
+		values.Add(new TypedValue(1000, "Kind"));
+		values.Add(new TypedValue(1000, string.IsNullOrEmpty(kind) ? KindDimension : kind));
+		values.Add(new TypedValue(1000, "SchemaVersion"));
+		values.Add(new TypedValue(1070, CurrentSchemaVersion));
+		using ResultBuffer resultBuffer = new ResultBuffer(values.ToArray());
+		entity.XData = resultBuffer;
 	}
 
 	public static bool IsMarked(Entity entity)
 	{
-		using ResultBuffer resultBuffer = entity.GetXDataForApplication("AUTOFIXDIM");
+		using ResultBuffer resultBuffer = entity.GetXDataForApplication(AppName);
 		return resultBuffer != null;
 	}
 
 	public static string GetGroupId(Entity entity)
 	{
-		using (ResultBuffer resultBuffer = entity.GetXDataForApplication("AUTOFIXDIM"))
+		return GetStringField(entity, "GroupId", string.Empty);
+	}
+
+	public static string GetKind(Entity entity)
+	{
+		return GetStringField(entity, "Kind", KindDimension);
+	}
+
+	private static string GetStringField(Entity entity, string fieldName, string fallback)
+	{
+		using (ResultBuffer resultBuffer = entity.GetXDataForApplication(AppName))
 		{
 			if (resultBuffer == null)
 			{
@@ -60,24 +105,25 @@ public static class AnnotationMetadata
 			TypedValue[] array = resultBuffer.AsArray();
 			for (int i = 0; i < array.Length - 1; i++)
 			{
-				if (array[i].TypeCode == 1000 && string.Equals(array[i].Value as string, "GroupId", StringComparison.Ordinal) && array[i + 1].TypeCode == 1000)
+				if (array[i].TypeCode == 1000 && string.Equals(array[i].Value as string, fieldName, StringComparison.Ordinal) && array[i + 1].TypeCode == 1000)
 				{
-					return (array[i + 1].Value as string) ?? string.Empty;
+					return (array[i + 1].Value as string) ?? fallback;
 				}
 			}
 		}
-		return string.Empty;
+		return fallback;
 	}
 
-	public static int ClearGeneratedAnnotations(Database db, Transaction tr)
+	public static int ClearGeneratedAnnotations(Database db, Transaction tr, params string[] kinds)
 	{
 		EnsureRegApp(db, tr);
+		HashSet<string> allowedKinds = CreateKindFilter(kinds);
 		int num = 0;
 		BlockTable blockTable = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
 		foreach (ObjectId item in blockTable)
 		{
 			BlockTableRecord blockTableRecord = (BlockTableRecord)tr.GetObject(item, OpenMode.ForRead);
-			if (blockTableRecord.IsFromExternalReference || blockTableRecord.IsDependent)
+			if (blockTableRecord.IsFromExternalReference || blockTableRecord.IsDependent || !blockTableRecord.IsLayout)
 			{
 				continue;
 			}
@@ -85,7 +131,7 @@ public static class AnnotationMetadata
 			foreach (ObjectId item2 in blockTableRecord)
 			{
 				Entity entity = tr.GetObject(item2, OpenMode.ForRead, openErased: false) as Entity;
-				if (entity != null && IsMarked(entity))
+				if (entity != null && IsMarked(entity) && IsAllowedKind(GetKind(entity), allowedKinds))
 				{
 					list.Add(item2);
 				}
@@ -100,10 +146,10 @@ public static class AnnotationMetadata
 		return num;
 	}
 
-	public static int ClearLatestGeneratedAnnotations(Database db, Transaction tr)
+	public static int ClearLatestGeneratedAnnotations(Database db, Transaction tr, params string[] kinds)
 	{
 		EnsureRegApp(db, tr);
-		List<GeneratedAnnotation> list = CollectMarkedAnnotations(db, tr);
+		List<GeneratedAnnotation> list = CollectMarkedAnnotations(db, tr, kinds);
 		if (list.Count == 0)
 		{
 			return 0;
@@ -123,14 +169,15 @@ public static class AnnotationMetadata
 		return num;
 	}
 
-	private static List<GeneratedAnnotation> CollectMarkedAnnotations(Database db, Transaction tr)
+	private static List<GeneratedAnnotation> CollectMarkedAnnotations(Database db, Transaction tr, params string[] kinds)
 	{
 		List<GeneratedAnnotation> list = new List<GeneratedAnnotation>();
+		HashSet<string> allowedKinds = CreateKindFilter(kinds);
 		BlockTable blockTable = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
 		foreach (ObjectId item in blockTable)
 		{
 			BlockTableRecord blockTableRecord = (BlockTableRecord)tr.GetObject(item, OpenMode.ForRead);
-			if (blockTableRecord.IsFromExternalReference || blockTableRecord.IsDependent)
+			if (blockTableRecord.IsFromExternalReference || blockTableRecord.IsDependent || !blockTableRecord.IsLayout)
 			{
 				continue;
 			}
@@ -139,11 +186,25 @@ public static class AnnotationMetadata
 				Entity entity = tr.GetObject(item2, OpenMode.ForRead, openErased: false) as Entity;
 				if (!(entity == null) && IsMarked(entity))
 				{
-					list.Add(new GeneratedAnnotation(item2, GetGroupId(entity)));
+					string kind = GetKind(entity);
+					if (IsAllowedKind(kind, allowedKinds))
+					{
+						list.Add(new GeneratedAnnotation(item2, GetGroupId(entity)));
+					}
 				}
 			}
 		}
 		return list;
+	}
+
+	private static HashSet<string> CreateKindFilter(IEnumerable<string> kinds)
+	{
+		return new HashSet<string>((kinds ?? Enumerable.Empty<string>()).Where(kind => !string.IsNullOrEmpty(kind)), StringComparer.Ordinal);
+	}
+
+	private static bool IsAllowedKind(string kind, HashSet<string> allowedKinds)
+	{
+		return allowedKinds.Count == 0 || allowedKinds.Contains(string.IsNullOrEmpty(kind) ? KindDimension : kind);
 	}
 
 	private static string SelectLatestGroupId(IEnumerable<string> groupIds)

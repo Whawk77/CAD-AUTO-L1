@@ -7,7 +7,9 @@ param(
 
     [string]$ReportPath,
 
-    [double]$CoordinateTolerance = 0.001
+    [double]$CoordinateTolerance = 0.001,
+
+    [string]$RunStartedAt = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -76,6 +78,9 @@ if ($case.Count -ne 1) {
     throw "Regression case '$CaseId' was not found or is duplicated in $casesPath."
 }
 $case = $case[0]
+if ($case.fixtureReady -ne $true) {
+    throw "Regression case '$CaseId' is not marked fixtureReady."
+}
 
 $fixturePath = Join-Path $regressionRoot ([string]$case.fixture)
 if (-not (Test-Path -LiteralPath $fixturePath -PathType Leaf)) {
@@ -112,6 +117,28 @@ if (-not (Test-Path -LiteralPath $ReportPath -PathType Leaf)) {
 }
 
 $report = Get-Content -Raw -Encoding UTF8 -LiteralPath $ReportPath | ConvertFrom-Json
+if ([string]::IsNullOrWhiteSpace([string]$report.runId)) {
+    throw "Diagnostic report has no runId."
+}
+if ($null -ne $report.error) {
+    throw "Diagnostic report contains an error: $($report.error.type): $($report.error.message)"
+}
+if ([string]$report.drawing.sha256 -ne $fixtureHash) {
+    throw "Report drawing hash mismatch. Expected $fixtureHash, found $($report.drawing.sha256)."
+}
+if (-not [string]::IsNullOrWhiteSpace($RunStartedAt)) {
+    $startedAt = [DateTimeOffset]::Parse($RunStartedAt, [Globalization.CultureInfo]::InvariantCulture)
+    $generatedAt = [DateTimeOffset]::Parse([string]$report.generatedAt, [Globalization.CultureInfo]::InvariantCulture)
+    if ($generatedAt -lt $startedAt) {
+        throw "Diagnostic report is stale. generatedAt=$generatedAt, runStartedAt=$startedAt."
+    }
+}
+if ([string]$report.command -ne [string]$case.diagnosticCommand) {
+    throw "Expected command '$($case.diagnosticCommand)', found '$($report.command)'."
+}
+if ([string]$report.commandScope -ne [string]$case.commandScope) {
+    throw "Expected command scope '$($case.commandScope)', found '$($report.commandScope)'."
+}
 $side = [string]$case.diagnosticSide
 if ([string]$report.diagnosticSide -ne $side) {
     throw "Expected diagnostic side '$side', found '$($report.diagnosticSide)'."

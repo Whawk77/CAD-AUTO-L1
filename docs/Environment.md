@@ -10,7 +10,7 @@
   - `CadAuto.Core/` — planning, recognition, rules, geometry
   - `CadAuto.CadAdapter/` — AutoCAD rendering and adapters
   - `CadAuto.Core.Tests/` — core unit/plan tests
-  - Root plugin entry: `Commands.cs`, `PluginEntry.cs`, `RuleConfig.cs`, …
+  - Root plugin entry: `Commands.cs`, `PluginEntry.cs`
 - Default build output (may be locked by AutoCAD): `bin\Debug\AutoFixtureDim.dll`
 - Prefer a versioned output folder when AutoCAD holds locks; see `docs/Deployment.md`.
 
@@ -37,11 +37,12 @@ Notes:
 
 ## Source Map
 
-- `Commands.cs` / `V177Source/AutoFixtureDim/`: AutoCAD command entrypoints and top-level workflow.
+- `Commands.cs`: AutoCAD command entrypoints and top-level workflow.
 - `CadAuto.Core` planning (`DimensionPlanner`, …): dimension plan generation, pin groups, functional/loose holes, structure dims, suppression.
-- `CadAuto.Core` recognition: outline, hole, pin, thread, slot, chamfer, and fillet recognition.
+- `CadAuto.CadAdapter/Recognition/FeatureRecognizer.cs`: production outline, hole, pin, thread, slot, chamfer, and fillet recognition.
+- `CadAuto.Core/Recognition/FeatureRecognizer2D.cs`: Core test-only recognition implementation; it is not currently called by production commands.
 - `CadAuto.CadAdapter` rendering (`DimensionDrawer`, …): linear dimensions, stacking, local boundary, leaders, debug labels.
-- `RuleConfig.cs`: machining constants, tolerance text, number formatting, and thread minor-diameter mapping.
+- `CadAuto.Core/Rules/DimensionRuleConfig.cs`: machining constants, tolerance text, number formatting, and thread minor-diameter mapping.
 - Dim style / layer / XData helpers: style selection, annotation layer, `AUTOFIXDIM` marking and cleanup.
 
 ## Current Command Surface

@@ -8,6 +8,7 @@ using CadAuto.Core.Rules;
 
 namespace CadAuto.Core.Recognition;
 
+// Test-only shadow recognizer. Production commands use CadAuto.CadAdapter.Recognition.FeatureRecognizer.
 public sealed class FeatureRecognizer2D
 {
 	private sealed class SlotArcCandidate

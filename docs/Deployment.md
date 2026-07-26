@@ -40,6 +40,8 @@ Deployment script:
 powershell -ExecutionPolicy Bypass -File .\deploy_next_version.ps1
 ```
 
+The script requires `AutoFixtureDim.dll`, `CadAuto.Core.dll`, and `CadAuto.CadAdapter.dll` to exist in the same source directory before it creates a new version. Set `AUTOFIXDIM_DEPLOY_DIR` to override the machine-specific default deployment directory.
+
 Use it only when the user explicitly asks for deployment.
 
 ## Manual AutoCAD Flow

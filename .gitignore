@@ -21,6 +21,7 @@ Desktop.ini
 diagnostics/last-run.json
 diagnostics/*.json
 regression/asd-repair/runs/
+scripts/cad-test.scr
 
 # graphify: keep query graph + report + labels + manifest; ignore caches/viz/local paths/backups
 graphify-out/cache/
@@ -51,4 +52,3 @@ __pycache__/
 
 # Local agent skill copies (optional; not product source)
 .codex/
-

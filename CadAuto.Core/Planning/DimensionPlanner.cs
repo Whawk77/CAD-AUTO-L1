@@ -1595,17 +1595,7 @@ public sealed class DimensionPlanner
 	private HoleFeature2D ChooseNonPinBaseHole(IList<HoleFeature2D> holes, Datum2D datum)
 	{
 		List<HoleFeature2D> list = holes.Where((HoleFeature2D h) => !h.IsThreadHole).ToList();
-		IList<HoleFeature2D> list2;
-		if (list.Count <= 0)
-		{
-			list2 = holes;
-		}
-		else
-		{
-			IList<HoleFeature2D> list3 = list;
-			list2 = list3;
-		}
-		IList<HoleFeature2D> source = list2;
+		IList<HoleFeature2D> source = (list.Count > 0) ? list : holes;
 		return (from h in source
 			orderby DistanceSquared(h.Center, new Point2D(datum.BaseX, datum.BaseY)), h.Center.X, h.Center.Y
 			select h).FirstOrDefault();
@@ -3223,6 +3213,8 @@ public sealed class DimensionPlanner
 			}
 		}
 		RemoveLongestBottomExtensionCandidate(list2, outline);
+		// ponytail: Bottom is a datum side and intentionally does not run the complementary
+		// snap/removal path used by Top/Left/Right without a user-confirmed production case.
 		return list2.Where((PlannedDimension dim) => IsBottomSideHorizontalStructureCandidate(dim, outline, ignoredPoints)).ToList();
 	}
 
@@ -4748,7 +4740,7 @@ public sealed class DimensionPlanner
 		}
 		double t = ((center.X - pinA.X) * dx + (center.Y - pinA.Y) * dy) / lengthSquared;
 		// Strictly between the two pins (exclude endpoints / outside the span).
-		double endMargin = Math.Min(0.05, 0.1);
+		double endMargin = 0.05;
 		if (t <= endMargin || t >= 1.0 - endMargin)
 		{
 			return false;
@@ -4812,7 +4804,7 @@ public sealed class DimensionPlanner
 	{
 		double num = Math.Abs(datum.BaseY - outline.MinY);
 		double num2 = Math.Abs(outline.MaxY - datum.BaseY);
-		return (num <= num2 || 1 == 0) ? DimensionSide.Top : DimensionSide.Bottom;
+		return (num <= num2) ? DimensionSide.Top : DimensionSide.Bottom;
 	}
 
 	private DimensionSide ChooseOppositeVerticalDatumSide(OutlineFeature2D outline, Datum2D datum)

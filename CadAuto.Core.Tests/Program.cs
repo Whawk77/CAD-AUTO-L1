@@ -13,6 +13,7 @@ namespace CadAuto.Core.Tests
     {
         private static int _passedTests;
         private static readonly List<Tuple<string, Action>> RegisteredTests = new List<Tuple<string, Action>>();
+        private static readonly List<Tuple<string, Exception>> FailedTests = new List<Tuple<string, Exception>>();
         private static readonly HashSet<string> P0Tests = new HashSet<string>
         {
             nameof(RectangularOutlineKeepsOverallDimensions),
@@ -67,6 +68,7 @@ namespace CadAuto.Core.Tests
             nameof(IndependentLocalAndGlobalDimensionsMayShareLogicalLevel),
             nameof(IsolatedShortPinGroupTransferUsesInnerSpanOrder),
             nameof(DimensionDiagnosticsRecordFinalPlacement),
+            nameof(RenderSuppressionRemovesFinalDiagnostic),
             nameof(FormattedDimensionTextLengthIgnoresControlCodes),
             nameof(FittingVerticalLocalTextStaysCentered),
             nameof(ShortVerticalLocalTextClearsArrowheads),
@@ -88,7 +90,7 @@ namespace CadAuto.Core.Tests
             nameof(HoleCalloutsUsePinClustersAndFitText)
         };
 
-        private static int Main()
+        private static int Main(string[] args)
         {
             try
             {
@@ -107,6 +109,7 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(DuplicateSegmentsAreSuppressedWithDiagnostic), DuplicateSegmentsAreSuppressedWithDiagnostic);
                 RunTest(nameof(ZeroAndMicroSegmentsDoNotEmitDimensions), ZeroAndMicroSegmentsDoNotEmitDimensions);
                 RunTest(nameof(GeometryToleranceControlsMicroSegments), GeometryToleranceControlsMicroSegments);
+                RunTest(nameof(ThreadArcToleranceUsesConfiguredDegrees), ThreadArcToleranceUsesConfiguredDegrees);
                 RunTest(nameof(ConcaveHoleDatumUsesRealOutlineIntersections), ConcaveHoleDatumUsesRealOutlineIntersections);
                 RunTest(nameof(OverallWinsDuplicatePreferenceEvenAgainstTolerance), OverallWinsDuplicatePreferenceEvenAgainstTolerance);
                 RunTest(nameof(LocalGeometryOnOverallEnvelopeSuppressesOnlyEligibleRoles), LocalGeometryOnOverallEnvelopeSuppressesOnlyEligibleRoles);
@@ -148,6 +151,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(IndependentLocalAndGlobalDimensionsMayShareLogicalLevel), IndependentLocalAndGlobalDimensionsMayShareLogicalLevel);
 				RunTest(nameof(IsolatedShortPinGroupTransferUsesInnerSpanOrder), IsolatedShortPinGroupTransferUsesInnerSpanOrder);
 				RunTest(nameof(DimensionDiagnosticsRecordFinalPlacement), DimensionDiagnosticsRecordFinalPlacement);
+				RunTest(nameof(RenderSuppressionRemovesFinalDiagnostic), RenderSuppressionRemovesFinalDiagnostic);
 				RunTest(nameof(FormattedDimensionTextLengthIgnoresControlCodes), FormattedDimensionTextLengthIgnoresControlCodes);
 				RunTest(nameof(FittingVerticalLocalTextStaysCentered), FittingVerticalLocalTextStaysCentered);
 				RunTest(nameof(ShortVerticalLocalTextClearsArrowheads), ShortVerticalLocalTextClearsArrowheads);
@@ -208,9 +212,17 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(HoleLocationDimensionsUseSegmentedExtensionLines), HoleLocationDimensionsUseSegmentedExtensionLines);
                 RunTest(nameof(HoleCalloutsGroupByRowsWithoutPins), HoleCalloutsGroupByRowsWithoutPins);
                 RunTest(nameof(HoleCalloutsUsePinClustersAndFitText), HoleCalloutsUsePinClustersAndFitText);
-                RunRegisteredTests();
-                Console.WriteLine("CadAuto.Core.Tests passed: " + _passedTests + ".");
-                return 0;
+                int selectedTestCount = RunRegisteredTests(args);
+                Console.WriteLine("CadAuto.Core.Tests: " + _passedTests + "/" + selectedTestCount + " passed.");
+                if (FailedTests.Count > 0)
+                {
+                    Console.Error.WriteLine("FAILED TESTS:");
+                    foreach (Tuple<string, Exception> failure in FailedTests)
+                    {
+                        Console.Error.WriteLine("  " + failure.Item1 + " :: " + failure.Item2.Message);
+                    }
+                }
+                return FailedTests.Count == 0 ? 0 : 1;
             }
             catch (Exception ex)
             {
@@ -224,22 +236,73 @@ namespace CadAuto.Core.Tests
             RegisteredTests.Add(Tuple.Create(name, test));
         }
 
-        private static void RunRegisteredTests()
+        private static int RunRegisteredTests(string[] args)
         {
+            string filter = args == null
+                ? string.Empty
+                : args.FirstOrDefault(arg => !string.IsNullOrWhiteSpace(arg)) ?? string.Empty;
+            int priorityFilter;
+            bool filtersByPriority = TryParsePriorityFilter(filter, out priorityFilter);
+            List<Tuple<string, Action>> selectedTests = RegisteredTests
+                .Where(test => string.IsNullOrEmpty(filter)
+                    || (filtersByPriority
+                        ? GetTestPriority(test.Item1) == priorityFilter
+                        : test.Item1.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0))
+                .ToList();
+            if (selectedTests.Count == 0)
+            {
+                throw new InvalidOperationException("No tests matched filter '" + filter + "'.");
+            }
             for (int priority = 0; priority <= 3; priority++)
             {
-                List<Tuple<string, Action>> tests = RegisteredTests
+                List<Tuple<string, Action>> tests = selectedTests
                     .Where(test => GetTestPriority(test.Item1) == priority)
                     .ToList();
+                if (tests.Count == 0)
+                {
+                    continue;
+                }
                 Console.WriteLine("START P" + priority + " count=" + tests.Count);
+                int failureCountBeforeTier = FailedTests.Count;
                 foreach (Tuple<string, Action> test in tests)
                 {
-                    test.Item2();
-                    _passedTests++;
-                    Console.WriteLine("PASS P" + priority + " " + test.Item1);
+                    try
+                    {
+                        test.Item2();
+                        _passedTests++;
+                        Console.WriteLine("PASS P" + priority + " " + test.Item1);
+                    }
+                    catch (Exception ex)
+                    {
+                        FailedTests.Add(Tuple.Create(test.Item1, ex));
+                        Console.Error.WriteLine("FAIL P" + priority + " " + test.Item1 + " :: " + ex);
+                        if (priority == 0)
+                        {
+                            Console.Error.WriteLine("TIER ABORT P0 after first product-invariant failure.");
+                            return selectedTests.Count;
+                        }
+                    }
+                }
+                int tierFailureCount = FailedTests.Count - failureCountBeforeTier;
+                if (tierFailureCount > 0)
+                {
+                    Console.Error.WriteLine("TIER FAIL P" + priority + " failed=" + tierFailureCount + "; later tiers blocked.");
+                    return selectedTests.Count;
                 }
                 Console.WriteLine("TIER PASS P" + priority + " count=" + tests.Count);
             }
+            return selectedTests.Count;
+        }
+
+        private static bool TryParsePriorityFilter(string filter, out int priority)
+        {
+            priority = -1;
+            return !string.IsNullOrEmpty(filter)
+                && filter.Length == 2
+                && (filter[0] == 'P' || filter[0] == 'p')
+                && int.TryParse(filter.Substring(1), out priority)
+                && priority >= 0
+                && priority <= 3;
         }
 
         private static int GetTestPriority(string name)
@@ -615,6 +678,20 @@ namespace CadAuto.Core.Tests
                 "segment below configured precision must be ignored");
             Assert(plan.Dimensions.Any(d => d.SourceKey == "above-tolerance"),
                 "segment above configured precision must remain dimensionable");
+        }
+
+        private static void ThreadArcToleranceUsesConfiguredDegrees()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+
+            Assert(Math.Abs(config.ThreadArcAngleToleranceDegrees - 2.0) <= 1E-09,
+                "default thread-arc tolerance must use the conservative two-degree rollout value");
+            Assert(ThreadArcRules.IsThreadSweep(268.5 * Math.PI / 180.0, config),
+                "a sweep inside the configured two-degree tolerance must be accepted");
+            Assert(!ThreadArcRules.IsThreadSweep(267.9 * Math.PI / 180.0, config),
+                "a sweep outside the configured two-degree tolerance must be rejected");
+            Assert(ThreadArcRules.IsThreadSweep(-91.5 * Math.PI / 180.0, config),
+                "negative wrapped arc angles must normalize to the same positive sweep");
         }
 
 		private static void ConcaveHoleDatumUsesRealOutlineIntersections()
@@ -2127,6 +2204,37 @@ namespace CadAuto.Core.Tests
 				&& Math.Abs(plan.Diagnostics.FinalDimensions.Single().EffectiveSpan - 30.0) <= 1E-09
 				&& plan.Diagnostics.FinalDimensions.Single().PhysicalOrderValidated,
 				"final placement diagnostics must expose v203 layout-block and physical-order metadata");
+		}
+
+		private static void RenderSuppressionRemovesFinalDiagnostic()
+		{
+			var plan = new DimensionPlan();
+			var dimension = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(0.0, 10.0),
+				SecondPoint = new Point2D(20.0, 10.0),
+				DebugRole = "OutlineSegment"
+			};
+			plan.Add(dimension);
+			plan.CaptureFinalDimensions();
+			DimensionPlan renderProjection = plan.CreateRenderProjection();
+			renderProjection.Dimensions.Add(dimension);
+
+			renderProjection.Diagnostics.RecordRenderSuppressed(dimension.DiagnosticId, "DuplicateMeasured");
+
+			Assert(object.ReferenceEquals(plan.Diagnostics, renderProjection.Diagnostics),
+				"render projections must update the original planning diagnostic report");
+			Assert(plan.Diagnostics.FinalDimensions.Count == 0,
+				"render-suppressed dimensions must not remain in finalDimensions");
+			DimensionCandidateDiagnostic diagnostic = plan.Diagnostics.DimensionCandidates.Single();
+			Assert(diagnostic.IsSuppressed
+				&& !diagnostic.IsSelected
+				&& diagnostic.DecisionStatus == "RenderSuppressed"
+				&& diagnostic.SuppressedReason == "DuplicateMeasured",
+				"render suppression must retain its stage and reason on the candidate");
 		}
 
 		private static void FormattedDimensionTextLengthIgnoresControlCodes()

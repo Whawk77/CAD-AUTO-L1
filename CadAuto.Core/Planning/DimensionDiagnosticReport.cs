@@ -23,6 +23,28 @@ public sealed class DimensionDiagnosticReport
 		RecordFinalPlacement(FinalDimensions, diagnosticId, stackingLevel, stackingOffset, resolvedDimLineCoordinate, usesLocalBoundary, hasAlignmentCoordinateOverride, alignmentLaneKey, alignmentLaneMemberCount, alignmentDecision, layoutBlockId, layoutBlockType, effectiveSpan, effectiveOrder, orderingReason, promotedByConflictWith, physicalOutwardDistance, physicalOrderValidated);
 	}
 
+	public void RecordRenderSuppressed(int diagnosticId, string reason)
+	{
+		if (diagnosticId <= 0)
+		{
+			return;
+		}
+		string normalizedReason = reason ?? string.Empty;
+		foreach (DimensionCandidateDiagnostic diagnostic in DimensionCandidates)
+		{
+			if (diagnostic.Id != diagnosticId)
+			{
+				continue;
+			}
+			diagnostic.IsSuppressed = true;
+			diagnostic.IsSelected = false;
+			diagnostic.DecisionStatus = "RenderSuppressed";
+			diagnostic.DecisionReason = normalizedReason;
+			diagnostic.SuppressedReason = normalizedReason;
+		}
+		FinalDimensions.RemoveAll(diagnostic => diagnostic.Id == diagnosticId);
+	}
+
 	private static void RecordFinalPlacement(IEnumerable<DimensionCandidateDiagnostic> diagnostics, int diagnosticId, int stackingLevel, double stackingOffset, double resolvedDimLineCoordinate, bool usesLocalBoundary, bool hasAlignmentCoordinateOverride, string alignmentLaneKey, int alignmentLaneMemberCount, string alignmentDecision, string layoutBlockId, string layoutBlockType, double effectiveSpan, int effectiveOrder, string orderingReason, string promotedByConflictWith, double physicalOutwardDistance, bool physicalOrderValidated)
 	{
 		foreach (DimensionCandidateDiagnostic diagnostic in diagnostics)

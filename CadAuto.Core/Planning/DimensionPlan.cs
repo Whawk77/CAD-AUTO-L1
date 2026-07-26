@@ -34,6 +34,16 @@ public sealed class DimensionPlan
 		}
 	}
 
+	public DimensionPlan CreateRenderProjection()
+	{
+		DimensionPlan projection = new DimensionPlan
+		{
+			Diagnostics = Diagnostics
+		};
+		projection.PinGroups.AddRange(PinGroups);
+		return projection;
+	}
+
 	public void MarkSuppressed(PlannedDimension dimension, string reason)
 	{
 		if (dimension != null)

@@ -20,11 +20,36 @@ if ($case.Count -ne 1) {
     throw "Regression case '$CaseId' was not found or is duplicated in $casesPath."
 }
 $case = $case[0]
+if ($case.fixtureReady -ne $true) {
+    throw "Regression case '$CaseId' is not marked fixtureReady."
+}
+
+$regressionRoot = Join-Path $projectRoot "regression\hole-slot"
+$fixturePath = Join-Path $regressionRoot ([string]$case.fixture)
+if (-not (Test-Path -LiteralPath $fixturePath -PathType Leaf)) {
+    throw "Fixture was not found: $fixturePath"
+}
+if ([string]::IsNullOrWhiteSpace([string]$case.fixtureSha256)) {
+    throw "Regression case '$CaseId' has no fixtureSha256."
+}
+$fixtureHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $fixturePath).Hash
+if ($fixtureHash -ne [string]$case.fixtureSha256) {
+    throw "Fixture hash mismatch. Expected $($case.fixtureSha256), found $fixtureHash."
+}
 
 if (-not (Test-Path -LiteralPath $ReportPath -PathType Leaf)) {
     throw "Diagnostic report was not found: $ReportPath"
 }
 $report = Get-Content -Raw -Encoding UTF8 -LiteralPath $ReportPath | ConvertFrom-Json
+if ([string]::IsNullOrWhiteSpace([string]$report.runId)) {
+    throw "Diagnostic report has no runId."
+}
+if ($null -ne $report.error) {
+    throw "Diagnostic report contains an error: $($report.error.type): $($report.error.message)"
+}
+if ([string]$report.drawing.sha256 -ne $fixtureHash) {
+    throw "Report drawing hash mismatch. Expected $fixtureHash, found $($report.drawing.sha256)."
+}
 $requiredFields = @(
     "firstPointX", "firstPointY", "secondPointX", "secondPointY",
     "measurementMinimum", "measurementMaximum", "isSelected",

@@ -1,6 +1,7 @@
 param(
     [ValidateSet("Debug", "Release")]
-    [string]$Configuration = "Debug"
+    [string]$Configuration = "Debug",
+    [string]$Filter = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,12 +11,17 @@ $testExecutable = Join-Path $projectRoot ("CadAuto.Core.Tests\bin\{0}\CadAuto.Co
 
 Push-Location $projectRoot
 try {
-    & dotnet msbuild $testProject /t:Build "/p:Configuration=$Configuration" /p:DebugType=None /p:DebugSymbols=false /v:minimal
+    & dotnet msbuild $testProject /t:Build "/p:Configuration=$Configuration" /v:minimal
     if ($LASTEXITCODE -ne 0) {
         throw "CadAuto.Core.Tests build failed with exit code $LASTEXITCODE."
     }
 
-    & $testExecutable
+    if ([string]::IsNullOrWhiteSpace($Filter)) {
+        & $testExecutable
+    }
+    else {
+        & $testExecutable $Filter
+    }
     if ($LASTEXITCODE -ne 0) {
         throw "CadAuto.Core.Tests failed with exit code $LASTEXITCODE."
     }

@@ -176,21 +176,6 @@ public sealed class DimensionDrawer
 		return _entityWriter.GetDimStyleTextStyle(dimStyleId);
 	}
 
-	private string GetCurrentLayerName()
-	{
-		return _entityWriter.GetCurrentLayerName();
-	}
-
-	private Color GetCurrentEntityColor()
-	{
-		return _entityWriter.GetCurrentEntityColor();
-	}
-
-	private Color GetDimStyleTextColor(ObjectId dimStyleId)
-	{
-		return _entityWriter.GetDimStyleTextColor(dimStyleId);
-	}
-
 	private double GetDimStyleTextHeight(ObjectId dimStyleId)
 	{
 		return _entityWriter.GetDimStyleTextHeight(dimStyleId);
@@ -216,11 +201,6 @@ public sealed class DimensionDrawer
 		}
 		string text = ((precision <= 0) ? "0" : ("0." + new string('0', precision)));
 		return num.ToString(text, CultureInfo.InvariantCulture);
-	}
-
-	private void Append(Entity entity)
-	{
-		_entityWriter.Append(entity);
 	}
 
 	private double Scale(double value)
@@ -555,61 +535,10 @@ public sealed class DimensionDrawer
 		return _dimensionLayoutRules.TryGetLocalDimLineCoordinate(ToLayoutItem(dim), ToCoreDimensionSide(side), ToCoreOutlineOrNull(outline), offset, out coordinate);
 	}
 
-	private bool TryGetDimensionLocalBoundary(DeferredDim dim, DimSide side, OutlineFeature outline, out double boundary)
-	{
-		return _dimensionLayoutRules.TryGetDimensionLocalBoundary(ToLayoutItem(dim), ToCoreDimensionSide(side), ToCoreOutlineOrNull(outline), out boundary);
-	}
-
-	private bool DimensionLineEntersOutlineInterior(DeferredDim dim, DimSide side, double coordinate, OutlineFeature outline)
-	{
-		return _dimensionLayoutRules.DimensionLineEntersOutlineInterior(ToLayoutItem(dim), ToCoreDimensionSide(side), coordinate, ToCoreOutlineOrNull(outline));
-	}
-
-	private bool IsPointOnAnyOutlineSegment(Point2d point, OutlineFeature outline)
-	{
-		return _dimensionLayoutRules.IsPointOnAnyOutlineSegment(new Point2D(point.X, point.Y), ToCoreOutlineOrNull(outline));
-	}
-
-	private bool TryGetLocalHoleLocationBoundary(DeferredDim dim, DimSide side, OutlineFeature outline, out double boundary)
-	{
-		return _dimensionLayoutRules.TryGetLocalHoleLocationBoundary(ToLayoutItem(dim), ToCoreDimensionSide(side), ToCoreOutlineOrNull(outline), out boundary);
-	}
-
-	private bool CanUseLocalDimensionBoundary(DeferredDim dim)
-	{
-		return _dimensionLayoutRules.CanUseLocalDimensionBoundary(ToLayoutItem(dim));
-	}
-
-	private double IntervalOverlap(double firstMin, double firstMax, double secondMin, double secondMax)
-	{
-		return _dimensionLayoutRules.IntervalOverlap(firstMin, firstMax, secondMin, secondMax);
-	}
-
 	private TextBounds ComputePlacedTextBounds(DeferredDim dim, Point3d dimLinePoint, bool isHorizontal, double textHeight)
 	{
 		TextBounds2D bounds = _dimensionLayoutRules.ComputePlacedTextBounds(ToLayoutItem(dim), new Point2D(dimLinePoint.X, dimLinePoint.Y), isHorizontal, textHeight);
 		return ToTextBounds(bounds);
-	}
-
-	private (double A, double B) ComputeTextInterval(DeferredDim dim, bool isHorizontal, double textHeight)
-	{
-		Tuple<double, double> tuple = _dimensionLayoutRules.ComputeTextInterval(ToLayoutItem(dim), isHorizontal, textHeight);
-		return (A: tuple.Item1, B: tuple.Item2);
-	}
-
-	private double GetDimensionTextLength(DeferredDim dim, double textHeight)
-	{
-		return _dimensionLayoutRules.GetDimensionTextLength(ToLayoutItem(dim), textHeight);
-	}
-
-	private string GetDimensionText(DeferredDim dim)
-	{
-		return _dimensionLayoutRules.GetDimensionText(ToLayoutItem(dim));
-	}
-
-	private bool TextCoversOutline(DeferredDim dim, DimSide side, double offset, double textHeight, OutlineFeature outline, bool isHorizontal)
-	{
-		return _dimensionLayoutRules.TextCoversOutline(ToLayoutItem(dim), ToCoreDimensionSide(side), offset, textHeight, ToCoreOutlineOrNull(outline), isHorizontal);
 	}
 
 	private bool IsGlobalBoundaryCoordinate(double coordinate, DimSide side, OutlineFeature outline)
@@ -1274,17 +1203,6 @@ public sealed class DimensionDrawer
 		};
 	}
 
-	private static DimensionTextPlacementItem ToTextPlacementItem(PlacedDim placed)
-	{
-		return new DimensionTextPlacementItem
-		{
-			Dimension = ToLayoutItem(placed.Dim),
-			Side = ToCoreDimensionSide(placed.Side),
-			DimLinePoint = new Point2D(placed.DimLinePoint.X, placed.DimLinePoint.Y),
-			TextBounds = ToCoreTextBounds(placed.TextBounds)
-		};
-	}
-
 	private static TextBounds2D ToCoreTextBounds(TextBounds bounds)
 	{
 		return new TextBounds2D
@@ -1331,20 +1249,6 @@ public sealed class DimensionDrawer
 	{
 		Point2D dimLinePoint = _dimensionLayoutRules.GetDimLinePoint(ToLayoutItem(dim), ToCoreDimensionSide(side), ToCoreOutlineOrNull(outline), offset);
 		return new Point3d(dimLinePoint.X, dimLinePoint.Y, 0.0);
-	}
-
-	private double GetDimLineCoordinate(DeferredDim dim, DimSide side, OutlineFeature outline, double offset)
-	{
-		return _dimensionLayoutRules.GetDimLineCoordinate(ToLayoutItem(dim), ToCoreDimensionSide(side), ToCoreOutlineOrNull(outline), offset);
-	}
-
-	private (double A, double B) ComputeArrowInterval(DeferredDim dim, bool isHorizontal)
-	{
-		if (isHorizontal)
-		{
-			return (A: Math.Min(dim.XLine1.X, dim.XLine2.X), B: Math.Max(dim.XLine1.X, dim.XLine2.X));
-		}
-		return (A: Math.Min(dim.XLine1.Y, dim.XLine2.Y), B: Math.Max(dim.XLine1.Y, dim.XLine2.Y));
 	}
 
 	private static Point2d Midpoint(Point2d a, Point2d b)

@@ -10,26 +10,23 @@ namespace CadAuto.Core.Planning;
 
 public sealed partial class DimensionPlanner
 {
-	// Suppression pipeline: 23 passes over 13 rules. THE ORDER IS PRODUCT BEHAVIOR -
+	// Suppression pipeline: 27 passes. THE ORDER IS PRODUCT BEHAVIOR -
 	// each inline note below records a constraint that was learned the hard way; keep
 	// the notes adjacent to the calls they explain. Stages:
 	//   0. capture   - FindLocalGeometryOnOverallEnvelope snapshots candidates BEFORE
-	//                  any pass mutates the plan; the matching suppress is pass 23.
-	//   1. structure vs overall (passes 1-7)  - height dedup vs overall, bottom
+	//                  any pass mutates the plan; the matching suppress is pass 27.
+	//   1. structure vs overall (passes 1-9)  - height dedup vs overall, bottom
 	//                  protrusion remainders, structure partition chains (H then V),
-	//                  datum-rooted outer-step complements. Must run before stage 2 so
-	//                  OutlineSegment partners still exist when chains are built.
-	//   2. OutlineSegment partition (passes 8-11, four sides) - scoped to
-	//                  OutlineSegment only.
-	//   3. mirror dedup (passes 12-13) - must precede stage 5; envelope could remove
-	//                  the primary-side outer tip first and orphan a same-interval
-	//                  secondary OutlineSegment.
-	//   4. secondary-side cleanup (passes 14-15) - after mirror keeps structure
-	//                  heights over OS.
-	//   5. envelope collinear fragments (pass 16).
-	//   6. complementary remainders (passes 17-18) - Top/Right only by design.
-	//   7. measured duplicates (passes 19-22, four sides).
-	//   8. deferred local-geometry suppress (pass 23) using the stage-0 snapshot.
+	//                  datum-rooted complements, then real bottom/left outer-step partitions.
+	//                  Must run before stage 2 so OS body equivalents still exist.
+	//   2. OutlineSegment partition (passes 10-13, four sides) - scoped to OS only.
+	//   3. mirror dedup (passes 14-15) - must precede envelope cleanup.
+	//   4. secondary-side cleanup (passes 16-17).
+	//   5. envelope collinear fragments (pass 18).
+	//   6. complementary remainders (passes 19-20) - Top/Right only by design.
+	//   7. closed overall length chains (passes 21-22).
+	//   8. measured duplicates (passes 23-26, four sides).
+	//   9. deferred local-geometry suppress (pass 27) using the stage-0 snapshot.
 	// This method runs twice per full plan (once inside CreateOutlinePlan, once after
 	// hole/slot dimensions are added) - outline candidates see it twice, hole/slot
 	// candidates once.
@@ -48,6 +45,11 @@ public sealed partial class DimensionPlanner
 		SuppressStructureDimensionsThatPartitionOverall(plan, outline, horizontal: false);
 		SuppressDatumRootedOuterStepComplements(plan, outline, horizontal: true);
 		SuppressDatumRootedOuterStepComplements(plan, outline, horizontal: false);
+		// A real bottom outer step may be shorter or longer than its body remainder.
+		// Keep Overall + the boundary-backed step; suppress every equivalent body interval
+		// (projected BottomStructWidth and OutlineSegment) before either OS is removed.
+		SuppressBottomOuterContourStepBodyRemainders(plan, outline);
+		SuppressLeftOuterContourStepBodyRemainders(plan, outline);
 		// Drop raw OutlineSegment pairs that re-partition overall (before complementary remainder
 		// removes only the larger partner and leaves the smaller fragment orphaned).
 		// Scoped to OutlineSegment only — do not broaden complementary-remainder to Bottom/Left
@@ -65,12 +67,18 @@ public sealed partial class DimensionPlanner
 		// restate the primary structure stack or the overall residual (left/right step symmetry).
 		SuppressSecondaryVerticalOutlineSegmentsRedundantWithPrimaryStructureStack(plan);
 		// Structure>OS mirror can leave short outer tips that only restate overall residual noise.
-		SuppressOrphanOuterVerticalStructureHeightTips(plan);
+		// Keep short dimensions backed by a real partial envelope edge: those are real steps.
+		SuppressOrphanOuterVerticalStructureHeightTips(plan, outline);
 		// Outer-envelope collinear OutlineSegment fragments (+ same-interval structure dups).
 		SuppressOutlineSegmentsOnOverallEnvelope(plan, outline);
 		// Existing complementary remainder for structure/normal remainders (Top/Right only).
 		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Top, horizontal: true);
 		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Right, horizontal: false);
+		// Closed length chains (any side pairing): body 70 + step 20 = overall 90 → drop 70.
+		// Includes OutlineSegment body lengths after interior edges resolve to Bottom/Top.
+		// Still requires real 1D abutment cover (never span-sum alone).
+		SuppressClosedOverallLengthRemainders(plan, horizontal: true);
+		SuppressClosedOverallLengthRemainders(plan, horizontal: false);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Bottom, horizontal: true);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Top, horizontal: true);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Left, horizontal: false);
@@ -99,25 +107,190 @@ public sealed partial class DimensionPlanner
 			}
 			bool horizontalSide = dimension.Side == DimensionSide.Top || dimension.Side == DimensionSide.Bottom;
 			bool verticalSide = dimension.Side == DimensionSide.Left || dimension.Side == DimensionSide.Right;
+			bool onMinY = Math.Abs(dimension.FirstPoint.Y - outline.MinY) <= tol
+				&& Math.Abs(dimension.SecondPoint.Y - outline.MinY) <= tol;
+			bool onMaxY = Math.Abs(dimension.FirstPoint.Y - outline.MaxY) <= tol
+				&& Math.Abs(dimension.SecondPoint.Y - outline.MaxY) <= tol;
+			bool onMinX = Math.Abs(dimension.FirstPoint.X - outline.MinX) <= tol
+				&& Math.Abs(dimension.SecondPoint.X - outline.MinX) <= tol;
+			bool onMaxX = Math.Abs(dimension.FirstPoint.X - outline.MaxX) <= tol
+				&& Math.Abs(dimension.SecondPoint.X - outline.MaxX) <= tol;
 			bool onHorizontalEnvelope = dimension.Orientation == DimensionOrientation.Horizontal
 				&& horizontalSide
-				&& (Math.Abs(dimension.FirstPoint.Y - outline.MinY) <= tol
-					&& Math.Abs(dimension.SecondPoint.Y - outline.MinY) <= tol
-					|| Math.Abs(dimension.FirstPoint.Y - outline.MaxY) <= tol
-					&& Math.Abs(dimension.SecondPoint.Y - outline.MaxY) <= tol);
+				&& (onMinY || onMaxY);
 			bool onVerticalEnvelope = dimension.Orientation == DimensionOrientation.Vertical
 				&& verticalSide
-				&& (Math.Abs(dimension.FirstPoint.X - outline.MinX) <= tol
-					&& Math.Abs(dimension.SecondPoint.X - outline.MinX) <= tol
-					|| Math.Abs(dimension.FirstPoint.X - outline.MaxX) <= tol
-					&& Math.Abs(dimension.SecondPoint.X - outline.MaxX) <= tol);
+				&& (onMinX || onMaxX);
 			if (!onHorizontalEnvelope && !onVerticalEnvelope)
 			{
 				continue;
 			}
+			// Stepped outlines put real structure faces on the overall AABB (right body height on
+			// MaxX, left-boss top width on MaxY). Only suppress when that envelope side is a
+			// full-length outer edge; otherwise overall W/H cannot replace the step size.
+			// No segment data => legacy suppress-all (unit tests that only set Min/Max).
+			if (outline.Segments != null && outline.Segments.Count > 0)
+			{
+				double edgeCoordinate = onHorizontalEnvelope
+					? (onMinY ? outline.MinY : outline.MaxY)
+					: (onMinX ? outline.MinX : outline.MaxX);
+				if (!IsFullLengthEnvelopeEdge(outline, horizontal: onHorizontalEnvelope, edgeCoordinate, tol))
+				{
+					continue;
+				}
+				// Collinear full outer edge can host a step length that closes overall with an
+				// opposite-side body length (bottom 20 + top 70 = 90). Keep only then.
+				if (ShouldKeepSteppedStructureForCrossSideClosedChain(dimension, plan, outline, tol))
+				{
+					continue;
+				}
+			}
 			matches.Add(dimension);
 		}
 		return matches;
+	}
+
+	/// <summary>
+	/// Keep a stepped structure dim only when an opposite-side structure partner completes a
+	/// real overall partition with it (closed chain). Prevents short same-side tips that only
+	/// pair with OutlineSegments from surviving.
+	/// </summary>
+	private bool ShouldKeepSteppedStructureForCrossSideClosedChain(
+		PlannedDimension dimension,
+		DimensionPlan plan,
+		OutlineFeature2D outline,
+		double tol)
+	{
+		if (dimension == null || plan == null || outline == null
+			|| !IsSteppedEnvelopeStructureDimension(dimension, outline, tol))
+		{
+			return false;
+		}
+		bool horizontal = dimension.Orientation == DimensionOrientation.Horizontal;
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) =>
+			horizontal ? (d.Kind == DimensionKind.OverallWidth) : (d.Kind == DimensionKind.OverallHeight));
+		if (overall == null)
+		{
+			return false;
+		}
+		return plan.Dimensions.Any((PlannedDimension other) => other != null
+			&& other != dimension
+			&& other.Kind == DimensionKind.Normal
+			&& IsClosedChainLengthRole(other.DebugRole, horizontal)
+			&& IsClosedChainPairingAllowed(dimension, other)
+			&& FormsCompleteOverallPartition(dimension, other, overall, horizontal));
+	}
+
+	/// <summary>
+	/// True when a structure dim on the outer envelope ends at an interior shoulder: one end is
+	/// an overall corner, the other is not, and a real orthogonal segment leaves the envelope
+	/// there. Distinguishes step lengths from overall-duplicate edge fragments.
+	/// </summary>
+	private static bool IsSteppedEnvelopeStructureDimension(PlannedDimension dimension, OutlineFeature2D outline, double tol)
+	{
+		if (dimension == null || outline == null || outline.Segments == null)
+		{
+			return false;
+		}
+		bool horizontal = dimension.Orientation == DimensionOrientation.Horizontal;
+		double span = horizontal
+			? Math.Abs(dimension.SecondPoint.X - dimension.FirstPoint.X)
+			: Math.Abs(dimension.SecondPoint.Y - dimension.FirstPoint.Y);
+		double overall = horizontal ? outline.Width : outline.Height;
+		if (span <= tol || span + tol >= overall)
+		{
+			return false;
+		}
+		Point2D a = dimension.FirstPoint;
+		Point2D b = dimension.SecondPoint;
+		bool aAtOverallCorner = horizontal
+			? (Math.Abs(a.X - outline.MinX) <= tol || Math.Abs(a.X - outline.MaxX) <= tol)
+			: (Math.Abs(a.Y - outline.MinY) <= tol || Math.Abs(a.Y - outline.MaxY) <= tol);
+		bool bAtOverallCorner = horizontal
+			? (Math.Abs(b.X - outline.MinX) <= tol || Math.Abs(b.X - outline.MaxX) <= tol)
+			: (Math.Abs(b.Y - outline.MinY) <= tol || Math.Abs(b.Y - outline.MaxY) <= tol);
+		if (aAtOverallCorner == bAtOverallCorner)
+		{
+			// Need exactly one end on the overall extremity (the free end of the step).
+			return false;
+		}
+		Point2D interior = aAtOverallCorner ? b : a;
+		return HasOrthogonalShoulderLeavingEnvelope(outline, interior, horizontal, tol);
+	}
+
+	private static bool HasOrthogonalShoulderLeavingEnvelope(OutlineFeature2D outline, Point2D point, bool envelopeIsHorizontal, double tol)
+	{
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (segment == null)
+			{
+				continue;
+			}
+			bool touches = point.DistanceTo(segment.Start) <= tol || point.DistanceTo(segment.End) <= tol;
+			if (!touches)
+			{
+				continue;
+			}
+			if (envelopeIsHorizontal)
+			{
+				// Envelope along Y=const: shoulder must be vertical and leave that Y.
+				if (!segment.IsVertical(tol))
+				{
+					continue;
+				}
+				if (Math.Abs(segment.LengthY) > tol)
+				{
+					return true;
+				}
+			}
+			else if (segment.IsHorizontal(tol) && Math.Abs(segment.LengthX) > tol)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/// <summary>
+	/// True when collinear outer segments on the envelope line cover the full overall width
+	/// (horizontal edge) or height (vertical edge). Partial coverage means a step face.
+	/// </summary>
+	private static bool IsFullLengthEnvelopeEdge(OutlineFeature2D outline, bool horizontal, double edgeCoordinate, double tol)
+	{
+		double covered = 0.0;
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (segment == null)
+			{
+				continue;
+			}
+			if (horizontal)
+			{
+				if (!segment.IsHorizontal(tol))
+				{
+					continue;
+				}
+				if (Math.Abs(segment.Start.Y - edgeCoordinate) > tol || Math.Abs(segment.End.Y - edgeCoordinate) > tol)
+				{
+					continue;
+				}
+				covered += segment.LengthX;
+			}
+			else
+			{
+				if (!segment.IsVertical(tol))
+				{
+					continue;
+				}
+				if (Math.Abs(segment.Start.X - edgeCoordinate) > tol || Math.Abs(segment.End.X - edgeCoordinate) > tol)
+				{
+					continue;
+				}
+				covered += segment.LengthY;
+			}
+		}
+		double overall = horizontal ? outline.Width : outline.Height;
+		return overall > tol && covered + tol >= overall;
 	}
 
 	private static void SuppressLocalGeometryOnOverallEnvelope(
@@ -216,6 +389,12 @@ public sealed partial class DimensionPlanner
 		if (Math.Abs(dimension.FirstPoint.Y - dimension.SecondPoint.Y) > tol
 			|| Math.Abs(Math.Max(dimension.FirstPoint.X, dimension.SecondPoint.X) - outline.MaxX) > tol
 			|| IsBottomProtrusionWidth(dimension, outline))
+		{
+			return false;
+		}
+		// Shaft/step length on MinY that closes overall with an opposite-side body length is not
+		// a lower-arm residual (even when a parallel step-top shares the same X interval).
+		if (isBottomStructure && ShouldKeepSteppedStructureForCrossSideClosedChain(dimension, plan, outline, tol))
 		{
 			return false;
 		}
@@ -470,6 +649,283 @@ public sealed partial class DimensionPlanner
 		}
 	}
 
+	/// <summary>
+	/// Preserve a genuine partial MinX outer face and remove its projected height residual.
+	/// Example: real left face 20 + projected lower residual 8.262 = OverallHeight 28.262.
+	/// </summary>
+	private void SuppressLeftOuterContourStepBodyRemainders(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		if (plan == null || outline == null)
+		{
+			return;
+		}
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallHeight);
+		if (overall == null || overall.Orientation != DimensionOrientation.Vertical)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		List<PlannedDimension> snapshot = plan.Dimensions.ToList();
+		List<PlannedDimension> realLeftFaces = snapshot.Where((PlannedDimension d) =>
+			d.Kind == DimensionKind.Normal
+			&& d.Orientation == DimensionOrientation.Vertical
+			&& d.Side == DimensionSide.Left
+			&& string.Equals(d.DebugRole, "LeftStructHeight", StringComparison.Ordinal)
+			&& IsRealPartialEnvelopeStructureHeight(d, outline, tol))
+			.ToList();
+		if (realLeftFaces.Count == 0)
+		{
+			return;
+		}
+		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>();
+		foreach (PlannedDimension face in realLeftFaces)
+		{
+			foreach (PlannedDimension candidate in snapshot)
+			{
+				if (candidate == face
+					|| candidate.Kind != DimensionKind.Normal
+					|| candidate.Orientation != DimensionOrientation.Vertical
+					|| candidate.Side != DimensionSide.Left
+					|| !(string.Equals(candidate.DebugRole, "LeftStructHeight", StringComparison.Ordinal)
+						|| string.Equals(candidate.DebugRole, "OutlineSegment", StringComparison.Ordinal))
+					|| IsRealPartialEnvelopeStructureHeight(candidate, outline, tol)
+					|| !FormsCompleteOverallPartition(face, candidate, overall, horizontal: false))
+				{
+					continue;
+				}
+				toSuppress.Add(candidate);
+			}
+		}
+		for (int i = plan.Dimensions.Count - 1; i >= 0; i--)
+		{
+			PlannedDimension candidate = plan.Dimensions[i];
+			if (!toSuppress.Contains(candidate))
+			{
+				continue;
+			}
+			plan.MarkSuppressed(candidate, SuppressReason.OuterContourStepOverallRemainder);
+			plan.Dimensions.RemoveAt(i);
+		}
+	}
+
+	/// <summary>
+	/// Preserve a genuine bottom outer-contour step and remove the complementary body interval.
+	/// The step may be shorter (20 of 90) or longer (120 of 215) than the body; topology decides.
+	/// Chamfered steps are supported by following a connected boundary path down to MinY.
+	/// </summary>
+	private void SuppressBottomOuterContourStepBodyRemainders(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		if (plan == null || outline == null || outline.Segments == null || outline.Segments.Count == 0)
+		{
+			return;
+		}
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallWidth);
+		if (overall == null || overall.Orientation != DimensionOrientation.Horizontal)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal: true);
+		List<PlannedDimension> snapshot = plan.Dimensions.ToList();
+		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>();
+		foreach (PlannedDimension step in snapshot.Where((PlannedDimension d) =>
+			d.Kind == DimensionKind.Normal
+			&& d.Orientation == DimensionOrientation.Horizontal
+			&& d.Side == DimensionSide.Bottom
+			&& string.Equals(d.DebugRole, "BottomStructWidth", StringComparison.Ordinal)))
+		{
+			if (!TryResolveRealBottomOuterStepInterval(step, outline, overallInterval, tol, out Tuple<double, double> bodyInterval))
+			{
+				continue;
+			}
+			foreach (PlannedDimension candidate in snapshot)
+			{
+				if (candidate == step
+					|| candidate.Kind != DimensionKind.Normal
+					|| candidate.Orientation != DimensionOrientation.Horizontal
+					|| candidate.Side != DimensionSide.Bottom
+					|| !(string.Equals(candidate.DebugRole, "BottomStructWidth", StringComparison.Ordinal)
+						|| string.Equals(candidate.DebugRole, "OutlineSegment", StringComparison.Ordinal)))
+				{
+					continue;
+				}
+				Tuple<double, double> candidateInterval = ComputeArrowInterval(candidate, horizontal: true);
+				if (Math.Abs(candidateInterval.Item1 - bodyInterval.Item1) > tol
+					|| Math.Abs(candidateInterval.Item2 - bodyInterval.Item2) > tol
+					|| !FormsCompleteOverallPartition(candidate, step, overall, horizontal: true))
+				{
+					continue;
+				}
+				toSuppress.Add(candidate);
+			}
+		}
+		if (toSuppress.Count == 0)
+		{
+			return;
+		}
+		for (int i = plan.Dimensions.Count - 1; i >= 0; i--)
+		{
+			PlannedDimension candidate = plan.Dimensions[i];
+			if (!toSuppress.Contains(candidate))
+			{
+				continue;
+			}
+			plan.MarkSuppressed(candidate, SuppressReason.OuterContourStepOverallRemainder);
+			plan.Dimensions.RemoveAt(i);
+		}
+	}
+
+	private bool TryResolveRealBottomOuterStepInterval(
+		PlannedDimension step,
+		OutlineFeature2D outline,
+		Tuple<double, double> overallInterval,
+		double tol,
+		out Tuple<double, double> bodyInterval)
+	{
+		bodyInterval = null;
+		if (step == null || Math.Abs(step.FirstPoint.Y - step.SecondPoint.Y) > tol)
+		{
+			return false;
+		}
+		Tuple<double, double> stepInterval = ComputeArrowInterval(step, horizontal: true);
+		bool touchesLeft = Math.Abs(stepInterval.Item1 - overallInterval.Item1) <= tol;
+		bool touchesRight = Math.Abs(stepInterval.Item2 - overallInterval.Item2) <= tol;
+		if (touchesLeft == touchesRight)
+		{
+			return false;
+		}
+		double baseline = (step.FirstPoint.Y + step.SecondPoint.Y) * 0.5;
+		Point2D inner = touchesRight
+			? (step.FirstPoint.X <= step.SecondPoint.X ? step.FirstPoint : step.SecondPoint)
+			: (step.FirstPoint.X >= step.SecondPoint.X ? step.FirstPoint : step.SecondPoint);
+		Point2D outer = touchesRight
+			? (step.FirstPoint.X > step.SecondPoint.X ? step.FirstPoint : step.SecondPoint)
+			: (step.FirstPoint.X < step.SecondPoint.X ? step.FirstPoint : step.SecondPoint);
+		if (!HasConnectedBottomBoundaryPath(outline, inner, outer, baseline, stepInterval, tol)
+			|| !HasUpwardReturnAtStepShoulder(outline, inner, baseline, tol)
+			|| HasSameLevelBodyContinuation(outline, inner, baseline, touchesRight, tol))
+		{
+			return false;
+		}
+		bodyInterval = touchesRight
+			? Tuple.Create(overallInterval.Item1, stepInterval.Item1)
+			: Tuple.Create(stepInterval.Item2, overallInterval.Item2);
+		return bodyInterval.Item2 > bodyInterval.Item1 + tol;
+	}
+
+	private static bool HasConnectedBottomBoundaryPath(
+		OutlineFeature2D outline,
+		Point2D start,
+		Point2D end,
+		double baseline,
+		Tuple<double, double> stepInterval,
+		double tol)
+	{
+		List<Segment2D> eligible = outline.Segments.Where((Segment2D segment) => segment != null
+			&& segment.MinX >= stepInterval.Item1 - tol
+			&& segment.MaxX <= stepInterval.Item2 + tol
+			&& segment.Start.Y <= baseline + tol
+			&& segment.End.Y <= baseline + tol)
+			.ToList();
+		if (eligible.Count == 0 || !eligible.Any((Segment2D segment) => segment.MinY <= outline.MinY + tol))
+		{
+			return false;
+		}
+		Queue<Point2D> queue = new Queue<Point2D>();
+		List<Point2D> visited = new List<Point2D>();
+		queue.Enqueue(start);
+		visited.Add(start);
+		while (queue.Count > 0)
+		{
+			Point2D current = queue.Dequeue();
+			if (current.DistanceTo(end) <= tol)
+			{
+				return true;
+			}
+			foreach (Segment2D segment in eligible)
+			{
+				Point2D next;
+				if (current.DistanceTo(segment.Start) <= tol)
+				{
+					next = segment.End;
+				}
+				else if (current.DistanceTo(segment.End) <= tol)
+				{
+					next = segment.Start;
+				}
+				else
+				{
+					continue;
+				}
+				if (visited.Any((Point2D point) => point.DistanceTo(next) <= tol))
+				{
+					continue;
+				}
+				visited.Add(next);
+				queue.Enqueue(next);
+			}
+		}
+		return false;
+	}
+
+	private static bool HasUpwardReturnAtStepShoulder(OutlineFeature2D outline, Point2D shoulder, double baseline, double tol)
+	{
+		return outline.Segments.Any((Segment2D segment) =>
+		{
+			if (segment == null)
+			{
+				return false;
+			}
+			if (shoulder.DistanceTo(segment.Start) <= tol)
+			{
+				return segment.End.Y > baseline + tol;
+			}
+			if (shoulder.DistanceTo(segment.End) <= tol)
+			{
+				return segment.Start.Y > baseline + tol;
+			}
+			return false;
+		});
+	}
+
+	private static bool HasSameLevelBodyContinuation(
+		OutlineFeature2D outline,
+		Point2D shoulder,
+		double baseline,
+		bool bodyExtendsLeft,
+		double tol)
+	{
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (segment == null || !segment.IsHorizontal(tol))
+			{
+				continue;
+			}
+			Point2D other;
+			if (shoulder.DistanceTo(segment.Start) <= tol)
+			{
+				other = segment.End;
+			}
+			else if (shoulder.DistanceTo(segment.End) <= tol)
+			{
+				other = segment.Start;
+			}
+			else
+			{
+				continue;
+			}
+			if (Math.Abs(other.Y - baseline) > tol)
+			{
+				continue;
+			}
+			if (bodyExtendsLeft ? other.X < shoulder.X - tol : other.X > shoulder.X + tol)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private void SuppressComplementaryOutlineRemainders(DimensionPlan plan, DimensionSide side, bool horizontal)
 	{
 		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => horizontal ? (d.Kind == DimensionKind.OverallWidth) : (d.Kind == DimensionKind.OverallHeight));
@@ -493,6 +949,100 @@ public sealed partial class DimensionPlanner
 				}
 			}
 		}
+	}
+
+	/// <summary>
+	/// Suppress the larger length piece when it pairs with a smaller length piece to form a
+	/// complete overall partition (closed chain). Decision A: keep overall + short step, drop body.
+	/// Partners may be any side (cross-side Top/Bottom or same-side after interior OS resolves to Bottom).
+	/// Roles: structure widths/heights, chamfered steps, and axis-aligned OutlineSegments.
+	/// </summary>
+	internal void SuppressClosedOverallLengthRemainders(DimensionPlan plan, bool horizontal)
+	{
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => horizontal ? (d.Kind == DimensionKind.OverallWidth) : (d.Kind == DimensionKind.OverallHeight));
+		if (overall == null)
+		{
+			return;
+		}
+		DimensionOrientation expected = horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical;
+		if (overall.Orientation != expected)
+		{
+			return;
+		}
+		List<PlannedDimension> lengthDims = plan.Dimensions
+			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+				&& d.Orientation == expected
+				&& IsClosedChainLengthRole(d.DebugRole, horizontal))
+			.ToList();
+		if (lengthDims.Count < 2)
+		{
+			return;
+		}
+		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
+		{
+			PlannedDimension candidate = plan.Dimensions[num];
+			if (candidate.Kind != DimensionKind.Normal
+				|| candidate.Orientation != expected
+				|| !IsClosedChainLengthRole(candidate.DebugRole, horizontal))
+			{
+				continue;
+			}
+			double span = GetDimensionSpan(candidate, horizontal);
+			// Same-side structure/structure pairs stay with legacy structure partition rules.
+			// This pass covers: cross-side structure pairs, and any pair involving OutlineSegment.
+			if (!lengthDims.Any((PlannedDimension other) => other != candidate
+				&& GetDimensionSpan(other, horizontal) < span - _config.GeometryTolerance
+				&& FormsCompleteOverallPartition(candidate, other, overall, horizontal)
+				&& IsClosedChainPairingAllowed(candidate, other)))
+			{
+				continue;
+			}
+			plan.MarkSuppressed(candidate, SuppressReason.ComplementaryOutlineRemainder);
+			plan.Dimensions.RemoveAt(num);
+		}
+	}
+
+	/// <summary>Backward-compatible alias used by older unit tests. </summary>
+	internal void SuppressCrossSideComplementaryStructureRemainders(DimensionPlan plan, bool horizontal)
+	{
+		SuppressClosedOverallLengthRemainders(plan, horizontal);
+	}
+
+	private static bool IsClosedChainLengthRole(string debugRole, bool horizontal)
+	{
+		if (string.Equals(debugRole, "OutlineSegment", StringComparison.Ordinal))
+		{
+			return true;
+		}
+		return IsClosedChainStructureRole(debugRole, horizontal);
+	}
+
+	private static bool IsClosedChainPairingAllowed(PlannedDimension a, PlannedDimension b)
+	{
+		if (a == null || b == null)
+		{
+			return false;
+		}
+		bool aOs = string.Equals(a.DebugRole, "OutlineSegment", StringComparison.Ordinal);
+		bool bOs = string.Equals(b.DebugRole, "OutlineSegment", StringComparison.Ordinal);
+		if (aOs || bOs)
+		{
+			return true;
+		}
+		// Structure/structure: only when opposite sides (cross-side body + step).
+		return a.Side != b.Side;
+	}
+
+	private static bool IsClosedChainStructureRole(string debugRole, bool horizontal)
+	{
+		if (horizontal)
+		{
+			return IsHorizontalStructureWidthRole(debugRole)
+				|| string.Equals(debugRole, "TopChamferedStepWidth", StringComparison.Ordinal);
+		}
+		return string.Equals(debugRole, "LeftStructHeight", StringComparison.Ordinal)
+			|| string.Equals(debugRole, "RightStructHeight", StringComparison.Ordinal)
+			|| string.Equals(debugRole, "RightChamferedStepHeight", StringComparison.Ordinal);
 	}
 
 	/// <summary>
@@ -641,6 +1191,12 @@ public sealed partial class DimensionPlanner
 			double structureSpan = GetDimensionSpan(structure, horizontal: true);
 			// Short tip: less than half overall width. Step ledges are typically larger.
 			if (structureSpan >= overallWidthSpan * 0.5 - tol)
+			{
+				continue;
+			}
+			// Real step length that closes overall with an opposite-side body length must stay;
+			// the closed-chain partner is removed by the cross-side complementary pass.
+			if (ShouldKeepSteppedStructureForCrossSideClosedChain(structure, plan, outline, tol))
 			{
 				continue;
 			}
@@ -860,7 +1416,7 @@ public sealed partial class DimensionPlanner
 	/// no piece spans &gt;= 30% of OverallHeight and the chain covers &lt; 50% of overall.
 	/// Keeps real steps (L-arm ~40% of height, left-step 50+30 chain).
 	/// </summary>
-	internal void SuppressOrphanOuterVerticalStructureHeightTips(DimensionPlan plan)
+	internal void SuppressOrphanOuterVerticalStructureHeightTips(DimensionPlan plan, OutlineFeature2D outline = null)
 	{
 		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallHeight);
 		if (overall == null)
@@ -903,6 +1459,10 @@ public sealed partial class DimensionPlanner
 				}
 				foreach (PlannedDimension d in chain)
 				{
+					if (IsRealPartialEnvelopeStructureHeight(d, outline, tol))
+					{
+						continue;
+					}
 					toSuppress.Add(d);
 				}
 			}
@@ -921,6 +1481,48 @@ public sealed partial class DimensionPlanner
 				plan.Dimensions.RemoveAt(num);
 			}
 		}
+	}
+
+	/// <summary>
+	/// Protects a short left/right structure height when it is backed by a real straight
+	/// segment on a partial (stepped) outer-envelope edge. Overall height cannot replace it.
+	/// </summary>
+	private bool IsRealPartialEnvelopeStructureHeight(PlannedDimension dimension, OutlineFeature2D outline, double tol)
+	{
+		if (dimension == null || outline == null || outline.Segments == null || outline.Segments.Count == 0
+			|| dimension.Orientation != DimensionOrientation.Vertical
+			|| (!IsLeftStructureHeight(dimension) && !IsRightStructureHeight(dimension)))
+		{
+			return false;
+		}
+		bool onMinX = Math.Abs(dimension.FirstPoint.X - outline.MinX) <= tol
+			&& Math.Abs(dimension.SecondPoint.X - outline.MinX) <= tol;
+		bool onMaxX = Math.Abs(dimension.FirstPoint.X - outline.MaxX) <= tol
+			&& Math.Abs(dimension.SecondPoint.X - outline.MaxX) <= tol;
+		if (!onMinX && !onMaxX)
+		{
+			return false;
+		}
+		double edgeX = onMinX ? outline.MinX : outline.MaxX;
+		if (IsFullLengthEnvelopeEdge(outline, horizontal: false, edgeX, tol))
+		{
+			return false;
+		}
+		List<Tuple<double, double>> realEdgeIntervals = outline.Segments
+			.Where(segment => segment != null
+				&& segment.IsVertical(tol)
+				&& Math.Abs(segment.Start.X - edgeX) <= tol
+				&& Math.Abs(segment.End.X - edgeX) <= tol)
+			.Select(segment => Tuple.Create(segment.MinY, segment.MaxY))
+			.ToList();
+		if (realEdgeIntervals.Count == 0)
+		{
+			return false;
+		}
+		Tuple<double, double> dimensionInterval = ComputeArrowInterval(dimension, horizontal: false);
+		return MergeVerticalIntervals(realEdgeIntervals, tol).Any(interval =>
+			dimensionInterval.Item1 >= interval.Item1 - tol
+			&& dimensionInterval.Item2 <= interval.Item2 + tol);
 	}
 
 	internal static List<List<PlannedDimension>> BuildAbuttingVerticalStructureChains(IList<PlannedDimension> heights, double tol)
@@ -1375,8 +1977,11 @@ public sealed partial class DimensionPlanner
 					}
 				}
 			}
-			if (focusOnChain)
+			if (focusOnChain
+				&& !ShouldKeepSteppedStructureForCrossSideClosedChain(focus, plan, outline, tol))
 			{
+				// Keep step lengths only when they close overall with an opposite-side body
+				// length; that partner is removed by the cross-side complementary pass.
 				toSuppress.Add(focus);
 			}
 		}

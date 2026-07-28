@@ -39,6 +39,8 @@ public sealed partial class DimensionPlanner
 
 		public const string ComplementaryOutlineRemainder = "ComplementaryOutlineRemainder";
 
+		public const string OuterContourStepOverallRemainder = "OuterContourStepOverallRemainder";
+
 		public const string OutlineSegmentOverallPartition = "OutlineSegmentOverallPartition";
 
 		public const string StructureDuplicateOfEnvelopeOutlineSegment = "StructureDuplicateOfEnvelopeOutlineSegment";

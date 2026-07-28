@@ -60,7 +60,7 @@ public sealed partial class DimensionPlanner
 				{
 					Kind = DimensionKind.Normal,
 					Orientation = DimensionOrientation.Horizontal,
-					Side = ((!(segment.MinY <= outline.MinY + _config.GeometryTolerance)) ? DimensionSide.Top : DimensionSide.Bottom),
+					Side = ResolveHorizontalOutlineSegmentSide(segment, outline),
 					FirstPoint = segment.Start,
 					SecondPoint = segment.End,
 					SourceKey = segment.SourceKey,
@@ -81,7 +81,7 @@ public sealed partial class DimensionPlanner
 				{
 					Kind = DimensionKind.Normal,
 					Orientation = DimensionOrientation.Vertical,
-					Side = ((segment.MinX <= outline.MinX + _config.GeometryTolerance) ? DimensionSide.Left : DimensionSide.Right),
+					Side = ResolveVerticalOutlineSegmentSide(segment, outline),
 					FirstPoint = segment.Start,
 					SecondPoint = segment.End,
 					SourceKey = segment.SourceKey,
@@ -97,6 +97,68 @@ public sealed partial class DimensionPlanner
 				}
 			}
 		}
+	}
+
+	/// <summary>
+	/// Horizontal OS side: only MaxY outer edges use Top; MinY uses Bottom; interior edges
+	/// pick the free (outside) normal so dimension lines do not cross the solid.
+	/// </summary>
+	internal DimensionSide ResolveHorizontalOutlineSegmentSide(Segment2D segment, OutlineFeature2D outline)
+	{
+		double tol = _config.GeometryTolerance;
+		double y = (segment.Start.Y + segment.End.Y) * 0.5;
+		if (Math.Abs(y - outline.MinY) <= tol)
+		{
+			return DimensionSide.Bottom;
+		}
+		if (Math.Abs(y - outline.MaxY) <= tol)
+		{
+			return DimensionSide.Top;
+		}
+		double midX = (segment.MinX + segment.MaxX) * 0.5;
+		double probe = Math.Max(tol * 4.0, Math.Min(outline.Height * 0.05, 1.0));
+		bool aboveInside = _structureSuppressionRules.IsPointInsideOutlineByRayCast(midX, y + probe, outline);
+		bool belowInside = _structureSuppressionRules.IsPointInsideOutlineByRayCast(midX, y - probe, outline);
+		if (aboveInside && !belowInside)
+		{
+			return DimensionSide.Bottom;
+		}
+		if (belowInside && !aboveInside)
+		{
+			return DimensionSide.Top;
+		}
+		// Both outside/inside: prefer the nearer outer envelope.
+		return (Math.Abs(y - outline.MinY) <= Math.Abs(outline.MaxY - y)) ? DimensionSide.Bottom : DimensionSide.Top;
+	}
+
+	/// <summary>
+	/// Vertical OS side: MinX/MaxX outer edges keep Left/Right; interior edges use free normal.
+	/// </summary>
+	internal DimensionSide ResolveVerticalOutlineSegmentSide(Segment2D segment, OutlineFeature2D outline)
+	{
+		double tol = _config.GeometryTolerance;
+		double x = (segment.Start.X + segment.End.X) * 0.5;
+		if (Math.Abs(x - outline.MinX) <= tol)
+		{
+			return DimensionSide.Left;
+		}
+		if (Math.Abs(x - outline.MaxX) <= tol)
+		{
+			return DimensionSide.Right;
+		}
+		double midY = (segment.MinY + segment.MaxY) * 0.5;
+		double probe = Math.Max(tol * 4.0, Math.Min(outline.Width * 0.05, 1.0));
+		bool rightInside = _structureSuppressionRules.IsPointInsideOutlineByRayCast(x + probe, midY, outline);
+		bool leftInside = _structureSuppressionRules.IsPointInsideOutlineByRayCast(x - probe, midY, outline);
+		if (rightInside && !leftInside)
+		{
+			return DimensionSide.Left;
+		}
+		if (leftInside && !rightInside)
+		{
+			return DimensionSide.Right;
+		}
+		return (Math.Abs(x - outline.MinX) <= Math.Abs(outline.MaxX - x)) ? DimensionSide.Left : DimensionSide.Right;
 	}
 
 	private void AddStepOutlineDimensions(DimensionPlan plan, OutlineFeature2D outline)
@@ -353,10 +415,16 @@ public sealed partial class DimensionPlanner
 		List<PlannedDimension> snapshot = new List<PlannedDimension>(list2);
 		RemoveLongestLeftExtensionCandidate(list2, outline);
 		RecordDiscardedCandidates(plan, snapshot, list2, "LongestExtensionCandidate");
-		// Phase 2: same complementary remainder path as right structure heights.
+		// Preserve a real partial MinX edge (production LeftStructHeight 20). Its projected
+		// complementary residual is removed later with full outline topology available.
 		SnapComplementaryVerticalRemainderEndpoints(list2, outline);
 		snapshot = new List<PlannedDimension>(list2);
-		RemoveComplementaryOverallRemainderCandidates(list2, outline.MinY, outline.MaxY, horizontal: false);
+		RemoveComplementaryOverallRemainderCandidates(
+			list2,
+			outline.MinY,
+			outline.MaxY,
+			horizontal: false,
+			preserveCandidate: (PlannedDimension candidate) => IsRealPartialEnvelopeStructureHeight(candidate, outline, _config.GeometryTolerance));
 		RecordDiscardedCandidates(plan, snapshot, list2, "ComplementaryOverallRemainder");
 		List<PlannedDimension> kept = list2.Where((PlannedDimension dim) => IsLeftSideVerticalStructureCandidate(dim, outline, ignoredPoints)).ToList();
 		RecordDiscardedCandidates(plan, list2, kept, "NotLeftSideStructureCandidate");
@@ -412,7 +480,12 @@ public sealed partial class DimensionPlanner
 		}
 	}
 
-	private void RemoveComplementaryOverallRemainderCandidates(IList<PlannedDimension> candidates, double overallMin, double overallMax, bool horizontal)
+	private void RemoveComplementaryOverallRemainderCandidates(
+		IList<PlannedDimension> candidates,
+		double overallMin,
+		double overallMax,
+		bool horizontal,
+		Func<PlannedDimension, bool> preserveCandidate = null)
 	{
 		if (candidates == null || candidates.Count < 2)
 		{
@@ -420,6 +493,10 @@ public sealed partial class DimensionPlanner
 		}
 		for (int i = candidates.Count - 1; i >= 0; i--)
 		{
+			if (preserveCandidate != null && preserveCandidate(candidates[i]))
+			{
+				continue;
+			}
 			double span = GetDimensionSpan(candidates[i], horizontal);
 			if (candidates.Any((PlannedDimension other) => other != candidates[i]
 				&& GetDimensionSpan(other, horizontal) < span - _config.GeometryTolerance

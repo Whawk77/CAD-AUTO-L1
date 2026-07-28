@@ -416,6 +416,13 @@ public sealed class DimensionLayoutRules
 		{
 			return first.ForceOuterLevel ? 1 : -1;
 		}
+		// Same pin-group: functional holes that reach past the rooted 41-30 (datum/pin) chain
+		// must stack outside that chain even when their raw span is shorter (e.g. 45 outside 71).
+		int functionalBeyondChain = CompareFunctionalHoleBeyondDatumChain(first, second);
+		if (functionalBeyondChain != 0)
+		{
+			return functionalBeyondChain;
+		}
 		double spanDifference = first.EffectiveSpan - second.EffectiveSpan;
 		if (Math.Abs(spanDifference) > _config.GeometryTolerance)
 		{
@@ -423,6 +430,98 @@ public sealed class DimensionLayoutRules
 		}
 		int readingLevelComparison = first.ReadingLevel.CompareTo(second.ReadingLevel);
 		return readingLevelComparison != 0 ? readingLevelComparison : first.FirstSourceIndex.CompareTo(second.FirstSourceIndex);
+	}
+
+	private int CompareFunctionalHoleBeyondDatumChain(LayoutBlock first, LayoutBlock second)
+	{
+		bool firstFunc = IsPreserveLevelFunctionalHoleBlock(first);
+		bool secondFunc = IsPreserveLevelFunctionalHoleBlock(second);
+		bool firstChain = IsRootedDatumOrPinChainBlock(first);
+		bool secondChain = IsRootedDatumOrPinChainBlock(second);
+		if (firstFunc && secondChain && SharesPinGroupSource(first, second))
+		{
+			return FunctionalHoleOrdersBeyondChain(first, second) ? 1 : -1;
+		}
+		if (secondFunc && firstChain && SharesPinGroupSource(first, second))
+		{
+			return FunctionalHoleOrdersBeyondChain(second, first) ? -1 : 1;
+		}
+		return 0;
+	}
+
+	private static bool IsPreserveLevelFunctionalHoleBlock(LayoutBlock block)
+	{
+		return block != null
+			&& block.Members.Count > 0
+			&& block.Members.All(member => member.Dimension != null
+				&& member.Dimension.Kind == DimensionKind.HoleLocation
+				&& member.Dimension.PreserveAlignmentLevel);
+	}
+
+	private static bool IsRootedDatumOrPinChainBlock(LayoutBlock block)
+	{
+		if (block == null || block.Members.Count == 0)
+		{
+			return false;
+		}
+		if (string.Equals(block.Type, "RootedAlignmentLane", StringComparison.Ordinal))
+		{
+			return true;
+		}
+		return block.Members.Any(member => member.Dimension != null
+			&& (member.Dimension.Kind == DimensionKind.DatumHoleLocationX
+				|| member.Dimension.Kind == DimensionKind.DatumHoleLocationY
+				|| member.Dimension.Kind == DimensionKind.PinDistance
+				|| member.Dimension.Kind == DimensionKind.PinGroupDistance));
+	}
+
+	private static bool SharesPinGroupSource(LayoutBlock first, LayoutBlock second)
+	{
+		HashSet<string> firstIds = new HashSet<string>(
+			first.Members
+				.Select(member => member.Dimension?.SourceFeatureId)
+				.Where(id => !string.IsNullOrEmpty(id)),
+			StringComparer.Ordinal);
+		if (firstIds.Count == 0)
+		{
+			return false;
+		}
+		return second.Members.Any(member => !string.IsNullOrEmpty(member.Dimension?.SourceFeatureId)
+			&& firstIds.Contains(member.Dimension.SourceFeatureId));
+	}
+
+	private bool FunctionalHoleOrdersBeyondChain(LayoutBlock functionalHole, LayoutBlock chain)
+	{
+		// Horizontal dims: beyond on X. Vertical dims: beyond on Y. Mixed blocks fall back to both.
+		bool horizontal = functionalHole.Members.Any(member =>
+			member.Dimension.Kind == DimensionKind.HoleLocation
+			&& Math.Abs(member.Dimension.FirstPoint.Y - member.Dimension.SecondPoint.Y) <= _config.GeometryTolerance);
+		bool vertical = functionalHole.Members.Any(member =>
+			member.Dimension.Kind == DimensionKind.HoleLocation
+			&& Math.Abs(member.Dimension.FirstPoint.X - member.Dimension.SecondPoint.X) <= _config.GeometryTolerance);
+		if (horizontal || !vertical)
+		{
+			double funcMin = functionalHole.Members.Min(member => Math.Min(member.Dimension.FirstPoint.X, member.Dimension.SecondPoint.X));
+			double funcMax = functionalHole.Members.Max(member => Math.Max(member.Dimension.FirstPoint.X, member.Dimension.SecondPoint.X));
+			double chainMin = chain.Members.Min(member => Math.Min(member.Dimension.FirstPoint.X, member.Dimension.SecondPoint.X));
+			double chainMax = chain.Members.Max(member => Math.Max(member.Dimension.FirstPoint.X, member.Dimension.SecondPoint.X));
+			if (funcMax > chainMax + _config.GeometryTolerance || funcMin < chainMin - _config.GeometryTolerance)
+			{
+				return true;
+			}
+		}
+		if (vertical)
+		{
+			double funcMin = functionalHole.Members.Min(member => Math.Min(member.Dimension.FirstPoint.Y, member.Dimension.SecondPoint.Y));
+			double funcMax = functionalHole.Members.Max(member => Math.Max(member.Dimension.FirstPoint.Y, member.Dimension.SecondPoint.Y));
+			double chainMin = chain.Members.Min(member => Math.Min(member.Dimension.FirstPoint.Y, member.Dimension.SecondPoint.Y));
+			double chainMax = chain.Members.Max(member => Math.Max(member.Dimension.FirstPoint.Y, member.Dimension.SecondPoint.Y));
+			if (funcMax > chainMax + _config.GeometryTolerance || funcMin < chainMin - _config.GeometryTolerance)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private string GetOrderingReason(LayoutBlock block, IList<LayoutBlock> orderedBlocks)
@@ -527,10 +626,13 @@ public sealed class DimensionLayoutRules
 		{
 			return false;
 		}
-		if (item.Dimension.PreserveAlignmentLevel && lane.Any(existing => levelByItem[existing] != levelByItem[item]
-			|| !AreCompatible(item.TxtA, item.TxtB, existing.TxtA, existing.TxtB, gap)))
+		// PreserveAlignmentLevel lanes (functional holes) are intentionally excluded from
+		// MoveAlignmentGroupsTogether so V198 stacking levels stay put. A member can still be
+		// bumped outward alone by an arrow conflict; the shared AlignmentKey must keep the lane
+		// together across those level differences and without requiring a shared arrow endpoint.
+		if (item.Dimension.PreserveAlignmentLevel)
 		{
-			return false;
+			return lane.All(existing => AreCompatible(item.TxtA, item.TxtB, existing.TxtA, existing.TxtB, gap));
 		}
 		return lane.Any(existing => SharesArrowEndpoint(item, existing));
 	}
@@ -541,12 +643,15 @@ public sealed class DimensionLayoutRules
 		{
 			return false;
 		}
-		if (first[0].Dimension.PreserveAlignmentLevel && first.Any(item => second.Any(candidate => levelByItem[item] != levelByItem[candidate]
-			|| !AreCompatible(item.TxtA, item.TxtB, candidate.TxtA, candidate.TxtB, gap))))
+		if (first.Any((StackingLayerItem item) => second.Any((StackingLayerItem candidate) => HasStrictArrowConflict(item.ArrA, item.ArrB, candidate.ArrA, candidate.ArrB))))
 		{
 			return false;
 		}
-		return !first.Any((StackingLayerItem item) => second.Any((StackingLayerItem candidate) => HasStrictArrowConflict(item.ArrA, item.ArrB, candidate.ArrA, candidate.ArrB)));
+		if (first[0].Dimension.PreserveAlignmentLevel)
+		{
+			return first.All(item => second.All(candidate => AreCompatible(item.TxtA, item.TxtB, candidate.TxtA, candidate.TxtB, gap)));
+		}
+		return true;
 	}
 
 	private bool SharesArrowEndpoint(StackingLayerItem first, StackingLayerItem second)
@@ -694,11 +799,21 @@ public sealed class DimensionLayoutRules
 			{
 				continue;
 			}
-			DimensionStackingPlacement anchor = group
-				.OrderByDescending(placement => dimensions[placement.Index].AlignmentPriority)
-				.ThenBy(placement => dimensions[placement.Index].Span)
-				.ThenBy(placement => placement.Index)
-				.First();
+			// Preserve-level members may sit on different stacking levels after an asymmetric
+			// conflict bump. Anchor on the OUTERMOST member so unifying the lane never pulls a
+			// promoted dimension back inward on top of the conflict.
+			DimensionStackingPlacement anchor = preservesLevel
+				? group
+					.OrderByDescending(placement => GetPlacementPhysicalOutwardRank(placement, dimensions, side, outline))
+					.ThenByDescending(placement => dimensions[placement.Index].AlignmentPriority)
+					.ThenBy(placement => dimensions[placement.Index].Span)
+					.ThenBy(placement => placement.Index)
+					.First()
+				: group
+					.OrderByDescending(placement => dimensions[placement.Index].AlignmentPriority)
+					.ThenBy(placement => dimensions[placement.Index].Span)
+					.ThenBy(placement => placement.Index)
+					.First();
 			double coordinate = GetDimLineCoordinate(dimensions[anchor.Index], side, outline, anchor.Offset);
 			if (preservesLevel && lane.Any(item => DimensionLineEntersOutlineInterior(item.Dimension, side, coordinate, outline)))
 			{

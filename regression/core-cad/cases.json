@@ -1,0 +1,100 @@
+﻿{
+    "schemaVersion":  1,
+    "cases":  [
+                  {
+                      "id":  "OC01-bottom-outer-step-partition",
+                      "description":  "真实 MinY 外轮廓台阶保留；与 Overall 闭合的主体补余尺寸全部抑制",
+                      "coreTests":  [
+                                        "BottomBodyWidthNotDroppedByLongestExtension",
+                                        "BottomOuterContourStepKeeps20AndSuppresses70Body",
+                                        "OutlineSegmentBodyLengthClosedByStepIsSuppressed"
+                                    ],
+                      "fixture":  "fixtures/OC01-bottom-outer-step-partition.dwg",
+                      "fixtureReady":  true,
+                      "fixtureSha256":  "3A6D243FA5BA50493A68053FE5DDBA801854C0EA2910F12D2BB2F25C8A24B84F",
+                      "fixtureSizeBytes":  112707,
+                      "sourceDrawingSha256":  "1400EF71D06EFEF3EE658A033B5991E1ED111418D759F3030EC100A6B98B7157",
+                      "selection":  {
+                                        "entityType":  "LINE",
+                                        "expectedCount":  21
+                                    },
+                      "commandScope":  "All",
+                      "diagnosticSide":  "All",
+                      "environment":  {
+                                          "insUnits":  1,
+                                          "dimScale":  1.0,
+                                          "dimTextHeight":  3.5,
+                                          "dimArrowSize":  2.5
+                                      },
+                      "valueTolerance":  0.01,
+                      "requiredFinal":  [
+                                            {
+                                                "debugRole":  "OverallWidth",
+                                                "valueApprox":  90.0,
+                                                "placementSide":  "Bottom",
+                                                "minCount":  1,
+                                                "maxCount":  1
+                                            },
+                                            {
+                                                "debugRole":  "BottomStructWidth",
+                                                "valueApprox":  20.0,
+                                                "placementSide":  "Bottom",
+                                                "minCount":  1,
+                                                "maxCount":  1
+                                            },
+                                            {
+                                                "debugRole":  "LeftStructHeight",
+                                                "valueApprox":  20.0,
+                                                "placementSide":  "Left",
+                                                "minCount":  1,
+                                                "maxCount":  1
+                                            }
+                                        ],
+                      "forbiddenFinal":  [
+                                             {
+                                                 "debugRole":  "BottomStructWidth",
+                                                 "valueApprox":  70.0,
+                                                 "placementSide":  "Bottom"
+                                             },
+                                             {
+                                                 "debugRole":  "OutlineSegment",
+                                                 "valueApprox":  70.0,
+                                                 "placementSide":  "Bottom"
+                                             },
+                                             {
+                                                 "debugRole":  "LeftStructHeight",
+                                                 "valueApprox":  8.262,
+                                                 "placementSide":  "Left"
+                                             }
+                                         ],
+                      "requiredCandidates":  [
+                                                 {
+                                                     "debugRole":  "BottomStructWidth",
+                                                     "valueApprox":  70.0,
+                                                     "placementSide":  "Bottom",
+                                                     "decisionStatus":  "Suppressed",
+                                                     "suppressedReason":  "OuterContourStepOverallRemainder",
+                                                     "minCount":  1
+                                                 },
+                                                 {
+                                                     "debugRole":  "OutlineSegment",
+                                                     "valueApprox":  70.0,
+                                                     "placementSide":  "Bottom",
+                                                     "decisionStatus":  "Suppressed",
+                                                     "suppressedReason":  "OuterContourStepOverallRemainder",
+                                                     "minCount":  1
+                                                 },
+                                                 {
+                                                     "debugRole":  "LeftStructHeight",
+                                                     "valueApprox":  8.262,
+                                                     "placementSide":  "Left",
+                                                     "decisionStatus":  "Suppressed",
+                                                     "suppressedReason":  "OuterContourStepOverallRemainder",
+                                                     "minCount":  1
+                                                 }
+                                             ],
+                      "extractedFromSourceSha256":  "90B49F1DA979084A2F2F00AE62C2F0B72B1B62D48A01505319DCF00D1EAFFF2F",
+                      "sourceDiagnosticRunId":  "20260728134418630"
+                  }
+              ]
+}

@@ -34,6 +34,13 @@ namespace CadAuto.Core.Tests
             nameof(MirroredEnvelopeStructureWidthsAreBothSuppressed),
             nameof(StructureWidthsThatPartitionOverallAreSuppressed),
             nameof(ProjectedCrossLevelStructureWidthsDoNotPartitionOverall),
+            nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed),
+            nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide),
+            nameof(TopEnvelopeHorizontalSegmentStaysTop),
+            nameof(BottomEnvelopeHorizontalSegmentStaysBottom),
+            nameof(BottomBodyWidthNotDroppedByLongestExtension),
+            nameof(BottomOuterContourStepKeeps20AndSuppresses70Body),
+            nameof(OutlineSegmentBodyLengthClosedByStepIsSuppressed),
             nameof(DatumRootedLeftOuterEnvelopeDimensionsAreSuppressed),
             nameof(DatumRootedBottomAndLeftOuterEnvelopeDimensionsAreSuppressed),
             nameof(DatumRootedBottomEnvelopeStepAndArcResidualAreSuppressed),
@@ -48,7 +55,8 @@ namespace CadAuto.Core.Tests
             nameof(ChamferedTopStepUsesCompositeDimensions),
             nameof(LeftStepStructureHeightsPreferOverRightOutlineSegments),
             nameof(RightStepStructureHeightsPreferOverLeftOutlineSegments),
-            nameof(OrphanRightOuterStructureHeightTipsAreSuppressed)
+            nameof(OrphanRightOuterStructureHeightTipsAreSuppressed),
+            nameof(PartialEnvelopeStructureHeightSurvivesOrphanTipSuppression)
         };
         private static readonly HashSet<string> P3Tests = new HashSet<string>
         {
@@ -85,6 +93,7 @@ namespace CadAuto.Core.Tests
             nameof(FunctionalHoleAlignmentUsesSeparateSameOrientationLane),
             nameof(FunctionalHoleAlignmentPreservesV198Stacking),
             nameof(FunctionalHoleAlignmentLaneSurvivesOutwardPromotion),
+            nameof(FunctionalHoleBeyondPinChainStacksOutsideDatumChain),
             nameof(PreferredSideLockedHoleLocationUsesLocalBoundary),
             nameof(ExplicitLocalLooseChainUsesNearbyConcaveBoundary),
             nameof(HoleLocationDimensionsUseSegmentedExtensionLines),
@@ -165,6 +174,13 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(VerticalStructurePointsCreateStepWidths), VerticalStructurePointsCreateStepWidths);
                 RunTest(nameof(StructureWidthsThatPartitionOverallAreSuppressed), StructureWidthsThatPartitionOverallAreSuppressed);
                 RunTest(nameof(ProjectedCrossLevelStructureWidthsDoNotPartitionOverall), ProjectedCrossLevelStructureWidthsDoNotPartitionOverall);
+                RunTest(nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed), CrossSideStructureWidthsThatCloseOverallChainAreSuppressed);
+                RunTest(nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide), InteriorHorizontalOutlineSegmentPrefersNonCrossingSide);
+                RunTest(nameof(TopEnvelopeHorizontalSegmentStaysTop), TopEnvelopeHorizontalSegmentStaysTop);
+                RunTest(nameof(BottomEnvelopeHorizontalSegmentStaysBottom), BottomEnvelopeHorizontalSegmentStaysBottom);
+                RunTest(nameof(BottomBodyWidthNotDroppedByLongestExtension), BottomBodyWidthNotDroppedByLongestExtension);
+                RunTest(nameof(BottomOuterContourStepKeeps20AndSuppresses70Body), BottomOuterContourStepKeeps20AndSuppresses70Body);
+                RunTest(nameof(OutlineSegmentBodyLengthClosedByStepIsSuppressed), OutlineSegmentBodyLengthClosedByStepIsSuppressed);
                 RunTest(nameof(DatumRootedLeftOuterEnvelopeDimensionsAreSuppressed), DatumRootedLeftOuterEnvelopeDimensionsAreSuppressed);
                 RunTest(nameof(DatumRootedBottomAndLeftOuterEnvelopeDimensionsAreSuppressed), DatumRootedBottomAndLeftOuterEnvelopeDimensionsAreSuppressed);
                 RunTest(nameof(DatumRootedBottomEnvelopeStepAndArcResidualAreSuppressed), DatumRootedBottomEnvelopeStepAndArcResidualAreSuppressed);
@@ -187,6 +203,7 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(LeftStructureHeightDuplicatingOverallHeightIsSuppressed), LeftStructureHeightDuplicatingOverallHeightIsSuppressed);
                 RunTest(nameof(LeftStructureComplementaryRemainderIsRemovedLikeRight), LeftStructureComplementaryRemainderIsRemovedLikeRight);
                 RunTest(nameof(OrphanRightOuterStructureHeightTipsAreSuppressed), OrphanRightOuterStructureHeightTipsAreSuppressed);
+                RunTest(nameof(PartialEnvelopeStructureHeightSurvivesOrphanTipSuppression), PartialEnvelopeStructureHeightSurvivesOrphanTipSuppression);
                 RunTest(nameof(TwoArcSlotIsRecognized), TwoArcSlotIsRecognized);
                 RunTest(nameof(SingleArcSlotIsRecognized), SingleArcSlotIsRecognized);
                 RunTest(nameof(SlotDimensionsUseCenterAndDatumChainsWithoutPins), SlotDimensionsUseCenterAndDatumChainsWithoutPins);
@@ -206,6 +223,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(FunctionalHoleAlignmentUsesSeparateSameOrientationLane), FunctionalHoleAlignmentUsesSeparateSameOrientationLane);
 				RunTest(nameof(FunctionalHoleAlignmentPreservesV198Stacking), FunctionalHoleAlignmentPreservesV198Stacking);
 				RunTest(nameof(FunctionalHoleAlignmentLaneSurvivesOutwardPromotion), FunctionalHoleAlignmentLaneSurvivesOutwardPromotion);
+				RunTest(nameof(FunctionalHoleBeyondPinChainStacksOutsideDatumChain), FunctionalHoleBeyondPinChainStacksOutsideDatumChain);
                 RunTest(nameof(PreferredSideLockedHoleLocationUsesLocalBoundary), PreferredSideLockedHoleLocationUsesLocalBoundary);
                 RunTest(nameof(ExplicitLocalLooseChainUsesNearbyConcaveBoundary), ExplicitLocalLooseChainUsesNearbyConcaveBoundary);
                 RunTest(nameof(LooseHolesUseChainDimensions), LooseHolesUseChainDimensions);
@@ -2599,19 +2617,19 @@ namespace CadAuto.Core.Tests
 			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
 					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 98.0) <= config.GeometryTolerance),
 				"overall width 98 must remain");
-			Assert(!plan.Dimensions.Any(d =>
+			// Decision A: keep the short step length, drop the long remainder (OS/structure 78).
+			Assert(plan.Dimensions.Any(d =>
 					(d.DebugRole == "BottomStructWidth" || d.DebugRole == "TopStructWidth")
 					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 20.0) <= config.GeometryTolerance),
-				"structure width 20 that partitions overall with OutlineSegment 78 must not remain selected");
-			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
-					(c.DebugRole == "BottomStructWidth" || c.DebugRole == "TopStructWidth")
-					&& Math.Abs(c.Value - 20.0) <= config.GeometryTolerance
-					&& c.IsSuppressed
-					&& c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"structure width 20 must record the higher-priority envelope reason");
+				"short structure step 20 must remain (decision A with overall 98)");
+			Assert(!plan.Dimensions.Any(d =>
+					(d.DebugRole == "BottomStructWidth" || d.DebugRole == "TopStructWidth" || d.DebugRole == "OutlineSegment")
+					&& d.Orientation == DimensionOrientation.Horizontal
+					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 78.0) <= config.GeometryTolerance),
+				"long remainder 78 that closes overall with step 20 must not remain");
 			Assert(!plan.Dimensions.Any(d => d.DebugRole == "OutlineSegment"
 					&& d.Orientation == DimensionOrientation.Horizontal),
-				"OutlineSegment overall partition pieces must also be suppressed");
+				"horizontal OutlineSegment partition pieces must be suppressed");
 		}
 
 		/// <summary>
@@ -2727,16 +2745,10 @@ namespace CadAuto.Core.Tests
 					d.DebugRole == "TopStructWidth"
 					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 20.0) <= config.GeometryTolerance),
 				"tower top width 20 must remain (not erased by arm-top OutlineSegment via StructureOverallPartition)");
-			Assert(!plan.Dimensions.Any(d =>
+			Assert(plan.Dimensions.Any(d =>
 					d.DebugRole == "RightStructHeight"
 					&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 20.0) <= config.GeometryTolerance),
-				"right arm height 20 on MaxX must be suppressed");
-			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
-					c.DebugRole == "RightStructHeight"
-					&& Math.Abs(c.Value - 20.0) <= config.GeometryTolerance
-					&& c.IsSuppressed
-					&& c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"right arm height must record the outer-envelope suppression reason");
+				"right arm height 20 on stepped MaxX must be kept (edge is not full-length)");
 			Assert(plan.Diagnostics.DimensionCandidates
 					.Where(c => c.DebugRole == "TopStructWidth" && Math.Abs(c.Value - 20.0) <= config.GeometryTolerance)
 					.All(c => c.SuppressedReason != "StructureOverallPartition"),
@@ -2744,9 +2756,8 @@ namespace CadAuto.Core.Tests
 		}
 
 		/// <summary>
-		/// Stepped bottom: overall width 215, lower ledge width 120 (from inner step to right end).
-		/// BottomStructWidth 120 shares interval with envelope OutlineSegment but is a real step
-		/// face (span &gt; half overall) — the higher-priority outer-envelope rule suppresses it.
+		/// Stepped bottom: overall width 215, lower ledge width 120 on MinY. MinY is not a
+		/// full-length envelope edge (coverage 120 &lt; 215), so the step face is kept.
 		/// Upper undercut stops short of the step (gap) so StructureOverallPartition cannot form
 		/// 95+120 against overall 215.
 		/// </summary>
@@ -2774,16 +2785,18 @@ namespace CadAuto.Core.Tests
 			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
 					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 215.0) <= config.GeometryTolerance),
 				"overall width 215 must remain");
-			Assert(!plan.Dimensions.Any(d =>
+			Assert(plan.Dimensions.Any(d =>
 					d.DebugRole == "BottomStructWidth"
 					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 120.0) <= config.GeometryTolerance),
-				"bottom step/ledge width 120 on MinY must be suppressed");
-			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
-					c.DebugRole == "BottomStructWidth"
-					&& Math.Abs(c.Value - 120.0) <= config.GeometryTolerance
+				"bottom step/ledge width 120 on partial MinY must be kept");
+			Assert(!plan.Dimensions.Any(d => d.Orientation == DimensionOrientation.Horizontal
+					&& Math.Abs(GetSpan(d) - 95.0) <= config.GeometryTolerance),
+				"projected body remainder 95 must be removed even though the real step 120 is longer");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "BottomStructWidth"
+					&& Math.Abs(c.Value - 95.0) <= config.GeometryTolerance
 					&& c.IsSuppressed
-					&& c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"bottom step width 120 must record the outer-envelope suppression reason");
+					&& c.SuppressedReason == "OuterContourStepOverallRemainder"),
+				"body remainder 95 must record topology-based outer-step suppression");
 		}
 
 		private static void BottomProtrusionSuppressesOuterWidthAndInnerLedge()
@@ -2808,15 +2821,9 @@ namespace CadAuto.Core.Tests
 
 			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
 
-			Assert(!plan.Dimensions.Any(d => d.DebugRole == "BottomStructWidth"
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "BottomStructWidth"
 					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 50.0) <= config.GeometryTolerance),
-				"bottom protrusion width 50 on MinY must be suppressed");
-			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
-					c.DebugRole == "BottomStructWidth"
-					&& Math.Abs(c.Value - 50.0) <= config.GeometryTolerance
-					&& c.IsSuppressed
-					&& c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"bottom protrusion width 50 must record the outer-envelope suppression reason");
+				"bottom protrusion width 50 on partial MinY must be kept");
 			Assert(!plan.Dimensions.Any(d => (d.DebugRole == "BottomStructWidth" || d.DebugRole == "OutlineSegment")
 					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 20.0) <= config.GeometryTolerance),
 				"inner ledge width 20 must not remain selected");
@@ -2856,15 +2863,9 @@ namespace CadAuto.Core.Tests
 			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
 
 			Assert(outline.Fillets.Count == 1, "step fillet must be recognized");
-			Assert(!plan.Dimensions.Any(d => d.DebugRole == "BottomStructWidth"
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "BottomStructWidth"
 					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 20.0) <= config.GeometryTolerance),
-				"filleted bottom protrusion width 20 on MinY must be suppressed");
-			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
-					c.DebugRole == "BottomStructWidth"
-					&& Math.Abs(c.Value - 20.0) <= config.GeometryTolerance
-					&& c.IsSuppressed
-					&& c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"filleted bottom protrusion width 20 must record the outer-envelope suppression reason");
+				"filleted bottom protrusion width 20 on partial MinY must be kept");
 		}
 
 		private static void ChamferedTopStepUsesCompositeDimensions()
@@ -2901,15 +2902,254 @@ namespace CadAuto.Core.Tests
 			Assert(plan.Dimensions.Any(d => d.DebugRole == "TopChamferedStepWidth"
 					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 20.0) <= config.GeometryTolerance),
 				"chamfered top step width 20 must remain selected");
-			Assert(!plan.Dimensions.Any(d => d.DebugRole == "RightChamferedStepHeight"
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "RightChamferedStepHeight"
 					&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 20.0) <= config.GeometryTolerance),
-				"chamfered top step height 20 on MaxX must be suppressed");
+				"chamfered top step height 20 on stepped MaxX must be kept");
+		}
+
+		private static void InteriorHorizontalOutlineSegmentPrefersNonCrossingSide()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 90.0, MaxY = 28.0 };
+			// Shaft: interior horizontal edge at y=8.26 with solid above and free space below.
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(70.0, 0.0), "bottom-body");
+			AddSegment(outline, new Point2D(70.0, 0.0), new Point2D(90.0, 0.0), "bottom-step");
+			AddSegment(outline, new Point2D(90.0, 0.0), new Point2D(90.0, 8.26), "step-right-low");
+			AddSegment(outline, new Point2D(90.0, 8.26), new Point2D(70.0, 8.26), "step-shelf");
+			AddSegment(outline, new Point2D(70.0, 8.26), new Point2D(70.0, 28.0), "shoulder");
+			AddSegment(outline, new Point2D(70.0, 28.0), new Point2D(0.0, 28.0), "body-top");
+			AddSegment(outline, new Point2D(0.0, 28.0), new Point2D(0.0, 0.0), "left");
+			AddSegment(outline, new Point2D(0.0, 8.26), new Point2D(70.0, 8.26), "interior-body");
+			var planner = new DimensionPlanner(config);
+			var interior = new Segment2D(new Point2D(0.0, 8.26), new Point2D(70.0, 8.26));
+			Assert(planner.ResolveHorizontalOutlineSegmentSide(interior, outline) == DimensionSide.Bottom,
+				"interior horizontal body edge must resolve Bottom (free side), not Top through solid");
+		}
+
+		private static void TopEnvelopeHorizontalSegmentStaysTop()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 90.0, MaxY = 28.0 };
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(90.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(90.0, 0.0), new Point2D(90.0, 28.0), "right");
+			AddSegment(outline, new Point2D(90.0, 28.0), new Point2D(0.0, 28.0), "top");
+			AddSegment(outline, new Point2D(0.0, 28.0), new Point2D(0.0, 0.0), "left");
+			var top = new Segment2D(new Point2D(0.0, 28.0), new Point2D(90.0, 28.0));
+			Assert(new DimensionPlanner(config).ResolveHorizontalOutlineSegmentSide(top, outline) == DimensionSide.Top,
+				"MaxY envelope edge must stay Top");
+		}
+
+		private static void BottomEnvelopeHorizontalSegmentStaysBottom()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 90.0, MaxY = 28.0 };
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(90.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(90.0, 0.0), new Point2D(90.0, 28.0), "right");
+			AddSegment(outline, new Point2D(90.0, 28.0), new Point2D(0.0, 28.0), "top");
+			AddSegment(outline, new Point2D(0.0, 28.0), new Point2D(0.0, 0.0), "left");
+			var bottom = new Segment2D(new Point2D(0.0, 0.0), new Point2D(90.0, 0.0));
+			Assert(new DimensionPlanner(config).ResolveHorizontalOutlineSegmentSide(bottom, outline) == DimensionSide.Bottom,
+				"MinY envelope edge must stay Bottom");
+		}
+
+		private static void BottomBodyWidthNotDroppedByLongestExtension()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 90.0, MaxY = 28.0 };
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(70.0, 0.0), "bottom-body");
+			AddSegment(outline, new Point2D(70.0, 0.0), new Point2D(90.0, 0.0), "bottom-step");
+			AddSegment(outline, new Point2D(90.0, 0.0), new Point2D(90.0, 20.0), "step-right");
+			AddSegment(outline, new Point2D(90.0, 20.0), new Point2D(70.0, 20.0), "step-top");
+			AddSegment(outline, new Point2D(70.0, 20.0), new Point2D(70.0, 28.0), "shoulder");
+			AddSegment(outline, new Point2D(70.0, 28.0), new Point2D(0.0, 28.0), "body-top");
+			AddSegment(outline, new Point2D(0.0, 28.0), new Point2D(0.0, 0.0), "left");
+			AddSegment(outline, new Point2D(70.0, 0.0), new Point2D(70.0, 20.0), "shoulder-down");
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			Assert(!plan.Diagnostics.DimensionCandidates.Any(c =>
+					c.DebugRole == "BottomStructWidth"
+					&& Math.Abs(c.Value - 70.0) <= config.GeometryTolerance
+					&& c.DecisionStatus == "Skipped"
+					&& c.DecisionReason == "LongestExtensionCandidate"),
+				"bottom body width 70 must not be silently dropped as LongestExtensionCandidate");
+			// May be Selected or later Suppressed by closed-chain rules, but must be diagnosable.
 			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
-					c.DebugRole == "RightChamferedStepHeight"
-					&& Math.Abs(c.Value - 20.0) <= config.GeometryTolerance
+					c.DebugRole == "BottomStructWidth"
+					&& Math.Abs(c.Value - 70.0) <= config.GeometryTolerance),
+				"bottom body width 70 must appear in diagnostics");
+		}
+
+		private static void BottomOuterContourStepKeeps20AndSuppresses70Body()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 90.0, MaxY = 28.26 };
+			// Closed production topology: upper body underside 70, two 1x1 chamfers, bottom step 20 overall.
+			AddSegment(outline, new Point2D(0.0, 8.26), new Point2D(70.0, 8.26), "body-underside");
+			AddSegment(outline, new Point2D(70.0, 8.26), new Point2D(70.0, 1.0), "step-shoulder");
+			AddSegment(outline, new Point2D(70.0, 1.0), new Point2D(71.0, 0.0), "step-chamfer-left");
+			AddSegment(outline, new Point2D(71.0, 0.0), new Point2D(89.0, 0.0), "step-bottom");
+			AddSegment(outline, new Point2D(89.0, 0.0), new Point2D(90.0, 1.0), "step-chamfer-right");
+			AddSegment(outline, new Point2D(90.0, 1.0), new Point2D(90.0, 28.26), "right");
+			AddSegment(outline, new Point2D(90.0, 28.26), new Point2D(0.0, 28.26), "top");
+			AddSegment(outline, new Point2D(0.0, 28.26), new Point2D(0.0, 8.26), "left");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
+					&& Math.Abs(GetSpan(d) - 90.0) <= config.GeometryTolerance),
+				"overall width 90 must remain");
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "BottomStructWidth"
+					&& Math.Abs(GetSpan(d) - 20.0) <= config.GeometryTolerance),
+				"real chamfered bottom outer step 20 must remain");
+			Assert(!plan.Dimensions.Any(d => d.Orientation == DimensionOrientation.Horizontal
+					&& Math.Abs(GetSpan(d) - 70.0) <= config.GeometryTolerance),
+				"all body remainder representations 70 must be removed");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "BottomStructWidth"
+					&& Math.Abs(c.Value - 70.0) <= config.GeometryTolerance
 					&& c.IsSuppressed
-					&& c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"chamfered top step height 20 must record the outer-envelope suppression reason");
+					&& c.SuppressedReason == "OuterContourStepOverallRemainder"),
+				"projected BottomStructWidth body 70 must record outer-step remainder suppression");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "OutlineSegment"
+					&& Math.Abs(c.Value - 70.0) <= config.GeometryTolerance
+					&& c.IsSuppressed
+					&& c.SuppressedReason == "OuterContourStepOverallRemainder"),
+				"OutlineSegment body 70 must record the same semantic suppression");
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "LeftStructHeight"
+					&& Math.Abs(GetSpan(d) - 20.0) <= config.GeometryTolerance),
+				"real partial MinX outer face height must remain");
+			Assert(!plan.Dimensions.Any(d => d.Orientation == DimensionOrientation.Vertical
+					&& Math.Abs(GetSpan(d) - 8.26) <= config.GeometryTolerance),
+				"projected lower height residual must not remain");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "LeftStructHeight"
+					&& Math.Abs(c.Value - 8.26) <= config.GeometryTolerance
+					&& c.IsSuppressed
+					&& c.SuppressedReason == "OuterContourStepOverallRemainder"),
+				"projected left residual must record outer-step remainder suppression");
+		}
+
+		private static void OutlineSegmentBodyLengthClosedByStepIsSuppressed()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var plan = new DimensionPlan();
+			var overall = new PlannedDimension
+			{
+				Kind = DimensionKind.OverallWidth,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(90.0, 0.0),
+				DebugRole = "OverallWidth"
+			};
+			var os70 = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 8.26),
+				SecondPoint = new Point2D(70.0, 8.26),
+				DebugRole = "OutlineSegment"
+			};
+			var step20 = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(70.0, 0.0),
+				SecondPoint = new Point2D(90.0, 0.0),
+				DebugRole = "BottomStructWidth"
+			};
+			plan.Add(overall);
+			plan.Add(os70);
+			plan.Add(step20);
+			planner.SuppressClosedOverallLengthRemainders(plan, horizontal: true);
+			Assert(plan.Dimensions.Contains(overall) && plan.Dimensions.Contains(step20),
+				"overall 90 and step 20 must remain");
+			Assert(!plan.Dimensions.Contains(os70),
+				"OutlineSegment body 70 that closes overall with step 20 must be suppressed (decision A)");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
+					c.Id == os70.DiagnosticId
+					&& c.IsSuppressed
+					&& c.SuppressedReason == "ComplementaryOutlineRemainder"),
+				"OS 70 must record ComplementaryOutlineRemainder");
+		}
+
+		/// <summary>
+		/// Shaft-like step: overall 90, top body 70, bottom step 20. 70+20 closes overall and the
+		/// larger complementary piece (70) must suppress while keeping overall and the step 20.
+		/// Directly exercises the cross-side pass with concrete planned dims (full outline path may
+		/// still envelope-suppress the bottom step when MinY is collinear full-length).
+		/// </summary>
+		private static void CrossSideStructureWidthsThatCloseOverallChainAreSuppressed()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var plan = new DimensionPlan();
+			var overall = new PlannedDimension
+			{
+				Kind = DimensionKind.OverallWidth,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(90.0, 0.0),
+				DebugRole = "OverallWidth"
+			};
+			var top70 = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(0.0, 28.0),
+				SecondPoint = new Point2D(70.0, 28.0),
+				DebugRole = "TopStructWidth"
+			};
+			var bottom20 = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(70.0, 0.0),
+				SecondPoint = new Point2D(90.0, 0.0),
+				DebugRole = "BottomStructWidth"
+			};
+			plan.Add(overall);
+			plan.Add(top70);
+			plan.Add(bottom20);
+
+			planner.SuppressCrossSideComplementaryStructureRemainders(plan, horizontal: true);
+
+			Assert(plan.Dimensions.Contains(overall), "overall width 90 must remain");
+			Assert(plan.Dimensions.Contains(bottom20), "step length 20 must remain");
+			Assert(!plan.Dimensions.Contains(top70),
+				"body length 70 that closes overall with step 20 must be suppressed");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
+					c.Id == top70.DiagnosticId
+					&& c.IsSuppressed
+					&& c.SuppressedReason == "ComplementaryOutlineRemainder"),
+				"closed-chain body length 70 must record ComplementaryOutlineRemainder");
+
+			// Full outline path with collinear bottom (matches the shaft drawing): keep step 20,
+			// drop body 70, keep overall 90.
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 90.0, MaxY = 28.0 };
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(70.0, 0.0), "bottom-body");
+			AddSegment(outline, new Point2D(70.0, 0.0), new Point2D(90.0, 0.0), "bottom-step");
+			AddSegment(outline, new Point2D(90.0, 0.0), new Point2D(90.0, 20.0), "step-right");
+			AddSegment(outline, new Point2D(90.0, 20.0), new Point2D(70.0, 20.0), "step-top");
+			AddSegment(outline, new Point2D(70.0, 20.0), new Point2D(70.0, 28.0), "shoulder");
+			AddSegment(outline, new Point2D(70.0, 28.0), new Point2D(0.0, 28.0), "body-top");
+			AddSegment(outline, new Point2D(0.0, 28.0), new Point2D(0.0, 0.0), "left");
+			AddSegment(outline, new Point2D(70.0, 0.0), new Point2D(70.0, 20.0), "shoulder-down");
+			var full = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			Assert(full.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
+					&& Math.Abs(GetSpan(d) - 90.0) <= config.GeometryTolerance),
+				"full-path overall 90 must remain");
+			Assert(full.Dimensions.Any(d =>
+					(d.DebugRole == "BottomStructWidth" || d.DebugRole == "TopStructWidth")
+					&& Math.Abs(GetSpan(d) - 20.0) <= config.GeometryTolerance),
+				"full-path step length 20 must remain");
+			Assert(!full.Dimensions.Any(d =>
+					(d.DebugRole == "TopStructWidth" || d.DebugRole == "BottomStructWidth")
+					&& Math.Abs(GetSpan(d) - 70.0) <= config.GeometryTolerance),
+				"full-path must not keep body length 70 beside the closed chain");
 		}
 
 		private static void ProjectedCrossLevelStructureWidthsDoNotPartitionOverall()
@@ -2941,12 +3181,14 @@ namespace CadAuto.Core.Tests
 				&& Math.Abs(c.Value - 68.0) <= config.GeometryTolerance).ToList();
 
 			Assert(top25.Count > 0, "real top step width 25 must be generated");
-			Assert(top25.All(c => c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"top-envelope width 25 must be suppressed by the P0 envelope rule");
+			Assert(top25.All(c => c.SuppressedReason != "LocalGeometryOnOverallEnvelope"),
+				"top step width 25 on partial MaxY must not be removed by full-envelope local geometry");
 			Assert(projected3.All(c => c.SuppressedReason != "StructureOverallPartition"),
 				"cross-level 3 must not participate in StructureOverallPartition");
-			Assert(bottom68.Count > 0 && bottom68.All(c => c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"bottom-envelope arm residual 68 must be suppressed by the P0 envelope rule");
+			Assert(bottom68.All(c => c.SuppressedReason != "StructureOverallPartition"),
+				"bottom arm 68 must not be wiped only via StructureOverallPartition from cross-level tops");
+			Assert(bottom68.All(c => c.SuppressedReason != "LocalGeometryOnOverallEnvelope"),
+				"bottom arm 68 on partial MinY must not be removed by full-envelope local geometry");
 		}
 
 		private static void DatumRootedLeftOuterEnvelopeDimensionsAreSuppressed()
@@ -2976,14 +3218,15 @@ namespace CadAuto.Core.Tests
 			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallHeight
 					&& Math.Abs(GetSpan(d) - 35.5) <= config.GeometryTolerance),
 				"overall height 35.5 must remain");
-			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "TopStructWidth"
-					&& Math.Abs(c.Value - 18.0) <= config.GeometryTolerance
-					&& c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"top-envelope tower width 18 must be suppressed");
-			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "LeftStructHeight"
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "TopStructWidth"
+					&& Math.Abs(GetSpan(d) - 18.0) <= config.GeometryTolerance),
+				"top tower width 18 on partial MaxY must be kept");
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "LeftStructHeight"
+					&& Math.Abs(GetSpan(d) - 20.0) <= config.GeometryTolerance)
+				|| plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "LeftStructHeight"
 					&& Math.Abs(c.Value - 20.0) <= config.GeometryTolerance
-					&& c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"datum-rooted left-envelope step height 20 must be suppressed");
+					&& c.SuppressedReason != "LocalGeometryOnOverallEnvelope"),
+				"left step height 20 must not be removed solely as full-envelope local geometry");
 			Assert(!plan.Dimensions.Any(d => d.Kind == DimensionKind.Normal
 					&& d.Orientation == DimensionOrientation.Vertical
 					&& (Math.Abs(GetSpan(d) - 10.0) <= config.GeometryTolerance
@@ -3028,14 +3271,15 @@ namespace CadAuto.Core.Tests
 			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallHeight
 					&& Math.Abs(GetSpan(d) - 36.0) <= config.GeometryTolerance),
 				"overall height 36 must remain");
-			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "BottomStructWidth"
-					&& Math.Abs(c.Value - 25.0) <= config.GeometryTolerance
-					&& c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"datum-rooted bottom-envelope step width 25 must be suppressed");
-			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "LeftStructHeight"
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "BottomStructWidth"
+					&& Math.Abs(GetSpan(d) - 25.0) <= config.GeometryTolerance),
+				"bottom step width 25 on partial MinY must be kept");
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "LeftStructHeight"
+					&& Math.Abs(GetSpan(d) - 18.0) <= config.GeometryTolerance)
+				|| plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "LeftStructHeight"
 					&& Math.Abs(c.Value - 18.0) <= config.GeometryTolerance
-					&& c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"datum-rooted left-envelope step height 18 must be suppressed");
+					&& c.SuppressedReason != "LocalGeometryOnOverallEnvelope"),
+				"left step height 18 must not be removed solely as full-envelope local geometry");
 			Assert(!plan.Dimensions.Any(d => d.Kind == DimensionKind.Normal
 					&& d.Orientation == DimensionOrientation.Horizontal
 					&& (Math.Abs(GetSpan(d) - 3.0) <= config.GeometryTolerance
@@ -3045,10 +3289,9 @@ namespace CadAuto.Core.Tests
 					&& Math.Abs(c.Value - 68.0) <= config.GeometryTolerance
 					&& c.SuppressedReason == "StructureDuplicateOfEnvelopeOutlineSegment"),
 				"inner top arm residual 68 must record the envelope-duplicate reason");
-			Assert(plan.Diagnostics.DimensionCandidates
-					.Where(c => c.Value >= 24.999 && c.Value <= 25.001)
-					.Any(c => c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"datum-rooted width 25 must record the high-priority envelope reason");
+			Assert(plan.Dimensions.Any(d => Math.Abs(GetSpan(d) - 25.0) <= config.GeometryTolerance
+					&& (d.DebugRole == "BottomStructWidth" || d.DebugRole == "TopStructWidth")),
+				"step width 25 on a partial envelope edge must remain available");
 		}
 
 		private static void DatumRootedBottomEnvelopeStepAndArcResidualAreSuppressed()
@@ -3079,10 +3322,9 @@ namespace CadAuto.Core.Tests
 
 			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
 
-			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "BottomStructWidth"
-					&& Math.Abs(c.Value - 25.0) <= config.GeometryTolerance
-					&& c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"datum-rooted bottom-envelope width 25 must be suppressed");
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "BottomStructWidth"
+					&& Math.Abs(GetSpan(d) - 25.0) <= config.GeometryTolerance),
+				"datum-rooted bottom step width 25 on partial MinY must be kept");
 			Assert(!plan.Dimensions.Any(d => d.Orientation == DimensionOrientation.Horizontal
 					&& Math.Abs(GetSpan(d) - 68.0) <= config.GeometryTolerance),
 				"outer arm residual 68 connected by a small real arc must not remain");
@@ -3110,6 +3352,7 @@ namespace CadAuto.Core.Tests
 			};
 			// L + top-right chamfer on tower (like C11): riser is not a pure 30 vertical that
 			// abuts arm height 20 into overall 50, so StructureOverallPartition does not apply.
+			// MaxX coverage is only 20 &lt; overall height 50 → stepped edge keeps arm height.
 			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(91.0, 0.0), "bottom");
 			AddSegment(outline, new Point2D(91.0, 0.0), new Point2D(91.0, 20.0), "right-arm");
 			AddSegment(outline, new Point2D(91.0, 20.0), new Point2D(20.0, 20.0), "step-top");
@@ -3126,16 +3369,10 @@ namespace CadAuto.Core.Tests
 			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
 					&& Math.Abs(Math.Abs(d.SecondPoint.X - d.FirstPoint.X) - 91.0) <= config.GeometryTolerance),
 				"overall width 91 must remain");
-			Assert(!plan.Dimensions.Any(d =>
+			Assert(plan.Dimensions.Any(d =>
 					d.DebugRole == "RightStructHeight"
 					&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 20.0) <= config.GeometryTolerance),
-				"right arm height 20 on MaxX must be suppressed");
-			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
-					c.DebugRole == "RightStructHeight"
-					&& Math.Abs(c.Value - 20.0) <= config.GeometryTolerance
-					&& c.IsSuppressed
-					&& c.SuppressedReason == "LocalGeometryOnOverallEnvelope"),
-				"right arm height must record the outer-envelope suppression reason");
+				"right arm height 20 on stepped MaxX must be kept");
 		}
 
 
@@ -3517,6 +3754,52 @@ namespace CadAuto.Core.Tests
 
 
 		/// <summary>
+		/// A short structure height is not orphan noise when an actual partial-envelope segment
+		/// backs it. Regression: real left-top step 20 on overall height 201.5 was lost.
+		/// </summary>
+		private static void PartialEnvelopeStructureHeightSurvivesOrphanTipSuppression()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 338.0,
+				MaxY = 201.5
+			};
+			AddSegment(outline, new Point2D(0.0, 181.5), new Point2D(0.0, 201.5), "real-left-top-step");
+			var plan = new DimensionPlan();
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallHeight,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(38.0, 0.0),
+				SecondPoint = new Point2D(0.0, 201.5),
+				DebugRole = "OverallHeight"
+			});
+			var left20 = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(0.0, 181.5),
+				SecondPoint = new Point2D(0.0, 201.5),
+				DebugRole = "LeftStructHeight"
+			};
+			plan.Add(left20);
+
+			planner.SuppressOrphanOuterVerticalStructureHeightTips(plan, outline);
+
+			Assert(plan.Dimensions.Contains(left20),
+				"real 20-high step on a partial MinX envelope edge must survive orphan-tip suppression");
+			Assert(!plan.Diagnostics.DimensionCandidates.Any(candidate => candidate.Id == left20.DiagnosticId
+					&& candidate.SuppressedReason == "OrphanOuterVerticalStructureHeightTip"),
+				"protected real partial-envelope step must not record orphan-tip suppression");
+		}
+
+		/// <summary>
 		/// Two short RightStructHeight tips (5+5 on overall 45) are overall residual noise and
 		/// must suppress (regression: structure&gt;OS mirror had kept them).
 		/// </summary>
@@ -3896,6 +4179,34 @@ namespace CadAuto.Core.Tests
 		/// shared lane coordinate is silently lost - AGENTS.md requires functional-hole dimensions
 		/// to stay with their owning pin group.
 		/// </summary>
+		/// <summary>
+		/// Baseline chain 41 (datum) + 30 (pin) must stay inside a same-group functional hole 45
+		/// that reaches past the far pin, even though raw span 45 &lt; chain effective span 71.
+		/// </summary>
+		private static void FunctionalHoleBeyondPinChainStacksOutsideDatumChain()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(41.0, 0.0), SecondPoint = new Point2D(56.0, 0.0), Span = 15.0, AlignmentKey = "PG1:FunctionalHoles:H", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "PG1" },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(41.0, 0.0), SecondPoint = new Point2D(86.0, 0.0), Span = 45.0, AlignmentKey = "PG1:FunctionalHoles:H", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "PG1" },
+				new DimensionLayoutItem { Kind = DimensionKind.DatumHoleLocationX, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(41.0, 0.0), Span = 41.0, AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 120, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG1" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(41.0, 0.0), SecondPoint = new Point2D(71.0, 0.0), Span = 30.0, OverrideText = @"30\H0.8x;±0.02\H1x;", AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 100, ReadingLevel = DimensionReadingLevel.IntraGroup, SourceFeatureId = "PG1" },
+				new DimensionLayoutItem { Kind = DimensionKind.OverallWidth, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(96.0, 0.0), Span = 96.0, ForceOuterLevel = true, ReadingLevel = DimensionReadingLevel.Overall }
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Bottom, null, 2.5, 1.25, 5.0, 5.0, isHorizontal: true);
+			var byIndex = placements.ToDictionary(item => item.Index);
+
+			Assert(byIndex[2].Level == byIndex[3].Level,
+				"41 and 30 must remain on one datum/pin chain level");
+			Assert(byIndex[0].Level < byIndex[2].Level,
+				"15 must stay inside (lower level than) the 41-30 chain");
+			Assert(byIndex[1].Level > byIndex[2].Level,
+				"45 must sit outside the 41-30 chain");
+			Assert(byIndex[4].Level > byIndex[1].Level,
+				"overall 96 must remain outermost");
+		}
+
 		private static void FunctionalHoleAlignmentLaneSurvivesOutwardPromotion()
 		{
 			var config = DimensionRuleConfig.CreateDefault();

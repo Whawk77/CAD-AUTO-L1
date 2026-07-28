@@ -138,18 +138,36 @@ public sealed class StructureEndpointRules
 
 	public int FindLongestExtensionCandidateIndex(IList<PlannedDimension> candidates, OutlineFeature2D outline, DimensionSide side)
 	{
-		if (candidates == null || candidates.Count <= 1)
+		if (candidates == null || candidates.Count <= 1 || outline == null)
 		{
 			return -1;
 		}
-		return (from x in candidates.Select((PlannedDimension dim, int index) => new
+		var ranked = candidates.Select((PlannedDimension dim, int index) => new
 			{
 				Index = index,
+				Dim = dim,
 				ExtensionLength = GetExtensionLength(dim, outline, side),
 				Span = GetCandidateSpan(dim, side)
 			})
-			orderby x.ExtensionLength descending, x.Span descending
-			select x).First().Index;
+			.OrderByDescending(x => x.ExtensionLength)
+			.ThenByDescending(x => x.Span)
+			.ToList();
+		double tol = _config.GeometryTolerance;
+		double maxExtension = ranked[0].ExtensionLength;
+		double secondExtension = ranked.Count > 1 ? ranked[1].ExtensionLength : maxExtension;
+		bool hasOutlierExtension = maxExtension > secondExtension + tol;
+		// All-collinear envelope partitions are body/step lengths, not extension noise.
+		// In particular, do not remove shaft body 70 before 70 + 20 = overall 90 is evaluated.
+		if (!hasOutlierExtension && candidates.All((PlannedDimension dim) => IsOnPlacementEnvelope(dim, outline, side)))
+		{
+			return -1;
+		}
+		// Preserve a real body length anchored at the datum corner and shoulder. Do not fall
+		// through to the next ranked item: that item may be the valid outer step length.
+		var longest = ranked[0];
+		return IsProtectedBodyLengthCandidate(longest.Dim, outline, side)
+			? -1
+			: longest.Index;
 	}
 
 	public bool RemoveLongestExtensionCandidate(IList<PlannedDimension> candidates, OutlineFeature2D outline, DimensionSide side)
@@ -161,6 +179,81 @@ public sealed class StructureEndpointRules
 		}
 		candidates.RemoveAt(num);
 		return true;
+	}
+
+	/// <summary>
+	/// Left-anchored body length (touches overall MinX/MinY corner + interior shoulder) must not
+	/// be discarded when a true long-extension outlier is selected for removal.
+	/// </summary>
+	private bool IsOnPlacementEnvelope(PlannedDimension dim, OutlineFeature2D outline, DimensionSide side)
+	{
+		if (dim == null || outline == null)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		return side switch
+		{
+			DimensionSide.Top => Math.Abs(dim.FirstPoint.Y - outline.MaxY) <= tol
+				&& Math.Abs(dim.SecondPoint.Y - outline.MaxY) <= tol,
+			DimensionSide.Left => Math.Abs(dim.FirstPoint.X - outline.MinX) <= tol
+				&& Math.Abs(dim.SecondPoint.X - outline.MinX) <= tol,
+			DimensionSide.Right => Math.Abs(dim.FirstPoint.X - outline.MaxX) <= tol
+				&& Math.Abs(dim.SecondPoint.X - outline.MaxX) <= tol,
+			_ => Math.Abs(dim.FirstPoint.Y - outline.MinY) <= tol
+				&& Math.Abs(dim.SecondPoint.Y - outline.MinY) <= tol,
+		};
+	}
+
+	public bool IsProtectedBodyLengthCandidate(PlannedDimension dim, OutlineFeature2D outline, DimensionSide side)
+	{
+		if (dim == null || outline == null || outline.Segments == null)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		bool horizontal = side == DimensionSide.Top || side == DimensionSide.Bottom;
+		double span = horizontal
+			? Math.Abs(dim.SecondPoint.X - dim.FirstPoint.X)
+			: Math.Abs(dim.SecondPoint.Y - dim.FirstPoint.Y);
+		double overall = horizontal ? outline.Width : outline.Height;
+		if (span <= tol || span + tol >= overall)
+		{
+			return false;
+		}
+		Point2D a = dim.FirstPoint;
+		Point2D b = dim.SecondPoint;
+		// Body lengths are anchored at the datum-side overall corner (MinX / MinY).
+		bool touchesStartCorner = horizontal
+			? (Math.Abs(a.X - outline.MinX) <= tol || Math.Abs(b.X - outline.MinX) <= tol)
+			: (Math.Abs(a.Y - outline.MinY) <= tol || Math.Abs(b.Y - outline.MinY) <= tol);
+		if (!touchesStartCorner)
+		{
+			return false;
+		}
+		bool aStart = horizontal ? Math.Abs(a.X - outline.MinX) <= tol : Math.Abs(a.Y - outline.MinY) <= tol;
+		Point2D interior = aStart ? b : a;
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (segment == null)
+			{
+				continue;
+			}
+			bool touches = interior.DistanceTo(segment.Start) <= tol || interior.DistanceTo(segment.End) <= tol;
+			if (!touches)
+			{
+				continue;
+			}
+			if (horizontal && segment.IsVertical(tol) && segment.LengthY > tol)
+			{
+				return true;
+			}
+			if (!horizontal && segment.IsHorizontal(tol) && segment.LengthX > tol)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public bool IsTooSmallStructureSpan(double span)

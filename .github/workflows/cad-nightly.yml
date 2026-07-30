@@ -1,0 +1,92 @@
+name: cad-nightly
+
+on:
+  schedule:
+    # 18:00 UTC is approximately 02:00 the next day in Asia/Taipei.
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: cad-nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  cad-nightly:
+    runs-on: [self-hosted, Windows, X64, autocad-2020]
+    timeout-minutes: 180
+    env:
+      CONFIGURED_CORE_CONSOLE_PATH: ${{ vars.AUTOCAD_CORE_CONSOLE_PATH }}
+      CONFIGURED_AUTOCAD_PROFILE: ${{ vars.AUTOCAD_PROFILE }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Preflight runner and regression assets
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          if ($PSVersionTable.PSEdition -ne "Desktop" -or $PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -lt 1) {
+            throw "Windows PowerShell 5.1 is required; found $($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion)."
+          }
+
+          $coreConsolePath = $env:CONFIGURED_CORE_CONSOLE_PATH
+          if ([string]::IsNullOrWhiteSpace($coreConsolePath)) {
+            $coreConsolePath = "D:\Program Files\Autodesk\AutoCAD 2020\accoreconsole.exe"
+          }
+          if (-not (Test-Path -LiteralPath $coreConsolePath -PathType Leaf)) {
+            throw "AutoCAD Core Console was not found: $coreConsolePath"
+          }
+
+          $profile = $env:CONFIGURED_AUTOCAD_PROFILE
+          if ([string]::IsNullOrWhiteSpace($profile)) {
+            $profile = "1"
+          }
+
+          $activeCoreConsoles = @(Get-Process -Name "accoreconsole" -ErrorAction SilentlyContinue)
+          if ($activeCoreConsoles.Count -gt 0) {
+            $pids = ($activeCoreConsoles | ForEach-Object { $_.Id }) -join ", "
+            throw "Close active AutoCAD Core Console process(es) before nightly regression. PID(s): $pids"
+          }
+
+          if (-not (Test-Path -LiteralPath ".\scripts\run-cad-regression-suite.ps1" -PathType Leaf)) {
+            throw "Regression suite entry point is missing: scripts\run-cad-regression-suite.ps1"
+          }
+
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-remediation-matrix.ps1
+          if ($LASTEXITCODE -ne 0) {
+            throw "Remediation matrix validation failed with exit code $LASTEXITCODE."
+          }
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-regression-manifests.ps1
+          if ($LASTEXITCODE -ne 0) {
+            throw "Regression manifest validation failed with exit code $LASTEXITCODE."
+          }
+
+          "CAD_CORE_CONSOLE_PATH=$coreConsolePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CAD_PROFILE=$profile" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Run deterministic CAD regression suite
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-cad-regression-suite.ps1 `
+            -Build `
+            -RepeatCount 3 `
+            -CoreConsolePath "$env:CAD_CORE_CONSOLE_PATH" `
+            -Profile "$env:CAD_PROFILE" `
+            -TimeoutSeconds 180
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Upload nightly evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cad-nightly-${{ github.run_id }}-${{ github.run_attempt }}
+          path: regression/nightly/runs/**
+          if-no-files-found: warn
+          retention-days: 30

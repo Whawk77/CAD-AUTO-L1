@@ -13,6 +13,12 @@ param(
 
     [switch]$PlanOnly,
 
+    [string]$Language = "en-US",
+
+    [string]$Profile,
+
+    [string]$CoreConsolePath,
+
     [ValidateRange(30, 1800)]
     [int]$TimeoutSeconds = 240
 )
@@ -22,6 +28,12 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $regressionRoot = Join-Path $projectRoot "regression\core-cad"
 $casesPath = Join-Path $regressionRoot "cases.json"
+if ([string]::IsNullOrWhiteSpace($CoreConsolePath)) {
+    $CoreConsolePath = $env:AUTOCAD_CORE_CONSOLE_PATH
+}
+if ([string]::IsNullOrWhiteSpace($CoreConsolePath)) {
+    $CoreConsolePath = "D:\Program Files\Autodesk\AutoCAD 2020\accoreconsole.exe"
+}
 
 function ConvertTo-LispString {
     param([string]$Value)
@@ -93,6 +105,9 @@ $plan = [ordered]@{
     fixtureReady = [bool]$case.fixtureReady
     build = [bool]$Build
     requestedDllDirectory = $DllDirectory
+    language = $Language
+    profile = $Profile
+    coreConsolePath = $CoreConsolePath
     timeoutSeconds = $TimeoutSeconds
 }
 if ($PlanOnly) {
@@ -112,7 +127,7 @@ if ([string]::IsNullOrWhiteSpace([string]$case.fixtureSha256) -or
     throw "Fixture hash mismatch. Expected '$($case.fixtureSha256)', found '$fixtureHash'."
 }
 
-$coreConsoleExe = "D:\Program Files\Autodesk\AutoCAD 2020\accoreconsole.exe"
+$coreConsoleExe = $CoreConsolePath
 if (-not (Test-Path -LiteralPath $coreConsoleExe -PathType Leaf)) {
     throw "AutoCAD Core Console 2020 not found: $coreConsoleExe"
 }
@@ -168,6 +183,7 @@ $lspPath = Join-Path $runDirectory "run.lsp"
 $driverPath = Join-Path $runDirectory "run.scr"
 $stdoutPath = Join-Path $runDirectory "core-console.stdout.log"
 $stderrPath = Join-Path $runDirectory "core-console.stderr.log"
+$fullImagePath = Join-Path $runDirectory "full.png"
 $resultPath = Join-Path $runDirectory "result.json"
 Copy-Item -LiteralPath $fixturePath -Destination $workingDwg
 
@@ -240,6 +256,9 @@ $driver = @"
 (command "_.NETLOAD" $(ConvertTo-LispString ([string]$dlls["AutoFixtureDim.dll"].path)))
 (load $(ConvertTo-LispString $lspPath))
 (c:RUNCORECAD)
+(vl-cmdf "_.REGEN")
+(vl-cmdf "_.ZOOM" "_E")
+(vl-cmdf "_.PNGOUT" $(ConvertTo-LispString $fullImagePath) "_ALL" "")
 _.QUIT
 _N
 "@
@@ -259,9 +278,13 @@ $result = [ordered]@{
     dlls = $dlls
     reportPath = $reportPath
     tracePath = $tracePath
+    fullImagePath = $fullImagePath
+    fullImageSha256 = $null
     standardOutputPath = $stdoutPath
     standardErrorPath = $stderrPath
     executionHost = $coreConsoleExe
+    language = $Language
+    profile = $Profile
 }
 $failure = $null
 try {
@@ -270,7 +293,14 @@ try {
     $previousReportPath = $env:AUTOFIXDIM_DIAGNOSTIC_REPORT_PATH
     $env:AUTOFIXDIM_DIAGNOSTIC_REPORT_PATH = $reportPath
     try {
-        $arguments = @("/i", ('"{0}"' -f $workingDwg), "/s", ('"{0}"' -f $driverPath), "/l", "en-US")
+        $processPath = $env:Path
+        [Environment]::SetEnvironmentVariable("PATH", $null, "Process")
+        [Environment]::SetEnvironmentVariable("Path", $processPath, "Process")
+
+        $arguments = @("/i", ('"{0}"' -f $workingDwg), "/s", ('"{0}"' -f $driverPath), "/l", $Language)
+        if (-not [string]::IsNullOrWhiteSpace($Profile)) {
+            $arguments += @("/p", ('"{0}"' -f $Profile))
+        }
         $process = Start-Process -FilePath $coreConsoleExe -ArgumentList $arguments -WindowStyle Hidden `
             -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
     }
@@ -297,6 +327,7 @@ try {
     if ($null -ne $errorLine) { throw "CAD trace failure: $errorLine" }
     if ($trace -notcontains "COMPLETE") { throw "CAD trace has no COMPLETE marker." }
     if (-not (Test-Path -LiteralPath $reportPath -PathType Leaf)) { throw "Diagnostic report was not generated." }
+    if (-not (Test-Path -LiteralPath $fullImagePath -PathType Leaf)) { throw "Full image was not generated." }
 
     & (Join-Path $PSScriptRoot "validate-core-cad-report.ps1") `
         -CaseId $CaseId `
@@ -318,6 +349,9 @@ catch {
 }
 finally {
     $result.finishedAtUtc = [DateTime]::UtcNow.ToString("o", [Globalization.CultureInfo]::InvariantCulture)
+    if (Test-Path -LiteralPath $fullImagePath -PathType Leaf) {
+        $result.fullImageSha256 = Get-Sha256 -Path $fullImagePath
+    }
     $result | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $resultPath -Encoding UTF8
 }
 

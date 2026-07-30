@@ -283,6 +283,7 @@ $result = [ordered]@{
     standardOutputPath = $stdoutPath
     standardErrorPath = $stderrPath
     executionHost = $coreConsoleExe
+    cadExitCode = $null
     language = $Language
     profile = $Profile
 }
@@ -319,6 +320,12 @@ try {
         $result.status = "TimedOut"
         throw "AutoCAD Core Console regression timed out; process was not killed. PID=$($process.Id)."
     }
+    $process.WaitForExit()
+    $process.Refresh()
+    $result.cadExitCode = [int]$process.ExitCode
+    if ($result.cadExitCode -ne 0) {
+        throw "AutoCAD Core Console exited $($result.cadExitCode)."
+    }
     if (-not (Test-Path -LiteralPath $tracePath -PathType Leaf)) {
         throw "AutoCAD produced no trace."
     }
@@ -334,7 +341,6 @@ try {
         -ReportPath $reportPath `
         -RunStartedAt $startedAt `
         -AllowNotReady:$AllowNotReady
-    if ($LASTEXITCODE -ne 0) { throw "Core-CAD report validation failed." }
 
     if ($case.fixtureReady -ne $true) {
         $case.fixtureReady = $true

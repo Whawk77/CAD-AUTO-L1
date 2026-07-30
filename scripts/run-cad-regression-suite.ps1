@@ -194,20 +194,12 @@ function Invoke-CoreConsole {
     )
     $process = Start-Process -FilePath $CoreConsolePath -ArgumentList $arguments -WindowStyle Hidden `
         -RedirectStandardOutput $StandardOutputPath -RedirectStandardError $StandardErrorPath -PassThru
-    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-    while ([DateTime]::UtcNow -lt $deadline) {
-        $process.Refresh()
-        if ($process.HasExited) {
-            break
-        }
-        Start-Sleep -Seconds 1
-    }
-    $process.Refresh()
-    if (-not $process.HasExited) {
+    if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
         throw "AutoCAD Core Console timed out; process was not killed. PID=$($process.Id)."
     }
     $process.WaitForExit()
-    return $process.ExitCode
+    $process.Refresh()
+    return [int]$process.ExitCode
 }
 
 function Invoke-DimensionLayoutCase {

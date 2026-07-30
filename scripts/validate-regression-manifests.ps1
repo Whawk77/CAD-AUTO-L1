@@ -9,6 +9,19 @@ $manifestPaths = @(
 $caseIds = @{}
 $caseCount = 0
 
+function Get-Sha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $stream = [System.IO.File]::OpenRead($Path)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([System.BitConverter]::ToString($sha.ComputeHash($stream))).Replace("-", "")
+    }
+    finally {
+        $sha.Dispose()
+        $stream.Dispose()
+    }
+}
+
 foreach ($relativeManifestPath in $manifestPaths) {
     $manifestPath = Join-Path $projectRoot $relativeManifestPath
     try {
@@ -45,7 +58,7 @@ foreach ($relativeManifestPath in $manifestPaths) {
         if (-not (Test-Path -LiteralPath $fixturePath -PathType Leaf)) {
             throw "Fixture for case '$caseId' was not found: $fixturePath"
         }
-        $actualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $fixturePath).Hash
+        $actualHash = Get-Sha256 -Path $fixturePath
         if ($actualHash -ne [string]$case.fixtureSha256) {
             throw "Fixture hash mismatch for case '$caseId'. Expected $($case.fixtureSha256), found $actualHash."
         }

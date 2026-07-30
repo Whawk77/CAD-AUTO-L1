@@ -22,6 +22,19 @@ function Test-HasProperty {
     return $null -ne $Object -and $Object.PSObject.Properties.Name -contains $Name
 }
 
+function Get-Sha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $stream = [System.IO.File]::OpenRead($Path)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([System.BitConverter]::ToString($sha.ComputeHash($stream))).Replace("-", "")
+    }
+    finally {
+        $sha.Dispose()
+        $stream.Dispose()
+    }
+}
+
 function Test-DimensionSelector {
     param($Dimension, $Selector)
 
@@ -83,7 +96,7 @@ $fixturePath = Join-Path $regressionRoot ([string]$case.fixture)
 if (-not (Test-Path -LiteralPath $fixturePath -PathType Leaf)) {
     throw "Fixture was not found: $fixturePath"
 }
-$fixtureHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $fixturePath).Hash
+$fixtureHash = Get-Sha256 -Path $fixturePath
 if ($fixtureHash -ne [string]$case.fixtureSha256) {
     throw "Fixture hash mismatch. Expected $($case.fixtureSha256), found $fixtureHash."
 }

@@ -1,0 +1,548 @@
+{
+  "schemaVersion": 1,
+  "asOf": "2026-07-30",
+  "allowedStatuses": [
+    "ConfirmedCorrect",
+    "KnownWrong",
+    "Unresolved"
+  ],
+  "cases": [
+    {
+      "id": "CORE-P0",
+      "family": "Core",
+      "status": "ConfirmedCorrect",
+      "input": {
+        "source": "CadAuto.Core.Tests/Program.cs",
+        "sha256": "D6FBB82E563C61853E6743B7431C62A63D4DB9B44DF1DBC27E99F06B96C82FDE"
+      },
+      "evidence": [
+        {
+          "source": "docs/DimensionRules.md:111-115",
+          "claim": "P0 is the product-invariant tier and its expectations require explicit user approval to change."
+        },
+        {
+          "source": "CadAuto.Core.Tests/Program.cs:18-29",
+          "claim": "The P0 membership is explicitly enumerated in the test host."
+        },
+        {
+          "source": "plan/REMEDIATION-PLAN-2026-07-29.md:382",
+          "claim": "The user confirmed the current ConfirmedCorrect set on 2026-07-30."
+        }
+      ]
+    },
+    {
+      "id": "CORE-P1",
+      "family": "Core",
+      "status": "ConfirmedCorrect",
+      "input": {
+        "source": "CadAuto.Core.Tests/Program.cs",
+        "sha256": "D6FBB82E563C61853E6743B7431C62A63D4DB9B44DF1DBC27E99F06B96C82FDE"
+      },
+      "evidence": [
+        {
+          "source": "docs/DimensionRules.md:111-115",
+          "claim": "P1 is explicitly defined as user-confirmed production cases and its expectations require explicit user approval to change."
+        },
+        {
+          "source": "CadAuto.Core.Tests/Program.cs:31-59",
+          "claim": "The P1 membership is explicitly enumerated in the test host."
+        },
+        {
+          "source": "plan/REMEDIATION-PLAN-2026-07-29.md:382",
+          "claim": "The user confirmed the current ConfirmedCorrect set on 2026-07-30."
+        }
+      ]
+    },
+    {
+      "id": "CORE-P2",
+      "family": "Core",
+      "status": "Unresolved",
+      "input": {
+        "source": "CadAuto.Core.Tests/Program.cs",
+        "sha256": "7E578B6092884D81806CBFFFCD42447896CDAC00CD1417AACF947DC8417B8B0A"
+      },
+      "evidence": [
+        {
+          "source": "docs/DimensionRules.md:111-115",
+          "claim": "P2 is described as recognition/planning, but the repository does not mark the tier as user-confirmed."
+        }
+      ],
+      "reviewNeeded": "Identify which P2 expectations have user-approved product truth or a traceable approved historical result."
+    },
+    {
+      "id": "CORE-P3",
+      "family": "Core",
+      "status": "Unresolved",
+      "input": {
+        "source": "CadAuto.Core.Tests/Program.cs",
+        "sha256": "7E578B6092884D81806CBFFFCD42447896CDAC00CD1417AACF947DC8417B8B0A"
+      },
+      "evidence": [
+        {
+          "source": "docs/DimensionRules.md:111-115",
+          "claim": "P3 is described as layout/diagnostics, but the repository does not mark the tier as user-confirmed."
+        },
+        {
+          "source": "CadAuto.Core.Tests/Program.cs:61-101",
+          "claim": "The P3 membership is explicitly enumerated in the test host."
+        }
+      ],
+      "reviewNeeded": "Identify which P3 expectations have user-approved product truth or a traceable approved historical result."
+    },
+    {
+      "id": "OC01-bottom-outer-step-partition",
+      "family": "Core-CAD",
+      "status": "ConfirmedCorrect",
+      "input": {
+        "source": "regression/core-cad/fixtures/OC01-bottom-outer-step-partition.dwg",
+        "sha256": "3A6D243FA5BA50493A68053FE5DDBA801854C0EA2910F12D2BB2F25C8A24B84F"
+      },
+      "evidence": [
+        {
+          "source": "regression/core-cad/cases.json:3-99",
+          "claim": "The manifest pins the fixture, source diagnostic run, structured final dimensions, forbidden dimensions, and suppressed candidate decisions with fixtureReady=true."
+        },
+        {
+          "source": "docs/CoreCadRegression.md:41-61",
+          "claim": "The repository contract states that fixtureReady becomes true only after a genuine passing regression."
+        },
+        {
+          "source": "plan/REMEDIATION-PLAN-2026-07-29.md:382",
+          "claim": "The user confirmed the current ConfirmedCorrect set on 2026-07-30."
+        },
+        {
+          "source": "regression/core-cad/runs/OC01-bottom-outer-step-partition/20260730-103436458/result.json",
+          "claim": "The genuine CAD regression Passed on 2026-07-30 with schema v2, 14 candidates, 4 finals, 0 warnings, and zh-CN/Profile 1.",
+          "artifacts": [
+            {
+              "path": "regression/core-cad/runs/OC01-bottom-outer-step-partition/20260730-103436458/result.json",
+              "sha256": "86762DFA5F8E6DBD15989BDE5A7AC100CE181C02A7862425CF80728BCEB0DC8A"
+            },
+            {
+              "path": "regression/core-cad/runs/OC01-bottom-outer-step-partition/20260730-103436458/report.json",
+              "sha256": "AE2E972C369CE8B351B294946D036E519482E098A3075BEC78F1AADF7A9A22DF"
+            },
+            {
+              "path": "regression/core-cad/runs/OC01-bottom-outer-step-partition/20260730-103436458/trace.log",
+              "sha256": "883A5B08FA0C498141D1AFBFF931FAE9CFE7EB087097E33BB1007C88AB7963E0"
+            }
+          ],
+          "dlls": [
+            {
+              "path": "bin/Debug-vM2/AutoFixtureDim.dll",
+              "sha256": "7006E927158981B8215A8BFF1A3780C65F12562BCC2BDBAEDEB374898E6837AA"
+            },
+            {
+              "path": "bin/Debug-vM2/CadAuto.Core.dll",
+              "sha256": "CA8E987FA3D2913025AFD2C4CBEC319F163454697C51EC1B90BFB58B441D36CA"
+            },
+            {
+              "path": "bin/Debug-vM2/CadAuto.CadAdapter.dll",
+              "sha256": "DB23B198CE55F2D08F0B3C0053E302101639432C101EFF135F7F8E70881BADF1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DL01-bottom-block-span-order",
+      "family": "DimensionLayout",
+      "status": "ConfirmedCorrect",
+      "input": {
+        "source": "regression/dimension-layout/fixtures/DL01-four-side-dimension-layout.dwg",
+        "sha256": "CAB97F3FFA4F7A9AF613C1905BFD0CF2F7003044472CEC8E2020710B40BE6D34"
+      },
+      "evidence": [
+        {
+          "source": "regression/dimension-layout/cases.json:3-23",
+          "claim": "The manifest pins the fixture, target expectation, and Bottom manual checks."
+        },
+        {
+          "source": "regression/dimension-layout/runs/DL01-bottom-block-span-order/20260730-130500001/result.json",
+          "claim": "The genuine Bottom CAD run Passed with exit 0, COMPLETE trace, selection 98, report schema 2, 31 finals, 0 warnings, and target validation PASS; full/detail review confirmed no Bottom 33.",
+          "artifacts": [
+            {
+              "path": "regression/dimension-layout/runs/DL01-bottom-block-span-order/20260730-130500001/result.json",
+              "sha256": "A28D8936E6C82076EAC2F5551CFD8A6BE45CA7BC16C23BE6397712E385986B82"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-bottom-block-span-order/20260730-130500001/report.json",
+              "sha256": "DDBA5AE8AF354832172B634866B7688BFD58B8AA3B3C56421562570324449CB7"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-bottom-block-span-order/20260730-130500001/trace.log",
+              "sha256": "28733C8C044F87805A4A0EF3C17E745B513559DE177B903CE23E39A58A3EDE54"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-bottom-block-span-order/20260730-130500001/full.png",
+              "sha256": "6BB06B62D117C97356C2D1FC841DD201F2D806C889DE74574F5906FA0B3DDB7F"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-bottom-block-span-order/20260730-130500001/detail.png",
+              "sha256": "1A729D53BDC3A01BB667824FA5305BF90614302622766847DC092C1059CD0CF6"
+            }
+          ],
+          "dlls": [
+            {
+              "path": "bin/Debug-v3/AutoFixtureDim.dll",
+              "sha256": "B145FDCCC2C5DFA05FCBEA5E8886BC3AD27B4A577D0366EFFD2762A53990CBED"
+            },
+            {
+              "path": "bin/Debug-v3/CadAuto.Core.dll",
+              "sha256": "4D20C161DF40BFB0C5B67C6D498438D42F9EBC7EA5B2FCA1BB1CFD0BA34E9498"
+            },
+            {
+              "path": "bin/Debug-v3/CadAuto.CadAdapter.dll",
+              "sha256": "D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857"
+            }
+          ]
+        },
+        {
+          "source": "plan/REMEDIATION-PLAN-2026-07-29.md:380-395",
+          "claim": "The approved DL01 decision record identifies Bottom run 20260730-130500001 and confirms the reviewed full/detail result."
+        }
+      ]
+    },
+    {
+      "id": "DL01-top-block-span-order",
+      "family": "DimensionLayout",
+      "status": "ConfirmedCorrect",
+      "input": {
+        "source": "regression/dimension-layout/fixtures/DL01-four-side-dimension-layout.dwg",
+        "sha256": "CAB97F3FFA4F7A9AF613C1905BFD0CF2F7003044472CEC8E2020710B40BE6D34"
+      },
+      "evidence": [
+        {
+          "source": "regression/dimension-layout/cases.json:24-41",
+          "claim": "The manifest pins the fixture, target expectation, and Top manual checks."
+        },
+        {
+          "source": "regression/dimension-layout/runs/DL01-top-block-span-order/20260730-130500002/result.json",
+          "claim": "The genuine Top CAD run Passed with exit 0, COMPLETE trace, selection 98, report schema 2, 31 finals, 0 warnings, and target validation PASS; full/detail review confirmed the approved three-layer Top order.",
+          "artifacts": [
+            {
+              "path": "regression/dimension-layout/runs/DL01-top-block-span-order/20260730-130500002/result.json",
+              "sha256": "077C3BBE2EB19C4A7581C13597A237CE37EA46C01FEFAB55760BE35306F2766D"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-top-block-span-order/20260730-130500002/report.json",
+              "sha256": "AA625A06486D356FED4636953061FD8297BB6472B269355BE857830016173186"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-top-block-span-order/20260730-130500002/trace.log",
+              "sha256": "A14EE4C130ED49D3B1891FBDF5A74E2A254F932F7A85C47C717CD44ED1F24713"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-top-block-span-order/20260730-130500002/full.png",
+              "sha256": "0E7BE92A4EEC102BBE31DF3D55C62B8900449F2E51D9B452DAD124F91B194E4B"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-top-block-span-order/20260730-130500002/detail.png",
+              "sha256": "B082CA4295DC6293356B60AFE9C236A166F3C769838845FE542C8DE73EEC2592"
+            }
+          ],
+          "dlls": [
+            {
+              "path": "bin/Debug-v3/AutoFixtureDim.dll",
+              "sha256": "B145FDCCC2C5DFA05FCBEA5E8886BC3AD27B4A577D0366EFFD2762A53990CBED"
+            },
+            {
+              "path": "bin/Debug-v3/CadAuto.Core.dll",
+              "sha256": "4D20C161DF40BFB0C5B67C6D498438D42F9EBC7EA5B2FCA1BB1CFD0BA34E9498"
+            },
+            {
+              "path": "bin/Debug-v3/CadAuto.CadAdapter.dll",
+              "sha256": "D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857"
+            }
+          ]
+        },
+        {
+          "source": "plan/REMEDIATION-PLAN-2026-07-29.md:380-395",
+          "claim": "The approved DL01 decision record identifies Top run 20260730-130500002 and confirms the reviewed full/detail result."
+        }
+      ]
+    },
+    {
+      "id": "DL01-left-block-span-order",
+      "family": "DimensionLayout",
+      "status": "ConfirmedCorrect",
+      "input": {
+        "source": "regression/dimension-layout/fixtures/DL01-four-side-dimension-layout.dwg",
+        "sha256": "CAB97F3FFA4F7A9AF613C1905BFD0CF2F7003044472CEC8E2020710B40BE6D34"
+      },
+      "evidence": [
+        {
+          "source": "regression/dimension-layout/cases.json:42-61",
+          "claim": "The manifest pins the fixture, target expectation, and Left manual checks."
+        },
+        {
+          "source": "regression/dimension-layout/runs/DL01-left-block-span-order/20260730-130500003/result.json",
+          "claim": "The genuine Left CAD run Passed with exit 0, COMPLETE trace, selection 98, report schema 2, 31 finals, 0 warnings, and target validation PASS; full/detail review confirmed no Left 48.5.",
+          "artifacts": [
+            {
+              "path": "regression/dimension-layout/runs/DL01-left-block-span-order/20260730-130500003/result.json",
+              "sha256": "3140A76361583E7F8A32FC05C0F9E9439728F550D6676C81039895EBBEEED19E"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-left-block-span-order/20260730-130500003/report.json",
+              "sha256": "92EAD7838DE81C170B127E998F5D01C4EF08742FC34A4629954618746D034FF3"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-left-block-span-order/20260730-130500003/trace.log",
+              "sha256": "9609057C281ECC3E78613B7C59517FE1BAD9B51BC5F72F91E2DFF8564F4E0DFC"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-left-block-span-order/20260730-130500003/full.png",
+              "sha256": "42DFEB4EAB154750A9A3B2DADDA788ED8062FA83B84291E6ACC2F16B28981384"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-left-block-span-order/20260730-130500003/detail.png",
+              "sha256": "2F251B30FCBFF2E75808BA9094FCDD9B8FE9EA4C3C1F17D0AC6ED95480B5F08A"
+            }
+          ],
+          "dlls": [
+            {
+              "path": "bin/Debug-v3/AutoFixtureDim.dll",
+              "sha256": "B145FDCCC2C5DFA05FCBEA5E8886BC3AD27B4A577D0366EFFD2762A53990CBED"
+            },
+            {
+              "path": "bin/Debug-v3/CadAuto.Core.dll",
+              "sha256": "4D20C161DF40BFB0C5B67C6D498438D42F9EBC7EA5B2FCA1BB1CFD0BA34E9498"
+            },
+            {
+              "path": "bin/Debug-v3/CadAuto.CadAdapter.dll",
+              "sha256": "D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857"
+            }
+          ]
+        },
+        {
+          "source": "plan/REMEDIATION-PLAN-2026-07-29.md:380-395",
+          "claim": "The approved DL01 decision record identifies Left run 20260730-130500003 and confirms the reviewed full/detail result."
+        }
+      ]
+    },
+    {
+      "id": "DL01-right-block-span-order",
+      "family": "DimensionLayout",
+      "status": "ConfirmedCorrect",
+      "input": {
+        "source": "regression/dimension-layout/fixtures/DL01-four-side-dimension-layout.dwg",
+        "sha256": "CAB97F3FFA4F7A9AF613C1905BFD0CF2F7003044472CEC8E2020710B40BE6D34"
+      },
+      "evidence": [
+        {
+          "source": "regression/dimension-layout/cases.json:62-80",
+          "claim": "The manifest pins the fixture, target expectation, and Right manual checks."
+        },
+        {
+          "source": "regression/dimension-layout/runs/DL01-right-block-span-order/20260730-130500004/result.json",
+          "claim": "The genuine Right CAD run Passed with exit 0, COMPLETE trace, selection 98, report schema 2, 31 finals, 0 warnings, and target validation PASS; full/detail review confirmed Right 48.5.",
+          "artifacts": [
+            {
+              "path": "regression/dimension-layout/runs/DL01-right-block-span-order/20260730-130500004/result.json",
+              "sha256": "AA51D6EBFA95FAD5FF425E7038A44F1A2EA8EE60F0164675457F524F6FC28282"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-right-block-span-order/20260730-130500004/report.json",
+              "sha256": "C8AFF843585C64355D3B830A07A646D24F33114BACDECA7A78FB6E6FD10BCD76"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-right-block-span-order/20260730-130500004/trace.log",
+              "sha256": "1EB4308E44013497F0D6860267D76C6A5DAA55AB6C4B7B99F484238D195DEE4E"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-right-block-span-order/20260730-130500004/full.png",
+              "sha256": "C67BEBC4C542E463EB9B8E97AA5A2923AF016D3DB6A36923808A50B9795FEF49"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-right-block-span-order/20260730-130500004/detail.png",
+              "sha256": "6F973FFDD7D2D384ADC20E0863964A293934D54A83058516EA58295E3BD369EC"
+            },
+            {
+              "path": "regression/dimension-layout/runs/DL01-right-block-span-order/20260730-130500004/detail-48_5.png",
+              "sha256": "340ECD55BEADB9C90CC7EC359EE2EFB52AF546B69ABEC28F65EFF77D7A0141FF"
+            }
+          ],
+          "dlls": [
+            {
+              "path": "bin/Debug-v3/AutoFixtureDim.dll",
+              "sha256": "B145FDCCC2C5DFA05FCBEA5E8886BC3AD27B4A577D0366EFFD2762A53990CBED"
+            },
+            {
+              "path": "bin/Debug-v3/CadAuto.Core.dll",
+              "sha256": "4D20C161DF40BFB0C5B67C6D498438D42F9EBC7EA5B2FCA1BB1CFD0BA34E9498"
+            },
+            {
+              "path": "bin/Debug-v3/CadAuto.CadAdapter.dll",
+              "sha256": "D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857"
+            }
+          ]
+        },
+        {
+          "source": "plan/REMEDIATION-PLAN-2026-07-29.md:380-395",
+          "claim": "The approved DL01 decision record identifies Right run 20260730-130500004 and confirms the reviewed full/detail plus detail-48_5 result."
+        }
+      ]
+    },
+    {
+      "id": "HS01-normal-hole",
+      "family": "HoleSlot",
+      "status": "Unresolved",
+      "input": {
+        "source": "regression/hole-slot/fixtures/HS01-normal-hole.dwg",
+        "sha256": "72BF063888F03D293DFA9A2DB7EDDF28509D89E55D3B11775CCE92EED0F4E2F8"
+      },
+      "evidence": [
+        {
+          "source": "regression/hole-slot/cases.json:3-15",
+          "claim": "The fixture is pinned but fixtureReady=false."
+        },
+        {
+          "source": "docs/RefactorVerification-2026-07-27.md:171-182",
+          "claim": "The Hole/Slot chain is documented as never having completed a genuine run."
+        }
+      ],
+      "reviewNeeded": "Complete and approve the first genuine fixture run."
+    },
+    {
+      "id": "HS02-concentric-holes",
+      "family": "HoleSlot",
+      "status": "Unresolved",
+      "input": {
+        "source": "regression/hole-slot/fixtures/HS02-concentric-holes.dwg",
+        "sha256": "B5214B93A9DA9D76235E1334266D791B570B2F84C8B9633190F4DEBF7B7D98C3"
+      },
+      "evidence": [
+        {
+          "source": "regression/hole-slot/cases.json:16-27",
+          "claim": "The fixture is pinned but fixtureReady=false."
+        },
+        {
+          "source": "docs/RefactorVerification-2026-07-27.md:171-182",
+          "claim": "The Hole/Slot chain is documented as never having completed a genuine run."
+        }
+      ],
+      "reviewNeeded": "Complete and approve the first genuine fixture run."
+    },
+    {
+      "id": "HS03-loose-hole-chain",
+      "family": "HoleSlot",
+      "status": "Unresolved",
+      "input": {
+        "source": "regression/hole-slot/fixtures/HS03-loose-hole-chain.dwg",
+        "sha256": "3E0FB10A5E2F237E2C7B8FD10AA7539993D5E936426FC25A1B5C652B76DF2F25"
+      },
+      "evidence": [
+        {
+          "source": "regression/hole-slot/cases.json:28-38",
+          "claim": "The fixture is pinned but fixtureReady=false."
+        },
+        {
+          "source": "docs/RefactorVerification-2026-07-27.md:171-182",
+          "claim": "The Hole/Slot chain is documented as never having completed a genuine run."
+        }
+      ],
+      "reviewNeeded": "Complete and approve the first genuine fixture run."
+    },
+    {
+      "id": "HS04-unique-pin-datum",
+      "family": "HoleSlot",
+      "status": "Unresolved",
+      "input": {
+        "source": "regression/hole-slot/fixtures/HS04-unique-pin-datum.dwg",
+        "sha256": "FE114C91410C4AD307A64863A77B40CC2A5D7B66D75DB6A69FE70F27F538F059"
+      },
+      "evidence": [
+        {
+          "source": "regression/hole-slot/cases.json:39-50",
+          "claim": "The fixture is pinned but fixtureReady=false."
+        },
+        {
+          "source": "docs/RefactorVerification-2026-07-27.md:171-182",
+          "claim": "The Hole/Slot chain is documented as never having completed a genuine run."
+        }
+      ],
+      "reviewNeeded": "Complete and approve the first genuine fixture run."
+    },
+    {
+      "id": "HS05-multiple-pin-datum",
+      "family": "HoleSlot",
+      "status": "Unresolved",
+      "input": {
+        "source": "regression/hole-slot/fixtures/HS05-unique-pin-datum.dwg",
+        "sha256": "D6A80DB5D21363669E084F9242F6341D7551AA3514CD41F88CF2FA9FA7865281"
+      },
+      "evidence": [
+        {
+          "source": "regression/hole-slot/cases.json:51-63",
+          "claim": "The fixture is pinned but fixtureReady=false, and the case ID semantics conflict with the fixture file name."
+        },
+        {
+          "source": "docs/RefactorVerification-2026-07-27.md:171-184",
+          "claim": "The repository explicitly leaves the unique-versus-multiple pin meaning for manual adjudication."
+        }
+      ],
+      "reviewNeeded": "Inspect the DWG candidate count and approve either unique-pin or multiple-pin semantics before the first genuine run."
+    },
+    {
+      "id": "HS06-functional-hole",
+      "family": "HoleSlot",
+      "status": "Unresolved",
+      "input": {
+        "source": "regression/hole-slot/fixtures/HS06-functional-hole.dwg",
+        "sha256": "34171D0289AD63BDD2E6F28FEEA60E420F567A271E462E1C0BEE22ABC27F3F01"
+      },
+      "evidence": [
+        {
+          "source": "regression/hole-slot/cases.json:64-74",
+          "claim": "The fixture is pinned but fixtureReady=false."
+        },
+        {
+          "source": "docs/RefactorVerification-2026-07-27.md:171-182",
+          "claim": "The Hole/Slot chain is documented as never having completed a genuine run."
+        }
+      ],
+      "reviewNeeded": "Complete and approve the first genuine fixture run."
+    },
+    {
+      "id": "HS07-vertical-waist-slot",
+      "family": "HoleSlot",
+      "status": "Unresolved",
+      "input": {
+        "source": "regression/hole-slot/fixtures/HS07-vertical-waist-slot.dwg",
+        "sha256": "6A072ACD256F85AB045F46C758E097C2EFFB507634CC24C684A131ADE96D9C2A"
+      },
+      "evidence": [
+        {
+          "source": "regression/hole-slot/cases.json:75-87",
+          "claim": "The fixture is pinned but fixtureReady=false."
+        },
+        {
+          "source": "docs/RefactorVerification-2026-07-27.md:171-182",
+          "claim": "The Hole/Slot chain is documented as never having completed a genuine run."
+        }
+      ],
+      "reviewNeeded": "Complete and approve the first genuine fixture run."
+    },
+    {
+      "id": "HS08-transformed-waist-slot",
+      "family": "HoleSlot",
+      "status": "Unresolved",
+      "input": {
+        "source": "regression/hole-slot/fixtures/HS08-transformed-waist-slot.dwg",
+        "sha256": "791F706C84A5421F265B68039D6354D51179422595D1DA44CF6DDDF85C543F3F"
+      },
+      "evidence": [
+        {
+          "source": "regression/hole-slot/cases.json:88-100",
+          "claim": "The fixture is pinned but fixtureReady=false."
+        },
+        {
+          "source": "docs/RefactorVerification-2026-07-27.md:171-182",
+          "claim": "The Hole/Slot chain is documented as never having completed a genuine run."
+        }
+      ],
+      "reviewNeeded": "Complete and approve the first genuine fixture run."
+    }
+  ]
+}

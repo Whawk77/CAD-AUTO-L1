@@ -1,7 +1,7 @@
 # CAD 自动标注规则与回归体系整改计划
 
 > 日期：2026-07-29
-> 状态：实施中；DL01 四方向已完成结构化与图片验收；M3 仓库侧 nightly 配置已完成，外部 Runner 注册与首次三轮实跑尚未完成
+> 状态：实施中；M3 已完成；进入 M4/阶段 6，视觉检查先报告、暂不阻断
 > 原则：渐进替换、行为可对照、每阶段可回退；禁止大爆炸重写
 
 ## 1. 目标与边界
@@ -284,6 +284,8 @@ Core 使用独立识别器；CI 只跑 Core；DWG runner 覆盖少；碰撞和�
 - 短跨度在内、长跨度向外及 Overall 最外层。
 - 同一布局块的连续性和方向一致性。
 
+M4 首批只以 warning/report 形式检查碰撞、穿越和布局，不改变产品标注、不修改 expectation，也不阻断现有 Core 或 CAD 门禁；待误报率和正确图片完成验收后再单独申请升级为阻断。
+
 保留人工职责：
 
 - 新 fixture 的首次产品真值批准。
@@ -346,12 +348,12 @@ Core 使用独立识别器；CI 只跑 Core；DWG runner 覆盖少；碰撞和�
 | 候选可解释性 | 有诊断状态，但业务语义主要依赖字符串 | 100% 候选有正式 Role、来源证据、最终状态和唯一 RuleId |
 | Core 测试 | 126 个手工注册 | 保持全量通过；规则变更的正例/反例/变换例覆盖 100% |
 | 空集合假阳性 | 未形成统一门禁 | 0 |
-| CI 范围 | 托管 CI 只跑 Core | PR 有快速层；nightly 覆盖所有 ready CAD case |
+| CI 范围 | PR 快速层与自托管 CAD nightly 已启用 | PR 有快速层；nightly 覆盖所有 ready CAD case |
 | Core-CAD | 当前 1 个 OC01 | 所有 ready case 100% 通过，并持续增加真实问题最小 fixture |
 | DL01 | 4/4 target 结构化通过，full/detail 图片已确认 | 4/4 结构化通过，自动化可计算视觉规则 |
 | Hole/Slot | 8 个 case，全部未 ready | 逐一真实验收后 8/8；未 ready 不计通过 |
-| 确定性 | 未统一连续运行 | 同一 DLL 全量连续 3 次零差异 |
-| 编译与编排 | 多脚本、逐 case | 全量运行只编译 1 次，统一汇总 |
+| 确定性 | 5 个 ready case 已用同一 DLL 连续 3 次零差异 | 同一 DLL 全量连续 3 次零差异 |
+| 编译与编排 | M3 批次只编译 1 次，15 次 CAD 串行并统一汇总 | 全量运行只编译 1 次，统一汇总 |
 | 人工操作 | 仍需逐方向编排和图片判断 | 常规回归零手动输入；人工仅首次批准和发布抽检 |
 
 ## 7. 推荐实施顺序
@@ -368,8 +370,8 @@ Core 使用独立识别器；CI 只跑 Core；DWG runner 覆盖少；碰撞和�
 
 - M1：阶段 0 + 阶段 1，停止继续增加无证据补丁。
 - M2：阶段 2 + OC01 规则族的阶段 3 迁移，证明统一裁决可行。
-- M3：阶段 4 + 阶段 5，全量真实回归一键执行。
-- M4：阶段 6，人工验收收敛为首次批准与发布抽检。
+- M3：阶段 4 + 阶段 5，全量真实回归一键执行；2026-07-30 已完成当前 5 个 ready case 的三轮闭环。
+- M4：阶段 6，人工验收收敛为首次批准与发布抽检；已进入非阻断视觉检查阶段。
 
 单人实施粗估 4～6 周；每个里程碑必须独立可验证、可回退，不以工期压力跳过真值确认。
 
@@ -396,7 +398,7 @@ DL01 第二批证据记录：
 - `bin/Debug-v3/CadAuto.Core.dll` SHA256：`4D20C161DF40BFB0C5B67C6D498438D42F9EBC7EA5B2FCA1BB1CFD0BA34E9498`。
 - `bin/Debug-v3/CadAuto.CadAdapter.dll` SHA256：`D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857`。
 
-以上仅完成 DL01 真值确认，不代表 M3、阶段 5、Hole/Slot 8/8 或全量连续三次确定性检查完成。
+以上 DL01 单次证据已由后续 M3 三轮 nightly 再次覆盖；Hole/Slot 仍为 0 个 ready case，不计通过也不阻断当前 ready 集合的 M3 闭环。
 
 M3 nightly 配置记录：
 
@@ -404,7 +406,12 @@ M3 nightly 配置记录：
 - 新增 `scripts/run-cad-regression-suite.ps1`：复用现有校验器与 case runner，固定同一套 DLL，按 Core-CAD、DL01、Hole/Slot 顺序执行，默认连续三轮并归档摘要。
 - `scripts/run-core-cad-regression.ps1` 增加可选 `CoreConsolePath`、`Language`、`Profile` 参数，并规范进程级 `Path`，供 nightly Runner 显式指定 AutoCAD 环境。
 - `-PlanOnly` 已确认当前清单为 Core-CAD 1、DL01 4、Hole/Slot 0、重复 3 轮；脚本 AST、workflow YAML 与 diff whitespace 检查通过。
-- 未注册或修改远端自托管 Runner，未提交或推送 workflow，也未执行新增 nightly 的十五次 CAD 实跑；因此阶段 5 与 M3 退出条件仍保持未完成。
+- Repository Runner `CAD-AUTO-L1-PC-20260323IMXG` 已注册并在线，标签为 `self-hosted / Windows / X64 / autocad-2020`；默认分支已切换为 `refactor/v2-roadmap`。
+- 首次完整通过：[GitHub Actions run 30519843692](https://github.com/Whawk77/CAD-AUTO-L1/actions/runs/30519843692)，提交 `421b2bda2926c8e7d4ea2513e9f2a465eeb5d64c`，批次 `20260730-143203268`。
+- 同一套 DLL 串行完成 5 个 ready case × 3 轮：15/15 Passed、CAD exit 0、DL01 validator exit 0、五组规范化报告各只有 1 个哈希、errors 0。
+- 三个 DLL SHA256 与 M2 `Debug-v3` 完全一致；DL01 四方向 full/detail PNG 的三轮文件哈希均唯一且与已人工批准图片一致。
+- 远端证据包 `cad-nightly-30519843692-1`（artifact `8750361702`）已上传，183 个文件，本机复核 15 个 result、15 个 report、15 个 trace、15 张 full PNG、12 张 detail PNG，必需证据 72/72。
+- Hole/Slot manifest 当前 0 个 `fixtureReady=true` case，摘要明确记录 Skipped，没有伪装为通过；M3 按当前 5 个 ready case 的授权范围完成。
 
 | 规则 | 正例 | 相邻反例 | 镜像/平移等价例 | fixture |
 | --- | --- | --- | --- | --- |

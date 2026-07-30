@@ -5,6 +5,28 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Get-InputSha256 {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [ValidateSet("raw", "text-lf")][string]$Mode = "raw"
+    )
+
+    $bytes = if ($Mode -eq "text-lf") {
+        $text = [System.IO.File]::ReadAllText($Path).Replace("`r`n", "`n").Replace("`r", "`n")
+        [System.Text.UTF8Encoding]::new($false).GetBytes($text)
+    }
+    else {
+        [System.IO.File]::ReadAllBytes($Path)
+    }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([System.BitConverter]::ToString($sha.ComputeHash($bytes))).Replace("-", "")
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
 try {
     $repositoryRoot = Split-Path -Parent $PSScriptRoot
     if ([string]::IsNullOrWhiteSpace($MatrixPath)) {
@@ -95,11 +117,20 @@ try {
 
             $inputSource = [string]$case.input.source
             $expectedHash = [string]$case.input.sha256
+            $hashMode = if ($case.input.PSObject.Properties.Name -contains "hashMode") {
+                [string]$case.input.hashMode
+            }
+            else {
+                "raw"
+            }
             if ([string]::IsNullOrWhiteSpace($inputSource)) {
                 throw "ConfirmedCorrect case '$($case.id)' must have input.source."
             }
             if ($expectedHash -notmatch '^[0-9A-Fa-f]{64}$') {
                 throw "ConfirmedCorrect case '$($case.id)' must have a 64-character hexadecimal input.sha256."
+            }
+            if (@("raw", "text-lf") -notcontains $hashMode) {
+                throw "ConfirmedCorrect case '$($case.id)' has unsupported input.hashMode '$hashMode'."
             }
 
             $repositoryFullPath = [System.IO.Path]::GetFullPath($repositoryRoot)
@@ -117,7 +148,7 @@ try {
                 throw "ConfirmedCorrect case '$($case.id)' input.source does not exist: $inputSource"
             }
 
-            $actualHash = (Get-FileHash -LiteralPath $sourceFullPath -Algorithm SHA256).Hash
+            $actualHash = Get-InputSha256 -Path $sourceFullPath -Mode $hashMode
             if (-not [string]::Equals($actualHash, $expectedHash, [System.StringComparison]::OrdinalIgnoreCase)) {
                 throw "ConfirmedCorrect case '$($case.id)' input.sha256 mismatch: expected=$expectedHash actual=$actualHash"
             }

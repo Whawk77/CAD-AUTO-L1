@@ -206,6 +206,7 @@ function Invoke-CoreConsole {
     if (-not $process.HasExited) {
         throw "AutoCAD Core Console timed out; process was not killed. PID=$($process.Id)."
     }
+    $process.WaitForExit()
     return $process.ExitCode
 }
 
@@ -366,10 +367,23 @@ function Invoke-CoreCadCase {
     $wrapperLogRoot = Join-Path (Join-Path $RepeatRoot "core-cad") $caseId
     New-Item -ItemType Directory -Path $wrapperLogRoot | Out-Null
     $wrapperLog = Join-Path $wrapperLogRoot "runner.log"
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $projectRoot "scripts\run-core-cad-regression.ps1") `
-        -CaseId $caseId -DllDirectory $ResolvedDllDirectory -SkipCore -Language zh-CN -Profile $Profile `
-        -CoreConsolePath $CoreConsolePath -TimeoutSeconds $TimeoutSeconds 2>&1 | Out-File -LiteralPath $wrapperLog -Encoding UTF8
-    $runnerExit = $LASTEXITCODE
+    $wrapperErrorLog = Join-Path $wrapperLogRoot "runner.stderr.log"
+    $runnerArguments = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", ('"{0}"' -f (Join-Path $projectRoot "scripts\run-core-cad-regression.ps1")),
+        "-CaseId", $caseId,
+        "-DllDirectory", ('"{0}"' -f $ResolvedDllDirectory),
+        "-SkipCore",
+        "-Language", "zh-CN",
+        "-Profile", $Profile,
+        "-CoreConsolePath", ('"{0}"' -f $CoreConsolePath),
+        "-TimeoutSeconds", $TimeoutSeconds
+    )
+    $runnerProcess = Start-Process -FilePath (Join-Path $PSHOME "powershell.exe") -ArgumentList $runnerArguments `
+        -WindowStyle Hidden -RedirectStandardOutput $wrapperLog -RedirectStandardError $wrapperErrorLog -PassThru
+    $runnerProcess.WaitForExit()
+    $runnerExit = $runnerProcess.ExitCode
 
     $sourceRun = @(Get-ChildItem -LiteralPath $sourceRoot -Directory |
         Where-Object { $before -notcontains $_.Name } |

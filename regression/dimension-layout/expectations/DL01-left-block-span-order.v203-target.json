@@ -31,9 +31,9 @@
       "maxCount": 2
     },
     {
-      "id": "outline-20",
+      "id": "left-structure-20",
       "selectors": [
-        { "debugRole": "OutlineSegment", "valueApprox": 20.0, "valueTolerance": 0.01 }
+        { "debugRole": "LeftStructHeight", "valueApprox": 20.0, "valueTolerance": 0.01 }
       ],
       "minCount": 1,
       "maxCount": 1,
@@ -71,16 +71,6 @@
       "effectiveSpanTolerance": 0.01
     },
     {
-      "id": "loose-chain-48.5",
-      "selectors": [
-        { "debugRole": "LooseHole", "sourceFeatureId": "L6", "valueApprox": 48.5, "valueTolerance": 0.01 }
-      ],
-      "minCount": 1,
-      "maxCount": 1,
-      "expectedEffectiveSpan": 48.5,
-      "effectiveSpanTolerance": 0.01
-    },
-    {
       "id": "pg4-transfer-176.5",
       "selectors": [
         { "debugRole": "PinGroupDistance", "sourceFeatureId": "PG4", "valueApprox": 176.5, "valueTolerance": 0.01, "layoutBlockType": "RootedAlignmentLane" }
@@ -106,8 +96,6 @@
     { "inner": "pg3-pin-30", "outer": "pg2-transfer-41" },
     { "inner": "pg2-transfer-41", "outer": "pg2-pin-45" },
     { "inner": "pg2-pin-45", "outer": "pg4-transfer-176.5" },
-    { "inner": "outline-20", "outer": "loose-chain-48.5" },
-    { "inner": "loose-chain-48.5", "outer": "pg4-transfer-176.5" },
     { "inner": "pg4-transfer-176.5", "outer": "overall-201.5" }
   ]
 }

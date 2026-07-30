@@ -161,6 +161,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(IndependentLocalAndGlobalDimensionsMayShareLogicalLevel), IndependentLocalAndGlobalDimensionsMayShareLogicalLevel);
 				RunTest(nameof(IsolatedShortPinGroupTransferUsesInnerSpanOrder), IsolatedShortPinGroupTransferUsesInnerSpanOrder);
 				RunTest(nameof(DimensionDiagnosticsRecordFinalPlacement), DimensionDiagnosticsRecordFinalPlacement);
+				RunTest(nameof(RuleEvidenceRejectsReassignmentAndRenderSuppressionStaysCompatible), RuleEvidenceRejectsReassignmentAndRenderSuppressionStaysCompatible);
 				RunTest(nameof(FormattedDimensionTextLengthIgnoresControlCodes), FormattedDimensionTextLengthIgnoresControlCodes);
 				RunTest(nameof(FittingVerticalLocalTextStaysCentered), FittingVerticalLocalTextStaysCentered);
 				RunTest(nameof(ShortVerticalLocalTextClearsArrowheads), ShortVerticalLocalTextClearsArrowheads);
@@ -179,7 +180,9 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(TopEnvelopeHorizontalSegmentStaysTop), TopEnvelopeHorizontalSegmentStaysTop);
                 RunTest(nameof(BottomEnvelopeHorizontalSegmentStaysBottom), BottomEnvelopeHorizontalSegmentStaysBottom);
                 RunTest(nameof(BottomBodyWidthNotDroppedByLongestExtension), BottomBodyWidthNotDroppedByLongestExtension);
+                RunTest(nameof(BottomStructureRejectsCrossAxisProjection), BottomStructureRejectsCrossAxisProjection);
                 RunTest(nameof(BottomOuterContourStepKeeps20AndSuppresses70Body), BottomOuterContourStepKeeps20AndSuppresses70Body);
+                RunTest(nameof(TranslatedOuterContourStepKeepsRuleDecision), TranslatedOuterContourStepKeepsRuleDecision);
                 RunTest(nameof(OutlineSegmentBodyLengthClosedByStepIsSuppressed), OutlineSegmentBodyLengthClosedByStepIsSuppressed);
                 RunTest(nameof(DatumRootedLeftOuterEnvelopeDimensionsAreSuppressed), DatumRootedLeftOuterEnvelopeDimensionsAreSuppressed);
                 RunTest(nameof(DatumRootedBottomAndLeftOuterEnvelopeDimensionsAreSuppressed), DatumRootedBottomAndLeftOuterEnvelopeDimensionsAreSuppressed);
@@ -224,6 +227,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(FunctionalHoleAlignmentPreservesV198Stacking), FunctionalHoleAlignmentPreservesV198Stacking);
 				RunTest(nameof(FunctionalHoleAlignmentLaneSurvivesOutwardPromotion), FunctionalHoleAlignmentLaneSurvivesOutwardPromotion);
 				RunTest(nameof(FunctionalHoleBeyondPinChainStacksOutsideDatumChain), FunctionalHoleBeyondPinChainStacksOutsideDatumChain);
+				RunTest(nameof(Dl01TopStructureFunctionalHoleDatumChainOrder), Dl01TopStructureFunctionalHoleDatumChainOrder);
                 RunTest(nameof(PreferredSideLockedHoleLocationUsesLocalBoundary), PreferredSideLockedHoleLocationUsesLocalBoundary);
                 RunTest(nameof(ExplicitLocalLooseChainUsesNearbyConcaveBoundary), ExplicitLocalLooseChainUsesNearbyConcaveBoundary);
                 RunTest(nameof(LooseHolesUseChainDimensions), LooseHolesUseChainDimensions);
@@ -231,6 +235,7 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(HoleLocationDimensionsUseSegmentedExtensionLines), HoleLocationDimensionsUseSegmentedExtensionLines);
                 RunTest(nameof(HoleCalloutsGroupByRowsWithoutPins), HoleCalloutsGroupByRowsWithoutPins);
                 RunTest(nameof(HoleCalloutsUsePinClustersAndFitText), HoleCalloutsUsePinClustersAndFitText);
+                ValidateTestRegistration();
                 RunRegisteredTests(filter);
                 Console.WriteLine("CadAuto.Core.Tests: " + _passedTests + "/" + _selectedTests + " passed.");
                 foreach (Tuple<string, string> failure in FailedTests)
@@ -251,8 +256,53 @@ namespace CadAuto.Core.Tests
             RegisteredTests.Add(Tuple.Create(name, test));
         }
 
+        private static void ValidateTestRegistration()
+        {
+            IGrouping<string, Tuple<string, Action>> duplicate = RegisteredTests
+                .GroupBy(test => test.Item1, StringComparer.Ordinal)
+                .FirstOrDefault(group => group.Count() > 1);
+            if (duplicate != null)
+            {
+                throw new InvalidOperationException("Duplicate test registration: " + duplicate.Key);
+            }
+
+            var priorityMemberships = P0Tests.Select(name => Tuple.Create(name, "P0"))
+                .Concat(P1Tests.Select(name => Tuple.Create(name, "P1")))
+                .Concat(P3Tests.Select(name => Tuple.Create(name, "P3")))
+                .ToList();
+            IGrouping<string, Tuple<string, string>> overlap = priorityMemberships
+                .GroupBy(test => test.Item1, StringComparer.Ordinal)
+                .FirstOrDefault(group => group.Count() > 1);
+            if (overlap != null)
+            {
+                throw new InvalidOperationException(
+                    "Test appears in multiple priority sets: "
+                    + overlap.Key
+                    + " ("
+                    + string.Join(", ", overlap.Select(test => test.Item2))
+                    + ")");
+            }
+
+            var registeredNames = new HashSet<string>(
+                RegisteredTests.Select(test => test.Item1),
+                StringComparer.Ordinal);
+            Tuple<string, string> unregistered = priorityMemberships
+                .FirstOrDefault(test => !registeredNames.Contains(test.Item1));
+            if (unregistered != null)
+            {
+                throw new InvalidOperationException(
+                    unregistered.Item2 + " test is not registered: " + unregistered.Item1);
+            }
+        }
+
         private static void RunRegisteredTests(string filter)
         {
+            if (!string.IsNullOrEmpty(filter)
+                && !RegisteredTests.Any(test => MatchesFilter(test.Item1, GetTestPriority(test.Item1), filter)))
+            {
+                throw new InvalidOperationException("No registered tests matched filter: " + filter);
+            }
+
             for (int priority = 0; priority <= 3; priority++)
             {
                 List<Tuple<string, Action>> tests = RegisteredTests
@@ -2212,6 +2262,49 @@ namespace CadAuto.Core.Tests
 				"final placement diagnostics must expose v203 layout-block and physical-order metadata");
 		}
 
+		private static void RuleEvidenceRejectsReassignmentAndRenderSuppressionStaysCompatible()
+		{
+			const string ruleId = "OuterContourStepOverallRemainder";
+			var plan = new DimensionPlan();
+			var dimension = CreateTestDimension(
+				DimensionKind.Normal,
+				DimensionOrientation.Horizontal,
+				DimensionSide.Bottom,
+				new Point2D(0.0, 0.0),
+				new Point2D(20.0, 0.0),
+				"BottomStructWidth");
+			plan.Add(dimension);
+			plan.RecordRuleEvidence(dimension, ruleId, new[] { "edge-a" }, "first");
+			plan.RecordRuleEvidence(dimension, ruleId, new[] { "edge-b" }, "second");
+
+			var diagnostic = plan.Diagnostics.DimensionCandidates.Single();
+			Assert(dimension.RuleId == ruleId
+					&& diagnostic.RuleId == ruleId
+					&& diagnostic.SourceGeometryIds.Contains("edge-a")
+					&& diagnostic.SourceGeometryIds.Contains("edge-b"),
+				"recording the same RuleId again must be idempotent and merge evidence");
+
+			bool rejected = false;
+			try
+			{
+				plan.RecordRuleEvidence(dimension, "DifferentRule");
+			}
+			catch (InvalidOperationException)
+			{
+				rejected = true;
+			}
+			Assert(rejected && dimension.RuleId == ruleId && diagnostic.RuleId == ruleId,
+				"a candidate with a non-empty RuleId must reject reassignment to another rule");
+
+			plan.CaptureFinalDimensions();
+			plan.Diagnostics.RecordRenderSuppressed(dimension.DiagnosticId, "RenderConflict");
+			Assert(diagnostic.Decision == DimensionCandidateDecision.Suppressed
+					&& diagnostic.DecisionStatus == "RenderSuppressed",
+				"render suppression must expose formal Suppressed while preserving the legacy status");
+			Assert(plan.Diagnostics.FinalDimensions.Count == 0,
+				"render-suppressed dimensions must be removed from final diagnostics");
+		}
+
 		private static void FormattedDimensionTextLengthIgnoresControlCodes()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -2553,6 +2646,39 @@ namespace CadAuto.Core.Tests
                     d.AlignmentKey == "Structure:B:H" && d.AlignmentPriority == 70),
                 "bottom structure widths must share Structure:B:H alignment key");
         }
+
+		private static void BottomStructureRejectsCrossAxisProjection()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 338.0,
+				MaxY = 201.5
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(0.0, 201.5), "left");
+			AddSegment(outline, new Point2D(305.0, 176.5), new Point2D(305.0, 201.5), "high-shoulder");
+			AddSegment(outline, new Point2D(338.0, 0.0), new Point2D(338.0, 201.5), "right");
+
+			var plan = new DimensionPlan();
+			var retained = new DimensionPlanner(config).BuildBottomStructureWidthDimensions(outline, plan);
+			var bottomCandidates = plan.Diagnostics.DimensionCandidates
+				.Where(candidate => candidate.DebugRole == "BottomStructWidth")
+				.ToList();
+
+			Assert(bottomCandidates.Any(candidate => Math.Abs(candidate.Value - 33.0) <= config.GeometryTolerance
+					&& Math.Abs(Math.Abs(candidate.SecondPointY - candidate.FirstPointY) - 176.5) <= config.GeometryTolerance),
+				"cross-axis BottomStructWidth 33 candidate must be generated from the complete structure path");
+			Assert(bottomCandidates.Any(candidate => Math.Abs(candidate.Value - 33.0) <= config.GeometryTolerance
+					&& candidate.DecisionReason == "NotBottomSideStructureCandidate"),
+				"cross-axis BottomStructWidth 33 must be rejected with NotBottomSideStructureCandidate");
+			Assert(retained.Any(dimension => dimension.DebugRole == "BottomStructWidth"
+					&& Math.Abs(Math.Abs(dimension.SecondPoint.X - dimension.FirstPoint.X) - 305.0) <= config.GeometryTolerance),
+				"valid BottomStructWidth 305 must remain selected (got: "
+				+ string.Join(",", bottomCandidates.Select(candidate => candidate.Value + "/" + candidate.DecisionStatus + "/" + candidate.DecisionReason))
+				+ ")");
+		}
 
 		private static void StructureWidthsThatPartitionOverallAreSuppressed()
 		{
@@ -2954,6 +3080,7 @@ namespace CadAuto.Core.Tests
 
 		private static void BottomBodyWidthNotDroppedByLongestExtension()
 		{
+			const string ruleId = "OuterContourStepOverallRemainder";
 			var config = DimensionRuleConfig.CreateDefault();
 			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 90.0, MaxY = 28.0 };
 			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(70.0, 0.0), "bottom-body");
@@ -2976,54 +3103,146 @@ namespace CadAuto.Core.Tests
 					c.DebugRole == "BottomStructWidth"
 					&& Math.Abs(c.Value - 70.0) <= config.GeometryTolerance),
 				"bottom body width 70 must appear in diagnostics");
+			Assert(!plan.Diagnostics.DimensionCandidates.Any(c => c.RuleId == ruleId),
+				"adjacent same-level bottom geometry must not be claimed by the outer-step remainder rule");
 		}
 
 		private static void BottomOuterContourStepKeeps20AndSuppresses70Body()
 		{
+			const string ruleId = "OuterContourStepOverallRemainder";
 			var config = DimensionRuleConfig.CreateDefault();
-			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 90.0, MaxY = 28.26 };
-			// Closed production topology: upper body underside 70, two 1x1 chamfers, bottom step 20 overall.
-			AddSegment(outline, new Point2D(0.0, 8.26), new Point2D(70.0, 8.26), "body-underside");
-			AddSegment(outline, new Point2D(70.0, 8.26), new Point2D(70.0, 1.0), "step-shoulder");
-			AddSegment(outline, new Point2D(70.0, 1.0), new Point2D(71.0, 0.0), "step-chamfer-left");
-			AddSegment(outline, new Point2D(71.0, 0.0), new Point2D(89.0, 0.0), "step-bottom");
-			AddSegment(outline, new Point2D(89.0, 0.0), new Point2D(90.0, 1.0), "step-chamfer-right");
-			AddSegment(outline, new Point2D(90.0, 1.0), new Point2D(90.0, 28.26), "right");
-			AddSegment(outline, new Point2D(90.0, 28.26), new Point2D(0.0, 28.26), "top");
-			AddSegment(outline, new Point2D(0.0, 28.26), new Point2D(0.0, 8.26), "left");
-
+			var outline = CreateOuterContourStepOutline(translateX: 0.0, translateY: 0.0);
 			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+
+			var bottomBodyCandidates = plan.Diagnostics.DimensionCandidates.Where(c =>
+					c.DebugRole == "BottomStructWidth"
+					&& Math.Abs(c.Value - 70.0) <= config.GeometryTolerance)
+				.ToList();
+			var outlineBodyCandidates = plan.Diagnostics.DimensionCandidates.Where(c =>
+					c.DebugRole == "OutlineSegment"
+					&& Math.Abs(c.Value - 70.0) <= config.GeometryTolerance)
+				.ToList();
+			var leftResidualCandidates = plan.Diagnostics.DimensionCandidates.Where(c =>
+					c.DebugRole == "LeftStructHeight"
+					&& Math.Abs(c.Value - 8.26) <= config.GeometryTolerance)
+				.ToList();
+			Assert(bottomBodyCandidates.Count == 1,
+				"projected BottomStructWidth body 70 must exist exactly once before suppression");
+			Assert(outlineBodyCandidates.Count == 1,
+				"OutlineSegment body 70 must exist exactly once before suppression");
+			Assert(leftResidualCandidates.Count == 1,
+				"projected left residual 8.26 must exist exactly once before suppression");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "BottomStructWidth"
+					&& Math.Abs(c.Value - 20.0) <= config.GeometryTolerance),
+				"real chamfered bottom outer step 20 must exist as a candidate");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "LeftStructHeight"
+					&& Math.Abs(c.Value - 20.0) <= config.GeometryTolerance),
+				"real partial MinX outer face 20 must exist as a candidate");
+
+			var suppressedRemainders = bottomBodyCandidates
+				.Concat(outlineBodyCandidates)
+				.Concat(leftResidualCandidates)
+				.ToList();
+			Assert(suppressedRemainders.All(c => c.IsSuppressed
+					&& c.Decision == DimensionCandidateDecision.Suppressed
+					&& c.SuppressedReason == ruleId
+					&& c.RuleId == ruleId),
+				"all three projected remainders must have the unique outer-step RuleId and suppressed decision");
+			Assert(bottomBodyCandidates[0].Role == DimensionCandidateRole.Structure
+					&& outlineBodyCandidates[0].Role == DimensionCandidateRole.OutlineSegment
+					&& leftResidualCandidates[0].Role == DimensionCandidateRole.Structure,
+				"suppressed OC01 candidates must expose formal roles");
+			Assert(suppressedRemainders.All(c => c.OwnerKind == DimensionCandidateOwnerKind.Outline),
+				"suppressed OC01 candidates must belong to the outline");
+			Assert(suppressedRemainders.All(c => c.SourceGeometryIds.Count > 0
+					&& c.SourceGeometryIds.All(id => !string.IsNullOrWhiteSpace(id))),
+				"suppressed OC01 candidates must retain source geometry ids");
+			Assert(suppressedRemainders.All(c => !string.IsNullOrWhiteSpace(c.TopologyEvidence)),
+				"suppressed OC01 candidates must retain topology evidence");
 
 			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
 					&& Math.Abs(GetSpan(d) - 90.0) <= config.GeometryTolerance),
 				"overall width 90 must remain");
 			Assert(plan.Dimensions.Any(d => d.DebugRole == "BottomStructWidth"
-					&& Math.Abs(GetSpan(d) - 20.0) <= config.GeometryTolerance),
-				"real chamfered bottom outer step 20 must remain");
+					&& Math.Abs(GetSpan(d) - 20.0) <= config.GeometryTolerance
+					&& d.RuleId == ruleId),
+				"real chamfered bottom outer step 20 must remain with rule evidence");
 			Assert(!plan.Dimensions.Any(d => d.Orientation == DimensionOrientation.Horizontal
 					&& Math.Abs(GetSpan(d) - 70.0) <= config.GeometryTolerance),
 				"all body remainder representations 70 must be removed");
-			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "BottomStructWidth"
-					&& Math.Abs(c.Value - 70.0) <= config.GeometryTolerance
-					&& c.IsSuppressed
-					&& c.SuppressedReason == "OuterContourStepOverallRemainder"),
-				"projected BottomStructWidth body 70 must record outer-step remainder suppression");
-			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "OutlineSegment"
-					&& Math.Abs(c.Value - 70.0) <= config.GeometryTolerance
-					&& c.IsSuppressed
-					&& c.SuppressedReason == "OuterContourStepOverallRemainder"),
-				"OutlineSegment body 70 must record the same semantic suppression");
 			Assert(plan.Dimensions.Any(d => d.DebugRole == "LeftStructHeight"
-					&& Math.Abs(GetSpan(d) - 20.0) <= config.GeometryTolerance),
-				"real partial MinX outer face height must remain");
+					&& Math.Abs(GetSpan(d) - 20.0) <= config.GeometryTolerance
+					&& d.RuleId == ruleId),
+				"real partial MinX outer face height must remain with rule evidence");
 			Assert(!plan.Dimensions.Any(d => d.Orientation == DimensionOrientation.Vertical
 					&& Math.Abs(GetSpan(d) - 8.26) <= config.GeometryTolerance),
 				"projected lower height residual must not remain");
-			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.DebugRole == "LeftStructHeight"
-					&& Math.Abs(c.Value - 8.26) <= config.GeometryTolerance
-					&& c.IsSuppressed
-					&& c.SuppressedReason == "OuterContourStepOverallRemainder"),
-				"projected left residual must record outer-step remainder suppression");
+		}
+
+		private static void TranslatedOuterContourStepKeepsRuleDecision()
+		{
+			const string ruleId = "OuterContourStepOverallRemainder";
+			var config = DimensionRuleConfig.CreateDefault();
+			var originalPlan = new DimensionPlanner(config).CreateOutlinePlan(
+				CreateOuterContourStepOutline(translateX: 0.0, translateY: 0.0));
+			var transformedPlan = new DimensionPlanner(config).CreateOutlinePlan(
+				CreateOuterContourStepOutline(translateX: 130.0, translateY: 40.0));
+
+			var originalRuleCandidates = originalPlan.Diagnostics.DimensionCandidates
+				.Where(c => c.RuleId == ruleId)
+				.ToList();
+			var transformedRuleCandidates = transformedPlan.Diagnostics.DimensionCandidates
+				.Where(c => c.RuleId == ruleId)
+				.ToList();
+			Assert(originalRuleCandidates.Count > 0
+					&& transformedRuleCandidates.Count == originalRuleCandidates.Count,
+				"translation must preserve the number of candidates decided by the outer-step rule");
+			foreach (var original in originalRuleCandidates)
+			{
+				Assert(transformedRuleCandidates.Any(candidate =>
+						candidate.Role == original.Role
+						&& candidate.Decision == original.Decision
+						&& Math.Abs(candidate.Value - original.Value) <= config.GeometryTolerance),
+					"translation must preserve RuleId, formal role, decision, and value");
+			}
+
+			var unmatchedFinal = transformedPlan.Dimensions.ToList();
+			foreach (var original in originalPlan.Dimensions)
+			{
+				var equivalent = unmatchedFinal.FirstOrDefault(candidate =>
+					candidate.Role == original.Role
+					&& candidate.Orientation == original.Orientation
+					&& candidate.Side == original.Side
+					&& Math.Abs(GetSpan(candidate) - GetSpan(original)) <= config.GeometryTolerance);
+				Assert(equivalent != null,
+					"translation must preserve the final dimension role, orientation, side, and span");
+				unmatchedFinal.Remove(equivalent);
+			}
+			Assert(unmatchedFinal.Count == 0,
+				"translation must not add final dimensions");
+		}
+
+		private static OutlineFeature2D CreateOuterContourStepOutline(double translateX, double translateY)
+		{
+			Func<double, double> x = value => translateX + value;
+			Func<double, double> y = value => translateY + value;
+			var outline = new OutlineFeature2D
+			{
+				MinX = x(0.0),
+				MinY = y(0.0),
+				MaxX = x(90.0),
+				MaxY = y(28.26)
+			};
+			// Closed production topology: upper body underside 70, two 1x1 chamfers, bottom step 20 overall.
+			AddSegment(outline, new Point2D(x(0.0), y(8.26)), new Point2D(x(70.0), y(8.26)), "body-underside");
+			AddSegment(outline, new Point2D(x(70.0), y(8.26)), new Point2D(x(70.0), y(1.0)), "step-shoulder");
+			AddSegment(outline, new Point2D(x(70.0), y(1.0)), new Point2D(x(71.0), y(0.0)), "step-chamfer-left");
+			AddSegment(outline, new Point2D(x(71.0), y(0.0)), new Point2D(x(89.0), y(0.0)), "step-bottom");
+			AddSegment(outline, new Point2D(x(89.0), y(0.0)), new Point2D(x(90.0), y(1.0)), "step-chamfer-right");
+			AddSegment(outline, new Point2D(x(90.0), y(1.0)), new Point2D(x(90.0), y(28.26)), "right");
+			AddSegment(outline, new Point2D(x(90.0), y(28.26)), new Point2D(x(0.0), y(28.26)), "top");
+			AddSegment(outline, new Point2D(x(0.0), y(28.26)), new Point2D(x(0.0), y(8.26)), "left");
+			return outline;
 		}
 
 		private static void OutlineSegmentBodyLengthClosedByStepIsSuppressed()
@@ -4207,6 +4426,38 @@ namespace CadAuto.Core.Tests
 				"overall 96 must remain outermost");
 		}
 
+		private static void Dl01TopStructureFunctionalHoleDatumChainOrder()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(7.0, 0.0), SecondPoint = new Point2D(22.0, 0.0), Span = 15.0, AlignmentKey = "PG1:FunctionalHoles:H", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "PG1" },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(9.0, 0.0), SecondPoint = new Point2D(24.0, 0.0), Span = 15.0, LooseChainId = 6, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "L6" },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(22.0, 0.0), SecondPoint = new Point2D(24.0, 0.0), Span = 2.0, LooseChainId = 6, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "L6" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(-8.0, 0.0), SecondPoint = new Point2D(22.0, 0.0), Span = 30.0, OverrideText = @"30\H0.8x;±0.02\H1x;", AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 100, ReadingLevel = DimensionReadingLevel.IntraGroup, SourceFeatureId = "PG1" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(22.0, 0.0), SecondPoint = new Point2D(245.5, 0.0), Span = 223.5, AlignmentKey = "PG1:DatumChain:H", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG1" },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(-23.0, 0.0), SecondPoint = new Point2D(22.0, 0.0), Span = 45.0, AlignmentKey = "PG1:FunctionalHoles:H", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "PG1" },
+				new DimensionLayoutItem { Kind = DimensionKind.Normal, FirstPoint = new Point2D(-33.0, 0.0), SecondPoint = new Point2D(40.0, 0.0), Span = 73.0, AlignmentKey = "Structure:T:H", AlignmentPriority = 70, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "TopStructWidth" },
+				new DimensionLayoutItem { Kind = DimensionKind.Normal, FirstPoint = new Point2D(40.0, 0.0), SecondPoint = new Point2D(127.554, 0.0), Span = 87.554, AlignmentKey = "Structure:T:H", AlignmentPriority = 70, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "TopStructWidth" }
+			};
+			var placements = new DimensionLayoutRules(config)
+				.CreateStackingPlan(dimensions, DimensionSide.Top, null, 2.5, 1.25, 5.0, 5.0, isHorizontal: true)
+				.ToDictionary(item => item.Index);
+
+			Assert(placements[0].Level == 0 && placements[1].Level == 1 && placements[2].Level == 1,
+				"DL01 Top local Functional15 and LooseChain 15/2 must retain levels 0 and 1");
+			Assert(placements[3].Level == 2 && placements[4].Level == 2,
+				"DL01 Top 30±0.02 and 223.5 must remain one datum-chain block");
+			Assert(placements[5].Level == 3,
+				"DL01 Top FunctionalHole 45 must occupy level 3");
+			Assert(placements[6].Level == 4 && placements[7].Level == 4,
+				"DL01 Top 73 and 87.554 must remain one TopStructWidth block (levels: "
+				+ string.Join(",", placements.OrderBy(item => item.Key).Select(item => item.Value.Level))
+				+ ")");
+			Assert(placements[6].Level > placements[5].Level && placements[5].Level > placements[3].Level,
+				"DL01 Top outer three levels must be TopStructWidth 73/87.554, FunctionalHole 45, DatumChain 30/223.5");
+		}
+
 		private static void FunctionalHoleAlignmentLaneSurvivesOutwardPromotion()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -4571,7 +4822,7 @@ namespace CadAuto.Core.Tests
 				SecondPoint = new Point2D(10.0 + index, 70.0),
 				Span = 40.0
 			}));
-			var moves = rules.SelectVerticalHoleLocationRebalanceMoves(crowdedSource, new DimensionLayoutItem[0], 10.0);
+			var moves = rules.SelectVerticalHoleLocationRebalanceMoves(crowdedSource, new DimensionLayoutItem[0], 1.0);
 
 			Assert(rules.TryGetDimensionLocalBoundary(loose, DimensionSide.Right, outline, out var boundary)
 				&& Math.Abs(boundary - 60.0) <= config.GeometryTolerance,

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace CadAuto.Core.Planning;
 
 public sealed class DimensionCandidateDiagnostic
@@ -85,4 +87,16 @@ public sealed class DimensionCandidateDiagnostic
 	public string DebugRole { get; set; }
 
 	public string OverrideText { get; set; }
+
+	public DimensionCandidateRole Role { get; set; }
+
+	public DimensionCandidateOwnerKind OwnerKind { get; set; }
+
+	public List<string> SourceGeometryIds { get; set; } = new List<string>();
+
+	public string TopologyEvidence { get; set; }
+
+	public string RuleId { get; set; }
+
+	public DimensionCandidateDecision Decision { get; set; }
 }

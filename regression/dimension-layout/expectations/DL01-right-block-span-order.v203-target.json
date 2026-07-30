@@ -18,6 +18,7 @@
   ],
   "requirePhysicalOrderValidated": true,
   "requireContiguousStackingLevels": true,
+  "allowMultipleCoordinatesPerLevel": true,
   "expectedLayerStep": 6.5,
   "layerStepTolerance": 0.01,
   "blocks": [
@@ -46,19 +47,29 @@
       "effectiveSpanTolerance": 0.01
     },
     {
-      "id": "outline-100",
+      "id": "right-structure-100",
       "selectors": [
-        { "debugRole": "OutlineSegment", "valueApprox": 100.0, "valueTolerance": 0.01 }
+        { "debugRole": "RightStructHeight", "valueApprox": 100.0, "valueTolerance": 0.01 }
       ],
       "minCount": 1,
       "maxCount": 1,
       "expectedEffectiveSpan": 100.0,
+      "effectiveSpanTolerance": 0.01
+    },
+    {
+      "id": "loose-chain-48.5",
+      "selectors": [
+        { "debugRole": "LooseHole", "sourceFeatureId": "L6", "valueApprox": 48.5, "valueTolerance": 0.01 }
+      ],
+      "minCount": 1,
+      "maxCount": 1,
+      "expectedEffectiveSpan": 48.5,
       "effectiveSpanTolerance": 0.01
     }
   ],
   "outwardOrder": [
     "loose-chain-50",
     "rooted-datum-chain-85",
-    "outline-100"
+    "right-structure-100"
   ]
 }

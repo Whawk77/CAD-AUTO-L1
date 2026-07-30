@@ -1635,7 +1635,13 @@ public sealed class Commands
 			AppendJsonProperty(builder, indent + 2, "suppressedReason", dimensionCandidateDiagnostic.SuppressedReason, comma: true);
 			AppendJsonProperty(builder, indent + 2, "orientation", dimensionCandidateDiagnostic.Orientation, comma: true);
 			AppendJsonProperty(builder, indent + 2, "debugRole", dimensionCandidateDiagnostic.DebugRole, comma: true);
-			AppendJsonProperty(builder, indent + 2, "overrideText", dimensionCandidateDiagnostic.OverrideText, comma: false);
+			AppendJsonProperty(builder, indent + 2, "overrideText", dimensionCandidateDiagnostic.OverrideText, comma: true);
+			AppendJsonProperty(builder, indent + 2, "role", dimensionCandidateDiagnostic.Role.ToString(), comma: true);
+			AppendJsonProperty(builder, indent + 2, "ownerKind", dimensionCandidateDiagnostic.OwnerKind.ToString(), comma: true);
+			AppendStringArray(builder, indent + 2, "sourceGeometryIds", dimensionCandidateDiagnostic.SourceGeometryIds, comma: true);
+			AppendJsonProperty(builder, indent + 2, "topologyEvidence", dimensionCandidateDiagnostic.TopologyEvidence, comma: true);
+			AppendJsonProperty(builder, indent + 2, "decision", dimensionCandidateDiagnostic.Decision.ToString(), comma: true);
+			AppendJsonProperty(builder, indent + 2, "ruleId", dimensionCandidateDiagnostic.RuleId, comma: false);
 			AppendIndent(builder, indent + 1);
 			builder.Append("}");
 			builder.AppendLine((i == list.Count - 1) ? string.Empty : ",");

@@ -105,6 +105,10 @@ public sealed class DimensionLayoutRules
 			return placements;
 		}
 		List<LayoutBlock> layoutBlocks = GetOrderedLayoutBlocks(dimensions, isHorizontal);
+		if (isHorizontal && side == DimensionSide.Top)
+		{
+			ApplyTopHorizontalFixedBlockOrder(layoutBlocks);
+		}
 		Dictionary<string, LayoutBlock> blockById = layoutBlocks.ToDictionary(block => block.Id, StringComparer.Ordinal);
 		List<List<StackingLayerItem>> layers = new List<List<StackingLayerItem>>();
 		foreach (LayoutBlock block in layoutBlocks)
@@ -224,6 +228,59 @@ public sealed class DimensionLayoutRules
 			block.OrderingReason = GetOrderingReason(block, blocks);
 		}
 		return blocks;
+	}
+
+	private void ApplyTopHorizontalFixedBlockOrder(IList<LayoutBlock> blocks)
+	{
+		List<LayoutBlock> datumChains = blocks.Where(IsRootedDatumOrPinChainBlock).ToList();
+		List<LayoutBlock> functionalHoles = blocks
+			.Where(IsPreserveLevelFunctionalHoleBlock)
+			.Where(functional => datumChains.Any(chain =>
+				SharesPinGroupSource(functional, chain)
+				&& FunctionalHoleOrdersBeyondChain(functional, chain)))
+			.ToList();
+		datumChains = datumChains
+			.Where(chain => functionalHoles.Any(functional => SharesPinGroupSource(functional, chain)))
+			.ToList();
+		List<LayoutBlock> topStructures = blocks.Where(IsTopStructureWidthRootBlock).ToList();
+		if (datumChains.Count == 0 || functionalHoles.Count == 0 || topStructures.Count == 0)
+		{
+			return;
+		}
+
+		HashSet<LayoutBlock> fixedBlocks = new HashSet<LayoutBlock>(
+			datumChains.Concat(functionalHoles).Concat(topStructures));
+		List<int> fixedPositions = blocks
+			.Select((block, index) => new { Block = block, Index = index })
+			.Where(item => fixedBlocks.Contains(item.Block))
+			.Select(item => item.Index)
+			.ToList();
+		List<LayoutBlock> fixedOrder = datumChains
+			.Concat(functionalHoles)
+			.Concat(topStructures)
+			.ToList();
+		for (int index = 0; index < fixedPositions.Count; index++)
+		{
+			blocks[fixedPositions[index]] = fixedOrder[index];
+		}
+		for (int index = 0; index < blocks.Count; index++)
+		{
+			blocks[index].EffectiveOrder = index;
+			if (fixedBlocks.Contains(blocks[index]))
+			{
+				blocks[index].OrderingReason = "TopDatumFunctionalStructureFixedOrder";
+			}
+		}
+	}
+
+	private static bool IsTopStructureWidthRootBlock(LayoutBlock block)
+	{
+		return block != null
+			&& string.Equals(block.Type, "RootedAlignmentLane", StringComparison.Ordinal)
+			&& block.Members.Count > 0
+			&& block.Members.All(member => member.Dimension != null
+				&& member.Dimension.Kind == DimensionKind.Normal
+				&& string.Equals(member.Dimension.SourceFeatureId, "TopStructWidth", StringComparison.Ordinal));
 	}
 
 	private List<LayoutBlock> BuildLayoutBlocks(IList<DimensionLayoutItem> dimensions, bool isHorizontal)
@@ -1454,7 +1511,7 @@ public sealed class DimensionLayoutRules
 
 	public bool CanRebalanceVerticalLooseChainDimension(DimensionLayoutItem dim, double dimScale)
 	{
-		return dim.Kind == DimensionKind.HoleLocation && IsShortVerticalDimension(dim, dimScale) && !dim.ForceOuterLevel;
+		return dim.Kind == DimensionKind.HoleLocation && !dim.ForceOuterLevel;
 	}
 
 	public bool CanRebalanceVerticalHoleLocation(DimensionLayoutItem dim, double dimScale)

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using CadAuto.Core.Geometry;
 
 namespace CadAuto.Core.Planning;
@@ -47,4 +48,14 @@ public sealed class PlannedDimension
 	public string DebugOwner { get; set; }
 
 	public string DebugRole { get; set; }
+
+	public DimensionCandidateRole Role { get; set; }
+
+	public DimensionCandidateOwnerKind OwnerKind { get; set; }
+
+	public List<string> SourceGeometryIds { get; set; } = new List<string>();
+
+	public string TopologyEvidence { get; set; }
+
+	public string RuleId { get; set; }
 }

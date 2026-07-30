@@ -29,6 +29,7 @@ public sealed class DimensionPlan
 	{
 		if (dimension != null)
 		{
+			DimensionCandidateSemantics.ApplyLegacyMappings(dimension);
 			Dimensions.Add(dimension);
 			AddDiagnosticCandidate(dimension);
 		}
@@ -36,31 +37,86 @@ public sealed class DimensionPlan
 
 	public void MarkSuppressed(PlannedDimension dimension, string reason)
 	{
+		MarkSuppressed(dimension, reason, null, null, null);
+	}
+
+	public void MarkSuppressed(PlannedDimension dimension, string reason, string ruleId, IEnumerable<string> sourceGeometryIds, string topologyEvidence)
+	{
 		if (dimension != null)
 		{
 			if (!_diagnosticByDimension.TryGetValue(dimension, out var value))
 			{
 				value = AddDiagnosticCandidate(dimension);
 			}
+			RecordRuleEvidence(dimension, value, ruleId, sourceGeometryIds, topologyEvidence);
 			value.IsSuppressed = true;
 			value.SuppressedReason = reason ?? string.Empty;
 			value.IsSelected = false;
 			value.DecisionStatus = "Suppressed";
 			value.DecisionReason = reason ?? string.Empty;
+			value.Decision = DimensionCandidateDecision.Suppressed;
 		}
+	}
+
+	public void RecordRuleEvidence(PlannedDimension dimension, string ruleId, IEnumerable<string> sourceGeometryIds = null, string topologyEvidence = null)
+	{
+		if (dimension == null)
+		{
+			return;
+		}
+		if (!_diagnosticByDimension.TryGetValue(dimension, out var diagnostic))
+		{
+			diagnostic = AddDiagnosticCandidate(dimension);
+		}
+		RecordRuleEvidence(dimension, diagnostic, ruleId, sourceGeometryIds, topologyEvidence);
 	}
 
 	public void AddDiscardedCandidate(PlannedDimension dimension, string reason)
 	{
 		if (dimension != null)
 		{
-			AddSkippedDimension(dimension.Kind, dimension.Orientation, dimension.Side, dimension.FirstPoint, dimension.SecondPoint, reason, dimension.DebugRole, dimension.DebugOwner);
+			DimensionCandidateSemantics.ApplyLegacyMappings(dimension);
+			AddSkippedDimension(
+				dimension.Kind,
+				dimension.Orientation,
+				dimension.Side,
+				dimension.FirstPoint,
+				dimension.SecondPoint,
+				reason,
+				dimension.DebugRole,
+				dimension.DebugOwner,
+				dimension.Role,
+				dimension.OwnerKind,
+				dimension.SourceGeometryIds,
+				dimension.TopologyEvidence,
+				dimension.RuleId);
 		}
 	}
 
-	public void AddSkippedDimension(DimensionKind kind, DimensionOrientation orientation, DimensionSide side, Point2D requestedFirstPoint, Point2D secondPoint, string reason, string debugRole, string debugOwner = null)
+	public void AddSkippedDimension(
+		DimensionKind kind,
+		DimensionOrientation orientation,
+		DimensionSide side,
+		Point2D requestedFirstPoint,
+		Point2D secondPoint,
+		string reason,
+		string debugRole,
+		string debugOwner = null,
+		DimensionCandidateRole role = DimensionCandidateRole.Unknown,
+		DimensionCandidateOwnerKind ownerKind = DimensionCandidateOwnerKind.Unknown,
+		IEnumerable<string> sourceGeometryIds = null,
+		string topologyEvidence = null,
+		string ruleId = null)
 	{
 		string text = reason ?? string.Empty;
+		if (role == DimensionCandidateRole.Unknown)
+		{
+			role = DimensionCandidateSemantics.GetRole(kind, debugRole);
+		}
+		if (ownerKind == DimensionCandidateOwnerKind.Unknown)
+		{
+			ownerKind = DimensionCandidateSemantics.GetOwnerKind(role, debugOwner);
+		}
 		Diagnostics.DimensionCandidates.Add(new DimensionCandidateDiagnostic
 		{
 			Id = _nextDiagnosticId++,
@@ -83,7 +139,13 @@ public sealed class DimensionPlan
 			SuppressedReason = string.Empty,
 			Orientation = orientation.ToString(),
 			DebugRole = debugRole ?? string.Empty,
-			OverrideText = string.Empty
+			OverrideText = string.Empty,
+			Role = role,
+			OwnerKind = ownerKind,
+			SourceGeometryIds = DimensionCandidateSemantics.MergeSourceGeometryIds(null, sourceGeometryIds),
+			TopologyEvidence = topologyEvidence ?? string.Empty,
+			RuleId = ruleId ?? string.Empty,
+			Decision = DimensionCandidateDecision.Skipped
 		});
 	}
 
@@ -92,11 +154,20 @@ public sealed class DimensionPlan
 		Diagnostics.FinalDimensions.Clear();
 		foreach (DimensionCandidateDiagnostic candidate in Diagnostics.DimensionCandidates)
 		{
-			if (!candidate.IsSuppressed && !string.Equals(candidate.DecisionStatus, "Skipped", StringComparison.Ordinal))
+			if (candidate.IsSuppressed)
+			{
+				candidate.Decision = DimensionCandidateDecision.Suppressed;
+			}
+			else if (string.Equals(candidate.DecisionStatus, "Skipped", StringComparison.Ordinal))
+			{
+				candidate.Decision = DimensionCandidateDecision.Skipped;
+			}
+			else
 			{
 				candidate.IsSelected = false;
 				candidate.DecisionStatus = "NotSelected";
 				candidate.DecisionReason = "NotPresentInFinalPlan";
+				candidate.Decision = DimensionCandidateDecision.NotSelected;
 			}
 		}
 		foreach (PlannedDimension dimension in Dimensions)
@@ -108,12 +179,14 @@ public sealed class DimensionPlan
 			value.IsSelected = true;
 			value.DecisionStatus = "Selected";
 			value.DecisionReason = IsOverall(dimension.Kind) ? "RequiredOverallDimension" : "RetainedAfterSuppression";
+			value.Decision = DimensionCandidateDecision.Selected;
 			Diagnostics.FinalDimensions.Add(CloneDiagnostic(value));
 		}
 	}
 
 	private DimensionCandidateDiagnostic AddDiagnosticCandidate(PlannedDimension dimension)
 	{
+		DimensionCandidateSemantics.ApplyLegacyMappings(dimension);
 		int diagnosticId = _nextDiagnosticId++;
 		dimension.DiagnosticId = diagnosticId;
 		DimensionCandidateDiagnostic dimensionCandidateDiagnostic = new DimensionCandidateDiagnostic
@@ -148,7 +221,13 @@ public sealed class DimensionPlan
 			SuppressedReason = string.Empty,
 			Orientation = dimension.Orientation.ToString(),
 			DebugRole = (dimension.DebugRole ?? string.Empty),
-			OverrideText = (dimension.OverrideText ?? string.Empty)
+			OverrideText = (dimension.OverrideText ?? string.Empty),
+			Role = dimension.Role,
+			OwnerKind = dimension.OwnerKind,
+			SourceGeometryIds = DimensionCandidateSemantics.MergeSourceGeometryIds(null, dimension.SourceGeometryIds),
+			TopologyEvidence = dimension.TopologyEvidence,
+			RuleId = dimension.RuleId,
+			Decision = DimensionCandidateDecision.Candidate
 		};
 		_diagnosticByDimension[dimension] = dimensionCandidateDiagnostic;
 		Diagnostics.DimensionCandidates.Add(dimensionCandidateDiagnostic);
@@ -200,8 +279,60 @@ public sealed class DimensionPlan
 			SuppressedReason = source.SuppressedReason,
 			Orientation = source.Orientation,
 			DebugRole = source.DebugRole,
-			OverrideText = source.OverrideText
+			OverrideText = source.OverrideText,
+			Role = source.Role,
+			OwnerKind = source.OwnerKind,
+			SourceGeometryIds = DimensionCandidateSemantics.MergeSourceGeometryIds(null, source.SourceGeometryIds),
+			TopologyEvidence = source.TopologyEvidence,
+			RuleId = source.RuleId,
+			Decision = source.Decision
 		};
+	}
+
+	private static void RecordRuleEvidence(
+		PlannedDimension dimension,
+		DimensionCandidateDiagnostic diagnostic,
+		string ruleId,
+		IEnumerable<string> sourceGeometryIds,
+		string topologyEvidence)
+	{
+		DimensionCandidateSemantics.ApplyLegacyMappings(dimension);
+		if (!string.IsNullOrEmpty(ruleId))
+		{
+			EnsureCompatibleRuleId(dimension.RuleId, ruleId, diagnostic.Id);
+			EnsureCompatibleRuleId(diagnostic.RuleId, ruleId, diagnostic.Id);
+			dimension.RuleId = ruleId;
+			diagnostic.RuleId = ruleId;
+		}
+		if (topologyEvidence != null)
+		{
+			dimension.TopologyEvidence = topologyEvidence;
+			diagnostic.TopologyEvidence = topologyEvidence;
+		}
+		dimension.SourceGeometryIds = DimensionCandidateSemantics.MergeSourceGeometryIds(
+			dimension.SourceGeometryIds,
+			sourceGeometryIds);
+		diagnostic.SourceGeometryIds = DimensionCandidateSemantics.MergeSourceGeometryIds(
+			diagnostic.SourceGeometryIds,
+			dimension.SourceGeometryIds);
+		diagnostic.Role = dimension.Role;
+		diagnostic.OwnerKind = dimension.OwnerKind;
+	}
+
+	private static void EnsureCompatibleRuleId(string existingRuleId, string ruleId, int diagnosticId)
+	{
+		if (!string.IsNullOrEmpty(existingRuleId)
+			&& !string.Equals(existingRuleId, ruleId, StringComparison.Ordinal))
+		{
+			throw new InvalidOperationException(
+				"Dimension candidate "
+				+ diagnosticId
+				+ " already has RuleId '"
+				+ existingRuleId
+				+ "' and cannot be reassigned to '"
+				+ ruleId
+				+ "'.");
+		}
 	}
 
 	private static double GetMeasurementMinimum(PlannedDimension dimension)

@@ -289,7 +289,9 @@ public sealed class StructureEndpointRules
 
 	public bool IsBottomSideHorizontalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IEnumerable<Point2D> ignoredPoints)
 	{
-		return IsCurrentBottomSideStructurePoint(dim.FirstPoint, outline, ignoredPoints) && IsCurrentBottomSideStructurePoint(dim.SecondPoint, outline, ignoredPoints);
+		return !IsCrossAxisStructureSpanTooLarge(dim.FirstPoint, dim.SecondPoint, horizontal: true)
+			&& IsCurrentBottomSideStructurePoint(dim.FirstPoint, outline, ignoredPoints)
+			&& IsCurrentBottomSideStructurePoint(dim.SecondPoint, outline, ignoredPoints);
 	}
 
 	public bool IsTopSideHorizontalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IEnumerable<Point2D> ignoredPoints)

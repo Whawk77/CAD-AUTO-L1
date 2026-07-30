@@ -948,10 +948,6 @@ public sealed class DimensionDrawer
 
 	private void RebalanceVerticalHoleLocationSides()
 	{
-		if (_diagnosticsEnabled && _diagnosticSide != DiagnosticDimensionSide.All)
-		{
-			return;
-		}
 		RebalanceVerticalHoleLocationSide(_rightDims, _leftDims);
 		RebalanceVerticalHoleLocationSide(_leftDims, _rightDims);
 	}

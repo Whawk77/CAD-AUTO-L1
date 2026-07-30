@@ -48,8 +48,7 @@ public sealed partial class DimensionPlanner
 		// A real bottom outer step may be shorter or longer than its body remainder.
 		// Keep Overall + the boundary-backed step; suppress every equivalent body interval
 		// (projected BottomStructWidth and OutlineSegment) before either OS is removed.
-		SuppressBottomOuterContourStepBodyRemainders(plan, outline);
-		SuppressLeftOuterContourStepBodyRemainders(plan, outline);
+		ArbitrateOuterContourStepOverallRemainders(plan, outline);
 		// Drop raw OutlineSegment pairs that re-partition overall (before complementary remainder
 		// removes only the larger partner and leaves the smaller fragment orphaned).
 		// Scoped to OutlineSegment only — do not broaden complementary-remainder to Bottom/Left
@@ -650,16 +649,63 @@ public sealed partial class DimensionPlanner
 	}
 
 	/// <summary>
-	/// Preserve a genuine partial MinX outer face and remove its projected height residual.
-	/// Example: real left face 20 + projected lower residual 8.262 = OverallHeight 28.262.
+	/// Collect bottom and left outer-contour-step decisions from one immutable candidate set,
+	/// then apply the shared rule once after both directions have contributed their evidence.
 	/// </summary>
-	private void SuppressLeftOuterContourStepBodyRemainders(DimensionPlan plan, OutlineFeature2D outline)
+	private void ArbitrateOuterContourStepOverallRemainders(DimensionPlan plan, OutlineFeature2D outline)
 	{
 		if (plan == null || outline == null)
 		{
 			return;
 		}
-		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallHeight);
+		Dictionary<PlannedDimension, string> retainedEvidence = new Dictionary<PlannedDimension, string>();
+		Dictionary<PlannedDimension, Tuple<PlannedDimension, string>> suppressionEvidence =
+			new Dictionary<PlannedDimension, Tuple<PlannedDimension, string>>();
+		CollectBottomOuterContourStepBodyRemainders(plan, outline, retainedEvidence, suppressionEvidence);
+		CollectLeftOuterContourStepBodyRemainders(plan, outline, retainedEvidence, suppressionEvidence);
+
+		foreach (KeyValuePair<PlannedDimension, string> retained in retainedEvidence)
+		{
+			plan.RecordRuleEvidence(
+				retained.Key,
+				SuppressReason.OuterContourStepOverallRemainder,
+				CollectOuterContourStepSourceGeometryIds(retained.Key, null, outline),
+				retained.Value);
+		}
+		for (int i = plan.Dimensions.Count - 1; i >= 0; i--)
+		{
+			PlannedDimension candidate = plan.Dimensions[i];
+			if (!suppressionEvidence.TryGetValue(candidate, out Tuple<PlannedDimension, string> evidence))
+			{
+				continue;
+			}
+			plan.MarkSuppressed(
+				candidate,
+				SuppressReason.OuterContourStepOverallRemainder,
+				SuppressReason.OuterContourStepOverallRemainder,
+				CollectOuterContourStepSourceGeometryIds(candidate, evidence.Item1, outline),
+				evidence.Item2);
+			plan.Dimensions.RemoveAt(i);
+		}
+	}
+
+	/// <summary>
+	/// Preserve a genuine partial MinX outer face and collect its projected height residual.
+	/// Example: real left face 20 + projected lower residual 8.262 = OverallHeight 28.262.
+	/// </summary>
+	private void CollectLeftOuterContourStepBodyRemainders(
+		DimensionPlan plan,
+		OutlineFeature2D outline,
+		IDictionary<PlannedDimension, string> retainedEvidence,
+		IDictionary<PlannedDimension, Tuple<PlannedDimension, string>> suppressionEvidence)
+	{
+		if (plan == null || outline == null)
+		{
+			return;
+		}
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) =>
+			d.Role == DimensionCandidateRole.Overall
+			&& d.Kind == DimensionKind.OverallHeight);
 		if (overall == null || overall.Orientation != DimensionOrientation.Vertical)
 		{
 			return;
@@ -670,41 +716,31 @@ public sealed partial class DimensionPlanner
 			d.Kind == DimensionKind.Normal
 			&& d.Orientation == DimensionOrientation.Vertical
 			&& d.Side == DimensionSide.Left
-			&& string.Equals(d.DebugRole, "LeftStructHeight", StringComparison.Ordinal)
+			&& d.Role == DimensionCandidateRole.Structure
 			&& IsRealPartialEnvelopeStructureHeight(d, outline, tol))
 			.ToList();
-		if (realLeftFaces.Count == 0)
-		{
-			return;
-		}
-		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>();
 		foreach (PlannedDimension face in realLeftFaces)
 		{
+			retainedEvidence[face] = "Left:RetainedPartialEnvelopeFace";
 			foreach (PlannedDimension candidate in snapshot)
 			{
 				if (candidate == face
 					|| candidate.Kind != DimensionKind.Normal
 					|| candidate.Orientation != DimensionOrientation.Vertical
 					|| candidate.Side != DimensionSide.Left
-					|| !(string.Equals(candidate.DebugRole, "LeftStructHeight", StringComparison.Ordinal)
-						|| string.Equals(candidate.DebugRole, "OutlineSegment", StringComparison.Ordinal))
+					|| !(candidate.Role == DimensionCandidateRole.Structure
+						|| candidate.Role == DimensionCandidateRole.OutlineSegment)
 					|| IsRealPartialEnvelopeStructureHeight(candidate, outline, tol)
 					|| !FormsCompleteOverallPartition(face, candidate, overall, horizontal: false))
 				{
 					continue;
 				}
-				toSuppress.Add(candidate);
+				if (!suppressionEvidence.ContainsKey(candidate))
+				{
+					suppressionEvidence[candidate] =
+						Tuple.Create(face, "Left:SuppressedOverallRemainder");
+				}
 			}
-		}
-		for (int i = plan.Dimensions.Count - 1; i >= 0; i--)
-		{
-			PlannedDimension candidate = plan.Dimensions[i];
-			if (!toSuppress.Contains(candidate))
-			{
-				continue;
-			}
-			plan.MarkSuppressed(candidate, SuppressReason.OuterContourStepOverallRemainder);
-			plan.Dimensions.RemoveAt(i);
 		}
 	}
 
@@ -713,13 +749,19 @@ public sealed partial class DimensionPlanner
 	/// The step may be shorter (20 of 90) or longer (120 of 215) than the body; topology decides.
 	/// Chamfered steps are supported by following a connected boundary path down to MinY.
 	/// </summary>
-	private void SuppressBottomOuterContourStepBodyRemainders(DimensionPlan plan, OutlineFeature2D outline)
+	private void CollectBottomOuterContourStepBodyRemainders(
+		DimensionPlan plan,
+		OutlineFeature2D outline,
+		IDictionary<PlannedDimension, string> retainedEvidence,
+		IDictionary<PlannedDimension, Tuple<PlannedDimension, string>> suppressionEvidence)
 	{
 		if (plan == null || outline == null || outline.Segments == null || outline.Segments.Count == 0)
 		{
 			return;
 		}
-		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallWidth);
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) =>
+			d.Role == DimensionCandidateRole.Overall
+			&& d.Kind == DimensionKind.OverallWidth);
 		if (overall == null || overall.Orientation != DimensionOrientation.Horizontal)
 		{
 			return;
@@ -727,25 +769,25 @@ public sealed partial class DimensionPlanner
 		double tol = _config.GeometryTolerance;
 		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal: true);
 		List<PlannedDimension> snapshot = plan.Dimensions.ToList();
-		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>();
 		foreach (PlannedDimension step in snapshot.Where((PlannedDimension d) =>
 			d.Kind == DimensionKind.Normal
 			&& d.Orientation == DimensionOrientation.Horizontal
 			&& d.Side == DimensionSide.Bottom
-			&& string.Equals(d.DebugRole, "BottomStructWidth", StringComparison.Ordinal)))
+			&& d.Role == DimensionCandidateRole.Structure))
 		{
 			if (!TryResolveRealBottomOuterStepInterval(step, outline, overallInterval, tol, out Tuple<double, double> bodyInterval))
 			{
 				continue;
 			}
+			retainedEvidence[step] = "Bottom:RetainedBoundaryBackedStep";
 			foreach (PlannedDimension candidate in snapshot)
 			{
 				if (candidate == step
 					|| candidate.Kind != DimensionKind.Normal
 					|| candidate.Orientation != DimensionOrientation.Horizontal
 					|| candidate.Side != DimensionSide.Bottom
-					|| !(string.Equals(candidate.DebugRole, "BottomStructWidth", StringComparison.Ordinal)
-						|| string.Equals(candidate.DebugRole, "OutlineSegment", StringComparison.Ordinal)))
+					|| !(candidate.Role == DimensionCandidateRole.Structure
+						|| candidate.Role == DimensionCandidateRole.OutlineSegment))
 				{
 					continue;
 				}
@@ -756,22 +798,55 @@ public sealed partial class DimensionPlanner
 				{
 					continue;
 				}
-				toSuppress.Add(candidate);
+				if (!suppressionEvidence.ContainsKey(candidate))
+				{
+					suppressionEvidence[candidate] =
+						Tuple.Create(step, "Bottom:SuppressedOverallRemainder");
+				}
 			}
 		}
-		if (toSuppress.Count == 0)
+	}
+
+	private static IEnumerable<string> CollectOuterContourStepSourceGeometryIds(
+		PlannedDimension candidate,
+		PlannedDimension witness,
+		OutlineFeature2D outline)
+	{
+		HashSet<string> sourceIds = new HashSet<string>(StringComparer.Ordinal);
+		AddSourceGeometryIds(sourceIds, candidate);
+		AddSourceGeometryIds(sourceIds, witness);
+		if (outline != null)
+		{
+			foreach (Segment2D segment in outline.Segments ?? Enumerable.Empty<Segment2D>())
+			{
+				AddSourceGeometryId(sourceIds, segment?.SourceKey);
+			}
+			foreach (Arc2D arc in outline.Arcs ?? Enumerable.Empty<Arc2D>())
+			{
+				AddSourceGeometryId(sourceIds, arc?.SourceKey);
+			}
+		}
+		return sourceIds.OrderBy((string sourceId) => sourceId, StringComparer.Ordinal).ToList();
+	}
+
+	private static void AddSourceGeometryIds(ISet<string> target, PlannedDimension dimension)
+	{
+		if (dimension == null)
 		{
 			return;
 		}
-		for (int i = plan.Dimensions.Count - 1; i >= 0; i--)
+		AddSourceGeometryId(target, dimension.SourceKey);
+		foreach (string sourceId in dimension.SourceGeometryIds ?? Enumerable.Empty<string>())
 		{
-			PlannedDimension candidate = plan.Dimensions[i];
-			if (!toSuppress.Contains(candidate))
-			{
-				continue;
-			}
-			plan.MarkSuppressed(candidate, SuppressReason.OuterContourStepOverallRemainder);
-			plan.Dimensions.RemoveAt(i);
+			AddSourceGeometryId(target, sourceId);
+		}
+	}
+
+	private static void AddSourceGeometryId(ISet<string> target, string sourceId)
+	{
+		if (!string.IsNullOrWhiteSpace(sourceId))
+		{
+			target.Add(sourceId);
 		}
 	}
 
@@ -1489,9 +1564,17 @@ public sealed partial class DimensionPlanner
 	/// </summary>
 	private bool IsRealPartialEnvelopeStructureHeight(PlannedDimension dimension, OutlineFeature2D outline, double tol)
 	{
-		if (dimension == null || outline == null || outline.Segments == null || outline.Segments.Count == 0
+		if (dimension == null)
+		{
+			return false;
+		}
+		DimensionCandidateSemantics.ApplyLegacyMappings(dimension);
+		if (outline == null || outline.Segments == null || outline.Segments.Count == 0
+			|| dimension.Kind != DimensionKind.Normal
 			|| dimension.Orientation != DimensionOrientation.Vertical
-			|| (!IsLeftStructureHeight(dimension) && !IsRightStructureHeight(dimension)))
+			|| dimension.Role != DimensionCandidateRole.Structure
+			|| dimension.ForceOuterLevel
+			|| (dimension.Side != DimensionSide.Left && dimension.Side != DimensionSide.Right))
 		{
 			return false;
 		}

@@ -32,6 +32,7 @@ public sealed class DimensionDiagnosticReport
 				diagnostic.SuppressedReason = reason ?? string.Empty;
 				diagnostic.DecisionStatus = "RenderSuppressed";
 				diagnostic.DecisionReason = reason ?? string.Empty;
+				diagnostic.Decision = DimensionCandidateDecision.Suppressed;
 			}
 		}
 		FinalDimensions.RemoveAll(diagnostic => diagnostic.Id == diagnosticId);

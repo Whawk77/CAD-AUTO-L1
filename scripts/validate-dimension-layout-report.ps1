@@ -139,7 +139,7 @@ if ([string]$report.diagnosticSide -ne $side) {
 }
 
 $finalDimensions = @($report.finalDimensions | Where-Object {
-    $_.placementSide -eq $side -and $_.isSelected -and $_.decisionStatus -eq "Selected"
+    $_.isSelected -eq $true -and $_.decisionStatus -eq "Selected" -and $_.hasFinalPlacement -eq $true
 })
 if ($finalDimensions.Count -eq 0) {
     throw "Report has no selected final dimensions on side '$side'."

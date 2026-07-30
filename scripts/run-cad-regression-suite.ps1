@@ -79,6 +79,14 @@ function Get-NormalizedReportHash {
         }
     }
     $json = $report | ConvertTo-Json -Depth 100 -Compress
+    $runtimeIds = @{}
+    $json = [regex]::Replace($json, '"\([0-9]+\)"', {
+        param($match)
+        if (-not $runtimeIds.ContainsKey($match.Value)) {
+            $runtimeIds[$match.Value] = '"(__runtime-id-{0})"' -f ($runtimeIds.Count + 1)
+        }
+        return $runtimeIds[$match.Value]
+    })
     $bytes = [Text.Encoding]::UTF8.GetBytes($json)
     $sha = [Security.Cryptography.SHA256]::Create()
     try {
@@ -375,7 +383,8 @@ function Invoke-CoreCadCase {
     $runnerProcess = Start-Process -FilePath (Join-Path $PSHOME "powershell.exe") -ArgumentList $runnerArguments `
         -WindowStyle Hidden -RedirectStandardOutput $wrapperLog -RedirectStandardError $wrapperErrorLog -PassThru
     $runnerProcess.WaitForExit()
-    $runnerExit = $runnerProcess.ExitCode
+    $runnerProcess.Refresh()
+    $runnerExit = [int]$runnerProcess.ExitCode
 
     $sourceRun = @(Get-ChildItem -LiteralPath $sourceRoot -Directory |
         Where-Object { $before -notcontains $_.Name } |

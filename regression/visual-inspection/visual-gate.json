@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "mode": "Blocking",
+  "blockingWarningCodes": [
+    "LEFT_LAYOUT_TEXT_PLACEMENT",
+    "TEXT_TEXT_COLLISION"
+  ],
+  "warningOnly": "AllOtherWarnings",
+  "exemptWarningCodes": [],
+  "failurePolicy": "FailOnBlockingWarnings",
+  "rollback": {
+    "mode": "WarningOnly",
+    "blockingWarningCodes": []
+  }
+}

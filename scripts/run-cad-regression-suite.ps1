@@ -29,6 +29,20 @@ if ([string]::IsNullOrWhiteSpace($Profile)) {
     $Profile = "1"
 }
 
+function Get-PowerShellExecutable {
+    $windowsPowerShell = Get-Command powershell.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -ne $windowsPowerShell -and (Test-Path -LiteralPath $windowsPowerShell.Source -PathType Leaf)) { return $windowsPowerShell.Source }
+    $systemWindowsPowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    if (Test-Path -LiteralPath $systemWindowsPowerShell -PathType Leaf) { return $systemWindowsPowerShell }
+    $pwsh = Get-Command pwsh -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -ne $pwsh -and (Test-Path -LiteralPath $pwsh.Source -PathType Leaf)) { return $pwsh.Source }
+    $currentProcessPath = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+    if (Test-Path -LiteralPath $currentProcessPath -PathType Leaf) { return $currentProcessPath }
+    throw 'Could not resolve a PowerShell executable.'
+}
+
+$powerShellExecutable = Get-PowerShellExecutable
+
 function Get-Sha256 {
     param([Parameter(Mandatory = $true)][string]$Path)
     $stream = [System.IO.File]::OpenRead($Path)
@@ -95,6 +109,85 @@ function Get-NormalizedReportHash {
     finally {
         $sha.Dispose()
     }
+}
+
+function Get-NormalizedVisualReportHash {
+    param([Parameter(Mandatory = $true)][string]$ReportPath)
+    $report = Get-Content -Raw -Encoding UTF8 -LiteralPath $ReportPath | ConvertFrom-Json
+    if ($null -ne $report.environment -and $report.environment.PSObject.Properties.Name -contains "DWGPREFIX") {
+        $report.environment.PSObject.Properties.Remove("DWGPREFIX")
+    }
+    $json = $report | ConvertTo-Json -Depth 100 -Compress
+    $bytes = [Text.Encoding]::UTF8.GetBytes($json)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace("-", "") }
+    finally { $sha.Dispose() }
+}
+
+function Get-VisualGateStatus {
+    param([Parameter(Mandatory = $true)]$VisualReport)
+    $blockingCodes = @()
+    if ($VisualReport.PSObject.Properties.Name -contains "gate" -and $null -ne $VisualReport.gate -and
+        $VisualReport.gate.PSObject.Properties.Name -contains "blockingWarnings") {
+        $blockingCodes = @($VisualReport.gate.blockingWarnings | ForEach-Object { [string]$_.code } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+    }
+    return [pscustomobject]@{
+        mode = if ($VisualReport.PSObject.Properties.Name -contains "mode") { [string]$VisualReport.mode } else { $null }
+        blocking = $VisualReport.PSObject.Properties.Name -contains "blocking" -and [bool]$VisualReport.blocking
+        blockingCodes = $blockingCodes
+    }
+}
+
+function Invoke-VisualInspection {
+    param(
+        [Parameter(Mandatory = $true)][string]$SnapshotPath,
+        [Parameter(Mandatory = $true)][string]$ReportPath,
+        [Parameter(Mandatory = $true)][string]$MarkdownPath,
+        [Parameter(Mandatory = $true)][string]$CaseId,
+        [Parameter(Mandatory = $true)][string]$ExpectedDirection,
+        [Parameter(Mandatory = $true)][string]$FullImagePath,
+        [string]$DetailImagePath
+    )
+    $inspection = [ordered]@{
+        status = "Running"
+        error = $null
+        snapshotPath = $SnapshotPath
+        reportPath = $ReportPath
+        markdownPath = $MarkdownPath
+        warningCount = $null
+        normalizedReportSha256 = $null
+        mode = $null
+        blocking = $false
+        blockingCodes = @()
+    }
+    try {
+        & $powerShellExecutable -NoProfile -ExecutionPolicy Bypass -File (Join-Path $projectRoot "scripts\write-cad-visual-report.ps1") `
+            -SnapshotPath $SnapshotPath -ReportPath $ReportPath -MarkdownPath $MarkdownPath `
+            -CaseId $CaseId -ExpectedDirection $ExpectedDirection -FullImagePath $FullImagePath -DetailImagePath $DetailImagePath
+        $visualExitCode = $LASTEXITCODE
+        if (-not (Test-Path -LiteralPath $ReportPath -PathType Leaf)) { throw "Visual report was not generated." }
+        if (-not (Test-Path -LiteralPath $MarkdownPath -PathType Leaf)) { throw "Visual markdown report was not generated." }
+        $visualReport = Get-Content -Raw -Encoding UTF8 -LiteralPath $ReportPath | ConvertFrom-Json
+        $gateStatus = Get-VisualGateStatus -VisualReport $visualReport
+        $inspection.warningCount = [int]$visualReport.warningCount
+        $inspection.normalizedReportSha256 = Get-NormalizedVisualReportHash -ReportPath $ReportPath
+        $inspection.mode = $gateStatus.mode
+        $inspection.blocking = $gateStatus.blocking
+        $inspection.blockingCodes = $gateStatus.blockingCodes
+        if ($visualExitCode -ne 0 -and -not $inspection.blocking) { throw "Visual inspection exited $visualExitCode." }
+        $captureErrors = @(Get-Content -LiteralPath $SnapshotPath | Where-Object { $_ -like "ERROR`t*" })
+        if ($captureErrors.Count -gt 0) {
+            $inspection.status = "CaptureFailed"
+            $inspection.error = "Visual snapshot capture reported $($captureErrors.Count) error(s)."
+        }
+        else { $inspection.status = "Completed" }
+    }
+    catch {
+        $inspection.status = "Failed"
+        $inspection.error = $_.Exception.Message
+    }
+    return [pscustomobject]$inspection
 }
 
 function Get-NewDebugDirectory {
@@ -171,11 +264,20 @@ function Write-Summary {
         "- DLL directory: $($Summary.dllDirectory)",
         "- Repeat count: $($Summary.repeatCount)",
         "",
-        "| Repeat | Family | Case | Status | Normalized report SHA256 |",
-        "| ---: | --- | --- | --- | --- |"
+        "| Repeat | Family | Case | Status | Normalized report SHA256 | Normalized visual SHA256 | Visual warnings | Visual gate codes |",
+        "| ---: | --- | --- | --- | --- | --- | --- | --- |"
     )
     foreach ($record in @($Records)) {
-        $lines += "| $($record.repeat) | $($record.family) | $($record.caseId) | $($record.status) | $($record.normalizedReportSha256) |"
+        $lines += "| $($record.repeat) | $($record.family) | $($record.caseId) | $($record.status) | $($record.normalizedReportSha256) | $($record.normalizedVisualReportSha256) | $($record.visualWarningCount) | $(@($record.visualBlockingCodes) -join ', ') |"
+    }
+    $visualRecords = @($Records | Where-Object { $_.repeat -gt 0 -and $_.visualInspection })
+    if ($visualRecords.Count -gt 0) {
+        $lines += ""
+        $lines += "## Visual inspection"
+        foreach ($record in $visualRecords) {
+            $visual = $record.visualInspection
+            $lines += "- $($record.family)/$($record.caseId)/repeat-$($record.repeat): $($visual.status); warnings=$($visual.warningCount); blocking=$($visual.blocking); codes=$(@($record.visualBlockingCodes) -join ', '); snapshot=$($visual.snapshotPath); report=$($visual.reportPath); markdown=$($visual.markdownPath)"
+        }
     }
     if (@($Errors).Count -gt 0) {
         $lines += ""
@@ -247,6 +349,9 @@ function Invoke-DimensionLayoutCase {
     $reportPath = Join-Path $caseRoot "report.json"
     $fullImagePath = Join-Path $caseRoot "full.png"
     $detailImagePath = Join-Path $caseRoot "detail.png"
+    $visualSnapshotPath = Join-Path $caseRoot "visual-snapshot.tsv"
+    $visualReportPath = Join-Path $caseRoot "visual-report.json"
+    $visualMarkdownPath = Join-Path $caseRoot "visual-report.md"
     $scriptPath = Join-Path $caseRoot "run.scr"
     $stdoutPath = Join-Path $caseRoot "acad.stdout.log"
     $stderrPath = Join-Path $caseRoot "acad.stderr.log"
@@ -263,9 +368,13 @@ CMDDIA
 _.NETLOAD
 $(ConvertTo-LispString $PluginPath)
 (load $(ConvertTo-LispString $lspPath))
+(vl-load-com)
+(setq *m4-visual-load-result* (vl-catch-all-apply 'load (list $(ConvertTo-LispString (Join-Path $projectRoot "scripts\cad-visual-inspection.lsp")))))
 (setq *v203-trace-file* $(ConvertTo-LispString $tracePath))
 (setq *v203-report-file* $(ConvertTo-LispString $reportPath))
+(setq *m4-source-selection* (ssget "_C" *v203-select-corner-1* *v203-select-corner-2*))
 $command
+(if (not (vl-catch-all-error-p *m4-visual-load-result*)) (vl-catch-all-apply 'm4-capture (list *m4-source-selection* $(ConvertTo-LispString $visualSnapshotPath) "$caseId" "$side")))
 _.QSAVE
 (vl-load-com)
 (setq *v203-full-image-path* $(ConvertTo-LispString $fullImagePath))
@@ -296,7 +405,25 @@ _N
         tracePath = $tracePath
         fullImagePath = $fullImagePath
         detailImagePath = $detailImagePath
+        visualSnapshotPath = $visualSnapshotPath
+        visualReportPath = $visualReportPath
+        visualMarkdownPath = $visualMarkdownPath
         normalizedReportSha256 = $null
+        normalizedVisualReportSha256 = $null
+        visualWarningCount = $null
+        visualBlockingCodes = @()
+        visualInspection = [ordered]@{
+            status = "NotRun"
+            error = $null
+            snapshotPath = $visualSnapshotPath
+            reportPath = $visualReportPath
+            markdownPath = $visualMarkdownPath
+            warningCount = $null
+            normalizedReportSha256 = $null
+            mode = $null
+            blocking = $false
+            blockingCodes = @()
+        }
         dlls = $DllEvidence
     }
     $failure = $null
@@ -325,6 +452,19 @@ _N
             if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
                 throw "Required artifact was not generated: $requiredPath"
             }
+        }
+
+        $result.visualInspection = Invoke-VisualInspection -SnapshotPath $visualSnapshotPath `
+            -ReportPath $visualReportPath -MarkdownPath $visualMarkdownPath -CaseId $caseId `
+            -ExpectedDirection $side -FullImagePath $fullImagePath -DetailImagePath $detailImagePath
+        $result.normalizedVisualReportSha256 = $result.visualInspection.normalizedReportSha256
+        $result.visualWarningCount = $result.visualInspection.warningCount
+        $result.visualBlockingCodes = @($result.visualInspection.blockingCodes)
+        if ($result.visualInspection.status -ne "Completed") {
+            throw "Visual inspection failed ${caseId}: $($result.visualInspection.error)"
+        }
+        if ($result.visualInspection.blocking) {
+            throw "Visual gate blocked ${caseId}: $($result.visualBlockingCodes -join ', ')."
         }
 
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $projectRoot "scripts\validate-dimension-layout-report.ps1") `
@@ -380,7 +520,7 @@ function Invoke-CoreCadCase {
         "-CoreConsolePath", ('"{0}"' -f $CoreConsolePath),
         "-TimeoutSeconds", $TimeoutSeconds
     )
-    $runnerProcess = Start-Process -FilePath (Join-Path $PSHOME "powershell.exe") -ArgumentList $runnerArguments `
+    $runnerProcess = Start-Process -FilePath $powerShellExecutable -ArgumentList $runnerArguments `
         -WindowStyle Hidden -RedirectStandardOutput $wrapperLog -RedirectStandardError $wrapperErrorLog -PassThru
     $runnerProcess.WaitForExit()
     $runnerProcess.Refresh()
@@ -402,18 +542,46 @@ function Invoke-CoreCadCase {
         throw "Core-CAD result.json was not archived for $caseId."
     }
     $result = Get-Content -Raw -Encoding UTF8 -LiteralPath $resultPath | ConvertFrom-Json
+    $visualInspection = $result.visualInspection
+    if ($visualInspection) {
+        foreach ($name in @("snapshotPath", "reportPath", "markdownPath")) {
+            $archivedPath = Join-Path $wrapperLogRoot ([IO.Path]::GetFileName([string]$visualInspection.$name))
+            if (Test-Path -LiteralPath $archivedPath -PathType Leaf) {
+                $visualInspection.$name = $archivedPath
+            }
+        }
+    }
     $normalizedHash = $null
     if (Test-Path -LiteralPath $reportPath -PathType Leaf) {
         $normalizedHash = Get-NormalizedReportHash -ReportPath $reportPath
     }
-    $status = if ($runnerExit -eq 0 -and [string]$result.status -eq "Passed") { "Passed" } else { "Failed" }
+    $visualGateStatus = [pscustomobject]@{ mode = $null; blocking = $false; blockingCodes = @() }
+    if ($visualInspection -and $visualInspection.reportPath -and (Test-Path -LiteralPath $visualInspection.reportPath -PathType Leaf)) {
+        $visualGateStatus = Get-VisualGateStatus -VisualReport (Get-Content -Raw -Encoding UTF8 -LiteralPath $visualInspection.reportPath | ConvertFrom-Json)
+    }
+    if ($visualInspection) {
+        $visualInspection | Add-Member -Force -NotePropertyName mode -NotePropertyValue $visualGateStatus.mode
+        $visualInspection | Add-Member -Force -NotePropertyName blocking -NotePropertyValue $visualGateStatus.blocking
+        $visualInspection | Add-Member -Force -NotePropertyName blockingCodes -NotePropertyValue $visualGateStatus.blockingCodes
+    }
+    $visualFailed = -not $visualInspection -or [string]$visualInspection.status -ne "Completed"
+    $visualError = if (-not $visualInspection) { "Visual inspection was not archived." } elseif ($visualFailed -and [string]::IsNullOrWhiteSpace([string]$visualInspection.error)) { "status=$($visualInspection.status)" } elseif ($visualFailed) { [string]$visualInspection.error } else { $null }
+    $status = if ($runnerExit -eq 0 -and [string]$result.status -eq "Passed" -and -not $visualGateStatus.blocking -and -not $visualFailed) { "Passed" } else { "Failed" }
+    $error = if ($visualGateStatus.blocking) { "Visual gate blocked ${caseId}: $($visualGateStatus.blockingCodes -join ', ')." } elseif ($visualFailed) { "Visual inspection failed ${caseId}: $visualError" } else { [string]$result.error }
     return [pscustomobject]@{
         family = "Core-CAD"
         caseId = $caseId
         repeat = $Repeat
         status = $status
-        error = [string]$result.error
+        error = $error
         normalizedReportSha256 = $normalizedHash
+        normalizedVisualReportSha256 = [string]$visualInspection.normalizedReportSha256
+        visualWarningCount = $visualInspection.warningCount
+        visualBlockingCodes = @($visualGateStatus.blockingCodes)
+        visualSnapshotPath = $visualInspection.snapshotPath
+        visualReportPath = $visualInspection.reportPath
+        visualMarkdownPath = $visualInspection.markdownPath
+        visualInspection = $visualInspection
         runDirectory = $wrapperLogRoot
     }
 }
@@ -512,6 +680,13 @@ try {
         status = "Skipped"
         error = "No fixtureReady=true Hole/Slot cases."
         normalizedReportSha256 = $null
+        normalizedVisualReportSha256 = $null
+        visualWarningCount = $null
+        visualBlockingCodes = @()
+        visualSnapshotPath = $null
+        visualReportPath = $null
+        visualMarkdownPath = $null
+        visualInspection = $null
         runDirectory = $null
     })
 
@@ -557,6 +732,30 @@ try {
         if ($group.Count -ne $RepeatCount -or $hashes.Count -ne 1) {
             $null = $errors.Add("Determinism failed for $($group.Name): runs=$($group.Count), uniqueNormalizedHashes=$($hashes.Count).")
         }
+    }
+
+    $summary.visualInspection = [ordered]@{
+        warningOnly = -not @($records | Where-Object { $_.visualInspection -and $_.visualInspection.mode -eq "Blocking" }).Count
+        records = @($records | Where-Object { $_.repeat -gt 0 } | ForEach-Object {
+            [ordered]@{
+                family = $_.family
+                caseId = $_.caseId
+                repeat = $_.repeat
+                status = if ($_.visualInspection) { $_.visualInspection.status } else { "NotRun" }
+                warningCount = $_.visualWarningCount
+                blocking = if ($_.visualInspection) { [bool]$_.visualInspection.blocking } else { $false }
+                blockingCodes = @($_.visualBlockingCodes)
+                normalizedReportSha256 = $_.normalizedVisualReportSha256
+                falsePositive = if ($_.visualInspection -and $_.visualInspection.reportPath -and (Test-Path -LiteralPath $_.visualInspection.reportPath)) { (Get-Content -Raw -Encoding UTF8 -LiteralPath $_.visualInspection.reportPath | ConvertFrom-Json).calibration.falsePositive } else { $null }
+                falseNegative = if ($_.visualInspection -and $_.visualInspection.reportPath -and (Test-Path -LiteralPath $_.visualInspection.reportPath)) { (Get-Content -Raw -Encoding UTF8 -LiteralPath $_.visualInspection.reportPath | ConvertFrom-Json).calibration.falseNegative } else { $null }
+            }
+        })
+        determinism = @($records | Where-Object { $_.status -eq "Passed" -and $_.repeat -gt 0 } | Group-Object family, caseId | ForEach-Object {
+            $hashes = @($_.Group.normalizedVisualReportSha256 | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+            [ordered]@{ familyCase = $_.Name; runs = $_.Count; uniqueNormalizedHashes = $hashes.Count; deterministic = ($_.Count -eq $RepeatCount -and $hashes.Count -eq 1) }
+        })
+        falsePositiveTotal = [int](@($records | Where-Object { $_.visualInspection -and $_.visualInspection.reportPath -and (Test-Path -LiteralPath $_.visualInspection.reportPath) } | ForEach-Object { (Get-Content -Raw -Encoding UTF8 -LiteralPath $_.visualInspection.reportPath | ConvertFrom-Json).calibration.falsePositive } | Where-Object { $null -ne $_ } | Measure-Object -Sum).Sum)
+        falseNegativeTotal = [int](@($records | Where-Object { $_.visualInspection -and $_.visualInspection.reportPath -and (Test-Path -LiteralPath $_.visualInspection.reportPath) } | ForEach-Object { (Get-Content -Raw -Encoding UTF8 -LiteralPath $_.visualInspection.reportPath | ConvertFrom-Json).calibration.falseNegative } | Where-Object { $null -ne $_ } | Measure-Object -Sum).Sum)
     }
 }
 catch {

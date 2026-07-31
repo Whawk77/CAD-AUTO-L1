@@ -110,6 +110,61 @@ $plan = [ordered]@{
     coreConsolePath = $CoreConsolePath
     timeoutSeconds = $TimeoutSeconds
 }
+
+function Get-NormalizedVisualReportHash {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $report = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($null -ne $report.environment -and $report.environment.PSObject.Properties.Name -contains "DWGPREFIX") {
+        $report.environment.PSObject.Properties.Remove("DWGPREFIX")
+    }
+    $json = $report | ConvertTo-Json -Depth 100 -Compress
+    $bytes = [Text.Encoding]::UTF8.GetBytes($json)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace("-", "") }
+    finally { $sha.Dispose() }
+}
+
+function Invoke-VisualInspection {
+    param(
+        [Parameter(Mandatory = $true)][string]$SnapshotPath,
+        [Parameter(Mandatory = $true)][string]$ReportPath,
+        [Parameter(Mandatory = $true)][string]$MarkdownPath,
+        [Parameter(Mandatory = $true)][string]$CaseId,
+        [Parameter(Mandatory = $true)][string]$ExpectedDirection,
+        [Parameter(Mandatory = $true)][string]$FullImagePath
+    )
+    $inspection = [ordered]@{
+        status = "Running"
+        error = $null
+        snapshotPath = $SnapshotPath
+        reportPath = $ReportPath
+        markdownPath = $MarkdownPath
+        warningCount = $null
+        normalizedReportSha256 = $null
+    }
+    try {
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "write-cad-visual-report.ps1") `
+            -SnapshotPath $SnapshotPath -ReportPath $ReportPath -MarkdownPath $MarkdownPath `
+            -CaseId $CaseId -ExpectedDirection $ExpectedDirection -FullImagePath $FullImagePath
+        if ($LASTEXITCODE -ne 0) { throw "Visual inspection exited $LASTEXITCODE." }
+        if (-not (Test-Path -LiteralPath $ReportPath -PathType Leaf)) { throw "Visual report was not generated." }
+        if (-not (Test-Path -LiteralPath $MarkdownPath -PathType Leaf)) { throw "Visual markdown report was not generated." }
+        $visualReport = Get-Content -LiteralPath $ReportPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $inspection.warningCount = [int]$visualReport.warningCount
+        $inspection.normalizedReportSha256 = Get-NormalizedVisualReportHash -Path $ReportPath
+        $captureErrors = @(Get-Content -LiteralPath $SnapshotPath | Where-Object { $_ -like "ERROR`t*" })
+        if ($captureErrors.Count -gt 0) {
+            $inspection.status = "CaptureFailed"
+            $inspection.error = "Visual snapshot capture reported $($captureErrors.Count) error(s)."
+        }
+        else { $inspection.status = "Completed" }
+    }
+    catch {
+        $inspection.status = "Failed"
+        $inspection.error = $_.Exception.Message
+    }
+    return [pscustomobject]$inspection
+}
 if ($PlanOnly) {
     $plan | ConvertTo-Json -Depth 6
     return
@@ -184,6 +239,10 @@ $driverPath = Join-Path $runDirectory "run.scr"
 $stdoutPath = Join-Path $runDirectory "core-console.stdout.log"
 $stderrPath = Join-Path $runDirectory "core-console.stderr.log"
 $fullImagePath = Join-Path $runDirectory "full.png"
+$visualSnapshotPath = Join-Path $runDirectory "visual-snapshot.tsv"
+$visualReportPath = Join-Path $runDirectory "visual-report.json"
+$visualMarkdownPath = Join-Path $runDirectory "visual-report.md"
+$visualInspectionLspPath = Join-Path $PSScriptRoot "cad-visual-inspection.lsp"
 $resultPath = Join-Path $runDirectory "result.json"
 Copy-Item -LiteralPath $fixturePath -Destination $workingDwg
 
@@ -220,7 +279,7 @@ $lsp = @"
   (if stream (progn (write-line message stream) (close stream)))
 )
 
-(defun c:RUNCORECAD (/ oldCmdecho oldOsmode selection)
+(defun c:RUNCORECAD (/ oldCmdecho oldOsmode selection visual-result)
   (setq oldCmdecho (getvar "CMDECHO"))
   (setq oldOsmode (getvar "OSMODE"))
   (setvar "CMDECHO" 1)
@@ -239,6 +298,9 @@ $lsp = @"
       (ccr-trace (strcat "INPUT selection=" (itoa (sslength selection))))
       ;; First empty input ends outline selection; second skips manual Circle selection.
       (vl-cmdf "ASDREPRO" "$scopeKeyword" "$sideKeyword" selection "" "")
+      (if (not (vl-catch-all-error-p *m4-visual-load-result*))
+        (setq visual-result (vl-catch-all-apply 'm4-capture (list selection $(ConvertTo-LispString $visualSnapshotPath) "$CaseId" "$([string]$case.diagnosticSide)")))
+      )
       (ccr-trace "COMPLETE")
     )
   )
@@ -254,6 +316,8 @@ $driver = @"
 (setvar "FILEDIA" 0)
 (setvar "CMDDIA" 0)
 (command "_.NETLOAD" $(ConvertTo-LispString ([string]$dlls["AutoFixtureDim.dll"].path)))
+(vl-load-com)
+(setq *m4-visual-load-result* (vl-catch-all-apply 'load (list $(ConvertTo-LispString $visualInspectionLspPath))))
 (load $(ConvertTo-LispString $lspPath))
 (c:RUNCORECAD)
 (vl-cmdf "_.REGEN")
@@ -280,6 +344,20 @@ $result = [ordered]@{
     tracePath = $tracePath
     fullImagePath = $fullImagePath
     fullImageSha256 = $null
+    visualSnapshotPath = $visualSnapshotPath
+    visualReportPath = $visualReportPath
+    visualMarkdownPath = $visualMarkdownPath
+    visualWarningCount = $null
+    normalizedVisualReportSha256 = $null
+    visualInspection = [ordered]@{
+        status = "NotRun"
+        error = $null
+        snapshotPath = $visualSnapshotPath
+        reportPath = $visualReportPath
+        markdownPath = $visualMarkdownPath
+        warningCount = $null
+        normalizedReportSha256 = $null
+    }
     standardOutputPath = $stdoutPath
     standardErrorPath = $stderrPath
     executionHost = $coreConsoleExe
@@ -335,6 +413,12 @@ try {
     if ($trace -notcontains "COMPLETE") { throw "CAD trace has no COMPLETE marker." }
     if (-not (Test-Path -LiteralPath $reportPath -PathType Leaf)) { throw "Diagnostic report was not generated." }
     if (-not (Test-Path -LiteralPath $fullImagePath -PathType Leaf)) { throw "Full image was not generated." }
+
+    $result.visualInspection = Invoke-VisualInspection -SnapshotPath $visualSnapshotPath `
+        -ReportPath $visualReportPath -MarkdownPath $visualMarkdownPath -CaseId $CaseId `
+        -ExpectedDirection ([string]$case.diagnosticSide) -FullImagePath $fullImagePath
+    $result.visualWarningCount = $result.visualInspection.warningCount
+    $result.normalizedVisualReportSha256 = $result.visualInspection.normalizedReportSha256
 
     & (Join-Path $PSScriptRoot "validate-core-cad-report.ps1") `
         -CaseId $CaseId `

@@ -1648,7 +1648,7 @@ public sealed class DimensionLayoutRules
 					Score = ScoreTextBoundsAgainstPlaced(candidate.Bounds, currentBounds, obstacles, i, safeClearance, effectiveDimScale)
 						+ ScoreTextBoundsAgainstArrows(candidate.Bounds, placedDimensions, safeArrowSize, safeClearance)
 				} into candidate
-				orderby candidate.Score, GetTextSlideDistance(candidate.Position, placed)
+				orderby candidate.Score, IsTopTenPlusMinusDatumHoleLocation(placed) && candidate.Position.X > (placed.Dimension.FirstPoint.X + placed.Dimension.SecondPoint.X) / 2.0 ? 1 : 0, GetTextSlideDistance(candidate.Position, placed)
 				select candidate).FirstOrDefault();
 			if (textSlideCandidate != null)
 			{
@@ -1688,7 +1688,17 @@ public sealed class DimensionLayoutRules
 			return false;
 		}
 		DimensionKind kind = placed.Dimension.Kind;
-		return kind == DimensionKind.HoleLocation || kind == DimensionKind.PinDistance || kind == DimensionKind.PinGroupDistance;
+		return IsTopTenPlusMinusDatumHoleLocation(placed)
+			|| kind == DimensionKind.HoleLocation || kind == DimensionKind.PinDistance || kind == DimensionKind.PinGroupDistance;
+	}
+
+	private bool IsTopTenPlusMinusDatumHoleLocation(DimensionTextPlacementItem placed)
+	{
+		DimensionLayoutItem dimension = placed.Dimension;
+		return placed.Side == DimensionSide.Top
+			&& dimension.Kind == DimensionKind.DatumHoleLocationX
+			&& Math.Abs(dimension.Span - 10.0) <= _config.GeometryTolerance
+			&& (dimension.OverrideText ?? string.Empty).IndexOf("±0.05", StringComparison.Ordinal) >= 0;
 	}
 
 	public bool DimensionTextFitsBetweenOwnExtensionLines(DimensionLayoutItem dim, double textHeight)

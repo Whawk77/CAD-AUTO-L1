@@ -81,11 +81,36 @@ jobs:
             exit $LASTEXITCODE
           }
 
+      - name: Publish nightly summary
+        if: ${{ always() }}
+        shell: powershell
+        run: |
+          $summaryFiles = @(Get-ChildItem -Path ".\regression\nightly\runs" -Recurse -File -Include "summary.md", "summary.json", "dll-hashes.json" -ErrorAction SilentlyContinue | Sort-Object FullName)
+          if ($summaryFiles.Count -eq 0) {
+            "## CAD nightly evidence" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            "No nightly summary was generated; inspect the uploaded trace and runner logs." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            exit 0
+          }
+
+          "## CAD nightly evidence" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          foreach ($summaryFile in $summaryFiles) {
+            "### $($summaryFile.FullName.Substring((Get-Location).Path.Length + 1))" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            if ($summaryFile.Name -eq "summary.md") {
+              Get-Content -LiteralPath $summaryFile.FullName -Raw | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            }
+            else {
+              '```json' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+              Get-Content -LiteralPath $summaryFile.FullName -Raw | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+              '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            }
+          }
+
       - name: Upload nightly evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: cad-nightly-${{ github.run_id }}-${{ github.run_attempt }}
+          # Archive the complete run tree so failure diagnosis retains every generated artifact.
           path: regression/nightly/runs/**
           if-no-files-found: warn
           retention-days: 30

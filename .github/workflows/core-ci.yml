@@ -12,6 +12,7 @@ on:
 jobs:
   core-tests:
     runs-on: windows-2022
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
 
@@ -51,4 +52,19 @@ jobs:
         run: msbuild CadAuto.Core.Tests\CadAuto.Core.Tests.csproj /t:Build /p:Configuration=Release /v:minimal
 
       - name: Run core tests
-        run: CadAuto.Core.Tests\bin\Release\CadAuto.Core.Tests.exe
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'core-tests.log'
+          & .\CadAuto.Core.Tests\bin\Release\CadAuto.Core.Tests.exe *>&1 | Tee-Object -FilePath $log
+          $exitCode = $LASTEXITCODE
+          "## Core test output`n``````text`n$(Get-Content -Raw $log)`n``````" | Add-Content $env:GITHUB_STEP_SUMMARY
+          exit $exitCode
+
+      - name: Upload core test evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-test-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/core-tests.log
+          if-no-files-found: warn
+          retention-days: 14

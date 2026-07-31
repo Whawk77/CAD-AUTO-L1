@@ -66,6 +66,7 @@ namespace CadAuto.Core.Tests
             nameof(SharedArrowEndpointUsesStrictSpanOrder),
             nameof(StructureAlignmentKeyAlignsAdjacentSegmentsOnSameLevel),
             nameof(SlotChainAlignmentKeyAlignsEdgeLocationAndCenterDistance),
+			nameof(NonPinHorizontalHoleChainSharesAlignmentKey),
             nameof(EffectiveSpanControlsVerticalStacking),
             nameof(NearEqualEffectiveSpansUseSemanticTieBreak),
             nameof(LayoutBlocksUseBottomV203SpanOrder),
@@ -129,6 +130,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(SharedArrowEndpointUsesStrictSpanOrder), SharedArrowEndpointUsesStrictSpanOrder);
 				RunTest(nameof(StructureAlignmentKeyAlignsAdjacentSegmentsOnSameLevel), StructureAlignmentKeyAlignsAdjacentSegmentsOnSameLevel);
 				RunTest(nameof(SlotChainAlignmentKeyAlignsEdgeLocationAndCenterDistance), SlotChainAlignmentKeyAlignsEdgeLocationAndCenterDistance);
+				RunTest(nameof(NonPinHorizontalHoleChainSharesAlignmentKey), NonPinHorizontalHoleChainSharesAlignmentKey);
 				RunTest(nameof(OutlineSegmentsThatPartitionOverallAreSuppressed), OutlineSegmentsThatPartitionOverallAreSuppressed);
 				RunTest(nameof(ThreeOutlineSegmentsThatPartitionOverallAreSuppressed), ThreeOutlineSegmentsThatPartitionOverallAreSuppressed);
 				RunTest(nameof(OutlineSegmentOnOverallEnvelopeIsSuppressed), OutlineSegmentOnOverallEnvelopeIsSuppressed);
@@ -4196,6 +4198,27 @@ namespace CadAuto.Core.Tests
             Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.HoleLocation && d.Orientation == DimensionOrientation.Vertical && d.Side == DimensionSide.Left),
                 "normal hole vertical location should use nearest vertical side");
         }
+
+		private static void NonPinHorizontalHoleChainSharesAlignmentKey()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(200.0, 100.0);
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, Datum2D.FromOutline(outline), new[]
+			{
+				CreateHole(20.0, 20.0, 8.0, HoleKind2D.Normal),
+				CreateHole(60.0, 20.0, 8.0, HoleKind2D.Normal),
+				CreateHole(100.0, 70.0, 8.0, HoleKind2D.Normal),
+				CreateHole(130.0, 70.0, 8.0, HoleKind2D.Normal),
+				CreateHole(160.0, 70.0, 8.0, HoleKind2D.Normal)
+			});
+			var horizontalChain = plan.Dimensions.Where(d => d.Orientation == DimensionOrientation.Horizontal
+				&& (d.DebugRole == "HoleDatumX" || d.DebugRole == "HoleChainH")).ToList();
+
+			Assert(horizontalChain.Count(d => d.DebugRole == "HoleDatumX") == 1 && horizontalChain.Count(d => d.DebugRole == "HoleChainH") == 4,
+				"a non-pin chain should contain one datum location and four center distances");
+			Assert(horizontalChain.All(d => !string.IsNullOrEmpty(d.AlignmentKey)) && horizontalChain.Select(d => d.AlignmentKey).Distinct().Count() == 1,
+				"a non-pin horizontal chain must share one alignment key");
+		}
 
         private static void PinGroupsPlanBaseAndPairDistances()
         {

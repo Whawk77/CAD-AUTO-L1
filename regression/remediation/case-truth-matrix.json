@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "asOf": "2026-07-30",
+  "asOf": "2026-08-01",
   "allowedStatuses": [
     "ConfirmedCorrect",
     "KnownWrong",
@@ -13,7 +13,7 @@
       "status": "ConfirmedCorrect",
       "input": {
         "source": "CadAuto.Core.Tests/Program.cs",
-        "sha256": "5830E91CD3EA95ADA2113E6D5770E9BE0A76F190D93F89A4E3AAFF3481821C37",
+      "sha256": "8FC0CB041DF1F44D3153BB586FB2082519C9F8B0C234A25EAFA5106282517050",
         "hashMode": "text-lf"
       },
       "evidence": [
@@ -37,7 +37,7 @@
       "status": "ConfirmedCorrect",
       "input": {
         "source": "CadAuto.Core.Tests/Program.cs",
-        "sha256": "5830E91CD3EA95ADA2113E6D5770E9BE0A76F190D93F89A4E3AAFF3481821C37",
+      "sha256": "8FC0CB041DF1F44D3153BB586FB2082519C9F8B0C234A25EAFA5106282517050",
         "hashMode": "text-lf"
       },
       "evidence": [
@@ -141,6 +141,34 @@
             {
               "path": "bin/Debug-vM2/CadAuto.CadAdapter.dll",
               "sha256": "DB23B198CE55F2D08F0B3C0053E302101639432C101EFF135F7F8E70881BADF1"
+            }
+          ]
+        },
+        {
+          "source": "regression/nightly/runs/20260730-175938404/repeat-3/core-cad/OC01-bottom-outer-step-partition/result.json",
+          "claim": "The 2026-07-31 Debug-v3 run freezes the current confirmed-correct OC01 full image with 0 visual warnings.",
+          "artifacts": [
+            {
+              "path": "regression/nightly/runs/20260730-175938404/repeat-3/core-cad/OC01-bottom-outer-step-partition/result.json",
+              "sha256": "ECCDC9A370D23251520D3E4C0B112B987BD232E19F5906878876F3FAA36BDBD7"
+            },
+            {
+              "path": "regression/visual-inspection/baselines/OC01-bottom-outer-step-partition/full.png",
+              "sha256": "3ED47C3B633E9791B559CE4F72E1C090BD0C47E408DF7C23FB20477591C0A7EC"
+            }
+          ],
+          "dlls": [
+            {
+              "path": "bin/Debug-v3/AutoFixtureDim.dll",
+              "sha256": "B145FDCCC2C5DFA05FCBEA5E8886BC3AD27B4A577D0366EFFD2762A53990CBED"
+            },
+            {
+              "path": "bin/Debug-v3/CadAuto.Core.dll",
+              "sha256": "4D20C161DF40BFB0C5B67C6D498438D42F9EBC7EA5B2FCA1BB1CFD0BA34E9498"
+            },
+            {
+              "path": "bin/Debug-v3/CadAuto.CadAdapter.dll",
+              "sha256": "D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857"
             }
           ]
         }
@@ -389,7 +417,7 @@
     {
       "id": "HS01-normal-hole",
       "family": "HoleSlot",
-      "status": "Unresolved",
+      "status": "ConfirmedCorrect",
       "input": {
         "source": "regression/hole-slot/fixtures/HS01-normal-hole.dwg",
         "sha256": "72BF063888F03D293DFA9A2DB7EDDF28509D89E55D3B11775CCE92EED0F4E2F8"
@@ -397,19 +425,106 @@
       "evidence": [
         {
           "source": "regression/hole-slot/cases.json:3-15",
-          "claim": "The fixture is pinned but fixtureReady=false."
+          "claim": "The HS01 fixture is pinned by SHA256 and is ready after the approved genuine run."
         },
         {
-          "source": "docs/RefactorVerification-2026-07-27.md:171-182",
-          "claim": "The Hole/Slot chain is documented as never having completed a genuine run."
+          "source": "regression/hole-slot/runs/20260731-164709701/summary.json",
+          "claim": "Two serial genuine CAD runs completed with validator exit 0, complete traces, identical normalized report, visual-report, and full-image hashes; the user confirmed the latest HS01 image is correct.",
+          "artifacts": [
+            {
+              "path": "regression/hole-slot/runs/20260731-164709701/summary.json",
+              "sha256": "259F50933724DC8B4F5939D2BBD2489709819BF1D6DB7711FA7CEB44FB30ADF5"
+            },
+            {
+              "path": "regression/hole-slot/runs/20260731-164709701/dll-hashes.json",
+              "sha256": "97260C9BCA346C16DFBCE14B27427E54B99B4B7E1B73BC38879973740CC5C8D6"
+            },
+            {
+              "path": "regression/hole-slot/runs/20260731-164709701/repeat-1/HS01-normal-hole/result.json",
+              "sha256": "BB740F30EAE201423E8B7D4C06C766D6E334B4AA815182B56C0F0A43B9C152F7"
+            },
+            {
+              "path": "regression/hole-slot/runs/20260731-164709701/repeat-1/HS01-normal-hole/report.json",
+              "sha256": "226F025E3AE66FF17CB8964A70681BC1D6003BA1BA495C2A7A237BCA2D98AF3B"
+            },
+            {
+              "path": "regression/hole-slot/runs/20260731-164709701/repeat-1/HS01-normal-hole/trace.log",
+              "sha256": "C40A2AE3D31DF07BC3B67AB68E671B17FB647573D8D8ACB050E876B17CC03EEE"
+            },
+            {
+              "path": "regression/hole-slot/runs/20260731-164709701/repeat-1/HS01-normal-hole/full.png",
+              "sha256": "24D418F285C3175B5D574C0B635A6EE95AFE63C687CFA90B2674F1F1D0D9EA49"
+            },
+            {
+              "path": "regression/hole-slot/runs/20260731-164709701/repeat-1/HS01-normal-hole/visual-report.json",
+              "sha256": "9F5700C4475A1B67E2CE41DD4166EF5E47285F6A2D81CBC9710385DF54AB9675"
+            },
+            {
+              "path": "regression/hole-slot/runs/20260731-164709701/repeat-2/HS01-normal-hole/result.json",
+              "sha256": "D8D8B159AE5924CFAF6AB73A041E67E818500408E6162619F1B82732F1BF645B"
+            }
+          ],
+          "dlls": [
+            {
+              "path": "bin/Debug-v5/AutoFixtureDim.dll",
+              "sha256": "B145FDCCC2C5DFA05FCBEA5E8886BC3AD27B4A577D0366EFFD2762A53990CBED"
+            },
+            {
+              "path": "bin/Debug-v5/CadAuto.Core.dll",
+              "sha256": "0A03A46107A67582EB0D60D48910DC6214B8000CF512B5688C9E92E68A778BFB"
+            },
+            {
+              "path": "bin/Debug-v5/CadAuto.CadAdapter.dll",
+              "sha256": "D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857"
+            }
+          ]
+        },
+        {
+          "source": "regression/nightly/runs/20260731-165606678/summary.json",
+          "claim": "The ready nightly batch passed all 6 ready cases twice (12/12), Core 130/130, visual warnings 0, false positives 0, false negatives 0, using unchanged Debug-v5 DLL hashes.",
+          "artifacts": [
+            {
+              "path": "regression/nightly/runs/20260731-165606678/summary.json",
+              "sha256": "A4BED5924BF3C66716144F4B1C84869521B3F67F8AA215CB81311E2F9B993112"
+            }
+          ]
+        },
+        {
+          "source": "regression/nightly/runs/20260731-165606678/hole-slot/HS01-normal-hole/summary.json",
+          "claim": "HS01 passed twice with one normalized report hash, one normalized visual-report hash, and one full-image hash.",
+          "artifacts": [
+            {
+              "path": "regression/nightly/runs/20260731-165606678/hole-slot/HS01-normal-hole/summary.json",
+              "sha256": "5EA5E9AE97744AD3ED29403CECB72962E6B28E05C7714CDA53550B458131C4B0"
+            }
+          ]
+        },
+        {
+          "source": "regression/nightly/runs/20260731-170548196/summary.json",
+          "claim": "The ready nightly batch passed all 7 ready cases twice (14/14), Core 130/130, visual warnings 0, false positives 0, false negatives 0, using unchanged Debug-v5 DLL hashes.",
+          "artifacts": [
+            {
+              "path": "regression/nightly/runs/20260731-170548196/summary.json",
+              "sha256": "D595C4974F0A5B5518F0A1077B7D0C4C8699688EEC00306FDE47CD15C3ABF4DB"
+            }
+          ]
+        },
+        {
+          "source": "regression/nightly/runs/20260731-170548196/hole-slot/HS01-normal-hole/summary.json",
+          "claim": "HS01 passed twice with one normalized report hash, one normalized visual-report hash, and one full-image hash.",
+          "artifacts": [
+            {
+              "path": "regression/nightly/runs/20260731-170548196/hole-slot/HS01-normal-hole/summary.json",
+              "sha256": "0952D20AD6843459DB3FA480AAF94FD8C30320E0952FE506DBD76C5FB51F73DF"
+            }
+          ]
         }
-      ],
-      "reviewNeeded": "Complete and approve the first genuine fixture run."
+      ]
     },
     {
       "id": "HS02-concentric-holes",
       "family": "HoleSlot",
-      "status": "Unresolved",
+      "status": "ConfirmedCorrect",
       "input": {
         "source": "regression/hole-slot/fixtures/HS02-concentric-holes.dwg",
         "sha256": "B5214B93A9DA9D76235E1334266D791B570B2F84C8B9633190F4DEBF7B7D98C3"
@@ -417,19 +532,86 @@
       "evidence": [
         {
           "source": "regression/hole-slot/cases.json:16-27",
-          "claim": "The fixture is pinned but fixtureReady=false."
+          "claim": "The HS02 fixture is pinned by SHA256 and is ready after the approved genuine run."
         },
         {
-          "source": "docs/RefactorVerification-2026-07-27.md:171-182",
-          "claim": "The Hole/Slot chain is documented as never having completed a genuine run."
+          "source": "regression/hole-slot/runs/20260731-165956031/summary.json",
+          "claim": "Two serial genuine CAD runs completed with validator exit 0, complete traces, identical normalized report, visual-report, and full-image hashes, and zero visual warnings; the user confirmed the latest HS02 image is correct.",
+          "artifacts": [
+            {
+              "path": "regression/hole-slot/runs/20260731-165956031/summary.json",
+              "sha256": "FCAAC13EEA74F6CC4F0C160E443224A9D8903F3409CBD3F0AB640D4AA58E65CB"
+            },
+            {
+              "path": "regression/hole-slot/runs/20260731-165956031/dll-hashes.json",
+              "sha256": "97260C9BCA346C16DFBCE14B27427E54B99B4B7E1B73BC38879973740CC5C8D6"
+            },
+            {
+              "path": "regression/hole-slot/runs/20260731-165956031/repeat-1/HS02-concentric-holes/result.json",
+              "sha256": "84E2D5092C40EE13F8893D1899871CE0B4CC56F35BB8BB29F23071913815E357"
+            },
+            {
+              "path": "regression/hole-slot/runs/20260731-165956031/repeat-1/HS02-concentric-holes/report.json",
+              "sha256": "4C2E850519D4FA83D02FE4288F861B4CEF4A41DD2769BA539229E18D34B10438"
+            },
+            {
+              "path": "regression/hole-slot/runs/20260731-165956031/repeat-1/HS02-concentric-holes/trace.log",
+              "sha256": "F2B6FA70F40B20E323AB764645B6C5846F33E13C192346E575BB9EF52AFD0C1F"
+            },
+            {
+              "path": "regression/hole-slot/runs/20260731-165956031/repeat-1/HS02-concentric-holes/full.png",
+              "sha256": "0D1B8DACE734ADB914CF014E0FB8FF74D201676CA5C219457F94CAB7BF85F179"
+            },
+            {
+              "path": "regression/hole-slot/runs/20260731-165956031/repeat-1/HS02-concentric-holes/visual-report.json",
+              "sha256": "DD05FD0E74D7155637998BCD7CEE1265D5647490145952A0E2B3C91FB37AB144"
+            },
+            {
+              "path": "regression/hole-slot/runs/20260731-165956031/repeat-2/HS02-concentric-holes/result.json",
+              "sha256": "D5920E5AE6D71773990E8F169820446C5A26296E32DC703865BC18DF01E9BA5C"
+            }
+          ],
+          "dlls": [
+            {
+              "path": "bin/Debug-v5/AutoFixtureDim.dll",
+              "sha256": "B145FDCCC2C5DFA05FCBEA5E8886BC3AD27B4A577D0366EFFD2762A53990CBED"
+            },
+            {
+              "path": "bin/Debug-v5/CadAuto.Core.dll",
+              "sha256": "0A03A46107A67582EB0D60D48910DC6214B8000CF512B5688C9E92E68A778BFB"
+            },
+            {
+              "path": "bin/Debug-v5/CadAuto.CadAdapter.dll",
+              "sha256": "D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857"
+            }
+          ]
+        },
+        {
+          "source": "regression/nightly/runs/20260731-170548196/summary.json",
+          "claim": "The ready nightly batch passed all 7 ready cases twice (14/14), Core 130/130, visual warnings 0, false positives 0, false negatives 0, using unchanged Debug-v5 DLL hashes.",
+          "artifacts": [
+            {
+              "path": "regression/nightly/runs/20260731-170548196/summary.json",
+              "sha256": "D595C4974F0A5B5518F0A1077B7D0C4C8699688EEC00306FDE47CD15C3ABF4DB"
+            }
+          ]
+        },
+        {
+          "source": "regression/nightly/runs/20260731-170548196/hole-slot/HS02-concentric-holes/summary.json",
+          "claim": "HS02 passed twice with one normalized report hash, one normalized visual-report hash, and one full-image hash.",
+          "artifacts": [
+            {
+              "path": "regression/nightly/runs/20260731-170548196/hole-slot/HS02-concentric-holes/summary.json",
+              "sha256": "05945403B5F3284586B3E257A528B9BB6BE4769A7A508450C2DA80BB4DC85472"
+            }
+          ]
         }
-      ],
-      "reviewNeeded": "Complete and approve the first genuine fixture run."
+      ]
     },
     {
       "id": "HS03-loose-hole-chain",
       "family": "HoleSlot",
-      "status": "Unresolved",
+      "status": "ConfirmedCorrect",
       "input": {
         "source": "regression/hole-slot/fixtures/HS03-loose-hole-chain.dwg",
         "sha256": "3E0FB10A5E2F237E2C7B8FD10AA7539993D5E936426FC25A1B5C652B76DF2F25"
@@ -437,19 +619,86 @@
       "evidence": [
         {
           "source": "regression/hole-slot/cases.json:28-38",
-          "claim": "The fixture is pinned but fixtureReady=false."
+          "claim": "The manifest pins this fixture SHA256 with fixtureReady=true; the case distinguishes two pin holes from the loose-hole chain."
         },
         {
-          "source": "docs/RefactorVerification-2026-07-27.md:171-182",
-          "claim": "The Hole/Slot chain is documented as never having completed a genuine run."
+          "source": "regression/hole-slot/runs/hs03-pin-group-probe-20260801-131833048/summary.json",
+          "claim": "The user confirmed the HS03 probe image is correct and approved the layout preference: dimensions should stay near the contour on the hole's side; when fewer dimensions are present, 50 may be placed on the left aligned with 20. This is a visual preference and does not alter the expectation.",
+          "artifacts": [
+            {
+              "path": "regression/hole-slot/runs/hs03-pin-group-probe-20260801-131833048/summary.json",
+              "sha256": "7DD2A49C0C1D63B257CAC9F48DEFFDB78F39AC9C8E4763530840CD128D956EE4"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs03-pin-group-probe-20260801-131833048/repeat-1/HS03-loose-hole-chain/full.png",
+              "sha256": "0236CB9490F5E92487C9758A68B61FD1D0A7C919F3ECBF2EE6755554EB15F2B5"
+            }
+          ]
+        },
+        {
+          "source": "regression/hole-slot/runs/hs03-pin-group-ready-20260801-132227891/summary.json",
+          "claim": "The fixtureReady=true ready batch Passed 2/2 with CAD and validator exit 0 on both runs and complete traces. Both runs report pinHoleCount=2 and three PinGroup-owned finals with roles DatumX, DatumY, and PinDistance; LooseHole remains a non-pin chain with HoleGroup ownership. visualWarningCount=0 and blocking=false. Normalized report/visual-report/full-image hashes are A67346E7F4FD4BB3373BD6577FA7F3D2D8F958BA52C79DA346DEE621C35B3E67 / 4376DFFF66628C87BFD72A521AE331280A69350FC12481092A246E0B5F15076B / 0236CB9490F5E92487C9758A68B61FD1D0A7C919F3ECBF2EE6755554EB15F2B5 and are stable across repeats.",
+          "artifacts": [
+            {
+              "path": "regression/hole-slot/runs/hs03-pin-group-ready-20260801-132227891/summary.json",
+              "sha256": "14D11E636C995CFD53F377177FEBF0B77F752B7E75F4F3F0D0E4AFDC9253B47E"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs03-pin-group-ready-20260801-132227891/dll-hashes.json",
+              "sha256": "2D45372DB1D7E474C52DDDB74A59B2461784D48EEF20FC0A0296C8671E97C92F"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs03-pin-group-ready-20260801-132227891/repeat-1/HS03-loose-hole-chain/result.json",
+              "sha256": "158B958307814EE6D79323FFDB8323A2CC5B6D80E3342C0D52DC1E11063356B4"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs03-pin-group-ready-20260801-132227891/repeat-1/HS03-loose-hole-chain/report.json",
+              "sha256": "5B8679DF082D76090B02D1003C27DBF08FB8C3640280581390B8432C17FB2008"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs03-pin-group-ready-20260801-132227891/repeat-1/HS03-loose-hole-chain/trace.log",
+              "sha256": "C7D11983AB61D8F57C0F51DA8707A83ADD8A95CF6A52242FE36EF82CD1EBAA50"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs03-pin-group-ready-20260801-132227891/repeat-1/HS03-loose-hole-chain/full.png",
+              "sha256": "0236CB9490F5E92487C9758A68B61FD1D0A7C919F3ECBF2EE6755554EB15F2B5"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs03-pin-group-ready-20260801-132227891/repeat-1/HS03-loose-hole-chain/visual-report.json",
+              "sha256": "B5CFF9BF0BDD1739A83C2F806B459EB726142ED1A922AA137D57EDD8D42E4109"
+            }
+          ],
+          "dlls": [
+            {
+              "path": "bin/Debug-v7/AutoFixtureDim.dll",
+              "sha256": "B145FDCCC2C5DFA05FCBEA5E8886BC3AD27B4A577D0366EFFD2762A53990CBED"
+            },
+            {
+              "path": "bin/Debug-v7/CadAuto.Core.dll",
+              "sha256": "9CA8B46C15FEEE6172429FA6332946004BBD12B9ECB5C6F7ECE60049B4031A63"
+            },
+            {
+              "path": "bin/Debug-v7/CadAuto.CadAdapter.dll",
+              "sha256": "D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857"
+            }
+          ]
+        },
+        {
+          "source": "regression/hole-slot/runs/hs03-pin-group-ready-20260801-132227891/repeat-1/HS03-loose-hole-chain/visual-report.json",
+          "claim": "The ready visual report has warningCount=0 and blocking=false; no visual warnings are recorded.",
+          "artifacts": [
+            {
+              "path": "regression/hole-slot/runs/hs03-pin-group-ready-20260801-132227891/repeat-1/HS03-loose-hole-chain/visual-report.json",
+              "sha256": "B5CFF9BF0BDD1739A83C2F806B459EB726142ED1A922AA137D57EDD8D42E4109"
+            }
+          ]
         }
-      ],
-      "reviewNeeded": "Complete and approve the first genuine fixture run."
+      ]
     },
     {
       "id": "HS04-unique-pin-datum",
       "family": "HoleSlot",
-      "status": "Unresolved",
+      "status": "ConfirmedCorrect",
       "input": {
         "source": "regression/hole-slot/fixtures/HS04-unique-pin-datum.dwg",
         "sha256": "FE114C91410C4AD307A64863A77B40CC2A5D7B66D75DB6A69FE70F27F538F059"
@@ -457,39 +706,173 @@
       "evidence": [
         {
           "source": "regression/hole-slot/cases.json:39-50",
-          "claim": "The fixture is pinned but fixtureReady=false."
+          "claim": "The HS04 fixture is pinned by SHA256 and fixtureReady=true after the approved genuine run."
         },
         {
-          "source": "docs/RefactorVerification-2026-07-27.md:171-182",
-          "claim": "The Hole/Slot chain is documented as never having completed a genuine run."
+          "source": "regression/hole-slot/runs/hs04-acceptance-20260801-104617480/summary.json",
+          "claim": "The user confirmed the latest HS04 full image is correct and approved the visual evidence from this two-run acceptance batch.",
+          "artifacts": [
+            {
+              "path": "regression/hole-slot/runs/hs04-acceptance-20260801-104617480/summary.json",
+              "sha256": "67D58C7E6C38D9594CD54B81D56C8896D2360427F748C2C3B40F21CA4F32122B"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs04-acceptance-20260801-104617480/repeat-1/HS04-unique-pin-datum/full.png",
+              "sha256": "214D0B4B455B62F25805111B4C51868889EF6B2E74040EAAECC46632405FA7D6"
+            }
+          ]
+        },
+        {
+          "source": "regression/hole-slot/runs/hs04-ready-20260801-105520062/summary.json",
+          "claim": "The fixtureReady=true batch Passed 2/2 with CAD and validator exit 0 on both runs, complete traces, DatumX and DatumY each present once, the unique pin hole automatically selected as datum with no manual-selection prompt, and stable normalized report/visual-report/full-image hashes across both runs: 036F241DDDEA99F128FF4937CA47EE41F63D548A8413F9AC657CDC51E5216E6C / 4DC0C7EE96D5E5CEC1B628652F5D5B2E24C7200A006587295A60BF5EFE38C26B / 214D0B4B455B62F25805111B4C51868889EF6B2E74040EAAECC46632405FA7D6.",
+          "artifacts": [
+            {
+              "path": "regression/hole-slot/runs/hs04-ready-20260801-105520062/summary.json",
+              "sha256": "4F431588EFC3555B8C03A98228D5404F66BD0B97FB3BF80E763AEF895678400F"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs04-ready-20260801-105520062/dll-hashes.json",
+              "sha256": "2D45372DB1D7E474C52DDDB74A59B2461784D48EEF20FC0A0296C8671E97C92F"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs04-ready-20260801-105520062/repeat-1/HS04-unique-pin-datum/result.json",
+              "sha256": "5FC65BCF4352E146DA56A09537857651D313A179C64962B068332C0A0BE31E1A"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs04-ready-20260801-105520062/repeat-1/HS04-unique-pin-datum/report.json",
+              "sha256": "DDB29FF28ADBADA9AB270766400EA8C774F8D69F8913EADCDAC825EDE7F3772D"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs04-ready-20260801-105520062/repeat-1/HS04-unique-pin-datum/trace.log",
+              "sha256": "0625C2ACCF9954F060F2180A2B2128D54EFCC4FDE55B3D3F7930BCA02058BC9F"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs04-ready-20260801-105520062/repeat-1/HS04-unique-pin-datum/full.png",
+              "sha256": "214D0B4B455B62F25805111B4C51868889EF6B2E74040EAAECC46632405FA7D6"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs04-ready-20260801-105520062/repeat-1/HS04-unique-pin-datum/visual-report.json",
+              "sha256": "3CE40D7C33A2716D2FFE2046E63F5938690A119FF8573041DF53F034A6332D94"
+            }
+          ],
+          "dlls": [
+            {
+              "path": "bin/Debug-v7/AutoFixtureDim.dll",
+              "sha256": "B145FDCCC2C5DFA05FCBEA5E8886BC3AD27B4A577D0366EFFD2762A53990CBED"
+            },
+            {
+              "path": "bin/Debug-v7/CadAuto.Core.dll",
+              "sha256": "9CA8B46C15FEEE6172429FA6332946004BBD12B9ECB5C6F7ECE60049B4031A63"
+            },
+            {
+              "path": "bin/Debug-v7/CadAuto.CadAdapter.dll",
+              "sha256": "D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857"
+            }
+          ]
+        },
+        {
+          "source": "regression/hole-slot/runs/hs04-ready-20260801-105520062/repeat-1/HS04-unique-pin-datum/visual-report.json",
+          "claim": "The visual report has warningCount=1 and blocking=false; SNAPSHOT_ERROR reports source ED6B4E with unsupported DXF LWPOLYLINE, which is a checker source-entity capture limitation and not a product collision.",
+          "artifacts": [
+            {
+              "path": "regression/hole-slot/runs/hs04-ready-20260801-105520062/repeat-1/HS04-unique-pin-datum/visual-report.json",
+              "sha256": "3CE40D7C33A2716D2FFE2046E63F5938690A119FF8573041DF53F034A6332D94"
+            }
+          ]
         }
-      ],
-      "reviewNeeded": "Complete and approve the first genuine fixture run."
+      ]
     },
     {
       "id": "HS05-multiple-pin-datum",
       "family": "HoleSlot",
-      "status": "Unresolved",
+      "status": "ConfirmedCorrect",
       "input": {
         "source": "regression/hole-slot/fixtures/HS05-unique-pin-datum.dwg",
         "sha256": "D6A80DB5D21363669E084F9242F6341D7551AA3514CD41F88CF2FA9FA7865281"
       },
       "evidence": [
         {
-          "source": "regression/hole-slot/cases.json:51-63",
-          "claim": "The fixture is pinned but fixtureReady=false, and the case ID semantics conflict with the fixture file name."
+          "source": "regression/hole-slot/cases.json:52-64",
+          "claim": "The manifest pins this fixture SHA256 with fixtureReady=true. The HS05-unique-pin-datum.dwg file name is not the semantic authority; genuine diagnostics establish the multiple-pin meaning."
         },
         {
-          "source": "docs/RefactorVerification-2026-07-27.md:171-184",
-          "claim": "The repository explicitly leaves the unique-versus-multiple pin meaning for manual adjudication."
+          "source": "regression/hole-slot/runs/hs05-acceptance-20260801-114522211/summary.json",
+          "claim": "The user confirmed the latest HS05 full image is correct and approved this visual evidence batch.",
+          "artifacts": [
+            {
+              "path": "regression/hole-slot/runs/hs05-acceptance-20260801-114522211/summary.json",
+              "sha256": "537E357E05CC23FC00FCCFEFF46033A5438F7528FFA11A2CFA3EADCF81934D69"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs05-acceptance-20260801-114522211/repeat-1/HS05-multiple-pin-datum/full.png",
+              "sha256": "4F5F26FD11FFE35D15EF904703216404909E92E53EEB1C27B5154ABD905A31A1"
+            }
+          ]
+        },
+        {
+          "source": "regression/hole-slot/runs/hs05-ready-20260801-123208715/summary.json",
+          "claim": "The fixtureReady=true batch Passed 2/2 with CAD and validator exit 0 on both runs and complete traces. Stable genuine diagnostics prove marker=2, candidate=2, and features.pinHoleCount=2; the manual prompt selected real ENAME ED6D32, matched an identified pin hole, and set the datum. DatumX, DatumY, and PinDistance each satisfy requiredFinal, with candidate and selection stable across both runs. Normalized report/visual-report/full-image hashes are D24D296803B61539E7C9A4059F014F6A5EACE4FFC880BB92089EF36DA25FCC7A / 1F26E564A15CBAECCAF6D26BE8CE0F83E36917A5F29B45F2255CE335D0A12E0C / 4F5F26FD11FFE35D15EF904703216404909E92E53EEB1C27B5154ABD905A31A1.",
+          "artifacts": [
+            {
+              "path": "regression/hole-slot/runs/hs05-ready-20260801-123208715/summary.json",
+              "sha256": "107E1EB19EA7D0363CAFB4D8A4EE4897FC504B74092CDCE69E2F0761A477DEDB"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs05-ready-20260801-123208715/dll-hashes.json",
+              "sha256": "2D45372DB1D7E474C52DDDB74A59B2461784D48EEF20FC0A0296C8671E97C92F"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs05-ready-20260801-123208715/repeat-1/HS05-multiple-pin-datum/result.json",
+              "sha256": "B455CC565EAC7A46F0EA293B332ADB2357BEC22B92026531054A48E96799E815"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs05-ready-20260801-123208715/repeat-1/HS05-multiple-pin-datum/report.json",
+              "sha256": "BCD3C4299A37D9096A44D2A68D2C32128D0DF579D3594AEF0527239156F5B4B2"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs05-ready-20260801-123208715/repeat-1/HS05-multiple-pin-datum/trace.log",
+              "sha256": "53AEACBFAEDABD854F18889E941416CE9A399FE536E438B714BB40BE3F20EEDD"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs05-ready-20260801-123208715/repeat-1/HS05-multiple-pin-datum/full.png",
+              "sha256": "4F5F26FD11FFE35D15EF904703216404909E92E53EEB1C27B5154ABD905A31A1"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs05-ready-20260801-123208715/repeat-1/HS05-multiple-pin-datum/visual-report.json",
+              "sha256": "1E406B4A4D86A565847E121B9D4A68A02D103F62270D609783FDF5D1FE78822F"
+            }
+          ],
+          "dlls": [
+            {
+              "path": "bin/Debug-v7/AutoFixtureDim.dll",
+              "sha256": "B145FDCCC2C5DFA05FCBEA5E8886BC3AD27B4A577D0366EFFD2762A53990CBED"
+            },
+            {
+              "path": "bin/Debug-v7/CadAuto.Core.dll",
+              "sha256": "9CA8B46C15FEEE6172429FA6332946004BBD12B9ECB5C6F7ECE60049B4031A63"
+            },
+            {
+              "path": "bin/Debug-v7/CadAuto.CadAdapter.dll",
+              "sha256": "D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857"
+            }
+          ]
+        },
+        {
+          "source": "regression/hole-slot/runs/hs05-ready-20260801-123208715/repeat-1/HS05-multiple-pin-datum/visual-report.json",
+          "claim": "The visual report has warningCount=1 and blocking=false. OUTWARD_LAYER_DIRECTION_REVERSED on Right (handle ED6F61) is recorded as nonblocking.",
+          "artifacts": [
+            {
+              "path": "regression/hole-slot/runs/hs05-ready-20260801-123208715/repeat-1/HS05-multiple-pin-datum/visual-report.json",
+              "sha256": "1E406B4A4D86A565847E121B9D4A68A02D103F62270D609783FDF5D1FE78822F"
+            }
+          ]
         }
-      ],
-      "reviewNeeded": "Inspect the DWG candidate count and approve either unique-pin or multiple-pin semantics before the first genuine run."
+      ]
     },
     {
       "id": "HS06-functional-hole",
       "family": "HoleSlot",
-      "status": "Unresolved",
+      "status": "ConfirmedCorrect",
       "input": {
         "source": "regression/hole-slot/fixtures/HS06-functional-hole.dwg",
         "sha256": "34171D0289AD63BDD2E6F28FEEA60E420F567A271E462E1C0BEE22ABC27F3F01"
@@ -497,34 +880,148 @@
       "evidence": [
         {
           "source": "regression/hole-slot/cases.json:64-74",
-          "claim": "The fixture is pinned but fixtureReady=false."
+          "claim": "The manifest pins this fixture SHA256 with fixtureReady=true; the functional-hole semantic requires ownership by the nearest pin group with a real local-boundary layout."
         },
         {
-          "source": "docs/RefactorVerification-2026-07-27.md:171-182",
-          "claim": "The Hole/Slot chain is documented as never having completed a genuine run."
+          "source": "regression/hole-slot/runs/hs06-acceptance-20260801-125449489/summary.json",
+          "claim": "The user confirmed the latest HS06 full image is correct and approved this two-round visual evidence batch.",
+          "artifacts": [
+            {
+              "path": "regression/hole-slot/runs/hs06-acceptance-20260801-125449489/summary.json",
+              "sha256": "93475C895C3CEF2642B5416BBA054FD214C14FA448FB8D42A3B13BB701E6C17E"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs06-acceptance-20260801-125449489/repeat-1/HS06-functional-hole/full.png",
+              "sha256": "FA37ECABD838ED0958A2BBCA47FC1459EB73BD50B8B00F137E018EB4942F2CAA"
+            }
+          ]
+        },
+        {
+          "source": "regression/hole-slot/runs/hs06-acceptance-20260801-125449489/summary.json",
+          "claim": "The genuine two-round acceptance batch completed with CAD and validator exit 0 on both runs and complete traces. Both runs report FunctionalHole=1 with ownerKind=PinGroup and usesLocalBoundary=true; normalized report/visual-report/full-image hashes are 8F31700C31AC4A8ADBCC05FD5614CD7E13AB032960B09C18DFDD2DC4DFC154F1 / 19C0D0A9AAE0A22294D1C66207E4949740AD02AD5E9A198A6713BC4BFDF7CA97 / FA37ECABD838ED0958A2BBCA47FC1459EB73BD50B8B00F137E018EB4942F2CAA and are stable across repeats. visualWarningCount=0 and blocking=false.",
+          "artifacts": [
+            {
+              "path": "regression/hole-slot/runs/hs06-acceptance-20260801-125449489/summary.json",
+              "sha256": "93475C895C3CEF2642B5416BBA054FD214C14FA448FB8D42A3B13BB701E6C17E"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs06-acceptance-20260801-125449489/dll-hashes.json",
+              "sha256": "2D45372DB1D7E474C52DDDB74A59B2461784D48EEF20FC0A0296C8671E97C92F"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs06-acceptance-20260801-125449489/repeat-1/HS06-functional-hole/result.json",
+              "sha256": "6DECD48E9BDD0EF7ECF9AA5436E7090AB57A83FBFCD8B1EB119DAD5D3DC1B72B"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs06-acceptance-20260801-125449489/repeat-1/HS06-functional-hole/report.json",
+              "sha256": "B38FC946D0C2EBD3927C7E87F3AB97A0D9C39F20016838ABC9F30896B5E8A133"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs06-acceptance-20260801-125449489/repeat-1/HS06-functional-hole/trace.log",
+              "sha256": "F046D0AD5C9F163AD91D1AA8293B89879B974DEF1D6D8B0AB468E45B923479D3"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs06-acceptance-20260801-125449489/repeat-1/HS06-functional-hole/full.png",
+              "sha256": "FA37ECABD838ED0958A2BBCA47FC1459EB73BD50B8B00F137E018EB4942F2CAA"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs06-acceptance-20260801-125449489/repeat-1/HS06-functional-hole/visual-report.json",
+              "sha256": "2F3CAA12237D902A72BD7F2F39E5264846F00021CF747E2A693F9C41CAB1F296"
+            }
+          ],
+          "dlls": [
+            {
+              "path": "bin/Debug-v7/AutoFixtureDim.dll",
+              "sha256": "B145FDCCC2C5DFA05FCBEA5E8886BC3AD27B4A577D0366EFFD2762A53990CBED"
+            },
+            {
+              "path": "bin/Debug-v7/CadAuto.Core.dll",
+              "sha256": "9CA8B46C15FEEE6172429FA6332946004BBD12B9ECB5C6F7ECE60049B4031A63"
+            },
+            {
+              "path": "bin/Debug-v7/CadAuto.CadAdapter.dll",
+              "sha256": "D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857"
+            }
+          ]
+        },
+        {
+          "source": "regression/hole-slot/runs/hs06-acceptance-20260801-125449489/repeat-1/HS06-functional-hole/visual-report.json",
+          "claim": "The visual report has warningCount=0 and blocking=false; no visual warnings are recorded.",
+          "artifacts": [
+            {
+              "path": "regression/hole-slot/runs/hs06-acceptance-20260801-125449489/repeat-1/HS06-functional-hole/visual-report.json",
+              "sha256": "2F3CAA12237D902A72BD7F2F39E5264846F00021CF747E2A693F9C41CAB1F296"
+            }
+          ]
+        },
+        {
+          "source": "regression/hole-slot/runs/hs06-ready-20260801-130015278/summary.json",
+          "claim": "The fixtureReady=true ready batch Passed 2/2 with CAD and validator exit 0 on both runs and complete traces. Both runs report FunctionalHole=1 with ownerKind=PinGroup and usesLocalBoundary=true; visualWarningCount=0 and blocking=false. Normalized report/visual-report/full-image hashes are 8F31700C31AC4A8ADBCC05FD5614CD7E13AB032960B09C18DFDD2DC4DFC154F1 / F3C4A7C1D61D5AB006AF3A965843C5D11C5145708718822705BD17433FA6CBD3 / FA37ECABD838ED0958A2BBCA47FC1459EB73BD50B8B00F137E018EB4942F2CAA and are stable across repeats.",
+          "artifacts": [
+            {
+              "path": "regression/hole-slot/runs/hs06-ready-20260801-130015278/summary.json",
+              "sha256": "404B09EF48D2F8CB29E93E444CBC8FEF5659C4BDFBC5AA7E5E38C10166D90CD1"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs06-ready-20260801-130015278/dll-hashes.json",
+              "sha256": "2D45372DB1D7E474C52DDDB74A59B2461784D48EEF20FC0A0296C8671E97C92F"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs06-ready-20260801-130015278/repeat-1/HS06-functional-hole/result.json",
+              "sha256": "D4456C5EC6A7FF42E1877BC19948DC63B0D4116755BE2628D940E03C2D391E1D"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs06-ready-20260801-130015278/repeat-1/HS06-functional-hole/report.json",
+              "sha256": "6056974620ABA1263C34406605BABBD3CA9113304938CC56AEA710B9D4B4EB59"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs06-ready-20260801-130015278/repeat-1/HS06-functional-hole/trace.log",
+              "sha256": "F046D0AD5C9F163AD91D1AA8293B89879B974DEF1D6D8B0AB468E45B923479D3"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs06-ready-20260801-130015278/repeat-1/HS06-functional-hole/full.png",
+              "sha256": "FA37ECABD838ED0958A2BBCA47FC1459EB73BD50B8B00F137E018EB4942F2CAA"
+            },
+            {
+              "path": "regression/hole-slot/runs/hs06-ready-20260801-130015278/repeat-1/HS06-functional-hole/visual-report.json",
+              "sha256": "7EF0B6005C76A8F3435A0F22727AA28346A09CF36417A99F728A57AD9ED78706"
+            }
+          ],
+          "dlls": [
+            {
+              "path": "bin/Debug-v7/AutoFixtureDim.dll",
+              "sha256": "B145FDCCC2C5DFA05FCBEA5E8886BC3AD27B4A577D0366EFFD2762A53990CBED"
+            },
+            {
+              "path": "bin/Debug-v7/CadAuto.Core.dll",
+              "sha256": "9CA8B46C15FEEE6172429FA6332946004BBD12B9ECB5C6F7ECE60049B4031A63"
+            },
+            {
+              "path": "bin/Debug-v7/CadAuto.CadAdapter.dll",
+              "sha256": "D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857"
+            }
+          ]
         }
-      ],
-      "reviewNeeded": "Complete and approve the first genuine fixture run."
+      ]
     },
     {
       "id": "HS07-vertical-waist-slot",
       "family": "HoleSlot",
-      "status": "Unresolved",
+      "status": "ConfirmedCorrect",
       "input": {
         "source": "regression/hole-slot/fixtures/HS07-vertical-waist-slot.dwg",
         "sha256": "6A072ACD256F85AB045F46C758E097C2EFFB507634CC24C684A131ADE96D9C2A"
       },
       "evidence": [
         {
-          "source": "regression/hole-slot/cases.json:75-87",
-          "claim": "The fixture is pinned but fixtureReady=false."
+          "source": "regression/hole-slot/cases.json:76-86",
+          "claim": "User approved the HS07 image; fixtureReady=true while the fixture path, SHA256, requiredFinal, and manualChecks remain pinned."
         },
         {
-          "source": "docs/RefactorVerification-2026-07-27.md:171-182",
-          "claim": "The Hole/Slot chain is documented as never having completed a genuine run."
+          "source": "regression/hole-slot/runs/hs07-bringup-20260801-141500000/summary.json",
+          "claim": "User-approved genuine batch: two repeats had CAD and validator exit 0, complete traces, features.slotCount=1, valid attached SlotCenter/SlotChainH/SlotDatumV finals (one each), SlotCenter (50,70)->(50,30), SlotChainH (0,30)->(50,30), SlotDatumV (50,0)->(50,30), visualWarningCount=0, blocking=false; normalized report E8C740EE933052F83A1441C28AEB4F35D4A16FE6FD55D5973008542F4F48C1A6, normalized visual B5CA97F3480EA6A8FFE654CFEEFB05BD4D4DF095BEE76650D86DE2418416F40D, full 94AC8C61EE42940916A23D1BB8BDCF54DA20049008396DDECC2D433B7BBABED3, trace 1FBBB75F5D64627D6D306AD1C4F24A4142C7F8B9BB898719FAF4AB821B990358; DLL SHA256 AutoFixtureDim 30FAA04C0EBD79CE541677226A6249AE9C1EC7AD03C65D7E2E09C5ABAFFD6C40, Core 52E0A8AB26B9B9F075004DF63BF7CA99A957146431FFE23E7EF44C9F737598C1, Adapter 8CC138BE6BFDFE71CE80F019CCA5452AFEDE701A9192653908642B685739EB9F."
         }
-      ],
-      "reviewNeeded": "Complete and approve the first genuine fixture run."
+      ]
     },
     {
       "id": "HS08-transformed-waist-slot",

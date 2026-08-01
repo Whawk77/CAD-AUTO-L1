@@ -5,7 +5,7 @@
       "id": "HS01-normal-hole",
       "fixture": "fixtures/HS01-normal-hole.dwg",
       "fixtureSha256": "72BF063888F03D293DFA9A2DB7EDDF28509D89E55D3B11775CCE92EED0F4E2F8",
-      "fixtureReady": false,
+      "fixtureReady": true,
       "description": "单个普通孔从外轮廓 BaseX/BaseY 定位",
       "requiredFinal": [
         { "debugRole": "HoleDatumX", "minCount": 1 },
@@ -17,7 +17,7 @@
       "id": "HS02-concentric-holes",
       "fixture": "fixtures/HS02-concentric-holes.dwg",
       "fixtureSha256": "B5214B93A9DA9D76235E1334266D791B570B2F84C8B9633190F4DEBF7B7D98C3",
-      "fixtureReady": false,
+      "fixtureReady": true,
       "description": "两个同心普通孔共享一组位置尺寸",
       "requiredFinal": [
         { "debugRole": "HoleDatumX", "minCount": 1, "maxCount": 1 },
@@ -29,10 +29,10 @@
       "id": "HS03-loose-hole-chain",
       "fixture": "fixtures/HS03-loose-hole-chain.dwg",
       "fixtureSha256": "3E0FB10A5E2F237E2C7B8FD10AA7539993D5E936426FC25A1B5C652B76DF2F25",
-      "fixtureReady": false,
+      "fixtureReady": true,
       "description": "多个松散孔形成连续位置链",
       "requiredFinal": [
-        { "debugRole": "LooseHole", "minCount": 3 }
+        { "debugRole": "LooseHole", "acceptedDebugRoles": ["LooseHole", "HoleChainH"], "minCount": 3 }
       ],
       "manualChecks": ["松散孔链保持全局外形基准", "链条没有被拆到无关方向"]
     },
@@ -40,7 +40,7 @@
       "id": "HS04-unique-pin-datum",
       "fixture": "fixtures/HS04-unique-pin-datum.dwg",
       "fixtureSha256": "FE114C91410C4AD307A64863A77B40CC2A5D7B66D75DB6A69FE70F27F538F059",
-      "fixtureReady": false,
+      "fixtureReady": true,
       "description": "唯一合法销孔候选自动成为基准孔",
       "requiredFinal": [
         { "debugRole": "DatumX", "minCount": 1 },
@@ -49,10 +49,10 @@
       "manualChecks": ["不提示选择基准销孔", "命令行显示已自动选择唯一候选"]
     },
     {
-      "id": "HS05-multiple-pin-datum",
-      "fixture": "fixtures/HS05-unique-pin-datum.dwg",
-      "fixtureSha256": "D6A80DB5D21363669E084F9242F6341D7551AA3514CD41F88CF2FA9FA7865281",
-      "fixtureReady": false,
+    "id": "HS05-multiple-pin-datum",
+    "fixture": "fixtures/HS05-unique-pin-datum.dwg",
+    "fixtureSha256": "D6A80DB5D21363669E084F9242F6341D7551AA3514CD41F88CF2FA9FA7865281",
+    "fixtureReady": true,
       "description": "多个合法销孔候选要求用户确认基准孔",
       "requiredFinal": [
         { "debugRole": "DatumX", "minCount": 1 },
@@ -65,7 +65,7 @@
       "id": "HS06-functional-hole",
       "fixture": "fixtures/HS06-functional-hole.dwg",
       "fixtureSha256": "34171D0289AD63BDD2E6F28FEEA60E420F567A271E462E1C0BEE22ABC27F3F01",
-      "fixtureReady": false,
+      "fixtureReady": true,
       "description": "功能孔归属最近的销孔组",
       "requiredFinal": [
         { "debugRole": "FunctionalHole", "minCount": 1 }
@@ -76,7 +76,7 @@
       "id": "HS07-vertical-waist-slot",
       "fixture": "fixtures/HS07-vertical-waist-slot.dwg",
       "fixtureSha256": "6A072ACD256F85AB045F46C758E097C2EFFB507634CC24C684A131ADE96D9C2A",
-      "fixtureReady": false,
+      "fixtureReady": true,
       "description": "竖向腰槽使用外轮廓基准且无重复定位",
       "requiredFinal": [
         { "debugRole": "SlotCenter", "minCount": 1 },

@@ -764,7 +764,7 @@ public sealed class DimensionDrawer
 				continue;
 			}
 			double resolvedCoordinate = isHorizontal ? placed.DimLinePoint.Y : placed.DimLinePoint.X;
-			_dimensionDiagnosticReport.RecordFinalPlacement(placed.Dim.DiagnosticId, placed.StackingLevel, placed.StackingOffset, resolvedCoordinate, placed.UsesLocalBoundary, placed.HasAlignmentCoordinateOverride, placed.AlignmentLaneKey, placed.AlignmentLaneMemberCount, GetAlignmentDecision(placed), placed.LayoutBlockId, placed.LayoutBlockType, placed.EffectiveSpan, placed.EffectiveOrder, placed.OrderingReason, placed.PromotedByConflictWith, placed.PhysicalOutwardDistance, placed.PhysicalOrderValidated);
+			_dimensionDiagnosticReport.RecordFinalPlacement(placed.Dim.DiagnosticId, placed.Side.ToString(), placed.StackingLevel, placed.StackingOffset, resolvedCoordinate, placed.UsesLocalBoundary, placed.HasAlignmentCoordinateOverride, placed.AlignmentLaneKey, placed.AlignmentLaneMemberCount, GetAlignmentDecision(placed), placed.LayoutBlockId, placed.LayoutBlockType, placed.EffectiveSpan, placed.EffectiveOrder, placed.OrderingReason, placed.PromotedByConflictWith, placed.PhysicalOutwardDistance, placed.PhysicalOrderValidated);
 		}
 	}
 

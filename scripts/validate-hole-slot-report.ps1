@@ -14,6 +14,17 @@ param(
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $casesPath = Join-Path $projectRoot "regression\hole-slot\cases.json"
+
+function Get-Sha256([string]$Path) {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [IO.File]::OpenRead($Path)
+        try { return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '') }
+        finally { $stream.Dispose() }
+    }
+    finally { $sha.Dispose() }
+}
+
 if ([string]::IsNullOrWhiteSpace($ReportPath)) {
     $ReportPath = Join-Path $projectRoot "diagnostics\last-run.json"
 }
@@ -33,7 +44,7 @@ $fixturePath = Join-Path (Join-Path $projectRoot "regression\hole-slot") ([strin
 if (-not (Test-Path -LiteralPath $fixturePath -PathType Leaf)) {
     throw "Fixture was not found: $fixturePath"
 }
-$fixtureHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $fixturePath).Hash
+$fixtureHash = Get-Sha256 $fixturePath
 if ($fixtureHash -ne [string]$case.fixtureSha256) {
     throw "Fixture hash mismatch for '$CaseId'. Expected $($case.fixtureSha256), found $fixtureHash."
 }
@@ -95,13 +106,19 @@ foreach ($skipped in @($report.dimensionCandidates | Where-Object { $_.decisionS
 }
 
 foreach ($required in @($case.requiredFinal)) {
-    $matches = @($report.finalDimensions | Where-Object { $_.debugRole -eq $required.debugRole })
+    $acceptedDebugRoles = @()
+    if ($required.PSObject.Properties.Name -contains "acceptedDebugRoles") {
+        $acceptedDebugRoles = @($required.acceptedDebugRoles | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    }
+    $expectedDebugRoles = if ($acceptedDebugRoles.Count -gt 0) { $acceptedDebugRoles } else { @([string]$required.debugRole) }
+    $expectedDebugRoleText = $expectedDebugRoles -join ", "
+    $matches = @($report.finalDimensions | Where-Object { $expectedDebugRoles -contains [string]$_.debugRole })
     $minimum = if ($null -eq $required.minCount) { 1 } else { [int]$required.minCount }
     if ($matches.Count -lt $minimum) {
-        throw "Case '$CaseId' expected at least $minimum final '$($required.debugRole)' dimensions, found $($matches.Count)."
+        throw "Case '$CaseId' expected at least $minimum final debugRole in [$expectedDebugRoleText] dimensions, found $($matches.Count)."
     }
     if ($null -ne $required.maxCount -and $matches.Count -gt [int]$required.maxCount) {
-        throw "Case '$CaseId' expected at most $($required.maxCount) final '$($required.debugRole)' dimensions, found $($matches.Count)."
+        throw "Case '$CaseId' expected at most $($required.maxCount) final debugRole in [$expectedDebugRoleText] dimensions, found $($matches.Count)."
     }
 }
 

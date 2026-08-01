@@ -130,6 +130,7 @@ public sealed class DimensionPlan
 			MeasurementMinimum = GetMeasurementMinimum(orientation, requestedFirstPoint, secondPoint),
 			MeasurementMaximum = GetMeasurementMaximum(orientation, requestedFirstPoint, secondPoint),
 			PlacementSide = side.ToString(),
+			RequestedPlacementSide = side.ToString(),
 			Priority = GetDiagnosticPriority(kind),
 			IsSuppressed = false,
 			IsSelected = false,
@@ -184,6 +185,17 @@ public sealed class DimensionPlan
 		}
 	}
 
+	public void SynchronizeFinalPlacementSides()
+	{
+		foreach (KeyValuePair<PlannedDimension, DimensionCandidateDiagnostic> item in _diagnosticByDimension)
+		{
+			if (item.Value.HasFinalPlacement && Enum.TryParse(item.Value.PlacementSide, out DimensionSide side))
+			{
+				item.Key.Side = side;
+			}
+		}
+	}
+
 	private DimensionCandidateDiagnostic AddDiagnosticCandidate(PlannedDimension dimension)
 	{
 		DimensionCandidateSemantics.ApplyLegacyMappings(dimension);
@@ -202,6 +214,7 @@ public sealed class DimensionPlan
 			MeasurementMinimum = GetMeasurementMinimum(dimension),
 			MeasurementMaximum = GetMeasurementMaximum(dimension),
 			PlacementSide = dimension.Side.ToString(),
+			RequestedPlacementSide = dimension.Side.ToString(),
 			Priority = GetDiagnosticPriority(dimension),
 			ReadingLevel = dimension.ReadingLevel.ToString(),
 			AlignmentKey = dimension.AlignmentKey ?? string.Empty,
@@ -249,6 +262,7 @@ public sealed class DimensionPlan
 			MeasurementMinimum = source.MeasurementMinimum,
 			MeasurementMaximum = source.MeasurementMaximum,
 			PlacementSide = source.PlacementSide,
+			RequestedPlacementSide = source.RequestedPlacementSide,
 			Priority = source.Priority,
 			ReadingLevel = source.ReadingLevel,
 			AlignmentKey = source.AlignmentKey,

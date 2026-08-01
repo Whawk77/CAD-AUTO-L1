@@ -1,7 +1,7 @@
 # CAD 自动标注规则与回归体系整改计划
 
 > 日期：2026-07-29
-> 状态：实施中；M3 已完成；进入 M4/阶段 6，视觉检查先报告、暂不阻断
+> 状态：实施中；M3 已完成；M4/阶段 6 门禁验证通过并冻结；仅两条稳定规则阻断
 > 原则：渐进替换、行为可对照、每阶段可回退；禁止大爆炸重写
 
 ## 1. 目标与边界
@@ -284,7 +284,7 @@ Core 使用独立识别器；CI 只跑 Core；DWG runner 覆盖少；碰撞和�
 - 短跨度在内、长跨度向外及 Overall 最外层。
 - 同一布局块的连续性和方向一致性。
 
-M4 首批只以 warning/report 形式检查碰撞、穿越和布局，不改变产品标注、不修改 expectation，也不阻断现有 Core 或 CAD 门禁；待误报率和正确图片完成验收后再单独申请升级为阻断。
+M4 首批先以 warning/report 形式检查碰撞、穿越和布局，不改变产品标注、不修改 expectation；证据通过并获明确授权后，仅将稳定规则逐项升级为阻断，其余规则继续保持 WarningOnly。
 
 保留人工职责：
 
@@ -371,7 +371,72 @@ M4 首批只以 warning/report 形式检查碰撞、穿越和布局，不改变�
 - M1：阶段 0 + 阶段 1，停止继续增加无证据补丁。
 - M2：阶段 2 + OC01 规则族的阶段 3 迁移，证明统一裁决可行。
 - M3：阶段 4 + 阶段 5，全量真实回归一键执行；2026-07-30 已完成当前 5 个 ready case 的三轮闭环。
-- M4：阶段 6，人工验收收敛为首次批准与发布抽检；已进入非阻断视觉检查阶段。
+- M4：阶段 6，第三轮独立证据与门禁验证通过并冻结；`LEFT_LAYOUT_TEXT_PLACEMENT` 与 `TEXT_TEXT_COLLISION` 为阻断，其余视觉规则仍为 WarningOnly。
+
+M4 第三轮独立证据（2026-07-31）：
+
+- 真实正样本串行两轮：`20260731-150014849`、`20260731-150020787`；两轮持续检出 `LEFT_LAYOUT_TEXT_PLACEMENT`（`ED7311`/`ED7347`）与 `TEXT_TEXT_COLLISION`（`ED7303`、`ED7304`、`ED7331`、`ED733A`），normalized visual SHA 均为 `45F2AB97E2C978D647C72D6D030FF8F798A2D1C4FA96D01CE2CE9A072D373C18`，且 `WarningOnly`/`blocking=false`。
+- Clean batch：`regression/nightly/runs/20260731-150039096/summary.json`；同一 `Debug-v3`、pwsh 外层串行运行 5 个 clean case × 2 轮，`10/10 Passed`、`0 warning`、FP/FN `0/0`、5/5 规范化报告 deterministic，Core `130/130`。
+- 正样本 fixture SHA：`79D944E913627459872C6D94F120198E0FBD92105E77A0D409CEF8C9A3ECDD88`；三 DLL SHA 与 M2 `Debug-v3` 一致。PowerShell resolver 仅调整测试入口路径解析；本轮未改变 Top/Right、产品代码、expectation、fixture 或 manifest。
+
+M4 阻断升级证据（2026-07-31）：
+
+- 门禁配置：`regression/visual-inspection/visual-gate.json`；仅 `LEFT_LAYOUT_TEXT_PLACEMENT`、`TEXT_TEXT_COLLISION` 进入 `blockingWarningCodes`，豁免列表为空，失败策略为 `FailOnBlockingWarnings`，回滚模式为 `WarningOnly`。
+- 完整回归：`regression/nightly/runs/20260731-151841996/summary.json`；同一 `Debug-v3` 串行 5 个 ready case × 3，`15/15 Passed`，Core `130/130`，视觉 `warningCount=0`、blocking `0`、FP/FN `0/0`，5 个 case 的规范化视觉报告均 `deterministic=true`。
+- 三 DLL SHA：`AutoFixtureDim.dll` `B145FDCCC2C5DFA05FCBEA5E8886BC3AD27B4A577D0366EFFD2762A53990CBED`；`CadAuto.Core.dll` `4D20C161DF40BFB0C5B67C6D498438D42F9EBC7EA5B2FCA1BB1CFD0BA34E9498`；`CadAuto.CadAdapter.dll` `D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857`。
+- 原 M4 WarningOnly 正样本矩阵与历史结果保持冻结；本次未修改产品代码、expectation、fixture、manifest 或正式 runner。
+
+M4 门禁冻结验证（2026-07-31）：
+
+- 真实正样本 Blocking：`regression/visual-inspection/runs/M4-positive-collisions-real/20260731-152902558/`；进程 exit `1`，`result.status=Failed`、`mode=Blocking`、`blocking=true`，命中 `LEFT_LAYOUT_TEXT_PLACEMENT`（`ED7311`/`ED7347`）与 `TEXT_TEXT_COLLISION`（`ED7303`、`ED7304`、`ED7331`、`ED733A`），result/report/trace/full/detail/hashes 与三 DLL SHA 均归档。
+- WarningOnly 回滚：`regression/visual-inspection/runs/M4-positive-collisions-real/20260731-152930618/`；使用临时回滚配置，exit `0`、`Completed`、`blocking=false`，两类 warning 仍被报告；临时配置已删除，正式 `visual-gate.json` 已恢复并保持 `Blocking`。
+- clean 门禁回归：`regression/nightly/runs/20260731-152944270/summary.json`；同一 `Debug-v3`、5 个 ready case × 3，`15/15 Passed`，Core `130/130`，15 个视觉报告均 `Blocking` 模式但 `blocking=false`、warning `0`，FP/FN `0/0`，5/5 deterministic；summary、summary.md、dll-hashes.json 记录 gate decision、blockingCodes 和 DLL SHA。
+- M4 已冻结；后续仅按 M5 计划推进，不再修改两条阻断规则、既有 M4 证据或回滚基线。
+
+## M5 正式定义（2026-07-31）
+
+### M5-1：PR 快速层与 nightly 门禁运营化
+
+- 将 PR 快速层与 nightly 门禁的配置、manifest、规则版本和执行摘要纳入版本控制；每次运行归档 artifact，并记录整套 DLL 的 SHA256。
+- PR 失败必须保留 case、trace、report、result、PNG（如适用）和哈希；先按固定输入、同一 DLL、串行复跑定位，禁止以改 expectation、产品行为或 fixture 绕过失败。
+- 回滚只允许通过已版本化的门禁配置切回上一已验证版本或 `WarningOnly`；不得删除历史 artifact、失败证据或既有 runner。
+- 自托管 Runner 仅负责已安装 AutoCAD 环境、标签、在线状态、磁盘空间、凭据隔离和串行 CAD 作业；产品规则、真值裁决和 fixture 批准不由 Runner 运营替代。
+
+### M5-2：Hole/Slot 真实 fixture 补齐
+
+- 每个 Hole/Slot case 单独补齐产品真值、固定 fixture 与 SHA256、结构化 result/report/trace，以及经批准的视觉证据；逐 case 审批，不以汇总绿灯替代。
+- `fixtureReady=false` 或缺任一真值、哈希、结构化或视觉证据的 case 均为未 ready：可记录 Skipped，但不得计为 Passed、不得进入通过率分子。
+- 2026-07-31：用户确认 HS01 最新图片正确；首次证据 batch `20260731-164709701` 后，HS01 已为 `ConfirmedCorrect` 且 `fixtureReady=true`。ready nightly batch `20260731-165606678` 完成 6 case × 2 = 12/12 Passed、Core 130/130、视觉 warning 0、FP/FN 0/0；HS01 report/visual/full 哈希各唯一 1，Debug-v5 三 DLL SHA 不变。
+- 2026-07-31：HS01、HS02 均为 `ConfirmedCorrect` 且 `fixtureReady=true`。ready nightly batch `20260731-170548196` 完成 7 ready case × 2 = 14/14 Passed、Core 130/130、视觉 warning 0、FP/FN 0/0，使用同一 Debug-v5 三 DLL；HS01、HS02 各自 report/visual/full 哈希均唯一 1。
+- 2026-08-01：用户确认 HS03 pin-group 探针图片正确；manifest `fixtureReady=true`。ready batch `regression/hole-slot/runs/hs03-pin-group-ready-20260801-132227891/summary.json` 为 `Passed 2/2`，CAD/validator exit 0、trace complete、`pinHoleCount=2`、PinGroup-owned finals=3（DatumX/DatumY/PinDistance），剩余 LooseHole 为非销孔链，warning=0、`blocking=false`；normalized report `A67346E7F4FD4BB3373BD6577FA7F3D2D8F958BA52C79DA346DEE621C35B3E67`、visual `4376DFFF66628C87BFD72A521AE331280A69350FC12481092A246E0B5F15076B`、full `0236CB9490F5E92487C9758A68B61FD1D0A7C919F3ECBF2EE6755554EB15F2B5` 稳定。布局偏好：尺寸优先靠近孔所在一侧轮廓；尺寸较少时可将 50 放左侧与 20 对齐。Debug-v7 DLL SHA 已登记。
+- 2026-08-01：用户确认 HS04 最新全图正确；manifest `regression/hole-slot/cases.json` 的 `fixtureReady=true`，fixture SHA `FE114C91410C4AD307A64863A77B40CC2A5D7B66D75DB6A69FE70F27F538F059`。批准图片来自 `regression/hole-slot/runs/hs04-acceptance-20260801-104617480/`（summary SHA `67D58C7E6C38D9594CD54B81D56C8896D2360427F748C2C3B40F21CA4F32122B`，full image SHA `214D0B4B455B62F25805111B4C51868889EF6B2E74040EAAECC46632405FA7D6`）。fixtureReady 后正式两轮 batch `regression/hole-slot/runs/hs04-ready-20260801-105520062/summary.json` 为 `Passed 2/2`（summary SHA `4F431588EFC3555B8C03A98228D5404F66BD0B97FB3BF80E763AEF895678400F`，dll-hashes SHA `2D45372DB1D7E474C52DDDB74A59B2461784D48EEF20FC0A0296C8671E97C92F`；repeat-1 result/report/trace/full/visual-report SHA 依次为 `5FC65BCF4352E146DA56A09537857651D313A179C64962B068332C0A0BE31E1A`、`DDB29FF28ADBADA9AB270766400EA8C774F8D69F8913EADCDAC825EDE7F3772D`、`0625C2ACCF9954F060F2180A2B2128D54EFCC4FDE55B3D3F7930BCA02058BC9F`、`214D0B4B455B62F25805111B4C51868889EF6B2E74040EAAECC46632405FA7D6`、`3CE40D7C33A2716D2FFE2046E63F5938690A119FF8573041DF53F034A6332D94`）。两轮 CAD/validator exit 0、trace complete、DatumX/DatumY 各 1、唯一销孔自动成为基准且无手工选择；normalized report/visual/full SHA `036F241DDDEA99F128FF4937CA47EE41F63D548A8413F9AC657CDC51E5216E6C`、`4DC0C7EE96D5E5CEC1B628652F5D5B2E24C7200A006587295A60BF5EFE38C26B`、`214D0B4B455B62F25805111B4C51868889EF6B2E74040EAAECC46632405FA7D6` 均稳定。`visualWarningCount=1`、`blocking=false`；唯一 warning 为 `SNAPSHOT_ERROR` / source / unsupported DXF LWPOLYLINE，属于检查器源实体抓取限制，不是产品碰撞。Debug-v7 DLL SHA：AutoFixtureDim `B145FDCCC2C5DFA05FCBEA5E8886BC3AD27B4A577D0366EFFD2762A53990CBED`、Core `9CA8B46C15FEEE6172429FA6332946004BBD12B9ECB5C6F7ECE60049B4031A63`、Adapter `D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857`。
+- 2026-08-01：用户确认 HS05 最新全图正确；manifest fixtureReady=true，fixture SHA D6A80DB5D21363669E084F9242F6341D7551AA3514CD41F88CF2FA9FA7865281。尽管 fixture 名为 HS05-unique-pin-datum.dwg，真实两轮诊断稳定证明 marker=2、candidate=2、features.pinHoleCount=2，故 HS05-multiple-pin-datum 语义由证据确认而非名称推断。批准图片 batch regression/hole-slot/runs/hs05-acceptance-20260801-114522211/（summary SHA 537E357E05CC23FC00FCCFEFF46033A5438F7528FFA11A2CFA3EADCF81934D69，full SHA 4F5F26FD11FFE35D15EF904703216404909E92E53EEB1C27B5154ABD905A31A1）；ready batch regression/hole-slot/runs/hs05-ready-20260801-123208715/summary.json 为 Passed 2/2，CAD/validator exit 0、trace complete、手工选择真实 ENAME ED6D32 后匹配已识别销孔并设置基准，DatumX/DatumY/PinDistance 均满足。normalized report/visual/full SHA D24D296803B61539E7C9A4059F014F6A5EACE4FFC880BB92089EF36DA25FCC7A、1F26E564A15CBAECCAF6D26BE8CE0F83E36917A5F29B45F2255CE335D0A12E0C、4F5F26FD11FFE35D15EF904703216404909E92E53EEB1C27B5154ABD905A31A1 两轮稳定。visualWarningCount=1、blocking=false；非阻断 warning 为 Right / OUTWARD_LAYER_DIRECTION_REVERSED / ED6F61。Debug-v7 DLL SHA 及 repeat-1 全部 artifact SHA 见 truth matrix 的 HS05 证据索引。
+- 2026-08-01：用户确认 HS06 acceptance batch `regression/hole-slot/runs/hs06-acceptance-20260801-125449489/` 的全图；fixture SHA `34171D0289AD63BDD2E6F28FEEA60E420F567A271E462E1C0BEE22ABC27F3F01`。双轮 status `EvidenceCapturedNotReady` 是在 `fixtureReady=false` 时的历史证据，normalized report/visual/full 哈希稳定；`FunctionalHole` count=1、`ownerKind=PinGroup`、`usesLocalBoundary=true`、`visualWarningCount=0`、`blocking=false`。manifest `fixtureReady=true`；ready batch `regression/hole-slot/runs/hs06-ready-20260801-130015278/summary.json` 为 `Passed 2/2`，CAD/validator exit 0、trace complete、`FunctionalHole=1`、`ownerKind=PinGroup`、`usesLocalBoundary=true`、`visualWarningCount=0`、`blocking=false`；normalized report `8F31700C31AC4A8ADBCC05FD5614CD7E13AB032960B09C18DFDD2DC4DFC154F1`、normalized visual `F3C4A7C1D61D5AB006AF3A965843C5D11C5145708718822705BD17433FA6CBD3`、full `FA37ECABD838ED0958A2BBCA47FC1459EB73BD50B8B00F137E018EB4942F2CAA` 两轮稳定；Debug-v7 DLL SHA 已登记。
+- 2026-08-01：用户确认 HS07 图片正确，`fixtureReady=true`。真实两轮 evidence batch `regression/hole-slot/runs/hs07-bringup-20260801-141500000/summary.json` 中 CAD/validator exit 均为 0、trace complete、`features.slotCount=1`、有效附着的 `SlotCenter`/`SlotChainH`/`SlotDatumV` 各 1：`SlotCenter (50,70)->(50,30)`、`SlotChainH (0,30)->(50,30)`、`SlotDatumV (50,0)->(50,30)`；`visualWarningCount=0`、`blocking=false`。normalized report `E8C740EE933052F83A1441C28AEB4F35D4A16FE6FD55D5973008542F4F48C1A6`、normalized visual `B5CA97F3480EA6A8FFE654CFEEFB05BD4D4DF095BEE76650D86DE2418416F40D`、full `94AC8C61EE42940916A23D1BB8BDCF54DA20049008396DDECC2D433B7BBABED3`、trace `1FBBB75F5D64627D6D306AD1C4F24A4142C7F8B9BB898719FAF4AB821B990358` 两轮稳定；DLL SHA：AutoFixtureDim `30FAA04C0EBD79CE541677226A6249AE9C1EC7AD03C65D7E2E09C5ABAFFD6C40`、Core `52E0A8AB26B9B9F075004DF63BF7CA99A957146431FFE23E7EF44C9F737598C1`、Adapter `8CC138BE6BFDFE71CE80F019CCA5452AFEDE701A9192653908642B685739EB9F`。仅调整 runner 的 HS07 入口支持；本次未修改产品行为、expectation 或 DWG fixture；本次人工确认后仅登记 manifest 的 fixtureReady 与证据状态。
+- 2026-08-01 M5 恢复核查：同一 `Debug-v8` nightly batch `regression/nightly/runs/20260801-150529152/summary.json` 共 36 条 CAD 记录，`27 Passed / 9 Failed`；Core 独立测试 `133/133`。失败集中为 DL01 Left `3/3`、Right `3/3` 与 HS04 `3/3`，三 DLL SHA 在批次内稳定。DL01 只读归因确认：当前 `L6=48.5` 按语义侧保持 Left，旧 Right expectation 仍要求该尺寸，且 Left 真实物理顺序冲突；未修改产品行为或 expectation，等待单独裁决“保留语义侧一致并更新 expectation+修复 Left 排序”或“恢复旧跨侧 rebalance”。
+- 2026-08-01 B 方案语义回写：按用户选择恢复旧的竖向 LooseChain 跨侧 rebalance；渲染器记录实际 `placed.Side`，`DimensionPlan.SynchronizeFinalPlacementSides()` 在 Flush 后将最终侧回写 `PlannedDimension.Side`，同时保留 `RequestedPlacementSide`，因此计划、诊断和最终渲染统一表达 Right。仅涉及 `DimensionPlan`/诊断记录/调用点与 Core 回归断言，未修改 expectation、fixture 或 manifest。Debug-v9 三 DLL：`AutoFixtureDim.dll` `3E91E9D530AB1D67608CE8D511D7774F3D34A3513224D2E521E9F18FCD4153B6`、`CadAuto.Core.dll` `8D7CE13D33589967EF288B7E5E3EADE997B92FF21F06A456D741B2705A19EFB2`、`CadAuto.CadAdapter.dll` `3D01CC62ECE927F296F0FB72E3A0476E2D6D1D43EF5BE9976F5E7BF95317AC45`；Core `133/133` 通过。随后用同一 Debug-v9 串行直跑 DL01 四方向：`regression/dimension-layout/runs/DL01-b-sync-20260801-155807381/`，CAD exit `0`、trace `COMPLETE`、target validator `4/4`；Right 报告中的 L6=`48.5` 为 `placementSide=Right`、`requestedPlacementSide=Left`、`hasFinalPlacement=true`，证明最终渲染侧已回写计划语义；四张 full PNG SHA 分别为 Bottom `6BB06B62D117C97356C2D1FC841DD201F2D806C889DE74574F5906FA0B3DDB7F`、Top `0E7BE92A4EEC102BBE31DF3D55C62B8900449F2E51D9B452DAD124F91B194E4B`、Left `42DFEB4EAB154750A9A3B2DADDA788ED8062FA83B84291E6ACC2F16B28981384`、Right `C67BEBC4C542E463EB9B8E97AA5A2923AF016D3DB6A36923808A50B9795FEF49`。完整 nightly 仍受 CORE-P0/P1 输入 SHA 基线漂移阻断，不能据此宣称全量 nightly 通过。
+- 2026-08-01 CORE-P0/P1 基线获批准并更新为 `8FC0CB041DF1F44D3153BB586FB2082519C9F8B0C234A25EAFA5106282517050`；真值矩阵 `17 fixed cases`、manifest `13 cases`、Core `133/133` 均通过。Debug-v9 官方 nightly `20260801-160804320` 已完成 Core-CAD `3/3`、DL01 `12/12`、HS01–HS03 `9/9`；Windows PowerShell 5 runner 在 HS04 repeat-1 产物完成后发生管道等待，已停止明确测试进程。随后使用同一 DLL、PowerShell 7 独立重跑 HS04–HS07，各 `3/3 Passed`、CAD/validator exit `0`、trace complete、hash 稳定；产品/expectation/fixture/manifest 未再修改。正式 full nightly 汇总仍待 runner 兼容性修复后重新生成。
+- 2026-08-01 HS04 runner 契约修复：仅改 `scripts/run-hole-slot-cad-regression.ps1`，移除不稳定 stdout 自动选择文案门禁，改为唯一 `HS04_DATUM_POINT` trace 与唯一有效 Selected `DatumX`/`DatumY` report 契约；AST=0，最小真实证据 `regression/hole-slot/runs/hs04-contract-20260801-143000000/summary.json` Passed。独立二轮复核在 repeat-1 产物完成后 runner 未生成 summary 并超时，故不计为二轮通过，PowerShell 兼容性另行处理。
+- 2026-08-01 PowerShell 7 runner 闭环：两个测试入口优先解析 `pwsh`、保留 Windows PowerShell 5 fallback；同时稳定排序 visual report 的 `environment` 属性，消除规范化哈希的属性顺序假差异。AST=0、PlanOnly 通过；同一 Debug-v9 正式 nightly `regression/nightly/runs/20260801-163902886/summary.json` `Passed`，36/36 records（Core-CAD 3/3、DL01 12/12、HS01–HS07 21/21），CAD/validator exit 0、trace complete、12/12 case determinism 通过、错误 0。DLL SHA：AutoFixtureDim `3E91E9D530AB1D67608CE8D511D7774F3D34A3513224D2E521E9F18FCD4153B6`、Core `8D7CE13D33589967EF288B7E5E3EADE997B92FF21F06A456D741B2705A19EFB2`、Adapter `3D01CC62ECE927F296F0FB72E3A0476E2D6D1D43EF5BE9976F5E7BF95317AC45`。未修改产品代码、expectation、fixture、manifest；HS04/HS05 保留各轮 1 条非阻断视觉 warning（falsePositiveTotal=6、falseNegativeTotal=0），未扩大门禁范围。
+- 2026-08-01 M5-1 运营化配置：仅更新 `.github/workflows/cad-nightly.yml`，nightly preflight/run/publish 统一使用 PowerShell 7，保留 self-hosted `Windows/X64/autocad-2020`、串行 concurrency、3 轮、180 秒 case timeout、30 天 artifact 和 `always()` 证据上传；新增 summary contract 校验（`status=Passed`、`errors=0`、case 非空、visual determinism 全部通过、同批 DLL hash 至少 3 项）。现有 `core-ci.yml` 已满足 push/PR、3 分钟、Core-only 快速层，本轮不改。YAML/关键字段、现有 nightly summary contract、matrix/manifests、Core `133/133` 均通过；本地验证改动已提交到 `agent/m5-remediation`，仍需 GitHub self-hosted runner 实跑确认线上链路。
+- expectation、产品行为和现有 fixture 的任何变更继续独立审批；M5 不将三者绑为同一项授权。
+
+### M5 进入条件
+
+- M4 当前阻断配置、历史 WarningOnly 矩阵和证据包保持冻结，现有 5 个 ready case 的三轮结果可复核。
+- 已确定 PR 快速层与 nightly 的配置文件、artifact 保留位置、DLL 哈希采集和失败升级责任边界。
+- 对每个拟纳入的 Hole/Slot case 已取得对应正确图片与诊断；HS05 未满足时仅可停留在证据收集。
+
+### M5 退出条件
+
+- PR 快速层和 nightly 均可从版本化配置复现，摘要可追溯至 artifact 与同批 DLL 哈希；失败能保留完整证据并按既定路径处理。
+- 所有纳入统计的 Hole/Slot case 均逐 case 满足真值、fixture/hash、结构化和视觉证据；其余 case 显式为未 ready，不计通过。
+- 自托管 Runner 的运营检查不改变产品输出，连续运行仍保持同一 DLL 下的确定性要求。
+
+### M5 回滚边界与不在范围
+
+- 回滚限于门禁配置、编排和 Runner 运营设置，回退到最近已验证配置；不回滚或覆盖产品行为、expectation、fixture、M4 历史证据和 artifact。
+- 不在范围：依据缺失图片或诊断修复 Hole/Slot/HS05 产品逻辑；重写测试框架；新增未获批准的 fixture 真值；将未 ready case 计入通过。
 
 单人实施粗估 4～6 周；每个里程碑必须独立可验证、可回退，不以工期压力跳过真值确认。
 

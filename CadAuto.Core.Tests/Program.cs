@@ -78,6 +78,8 @@ namespace CadAuto.Core.Tests
             nameof(IndependentLocalAndGlobalDimensionsMayShareLogicalLevel),
             nameof(IsolatedShortPinGroupTransferUsesInnerSpanOrder),
             nameof(DimensionDiagnosticsRecordFinalPlacement),
+			nameof(PreferredSideLooseChainCanRebalance),
+            nameof(PinGroupAnchoredLooseHolePreservesPreferredSide),
             nameof(FormattedDimensionTextLengthIgnoresControlCodes),
             nameof(FittingVerticalLocalTextStaysCentered),
             nameof(ShortVerticalLocalTextClearsArrowheads),
@@ -163,6 +165,8 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(IndependentLocalAndGlobalDimensionsMayShareLogicalLevel), IndependentLocalAndGlobalDimensionsMayShareLogicalLevel);
 				RunTest(nameof(IsolatedShortPinGroupTransferUsesInnerSpanOrder), IsolatedShortPinGroupTransferUsesInnerSpanOrder);
 				RunTest(nameof(DimensionDiagnosticsRecordFinalPlacement), DimensionDiagnosticsRecordFinalPlacement);
+				RunTest(nameof(PreferredSideLooseChainCanRebalance), PreferredSideLooseChainCanRebalance);
+				RunTest(nameof(PinGroupAnchoredLooseHolePreservesPreferredSide), PinGroupAnchoredLooseHolePreservesPreferredSide);
 				RunTest(nameof(RuleEvidenceRejectsReassignmentAndRenderSuppressionStaysCompatible), RuleEvidenceRejectsReassignmentAndRenderSuppressionStaysCompatible);
 				RunTest(nameof(FormattedDimensionTextLengthIgnoresControlCodes), FormattedDimensionTextLengthIgnoresControlCodes);
 				RunTest(nameof(FittingVerticalLocalTextStaysCentered), FittingVerticalLocalTextStaysCentered);
@@ -2226,6 +2230,50 @@ namespace CadAuto.Core.Tests
 				"the span-order exception must apply only to an isolated alignment lane");
 		}
 
+		private static void PreferredSideLooseChainCanRebalance()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var locked = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.HoleLocation,
+				FirstPoint = new Point2D(20.0, 30.0),
+				SecondPoint = new Point2D(22.0, 70.0),
+				Span = 40.0,
+				LooseChainId = 6,
+				PreferLocalBoundary = true,
+				PreservePreferredSide = true
+			};
+			var unlocked = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.HoleLocation,
+				FirstPoint = locked.FirstPoint,
+				SecondPoint = locked.SecondPoint,
+				Span = locked.Span,
+				LooseChainId = locked.LooseChainId,
+				PreferLocalBoundary = true
+			};
+			var crowded = Enumerable.Range(0, 3).Select(index => new DimensionLayoutItem
+			{
+				Kind = DimensionKind.Normal,
+				FirstPoint = new Point2D(10.0 + index, 30.0),
+				SecondPoint = new Point2D(10.0 + index, 70.0),
+				Span = 40.0
+			}).ToList();
+
+			var lockedSource = new List<DimensionLayoutItem> { locked };
+			lockedSource.AddRange(crowded);
+			var unlockedSource = new List<DimensionLayoutItem> { unlocked };
+			unlockedSource.AddRange(crowded);
+			var lockedMoves = rules.SelectVerticalHoleLocationRebalanceMoves(lockedSource, new DimensionLayoutItem[0], 1.0);
+			var unlockedMoves = rules.SelectVerticalHoleLocationRebalanceMoves(unlockedSource, new DimensionLayoutItem[0], 1.0);
+
+			Assert(lockedMoves.Any(move => move.SourceIndex == 0),
+				"a preferred-side vertical loose chain must remain eligible for cross-side rebalancing");
+			Assert(unlockedMoves.Any(move => move.SourceIndex == 0),
+				"an unlocked vertical loose chain must retain the legacy rebalance behavior");
+		}
+
 		private static void DimensionDiagnosticsRecordFinalPlacement()
 		{
 			var plan = new DimensionPlan();
@@ -2243,7 +2291,8 @@ namespace CadAuto.Core.Tests
 			};
 			plan.Add(dimension);
 			plan.CaptureFinalDimensions();
-			plan.Diagnostics.RecordFinalPlacement(dimension.DiagnosticId, 2, 15.0, 125.0, true, true, "PG1:DatumChain:H#1", 3, "AlignedLaneCoordinateOverride", "AlignmentLane:PG1:DatumChain:H#1", "RootedAlignmentLane", 30.0, 1, "EffectiveSpanAscending", "Dimension:2", 15.0, true);
+			plan.Diagnostics.RecordFinalPlacement(dimension.DiagnosticId, DimensionSide.Bottom.ToString(), 2, 15.0, 125.0, true, true, "PG1:DatumChain:H#1", 3, "AlignedLaneCoordinateOverride", "AlignmentLane:PG1:DatumChain:H#1", "RootedAlignmentLane", 30.0, 1, "EffectiveSpanAscending", "Dimension:2", 15.0, true);
+			plan.SynchronizeFinalPlacementSides();
 
 			Assert(dimension.DiagnosticId > 0, "planned dimensions must receive a stable diagnostic id");
 			Assert(plan.Diagnostics.DimensionCandidates.Single().ReadingLevel == DimensionReadingLevel.IntraGroup.ToString()
@@ -2262,6 +2311,10 @@ namespace CadAuto.Core.Tests
 				&& Math.Abs(plan.Diagnostics.FinalDimensions.Single().EffectiveSpan - 30.0) <= 1E-09
 				&& plan.Diagnostics.FinalDimensions.Single().PhysicalOrderValidated,
 				"final placement diagnostics must expose v203 layout-block and physical-order metadata");
+			Assert(dimension.Side == DimensionSide.Bottom
+				&& plan.Diagnostics.FinalDimensions.Single().PlacementSide == DimensionSide.Bottom.ToString()
+				&& plan.Diagnostics.FinalDimensions.Single().RequestedPlacementSide == DimensionSide.Top.ToString(),
+				"final placement side must synchronize back to rendering while preserving the requested side");
 		}
 
 		private static void RuleEvidenceRejectsReassignmentAndRenderSuppressionStaysCompatible()
@@ -4886,6 +4939,32 @@ namespace CadAuto.Core.Tests
 			Assert(plan.Dimensions.Where(d => d.DebugRole == "LooseHole").All(d => d.PreferLocalBoundary),
 				"loose hole chains must prefer a nearby valid boundary to avoid full-part extension lines");
         }
+
+		private static void PinGroupAnchoredLooseHolePreservesPreferredSide()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(240.0, 120.0);
+			var datumPin = CreateHole(20.0, 20.0, 6.0, HoleKind2D.Pin);
+			var holes = new List<HoleFeature2D>
+			{
+				datumPin,
+				CreateHole(60.0, 20.0, 6.0, HoleKind2D.Pin),
+				CreateHole(100.0, 70.0, 8.0, HoleKind2D.Normal),
+				CreateHole(130.0, 70.0, 8.0, HoleKind2D.Normal),
+				CreateHole(160.0, 70.0, 8.0, HoleKind2D.Normal)
+			};
+			var datum = Datum2D.FromOutline(outline);
+			datum.DatumHole = datumPin;
+
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, holes);
+			var loose = plan.Dimensions.Where(d => d.DebugRole == "LooseHole").ToList();
+
+			Assert(loose.Count > 0 && loose.All(d => d.PreservePreferredSide),
+				"PinGroup-anchored loose-hole dimensions must preserve their planner-selected side");
+			Assert(loose.Where(d => d.Orientation == DimensionOrientation.Vertical)
+				.All(d => d.Side == plan.PinGroups[0].VerticalSide),
+				"PinGroup-anchored vertical loose-hole dimensions must retain the pin group's side");
+		}
 
         private static void ConcentricLooseHolesShareOneLocationDimension()
         {

@@ -649,8 +649,9 @@ public sealed class Commands
 			string text = EnsureCoreDebugLayer(database, transaction);
 			BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
 			DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, objectId, DimStyleManager.ResolveDiameterCalloutDimStyle(database, transaction, objectId), (database.Dimscale <= 0.0) ? 1.0 : database.Dimscale, text, DateTime.Now.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture), annotationKind: AnnotationMetadata.KindCoreDebug);
-			dimensionDrawer.DrawDimensionPlan(dimensionPlan2);
+			dimensionDrawer.DrawDimensionPlan(dimensionPlan2, dimensionPlan.Diagnostics);
 			dimensionDrawer.FlushStackedDimensions(outlineFeature);
+			dimensionPlan.SynchronizeFinalPlacementSides();
 			WriteCoreDebugSummary(editor, outlineFeature, list5, list7.Count, dimensionPlan, dimensionPlan2, holeCalloutPlans, text);
 			transaction.Commit();
 		}
@@ -1120,6 +1121,7 @@ public sealed class Commands
 		DimensionPlan dimensionPlan = new DimensionPlanner(config).CreateDimensionPlan(outline2, datum2, holes2, slots2);
 		drawer.DrawDimensionPlan(FilterDimensionPlan(dimensionPlan, outputScope), dimensionPlan.Diagnostics);
 		drawer.FlushStackedDimensions(outline);
+		dimensionPlan.SynchronizeFinalPlacementSides();
 		return dimensionPlan;
 	}
 
@@ -1605,6 +1607,7 @@ public sealed class Commands
 			AppendJsonProperty(builder, indent + 2, "measurementMinimum", dimensionCandidateDiagnostic.MeasurementMinimum, comma: true);
 			AppendJsonProperty(builder, indent + 2, "measurementMaximum", dimensionCandidateDiagnostic.MeasurementMaximum, comma: true);
 			AppendJsonProperty(builder, indent + 2, "placementSide", dimensionCandidateDiagnostic.PlacementSide, comma: true);
+			AppendJsonProperty(builder, indent + 2, "requestedPlacementSide", dimensionCandidateDiagnostic.RequestedPlacementSide, comma: true);
 			AppendJsonProperty(builder, indent + 2, "priority", dimensionCandidateDiagnostic.Priority, comma: true);
 			AppendJsonProperty(builder, indent + 2, "readingLevel", dimensionCandidateDiagnostic.ReadingLevel, comma: true);
 			AppendJsonProperty(builder, indent + 2, "alignmentKey", dimensionCandidateDiagnostic.AlignmentKey, comma: true);

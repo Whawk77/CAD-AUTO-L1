@@ -26,6 +26,8 @@ public sealed class DimensionCandidateDiagnostic
 
 	public string PlacementSide { get; set; }
 
+	public string RequestedPlacementSide { get; set; }
+
 	public int Priority { get; set; }
 
 	public string ReadingLevel { get; set; }

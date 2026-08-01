@@ -1055,13 +1055,14 @@ public sealed partial class DimensionPlanner
 				orderby lineGroup.Horizontal ? h.Center.X : h.Center.Y, lineGroup.Horizontal ? h.Center.Y : h.Center.X
 				select h).ToList();
 			int chainId = _nextLooseChainId++;
-			DimensionSide side = ChoosePinGroupAnchoredDimensionSide(referencePinGroup, lineGroup.Horizontal) ?? ChooseLooseDimensionSide(outline, list2, lineGroup.Horizontal);
+			DimensionSide? anchoredSide = ChoosePinGroupAnchoredDimensionSide(referencePinGroup, lineGroup.Horizontal);
+			DimensionSide side = anchoredSide ?? ChooseLooseDimensionSide(outline, list2, lineGroup.Horizontal);
 			for (int num = 1; num < list2.Count; num++)
 			{
 				string looseDimKey = GetLooseDimKey(list2[num - 1], list2[num], lineGroup.Horizontal);
 				if (hashSet.Add(looseDimKey))
 				{
-					AddLooseHoleLocationDimension(plan, list2[num - 1].Center, list2[num].Center, lineGroup.Horizontal, side, chainId);
+					AddLooseHoleLocationDimension(plan, list2[num - 1].Center, list2[num].Center, lineGroup.Horizontal, side, chainId, preservePreferredSide: anchoredSide.HasValue);
 					list.Add(Tuple.Create(list2[num - 1], list2[num]));
 				}
 			}
@@ -1075,19 +1076,21 @@ public sealed partial class DimensionPlanner
 		if (Math.Abs(point2D.X - target.Center.X) > _config.GeometryTolerance)
 		{
 			int chainId = _nextLooseChainId++;
-			AddLooseHoleLocationDimension(plan, point2D, target.Center, horizontal: true, ChoosePinGroupAnchoredDimensionSide(referencePinGroup, horizontal: true) ?? ChooseLooseDimensionSide(outline, new HoleFeature2D[1] { target }, horizontal: true), chainId);
+			DimensionSide? anchoredHorizontalSide = ChoosePinGroupAnchoredDimensionSide(referencePinGroup, horizontal: true);
+			AddLooseHoleLocationDimension(plan, point2D, target.Center, horizontal: true, anchoredHorizontalSide ?? ChooseLooseDimensionSide(outline, new HoleFeature2D[1] { target }, horizontal: true), chainId, preservePreferredSide: anchoredHorizontalSide.HasValue);
 		}
 		Point2D point2D2 = (forcePinReference ? pinReference : ChooseLooseLocationReference(pinReference, target, located, horizontal: false));
 		if (Math.Abs(point2D2.Y - target.Center.Y) > _config.GeometryTolerance)
 		{
 			int chainId2 = _nextLooseChainId++;
-			AddLooseHoleLocationDimension(plan, point2D2, target.Center, horizontal: false, ChoosePinGroupAnchoredDimensionSide(referencePinGroup, horizontal: false) ?? ChooseLooseDimensionSide(outline, new HoleFeature2D[1] { target }, horizontal: false), chainId2);
+			DimensionSide? anchoredVerticalSide = ChoosePinGroupAnchoredDimensionSide(referencePinGroup, horizontal: false);
+			AddLooseHoleLocationDimension(plan, point2D2, target.Center, horizontal: false, anchoredVerticalSide ?? ChooseLooseDimensionSide(outline, new HoleFeature2D[1] { target }, horizontal: false), chainId2, preservePreferredSide: anchoredVerticalSide.HasValue);
 		}
 	}
 
-	private void AddLooseHoleLocationDimension(DimensionPlan plan, Point2D from, Point2D to, bool horizontal, DimensionSide side, int chainId)
+	private void AddLooseHoleLocationDimension(DimensionPlan plan, Point2D from, Point2D to, bool horizontal, DimensionSide side, int chainId, bool preservePreferredSide = false)
 	{
-		AddDimension(plan, DimensionKind.HoleLocation, (!horizontal) ? DimensionOrientation.Vertical : DimensionOrientation.Horizontal, side, from, to, string.Empty, "LooseHole", (chainId == 0) ? string.Empty : ("L" + chainId.ToString(CultureInfo.InvariantCulture)), preferLocalBoundary: true, chainId: chainId);
+		AddDimension(plan, DimensionKind.HoleLocation, (!horizontal) ? DimensionOrientation.Vertical : DimensionOrientation.Horizontal, side, from, to, string.Empty, "LooseHole", (chainId == 0) ? string.Empty : ("L" + chainId.ToString(CultureInfo.InvariantCulture)), preferLocalBoundary: true, chainId: chainId, preservePreferredSide: preservePreferredSide);
 	}
 
 	private Point2D ChooseLooseLocationReference(Point2D pinReference, HoleFeature2D target, IList<HoleFeature2D> located, bool horizontal)

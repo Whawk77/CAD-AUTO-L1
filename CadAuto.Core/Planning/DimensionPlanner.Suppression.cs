@@ -60,8 +60,8 @@ public sealed partial class DimensionPlanner
 		// Mirror before envelope: envelope may remove the primary-side outer tip first, which
 		// would orphan a same-interval secondary OutlineSegment (e.g. Right OS@inner X that
 		// matches Left envelope tip) and leave GEN|OutlineSegment*|R|L0 selected.
-		SuppressMirroredDuplicates(plan, DimensionSide.Bottom, DimensionSide.Top, horizontal: true);
-		SuppressMirroredDuplicates(plan, DimensionSide.Left, DimensionSide.Right, horizontal: false);
+		SuppressMirroredDuplicates(plan, DimensionSide.Bottom, DimensionSide.Top, horizontal: true, outline: outline);
+		SuppressMirroredDuplicates(plan, DimensionSide.Left, DimensionSide.Right, horizontal: false, outline: outline);
 		// After mirror keeps structure heights over OS, drop secondary-side vertical OS that only
 		// restate the primary structure stack or the overall residual (left/right step symmetry).
 		SuppressSecondaryVerticalOutlineSegmentsRedundantWithPrimaryStructureStack(plan);
@@ -71,8 +71,8 @@ public sealed partial class DimensionPlanner
 		// Outer-envelope collinear OutlineSegment fragments (+ same-interval structure dups).
 		SuppressOutlineSegmentsOnOverallEnvelope(plan, outline);
 		// Existing complementary remainder for structure/normal remainders (Top/Right only).
-		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Top, horizontal: true);
-		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Right, horizontal: false);
+		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Top, horizontal: true, outline);
+		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Right, horizontal: false, outline);
 		// Closed length chains (any side pairing): body 70 + step 20 = overall 90 → drop 70.
 		// Includes OutlineSegment body lengths after interior edges resolve to Bottom/Top.
 		// Still requires real 1D abutment cover (never span-sum alone).
@@ -1001,7 +1001,7 @@ public sealed partial class DimensionPlanner
 		return false;
 	}
 
-	private void SuppressComplementaryOutlineRemainders(DimensionPlan plan, DimensionSide side, bool horizontal)
+	private void SuppressComplementaryOutlineRemainders(DimensionPlan plan, DimensionSide side, bool horizontal, OutlineFeature2D outline)
 	{
 		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => horizontal ? (d.Kind == DimensionKind.OverallWidth) : (d.Kind == DimensionKind.OverallHeight));
 		if (overall == null)
@@ -1014,6 +1014,26 @@ public sealed partial class DimensionPlanner
 			PlannedDimension candidate = plan.Dimensions[num];
 			if (candidate.Kind == DimensionKind.Normal && candidate.Side == side)
 			{
+				// A right-side top partial envelope is the real upper-rectangle height;
+				// never discard it as the larger complementary remainder.
+				if (side == DimensionSide.Right
+					&& !horizontal
+					&& IsRightTopPartialEnvelopeStructureHeight(candidate, outline, _config.GeometryTolerance))
+				{
+					continue;
+				}
+				// Once that real upper-rectangle height is retained, its lower partner is
+				// the complementary remainder and must be the one removed.
+				if (side == DimensionSide.Right
+					&& !horizontal
+					&& source.Any((PlannedDimension other) => other != candidate
+						&& IsRightTopPartialEnvelopeStructureHeight(other, outline, _config.GeometryTolerance)
+						&& FormsCompleteOverallPartition(candidate, other, overall, horizontal)))
+				{
+					plan.MarkSuppressed(candidate, SuppressReason.ComplementaryOutlineRemainder);
+					plan.Dimensions.RemoveAt(num);
+					continue;
+				}
 				double span = GetDimensionSpan(candidate, horizontal);
 				if (source.Any((PlannedDimension other) => other != candidate
 					&& GetDimensionSpan(other, horizontal) < span - _config.GeometryTolerance
@@ -1608,6 +1628,30 @@ public sealed partial class DimensionPlanner
 			&& dimensionInterval.Item2 <= interval.Item2 + tol);
 	}
 
+	private bool IsRightTopPartialEnvelopeStructureHeight(PlannedDimension dimension, OutlineFeature2D outline, double tol)
+	{
+		if (dimension == null || outline == null || outline.Segments == null
+			|| dimension.Kind != DimensionKind.Normal
+			|| dimension.Orientation != DimensionOrientation.Vertical
+			|| dimension.Side != DimensionSide.Right
+			|| dimension.DebugRole != "RightStructHeight"
+			|| dimension.ForceOuterLevel)
+		{
+			return false;
+		}
+		Tuple<double, double> interval = ComputeArrowInterval(dimension, horizontal: false);
+		if (interval.Item2 < outline.MaxY - tol || interval.Item1 <= outline.MinY + tol)
+		{
+			return false;
+		}
+		return outline.Segments.Any(segment => segment != null
+			&& segment.IsHorizontal(tol)
+			&& Math.Abs(segment.MinY - interval.Item1) <= tol)
+			&& outline.Segments.Any(segment => segment != null
+				&& segment.IsHorizontal(tol)
+				&& Math.Abs(segment.MinY - interval.Item2) <= tol);
+	}
+
 	internal static List<List<PlannedDimension>> BuildAbuttingVerticalStructureChains(IList<PlannedDimension> heights, double tol)
 	{
 		List<PlannedDimension> ordered = heights
@@ -1832,7 +1876,7 @@ public sealed partial class DimensionPlanner
 		return _dimensionDeduplicationRules.IsSameVerticalInterval(ToDeduplicationItem(a), ToDeduplicationItem(b));
 	}
 
-	private void SuppressMirroredDuplicates(DimensionPlan plan, DimensionSide primarySide, DimensionSide secondarySide, bool horizontal)
+	private void SuppressMirroredDuplicates(DimensionPlan plan, DimensionSide primarySide, DimensionSide secondarySide, bool horizontal, OutlineFeature2D outline)
 	{
 		List<PlannedDimension> source = plan.Dimensions.Where((PlannedDimension d) => d.Side == primarySide).ToList();
 		List<PlannedDimension> source2 = plan.Dimensions.Where((PlannedDimension d) => d.Side == secondarySide).ToList();
@@ -1844,12 +1888,45 @@ public sealed partial class DimensionPlanner
 				{
 					continue;
 				}
-				PlannedDimension plannedDimension = ((CompareDuplicatePreference(item, item2) > 0) ? item2 : item);
+				int geometryPreference = CompareGeometricMirrorPreference(item2, item, outline, horizontal);
+				PlannedDimension plannedDimension = geometryPreference > 0
+					? item
+					: (geometryPreference < 0
+						? item2
+						: ((CompareDuplicatePreference(item, item2) > 0) ? item2 : item));
 				plan.MarkSuppressed(plannedDimension, SuppressReason.MirroredDuplicate);
 				plan.Dimensions.Remove(plannedDimension);
 				break;
 			}
 		}
+	}
+
+	/// <summary>
+	/// Mirror ownership follows the contour that actually supports the structure dimension.
+	/// This prevents a cross-level projection from winning only because Bottom/Left is the
+	/// historical primary side; ties keep the existing fallback for symmetric geometry.
+	/// </summary>
+	private int CompareGeometricMirrorPreference(PlannedDimension first, PlannedDimension second, OutlineFeature2D outline, bool horizontal)
+	{
+		if (first == null || second == null || outline == null
+			|| !IsStructureWidthOrHeightRole(first.DebugRole)
+			|| !IsStructureWidthOrHeightRole(second.DebugRole)
+			|| (horizontal
+				? (first.Side != DimensionSide.Bottom && first.Side != DimensionSide.Top)
+				: (first.Side != DimensionSide.Left && first.Side != DimensionSide.Right))
+			|| (horizontal
+				? (second.Side != DimensionSide.Bottom && second.Side != DimensionSide.Top)
+				: (second.Side != DimensionSide.Left && second.Side != DimensionSide.Right)))
+		{
+			return 0;
+		}
+		bool firstContourBacked = HasRealStructurePartitionEdge(first, outline, horizontal);
+		bool secondContourBacked = HasRealStructurePartitionEdge(second, outline, horizontal);
+		if (firstContourBacked != secondContourBacked)
+		{
+			return firstContourBacked ? 1 : -1;
+		}
+		return 0;
 	}
 
 	private static bool CanSuppressMirroredDimension(PlannedDimension a, PlannedDimension b)

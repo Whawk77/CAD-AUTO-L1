@@ -34,6 +34,7 @@ namespace CadAuto.Core.Tests
             nameof(MirroredEnvelopeStructureWidthsAreBothSuppressed),
             nameof(StructureWidthsThatPartitionOverallAreSuppressed),
             nameof(ProjectedCrossLevelStructureWidthsDoNotPartitionOverall),
+            nameof(GeometricMirrorOwnershipPrefersContourBackedCandidate),
             nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed),
             nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide),
             nameof(TopEnvelopeHorizontalSegmentStaysTop),
@@ -82,6 +83,9 @@ namespace CadAuto.Core.Tests
             nameof(PinGroupAnchoredLooseHolePreservesPreferredSide),
             nameof(FormattedDimensionTextLengthIgnoresControlCodes),
             nameof(FittingVerticalLocalTextStaysCentered),
+            nameof(HardTextOverlapSlidesVerticalDatumOnSameSide),
+            nameof(HardTextOverlapSlidesHorizontalDatumOnSameSide),
+            nameof(NonOverlappingDatumTextDoesNotSlide),
             nameof(ShortVerticalLocalTextClearsArrowheads),
             nameof(FittingHorizontalTextStaysCenteredDespiteNeighborArrow),
             nameof(ShortHorizontalLocalTextClearsArrowheads),
@@ -170,6 +174,9 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(RuleEvidenceRejectsReassignmentAndRenderSuppressionStaysCompatible), RuleEvidenceRejectsReassignmentAndRenderSuppressionStaysCompatible);
 				RunTest(nameof(FormattedDimensionTextLengthIgnoresControlCodes), FormattedDimensionTextLengthIgnoresControlCodes);
 				RunTest(nameof(FittingVerticalLocalTextStaysCentered), FittingVerticalLocalTextStaysCentered);
+				RunTest(nameof(HardTextOverlapSlidesVerticalDatumOnSameSide), HardTextOverlapSlidesVerticalDatumOnSameSide);
+				RunTest(nameof(HardTextOverlapSlidesHorizontalDatumOnSameSide), HardTextOverlapSlidesHorizontalDatumOnSameSide);
+				RunTest(nameof(NonOverlappingDatumTextDoesNotSlide), NonOverlappingDatumTextDoesNotSlide);
 				RunTest(nameof(ShortVerticalLocalTextClearsArrowheads), ShortVerticalLocalTextClearsArrowheads);
 				RunTest(nameof(FittingHorizontalTextStaysCenteredDespiteNeighborArrow), FittingHorizontalTextStaysCenteredDespiteNeighborArrow);
 				RunTest(nameof(ShortHorizontalLocalTextClearsArrowheads), ShortHorizontalLocalTextClearsArrowheads);
@@ -180,8 +187,9 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(NonFortyFiveSlopeIsNotChamfer), NonFortyFiveSlopeIsNotChamfer);
                 RunTest(nameof(VerticalStructurePointsCreateStepWidths), VerticalStructurePointsCreateStepWidths);
                 RunTest(nameof(StructureWidthsThatPartitionOverallAreSuppressed), StructureWidthsThatPartitionOverallAreSuppressed);
-                RunTest(nameof(ProjectedCrossLevelStructureWidthsDoNotPartitionOverall), ProjectedCrossLevelStructureWidthsDoNotPartitionOverall);
-                RunTest(nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed), CrossSideStructureWidthsThatCloseOverallChainAreSuppressed);
+				RunTest(nameof(ProjectedCrossLevelStructureWidthsDoNotPartitionOverall), ProjectedCrossLevelStructureWidthsDoNotPartitionOverall);
+				RunTest(nameof(GeometricMirrorOwnershipPrefersContourBackedCandidate), GeometricMirrorOwnershipPrefersContourBackedCandidate);
+				RunTest(nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed), CrossSideStructureWidthsThatCloseOverallChainAreSuppressed);
                 RunTest(nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide), InteriorHorizontalOutlineSegmentPrefersNonCrossingSide);
                 RunTest(nameof(TopEnvelopeHorizontalSegmentStaysTop), TopEnvelopeHorizontalSegmentStaysTop);
                 RunTest(nameof(BottomEnvelopeHorizontalSegmentStaysBottom), BottomEnvelopeHorizontalSegmentStaysBottom);
@@ -2409,6 +2417,130 @@ namespace CadAuto.Core.Tests
 				"fitting vertical text must stay at the center of its dimension line even when arrow clearance is tighter");
 		}
 
+		private static void HardTextOverlapSlidesVerticalDatumOnSameSide()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var datum = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.DatumHoleLocationY,
+				FirstPoint = new Point2D(20.0, 0.0),
+				SecondPoint = new Point2D(20.0, 10.0),
+				Span = 10.0,
+				OverrideText = "<>\\H0.8x;\u00B10.05\\H1x;"
+			};
+			var neighbor = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.PinDistance,
+				FirstPoint = new Point2D(20.0, 10.0),
+				SecondPoint = new Point2D(20.0, 40.0),
+				Span = 30.0,
+				OverrideText = "30\\H0.8x;\u00B10.02\\H1x;"
+			};
+			var datumLine = new Point2D(30.0, 5.0);
+			var neighborLine = new Point2D(30.0, 25.0);
+			var placed = new[]
+			{
+				new DimensionTextPlacementItem
+				{
+					Dimension = datum,
+					Side = DimensionSide.Right,
+					DimLinePoint = datumLine,
+					TextBounds = rules.ComputePlacedTextBounds(datum, datumLine, isHorizontal: false, textHeight: 2.5)
+				},
+				new DimensionTextPlacementItem
+				{
+					Dimension = neighbor,
+					Side = DimensionSide.Right,
+					DimLinePoint = neighborLine,
+					TextBounds = rules.ComputePlacedTextBounds(neighbor, neighborLine, isHorizontal: false, textHeight: 2.5)
+				}
+			};
+
+			var slides = rules.SelectShortLocalDimensionTextSlides(placed, new TextBounds2D[0], 2.5, 2.5, 3.0);
+			var datumSlide = slides.Single(slide => slide.Index == 0);
+
+			Assert(datumSlide.TextPosition.X == datumLine.X && datumSlide.TextPosition.Y < datumLine.Y,
+				"vertical hard text overlap must slide the datum along the existing right-side lane");
+			Assert(!rules.TextBoundsOverlap(datumSlide.TextBounds, placed[1].TextBounds, 0.0),
+				"vertical datum slide must clear the neighboring dimension text");
+		}
+
+		private static void HardTextOverlapSlidesHorizontalDatumOnSameSide()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var datum = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.DatumHoleLocationX,
+				FirstPoint = new Point2D(0.0, 20.0),
+				SecondPoint = new Point2D(10.0, 20.0),
+				Span = 10.0,
+				OverrideText = "<>\\H0.8x;\u00B10.05\\H1x;"
+			};
+			var neighbor = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.PinDistance,
+				FirstPoint = new Point2D(-5.0, 20.0),
+				SecondPoint = new Point2D(25.0, 20.0),
+				Span = 30.0,
+				OverrideText = "30\\H0.8x;\u00B10.02\\H1x;"
+			};
+			var datumLine = new Point2D(5.0, 30.0);
+			var neighborLine = new Point2D(10.0, 30.0);
+			var placed = new[]
+			{
+				new DimensionTextPlacementItem
+				{
+					Dimension = datum,
+					Side = DimensionSide.Top,
+					DimLinePoint = datumLine,
+					TextBounds = rules.ComputePlacedTextBounds(datum, datumLine, isHorizontal: true, textHeight: 2.5)
+				},
+				new DimensionTextPlacementItem
+				{
+					Dimension = neighbor,
+					Side = DimensionSide.Top,
+					DimLinePoint = neighborLine,
+					TextBounds = rules.ComputePlacedTextBounds(neighbor, neighborLine, isHorizontal: true, textHeight: 2.5)
+				}
+			};
+
+			var slides = rules.SelectShortLocalDimensionTextSlides(placed, new TextBounds2D[0], 2.5, 2.5, 3.0);
+			var datumSlide = slides.Single(slide => slide.Index == 0);
+
+			Assert(datumSlide.TextPosition.Y == datumLine.Y && datumSlide.TextPosition.X < datumLine.X,
+				"horizontal hard text overlap must slide the datum along the existing top-side lane");
+			Assert(!rules.TextBoundsOverlap(datumSlide.TextBounds, placed[1].TextBounds, 0.0),
+				"horizontal datum slide must clear the neighboring dimension text");
+		}
+
+		private static void NonOverlappingDatumTextDoesNotSlide()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var datum = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.DatumHoleLocationY,
+				FirstPoint = new Point2D(20.0, 0.0),
+				SecondPoint = new Point2D(20.0, 10.0),
+				Span = 10.0,
+				OverrideText = "<>\\H0.8x;\u00B10.05\\H1x;"
+			};
+			var dimLine = new Point2D(30.0, 5.0);
+			var placed = new DimensionTextPlacementItem
+			{
+				Dimension = datum,
+				Side = DimensionSide.Right,
+				DimLinePoint = dimLine,
+				TextBounds = rules.ComputePlacedTextBounds(datum, dimLine, isHorizontal: false, textHeight: 2.5)
+			};
+
+			var slides = rules.SelectShortLocalDimensionTextSlides(new[] { placed }, new TextBounds2D[0], 2.5, 2.5, 3.0);
+
+			Assert(slides.Count == 0, "a datum dimension without text overlap must keep its default placement");
+		}
+
 		private static void ShortVerticalLocalTextClearsArrowheads()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -3463,6 +3595,35 @@ namespace CadAuto.Core.Tests
 				"bottom arm 68 must not be wiped only via StructureOverallPartition from cross-level tops");
 			Assert(bottom68.All(c => c.SuppressedReason != "LocalGeometryOnOverallEnvelope"),
 				"bottom arm 68 on partial MinY must not be removed by full-envelope local geometry");
+		}
+
+		private static void GeometricMirrorOwnershipPrefersContourBackedCandidate()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 96.0,
+				MaxY = 35.5
+			};
+			AddSegment(outline, new Point2D(0.0, 20.0), new Point2D(0.0, 35.5), "left");
+			AddSegment(outline, new Point2D(0.0, 35.5), new Point2D(25.0, 35.5), "top-step");
+			AddSegment(outline, new Point2D(25.0, 0.0), new Point2D(25.0, 35.5), "top-riser");
+			AddSegment(outline, new Point2D(28.0, 0.0), new Point2D(28.0, 20.0), "inner-riser");
+			AddSegment(outline, new Point2D(28.0, 0.0), new Point2D(96.0, 0.0), "bottom-main");
+			AddSegment(outline, new Point2D(28.0, 20.0), new Point2D(96.0, 20.0), "arm-top");
+			AddSegment(outline, new Point2D(96.0, 0.0), new Point2D(96.0, 35.5), "right");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			var top25 = plan.Dimensions.Where(d => d.DebugRole == "TopStructWidth"
+				&& Math.Abs(GetSpan(d) - 25.0) <= config.GeometryTolerance).ToList();
+			var bottom25 = plan.Diagnostics.DimensionCandidates.Where(c => c.DebugRole == "BottomStructWidth"
+				&& Math.Abs(c.Value - 25.0) <= config.GeometryTolerance).ToList();
+
+			Assert(top25.Count == 1, "the contour-backed top structure width 25 must remain selected");
+			Assert(bottom25.Any(c => c.SuppressedReason == "MirroredDuplicate"),
+				"the cross-level bottom projection 25 must be suppressed as the mirror duplicate");
 		}
 
 		private static void DatumRootedLeftOuterEnvelopeDimensionsAreSuppressed()

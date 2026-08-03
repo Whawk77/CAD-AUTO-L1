@@ -1623,12 +1623,44 @@ public sealed class DimensionLayoutRules
 		for (i = 0; i < placedDimensions.Count; i++)
 		{
 			DimensionTextPlacementItem placed = placedDimensions[i];
+			double safeArrowSize = Math.Max(0.0, arrowSize);
+			double safeClearance = Math.Max(_config.GeometryTolerance, clearance);
+			if (CanSlideTextOverlapLocalDimension(placed))
+			{
+				List<TextSlideCandidate> overlapCandidates = GetShortDimensionTextSlideCandidates(placed, textHeight, safeArrowSize, safeClearance).ToList();
+				bool currentTextOverlaps = TextBoundsHasHardOverlap(currentBounds[i], currentBounds, obstacles, i, _config.GeometryTolerance);
+				bool fallbackTextOverlaps = !DimensionTextFitsBetweenOwnExtensionLines(placed.Dimension, textHeight)
+					&& overlapCandidates.Any(candidate => TextBoundsHasHardOverlap(candidate.Bounds, currentBounds, obstacles, i, _config.GeometryTolerance));
+				if (currentTextOverlaps || fallbackTextOverlaps)
+				{
+					TextSlideCandidate overlapCandidate = (from candidate in overlapCandidates
+					where !TextBoundsHasHardOverlap(candidate.Bounds, currentBounds, obstacles, i, _config.GeometryTolerance)
+					select new TextSlideCandidate
+					{
+						Position = candidate.Position,
+						Bounds = candidate.Bounds,
+						Score = ScoreTextBoundsAgainstPlaced(candidate.Bounds, currentBounds, obstacles, i, safeClearance, (_config.TextHeight > _config.GeometryTolerance) ? (textHeight / _config.TextHeight) : 1.0)
+							+ ScoreTextBoundsAgainstArrows(candidate.Bounds, placedDimensions, safeArrowSize, safeClearance)
+					} into candidate
+					orderby candidate.Score, GetTextSlideDistance(candidate.Position, placed)
+					select candidate).FirstOrDefault();
+					if (overlapCandidate != null)
+					{
+						currentBounds[i] = overlapCandidate.Bounds;
+						list.Add(new DimensionTextSlidePlacement
+						{
+							Index = i,
+							TextPosition = overlapCandidate.Position,
+							TextBounds = overlapCandidate.Bounds
+						});
+						continue;
+					}
+				}
+			}
 			if (!CanSlideShortLocalDimensionText(placed))
 			{
 				continue;
 			}
-			double safeArrowSize = Math.Max(0.0, arrowSize);
-			double safeClearance = Math.Max(_config.GeometryTolerance, clearance);
 			if (DimensionTextFitsBetweenOwnExtensionLines(placed.Dimension, textHeight))
 			{
 				list.Add(new DimensionTextSlidePlacement
@@ -1690,6 +1722,17 @@ public sealed class DimensionLayoutRules
 		DimensionKind kind = placed.Dimension.Kind;
 		return IsTopTenPlusMinusDatumHoleLocation(placed)
 			|| kind == DimensionKind.HoleLocation || kind == DimensionKind.PinDistance || kind == DimensionKind.PinGroupDistance;
+	}
+
+	private bool CanSlideTextOverlapLocalDimension(DimensionTextPlacementItem placed)
+	{
+		if (placed == null || placed.Dimension == null || (placed.Side != DimensionSide.Bottom && placed.Side != DimensionSide.Top && placed.Side != DimensionSide.Left && placed.Side != DimensionSide.Right))
+		{
+			return false;
+		}
+		DimensionKind kind = placed.Dimension.Kind;
+		return kind == DimensionKind.DatumHoleLocationX
+			|| kind == DimensionKind.DatumHoleLocationY;
 	}
 
 	private bool IsTopTenPlusMinusDatumHoleLocation(DimensionTextPlacementItem placed)

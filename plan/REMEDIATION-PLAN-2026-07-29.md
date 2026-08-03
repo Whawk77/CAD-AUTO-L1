@@ -438,9 +438,9 @@ M4 门禁冻结验证（2026-07-31）：
 
 ### M5 进入条件
 
-- M4 当前阻断配置、历史 WarningOnly 矩阵和证据包保持冻结，现有 5 个 ready case 的三轮结果可复核。
+- M4 当前阻断配置、历史 WarningOnly 矩阵和证据包保持冻结，现有 8 个 ready case 的三轮结果可复核。
 - 已确定 PR 快速层与 nightly 的配置文件、artifact 保留位置、DLL 哈希采集和失败升级责任边界。
-- 对每个拟纳入的 Hole/Slot case 已取得对应正确图片与诊断；HS05 未满足时仅可停留在证据收集。
+- 对每个纳入的 Hole/Slot case 已取得对应正确图片与诊断；未 ready case 仅可停留在证据收集。
 
 ### M5 退出条件
 

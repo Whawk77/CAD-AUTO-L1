@@ -21,6 +21,16 @@ function Get-VisualGate([string]$Path) {
     return $gate
 }
 
+function Get-Sha256([string]$Path) {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [IO.File]::OpenRead($Path)
+        try { return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '') }
+        finally { $stream.Dispose() }
+    }
+    finally { $sha.Dispose() }
+}
+
 $visualGate = Get-VisualGate $GatePath
 
 function Get-Number([string]$Value) {
@@ -196,7 +206,7 @@ if ($CaseId -and (Test-Path -LiteralPath $TruthMatrixPath)) {
         foreach ($artifact in @($case.evidence | ForEach-Object artifacts)) { if ($artifact.path -match '(?i)(^|/)(full|detail)\.png$') { $approvedImages[$matches[2].ToLowerInvariant()] = $artifact.sha256.ToUpperInvariant() } }
         if ($approvedImages.Count) {
             $providedImages = @{ full = $FullImagePath; detail = $DetailImagePath }; $allMatched = $true; $supplied = $false
-            foreach ($name in $approvedImages.Keys) { $path = $providedImages[$name]; if (-not $path) { $allMatched = $false; continue }; $supplied = $true; if (-not (Test-Path -LiteralPath $path) -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToUpperInvariant() -ne $approvedImages[$name]) { $allMatched = $false } }
+            foreach ($name in $approvedImages.Keys) { $path = $providedImages[$name]; if (-not $path) { $allMatched = $false; continue }; $supplied = $true; if (-not (Test-Path -LiteralPath $path) -or (Get-Sha256 $path) -ne $approvedImages[$name]) { $allMatched = $false } }
             $imageBaselineStatus = if ($allMatched) { 'Matched' } elseif ($supplied) { 'Mismatch' } else { 'NotSupplied' }
         }
     }

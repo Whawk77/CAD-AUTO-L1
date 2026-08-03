@@ -322,6 +322,7 @@ $driver = @"
 (c:RUNCORECAD)
 (vl-cmdf "_.REGEN")
 (vl-cmdf "_.ZOOM" "_E")
+(vl-sleep 1000)
 (vl-cmdf "_.PNGOUT" $(ConvertTo-LispString $fullImagePath) "_ALL" "")
 _.QUIT
 _N

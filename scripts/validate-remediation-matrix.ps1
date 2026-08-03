@@ -41,7 +41,7 @@ try {
     }
 
     $matrix = Get-Content -LiteralPath $MatrixPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($matrix.schemaVersion -isnot [int] -or $matrix.schemaVersion -ne 1) {
+    if (($matrix.schemaVersion -isnot [int] -and $matrix.schemaVersion -isnot [long]) -or $matrix.schemaVersion -ne 1) {
         throw "Truth matrix schemaVersion must be 1."
     }
 

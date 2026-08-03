@@ -30,12 +30,12 @@ if ([string]::IsNullOrWhiteSpace($Profile)) {
 }
 
 function Get-PowerShellExecutable {
+    $pwsh = Get-Command pwsh -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -ne $pwsh -and (Test-Path -LiteralPath $pwsh.Source -PathType Leaf)) { return $pwsh.Source }
     $windowsPowerShell = Get-Command powershell.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($null -ne $windowsPowerShell -and (Test-Path -LiteralPath $windowsPowerShell.Source -PathType Leaf)) { return $windowsPowerShell.Source }
     $systemWindowsPowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     if (Test-Path -LiteralPath $systemWindowsPowerShell -PathType Leaf) { return $systemWindowsPowerShell }
-    $pwsh = Get-Command pwsh -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($null -ne $pwsh -and (Test-Path -LiteralPath $pwsh.Source -PathType Leaf)) { return $pwsh.Source }
     $currentProcessPath = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
     if (Test-Path -LiteralPath $currentProcessPath -PathType Leaf) { return $currentProcessPath }
     throw 'Could not resolve a PowerShell executable.'
@@ -114,8 +114,15 @@ function Get-NormalizedReportHash {
 function Get-NormalizedVisualReportHash {
     param([Parameter(Mandatory = $true)][string]$ReportPath)
     $report = Get-Content -Raw -Encoding UTF8 -LiteralPath $ReportPath | ConvertFrom-Json
-    if ($null -ne $report.environment -and $report.environment.PSObject.Properties.Name -contains "DWGPREFIX") {
-        $report.environment.PSObject.Properties.Remove("DWGPREFIX")
+    if ($null -ne $report.environment) {
+        if ($report.environment.PSObject.Properties.Name -contains "DWGPREFIX") {
+            $report.environment.PSObject.Properties.Remove("DWGPREFIX")
+        }
+        $orderedEnvironment = [ordered]@{}
+        foreach ($property in $report.environment.PSObject.Properties | Sort-Object Name) {
+            $orderedEnvironment[$property.Name] = $property.Value
+        }
+        $report.environment = [pscustomobject]$orderedEnvironment
     }
     $json = $report | ConvertTo-Json -Depth 100 -Compress
     $bytes = [Text.Encoding]::UTF8.GetBytes($json)
@@ -381,9 +388,11 @@ _.QSAVE
 (setq *v203-detail-image-path* $(ConvertTo-LispString $detailImagePath))
 (vl-cmdf "_.REGEN")
 (vl-cmdf "_.ZOOM" "_E")
+(vl-sleep 1000)
 (vl-cmdf "_.PNGOUT" *v203-full-image-path* "_ALL" "")
 (setq *v203-detail-selection* (ssget "_C" '($($detailWindow[0])) '($($detailWindow[1])) '((0 . "DIMENSION"))))
 (vl-cmdf "_.ZOOM" "_W" '($($detailWindow[0])) '($($detailWindow[1])))
+(vl-sleep 500)
 (if *v203-detail-selection* (vl-cmdf "_.PNGOUT" *v203-detail-image-path* *v203-detail-selection* "") (princ "\nDETAIL selection empty"))
 _.QUIT
 _N
@@ -586,6 +595,105 @@ function Invoke-CoreCadCase {
     }
 }
 
+function Invoke-HoleSlotCase {
+    param(
+        [Parameter(Mandatory = $true)]$Case,
+        [Parameter(Mandatory = $true)][string]$BatchRoot,
+        [Parameter(Mandatory = $true)][string]$ResolvedDllDirectory
+    )
+
+    $caseId = [string]$Case.id
+    if ($caseId -notin @("HS01-normal-hole", "HS02-concentric-holes", "HS03-loose-hole-chain", "HS04-unique-pin-datum", "HS05-multiple-pin-datum", "HS06-functional-hole", "HS07-vertical-waist-slot", "HS08-transformed-waist-slot")) {
+        throw "No deterministic Hole/Slot executor is configured for ready case '$caseId'."
+    }
+
+    $holeSlotRoot = Join-Path $BatchRoot "hole-slot"
+    if (-not (Test-Path -LiteralPath $holeSlotRoot -PathType Container)) {
+        New-Item -ItemType Directory -Path $holeSlotRoot | Out-Null
+    }
+    $caseRoot = Join-Path $holeSlotRoot $caseId
+    $runnerLog = Join-Path $holeSlotRoot ("{0}.runner.log" -f $caseId)
+    $runnerErrorLog = Join-Path $holeSlotRoot ("{0}.runner.stderr.log" -f $caseId)
+    $runnerArguments = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", ('"{0}"' -f (Join-Path $projectRoot "scripts\run-hole-slot-cad-regression.ps1")),
+        "-CaseId", $caseId,
+        "-OutputRoot", ('"{0}"' -f $caseRoot),
+        "-DllDirectory", ('"{0}"' -f $ResolvedDllDirectory),
+        "-RepeatCount", $RepeatCount,
+        "-CoreConsolePath", ('"{0}"' -f $CoreConsolePath),
+        "-Profile", $Profile,
+        "-TimeoutSeconds", $TimeoutSeconds
+    )
+    $runnerProcess = Start-Process -FilePath $powerShellExecutable -ArgumentList $runnerArguments `
+        -WindowStyle Hidden -RedirectStandardOutput $runnerLog -RedirectStandardError $runnerErrorLog -PassThru
+    $runnerProcess.WaitForExit()
+    $runnerProcess.Refresh()
+    $runnerExit = [int]$runnerProcess.ExitCode
+    $childSummaryPath = Join-Path $caseRoot "summary.json"
+    if (-not (Test-Path -LiteralPath $childSummaryPath -PathType Leaf)) {
+        throw "Hole/Slot runner produced no summary.json for $caseId. Logs: $runnerLog, $runnerErrorLog"
+    }
+
+    $childSummary = Get-Content -Raw -Encoding UTF8 -LiteralPath $childSummaryPath | ConvertFrom-Json
+    $childRecords = @($childSummary.records)
+    if ($childRecords.Count -ne $RepeatCount) {
+        throw "Hole/Slot runner returned $($childRecords.Count) records for $caseId; expected $RepeatCount."
+    }
+    $childSummaryError = if ($childSummary.PSObject.Properties.Name -contains "error") { [string]$childSummary.error } elseif ($childSummary.PSObject.Properties.Name -contains "errors") { (@($childSummary.errors) -join "; ") } else { $null }
+
+    $records = @()
+    foreach ($childRecord in $childRecords) {
+        $repeat = [int]$childRecord.repeat
+        $visualReportPath = [string]$childRecord.visualReportPath
+        $visualSnapshotPath = [string]$childRecord.visualSnapshotPath
+        $visualMarkdownPath = [string]$childRecord.visualMarkdownPath
+        $visualGateStatus = [pscustomobject]@{ mode = $null; blocking = [bool]$childRecord.visualBlocking; blockingCodes = @($childRecord.visualBlockingCodes) }
+        $visualInspection = [ordered]@{
+            status = "Failed"
+            error = "Visual report was not returned by Hole/Slot runner."
+            snapshotPath = $visualSnapshotPath
+            reportPath = $visualReportPath
+            markdownPath = $visualMarkdownPath
+            warningCount = $childRecord.visualWarningCount
+            normalizedReportSha256 = [string]$childRecord.normalizedVisualReportSha256
+            mode = $null
+            blocking = [bool]$childRecord.visualBlocking
+            blockingCodes = @($childRecord.visualBlockingCodes)
+        }
+        if (-not [string]::IsNullOrWhiteSpace($visualReportPath) -and (Test-Path -LiteralPath $visualReportPath -PathType Leaf)) {
+            $visualGateStatus = Get-VisualGateStatus -VisualReport (Get-Content -Raw -Encoding UTF8 -LiteralPath $visualReportPath | ConvertFrom-Json)
+            $visualInspection.status = "Completed"
+            $visualInspection.error = $null
+        }
+        $visualInspection.mode = $visualGateStatus.mode
+        $visualInspection.blocking = $visualGateStatus.blocking
+        $visualInspection.blockingCodes = @($visualGateStatus.blockingCodes)
+        $visualFailed = [string]$visualInspection.status -ne "Completed"
+        $visualError = if ($visualFailed -and [string]::IsNullOrWhiteSpace([string]$visualInspection.error)) { "status=$($visualInspection.status)" } elseif ($visualFailed) { [string]$visualInspection.error } else { $null }
+        $status = if ($runnerExit -eq 0 -and [string]$childSummary.status -eq "Passed" -and [string]$childRecord.status -eq "Passed" -and -not $visualGateStatus.blocking -and -not $visualFailed) { "Passed" } else { "Failed" }
+        $error = if ($visualGateStatus.blocking) { "Visual gate blocked ${caseId}: $($visualGateStatus.blockingCodes -join ', ')." } elseif ($visualFailed) { "Visual inspection failed ${caseId}: $visualError" } elseif (-not [string]::IsNullOrWhiteSpace([string]$childRecord.error)) { [string]$childRecord.error } elseif (-not [string]::IsNullOrWhiteSpace($childSummaryError)) { $childSummaryError } elseif ($runnerExit -ne 0) { "Hole/Slot runner exited $runnerExit. Logs: $runnerLog, $runnerErrorLog" } else { $null }
+        $records += [pscustomobject]@{
+            family = "HoleSlot"
+            caseId = $caseId
+            repeat = $repeat
+            status = $status
+            error = $error
+            normalizedReportSha256 = [string]$childRecord.normalizedReportSha256
+            normalizedVisualReportSha256 = [string]$childRecord.normalizedVisualReportSha256
+            visualWarningCount = $visualInspection.warningCount
+            visualBlockingCodes = @($visualGateStatus.blockingCodes)
+            visualSnapshotPath = $visualSnapshotPath
+            visualReportPath = $visualReportPath
+            visualMarkdownPath = $visualMarkdownPath
+            visualInspection = [pscustomobject]$visualInspection
+            runDirectory = if ([string]::IsNullOrWhiteSpace($visualReportPath)) { $caseRoot } else { Split-Path -Parent $visualReportPath }
+        }
+    }
+    return @($records)
+}
+
 $coreCadManifest = Get-Manifest -RelativePath "regression\core-cad\cases.json"
 $dimensionLayoutManifest = Get-Manifest -RelativePath "regression\dimension-layout\cases.json"
 $holeSlotManifest = Get-Manifest -RelativePath "regression\hole-slot\cases.json"
@@ -670,25 +778,29 @@ try {
     $dllEvidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $batchRoot "dll-hashes.json") -Encoding UTF8
     $pluginPath = [string]$dllEvidence[0].path
 
-    if ($holeSlotReady.Count -gt 0) {
-        throw "Ready Hole/Slot cases exist, but no deterministic CAD executor is configured: $(@($holeSlotReady.id) -join ', ')."
+    $supportedHoleSlotCaseIds = @("HS01-normal-hole", "HS02-concentric-holes", "HS03-loose-hole-chain", "HS04-unique-pin-datum", "HS05-multiple-pin-datum", "HS06-functional-hole", "HS07-vertical-waist-slot", "HS08-transformed-waist-slot")
+    $unsupportedHoleSlotReady = @($holeSlotReady | Where-Object { $_.id -notin $supportedHoleSlotCaseIds })
+    if ($unsupportedHoleSlotReady.Count -gt 0) {
+        throw "Ready Hole/Slot cases have no deterministic executor: $(@($unsupportedHoleSlotReady.id) -join ', ')."
     }
-    $null = $records.Add([pscustomobject]@{
-        family = "HoleSlot"
-        caseId = "ready-cases"
-        repeat = 0
-        status = "Skipped"
-        error = "No fixtureReady=true Hole/Slot cases."
-        normalizedReportSha256 = $null
-        normalizedVisualReportSha256 = $null
-        visualWarningCount = $null
-        visualBlockingCodes = @()
-        visualSnapshotPath = $null
-        visualReportPath = $null
-        visualMarkdownPath = $null
-        visualInspection = $null
-        runDirectory = $null
-    })
+    if ($holeSlotReady.Count -eq 0) {
+        $null = $records.Add([pscustomobject]@{
+            family = "HoleSlot"
+            caseId = "ready-cases"
+            repeat = 0
+            status = "Skipped"
+            error = "No fixtureReady=true Hole/Slot cases."
+            normalizedReportSha256 = $null
+            normalizedVisualReportSha256 = $null
+            visualWarningCount = $null
+            visualBlockingCodes = @()
+            visualSnapshotPath = $null
+            visualReportPath = $null
+            visualMarkdownPath = $null
+            visualInspection = $null
+            runDirectory = $null
+        })
+    }
 
     for ($repeat = 1; $repeat -le $RepeatCount; $repeat++) {
         $repeatRoot = Join-Path $batchRoot ("repeat-{0}" -f $repeat)
@@ -722,6 +834,23 @@ try {
             if (@(Get-Process -Name "accoreconsole" -ErrorAction SilentlyContinue).Count -gt 0) {
                 throw "An AutoCAD Core Console process remains active; stopping without force-kill."
             }
+        }
+    }
+
+    foreach ($case in $holeSlotReady) {
+        try {
+            foreach ($record in @(Invoke-HoleSlotCase -Case $case -BatchRoot $batchRoot -ResolvedDllDirectory $resolvedDllDirectory)) {
+                $null = $records.Add($record)
+                if ($record.status -ne "Passed") {
+                    $null = $errors.Add("$($record.family)/$($record.caseId)/repeat-$($record.repeat) failed: $($record.error)")
+                }
+            }
+        }
+        catch {
+            $null = $errors.Add("HoleSlot/$($case.id) failed: $($_.Exception.Message)")
+        }
+        if (@(Get-Process -Name "accoreconsole" -ErrorAction SilentlyContinue).Count -gt 0) {
+            throw "An AutoCAD Core Console process remains active; stopping without force-kill."
         }
     }
 

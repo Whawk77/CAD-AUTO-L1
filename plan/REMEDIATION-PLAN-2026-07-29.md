@@ -421,19 +421,19 @@ M4 门禁冻结验证（2026-07-31）：
 - 2026-08-01 M5-1 运营化配置：仅更新 `.github/workflows/cad-nightly.yml`，nightly preflight/run/publish 统一使用 PowerShell 7，保留 self-hosted `Windows/X64/autocad-2020`、串行 concurrency、3 轮、180 秒 case timeout、30 天 artifact 和 `always()` 证据上传；新增 summary contract 校验（`status=Passed`、`errors=0`、case 非空、visual determinism 全部通过、同批 DLL hash 至少 3 项）。现有 `core-ci.yml` 已满足 push/PR、3 分钟、Core-only 快速层，本轮不改。YAML/关键字段、现有 nightly summary contract、matrix/manifests、Core `133/133` 均通过；本地验证改动已提交到 `agent/m5-remediation`，仍需 GitHub self-hosted runner 实跑确认线上链路。
 - expectation、产品行为和现有 fixture 的任何变更继续独立审批；M5 不将三者绑为同一项授权。
 
-### M5 当前状态与唯一下一步（2026-08-03）
+### M5 当前状态（2026-08-03）
 
 | 分项 | 状态 | 证据边界 / 下一动作 |
 |---|---|---|
 | M5-1 本地配置与验证 | `Completed` | `agent/m5-remediation`；Core `133/133`，本地 Debug-v9 nightly `36/36`。 |
 | M5-1 GitHub Runner 闭环 | `Completed` | workflow `30779057295`（提交 `1e848dd`）已在带 `Windows/X64/autocad-2020` 标签的 Runner 上完成；`36/36`、`status=Passed`、`errors=0`、12/12 visual deterministic、同批 3 DLL SHA 稳定，artifact `cad-nightly-30779057295-1` 已归档。 |
-| M5-2 HS01～HS07 | `Completed (ready scope)` | 各 case 已有人工真值、fixtureReady、结构化证据和哈希；不再重复补证。 |
-| M5-2 HS08 | `Unresolved` | `fixtureReady=false`；等待正确 fixture、图片和诊断，禁止推断产品行为或 expectation。 |
+| M5-2 HS01～HS08 | `Completed (ready scope)` | 各 case 已有人工真值、fixtureReady、结构化证据和哈希；HS08 已完成真实三轮证据，不再重复补证。 |
 
-- M5-1 GitHub Runner 闭环已通过；M5 整体仍受 M5-2 的 HS08 `fixtureReady=false` 约束，不得将未 ready case 计入完成。该登记只记录运营证据，不改变产品代码、expectation、fixture 或已确认基线。
+- M5-1 GitHub Runner 闭环已通过；M5-2 HS01～HS08 ready scope 已完成。该登记只记录运营证据，不改变产品代码、expectation、fixture 内容或已确认基线。
 - Runner 失败时只调查 workflow、环境、凭据、超时和 artifact 链路；不得用修改 expectation、fixture 或基线的方式消除失败。
 - 2026-08-03：自托管 Runner 恢复后触发 `30777968411`（提交 `9c6e0a0`）。CAD suite `36/36`、`errors=0`、CAD/validator 全部成功，三 DLL SHA 稳定；artifact `cad-nightly-30777968411-1` 已归档。但视觉契约仅 `10/12` deterministic：OC01 与 DL01 Bottom 的 repeat-1 全图分别为 `0DE188D821A0C2E414AFBCC3567F14D7362BB1B32A09EFFD88A02BD92574EF16`、`597F8A100F4F1D7692D2248BE2A9CC0E4C0B693B29B7BA5138CA4F68AEC2BB3A`，repeat-2/3 与已批准哈希一致；两项结构化 normalized report SHA 在三轮均稳定。summary contract 因此失败，本轮不计 M5 通过。初步归因是 `REGEN`/`ZOOM`/`PNGOUT` 连续调用造成首轮截图未稳定；需单独授权测试入口校准，禁止修改产品行为、expectation、fixture 或基线。
 - 2026-08-03：按授权仅在两个测试入口的 PNGOUT 前加入 AutoCAD 显示稳定等待；未修改产品行为、expectation、fixture、manifest 或基线。workflow `30779057295`（提交 `1e848dd`）重跑成功：`36/36`、`errors=0`、12/12 visual deterministic、visual FP/FN `6/0`（仅 HS04/HS05 各轮既有非阻断 warning，未新增阻断）、同批 Debug-v1 三 DLL SHA 稳定；artifact `cad-nightly-30779057295-1` 已归档。本轮 M5-1 Runner 闭环通过。
+- 2026-08-03：用户确认 HS08 transformed waist slot 全图正确；仅修正 Hole/Slot 测试入口纳入 HS08，并将其圆实体前置条件豁免为腰槽适用路径。HS08 fixture `791F706C84A5421F265B68039D6354D51179422595D1DA44CF6DDDF85C543F3F` 登记为 `fixtureReady=true`、`ConfirmedCorrect`。ready batch `regression/hole-slot/runs/hs08-ready-20260803-112239371/summary.json` 三轮 `Passed`，CAD/validator exit 0、trace complete、`SlotCenter=40`、`SlotDatumH=30`、`SlotChainV=50`、visual warning 0、`blocking=false`；normalized report `9C11C0886079775C72D4A7EED2755091AE31C1105A0581BB985F1147FEBF8523`、normalized visual `A4BAAA7B2619AA96CEAE73CD2C8EF18E72046E2E03BF2B035D6731B700F0AF69`、full `BF824A8B58E309B7979CFC0690FC5A001B31BE4203989E5BA5B31033F4C9C67B`、trace `677133C66547DBB16605B1092CD88692DAC4D7D1D9C63DF64A0031A7F011BA71` 稳定；Debug-v3 三 DLL SHA 已登记于 truth matrix。未修改产品代码、expectation 或 DWG 内容。
 
 ### M5 进入条件
 

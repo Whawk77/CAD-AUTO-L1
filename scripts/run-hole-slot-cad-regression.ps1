@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$DllDirectory,
 
-    [ValidateSet('HS01-normal-hole', 'HS02-concentric-holes', 'HS03-loose-hole-chain', 'HS04-unique-pin-datum', 'HS05-multiple-pin-datum', 'HS06-functional-hole', 'HS07-vertical-waist-slot')]
+    [ValidateSet('HS01-normal-hole', 'HS02-concentric-holes', 'HS03-loose-hole-chain', 'HS04-unique-pin-datum', 'HS05-multiple-pin-datum', 'HS06-functional-hole', 'HS07-vertical-waist-slot', 'HS08-transformed-waist-slot')]
     [string]$CaseId = 'HS01-normal-hole',
 
     [ValidateRange(1, 3)]
@@ -309,7 +309,7 @@ function Invoke-HoleSlotRun([int]$Repeat, [string]$BatchRoot, $DllEvidence, [str
 (setq *hs-trace* $(ConvertTo-LispString $tracePath))
 (setq *hs-report* $(ConvertTo-LispString $reportPath))
 (setq *hs-snapshot* $(ConvertTo-LispString $snapshotPath))
-(setq *hs-requires-circle* $(if ($CaseId -eq 'HS07-vertical-waist-slot') { 'nil' } else { 'T' }))
+(setq *hs-requires-circle* $(if ($CaseId -in @('HS07-vertical-waist-slot', 'HS08-transformed-waist-slot')) { 'nil' } else { 'T' }))
 (defun hs-write (text / stream) (setq stream (open *hs-trace* "a")) (if stream (progn (write-line text stream) (close stream))))
 (defun hs-type-count (selection dxf / index count entity data result)
   (setq index 0 count 0)

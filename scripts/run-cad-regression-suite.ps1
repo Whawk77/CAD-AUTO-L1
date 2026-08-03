@@ -603,7 +603,7 @@ function Invoke-HoleSlotCase {
     )
 
     $caseId = [string]$Case.id
-    if ($caseId -notin @("HS01-normal-hole", "HS02-concentric-holes", "HS03-loose-hole-chain", "HS04-unique-pin-datum", "HS05-multiple-pin-datum", "HS06-functional-hole", "HS07-vertical-waist-slot")) {
+    if ($caseId -notin @("HS01-normal-hole", "HS02-concentric-holes", "HS03-loose-hole-chain", "HS04-unique-pin-datum", "HS05-multiple-pin-datum", "HS06-functional-hole", "HS07-vertical-waist-slot", "HS08-transformed-waist-slot")) {
         throw "No deterministic Hole/Slot executor is configured for ready case '$caseId'."
     }
 
@@ -778,7 +778,7 @@ try {
     $dllEvidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $batchRoot "dll-hashes.json") -Encoding UTF8
     $pluginPath = [string]$dllEvidence[0].path
 
-    $supportedHoleSlotCaseIds = @("HS01-normal-hole", "HS02-concentric-holes", "HS03-loose-hole-chain", "HS04-unique-pin-datum", "HS05-multiple-pin-datum", "HS06-functional-hole", "HS07-vertical-waist-slot")
+    $supportedHoleSlotCaseIds = @("HS01-normal-hole", "HS02-concentric-holes", "HS03-loose-hole-chain", "HS04-unique-pin-datum", "HS05-multiple-pin-datum", "HS06-functional-hole", "HS07-vertical-waist-slot", "HS08-transformed-waist-slot")
     $unsupportedHoleSlotReady = @($holeSlotReady | Where-Object { $_.id -notin $supportedHoleSlotCaseIds })
     if ($unsupportedHoleSlotReady.Count -gt 0) {
         throw "Ready Hole/Slot cases have no deterministic executor: $(@($unsupportedHoleSlotReady.id) -join ', ')."

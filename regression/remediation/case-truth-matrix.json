@@ -1026,7 +1026,7 @@
     {
       "id": "HS08-transformed-waist-slot",
       "family": "HoleSlot",
-      "status": "Unresolved",
+      "status": "ConfirmedCorrect",
       "input": {
         "source": "regression/hole-slot/fixtures/HS08-transformed-waist-slot.dwg",
         "sha256": "791F706C84A5421F265B68039D6354D51179422595D1DA44CF6DDDF85C543F3F"
@@ -1034,14 +1034,13 @@
       "evidence": [
         {
           "source": "regression/hole-slot/cases.json:88-100",
-          "claim": "The fixture is pinned but fixtureReady=false."
+          "claim": "User approved the HS08 image; fixtureReady=true while the fixture path, SHA256, requiredFinal, and manualChecks remain pinned."
         },
         {
-          "source": "docs/RefactorVerification-2026-07-27.md:171-182",
-          "claim": "The Hole/Slot chain is documented as never having completed a genuine run."
+          "source": "regression/hole-slot/runs/hs08-ready-20260803-112239371/summary.json",
+          "claim": "User-approved genuine ready batch: three repeats had status Passed, CAD and validator exit 0, complete traces, features.slotCount=1, valid attached SlotCenter=40, SlotDatumH=30, and SlotChainV=50 finals, visualWarningCount=0, blocking=false; normalized report 9C11C0886079775C72D4A7EED2755091AE31C1105A0581BB985F1147FEBF8523, normalized visual A4BAAA7B2619AA96CEAE73CD2C8EF18E72046E2E03BF2B035D6731B700F0AF69, full BF824A8B58E309B7979CFC0690FC5A001B31BE4203989E5BA5B31033F4C9C67B, trace 677133C66547DBB16605B1092CD88692DAC4D7D1D9C63DF64A0031A7F011BA71; DLL SHA256 AutoFixtureDim B145FDCCC2C5DFA05FCBEA5E8886BC3AD27B4A577D0366EFFD2762A53990CBED, Core 4D20C161DF40BFB0C5B67C6D498438D42F9EBC7EA5B2FCA1BB1CFD0BA34E9498, Adapter D3961973C6F6152789B969BCFF9EC607803B6602D29D774B4CB959DC03CC6857."
         }
-      ],
-      "reviewNeeded": "Complete and approve the first genuine fixture run."
+      ]
     }
   ]
 }

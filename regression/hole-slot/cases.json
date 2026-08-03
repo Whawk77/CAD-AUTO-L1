@@ -89,7 +89,7 @@
       "id": "HS08-transformed-waist-slot",
       "fixture": "fixtures/HS08-transformed-waist-slot.dwg",
       "fixtureSha256": "791F706C84A5421F265B68039D6354D51179422595D1DA44CF6DDDF85C543F3F",
-      "fixtureReady": false,
+      "fixtureReady": true,
       "description": "平移并旋转的腰槽保持 WCS 基准与真实夹点",
       "requiredFinal": [
         { "debugRole": "SlotCenter", "minCount": 1 },

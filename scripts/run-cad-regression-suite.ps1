@@ -388,9 +388,11 @@ _.QSAVE
 (setq *v203-detail-image-path* $(ConvertTo-LispString $detailImagePath))
 (vl-cmdf "_.REGEN")
 (vl-cmdf "_.ZOOM" "_E")
+(vl-sleep 1000)
 (vl-cmdf "_.PNGOUT" *v203-full-image-path* "_ALL" "")
 (setq *v203-detail-selection* (ssget "_C" '($($detailWindow[0])) '($($detailWindow[1])) '((0 . "DIMENSION"))))
 (vl-cmdf "_.ZOOM" "_W" '($($detailWindow[0])) '($($detailWindow[1])))
+(vl-sleep 500)
 (if *v203-detail-selection* (vl-cmdf "_.PNGOUT" *v203-detail-image-path* *v203-detail-selection* "") (princ "\nDETAIL selection empty"))
 _.QUIT
 _N

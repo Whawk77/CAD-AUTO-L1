@@ -18,6 +18,7 @@ using CadAuto.CadAdapter.Mapping;
 using CadAuto.CadAdapter.Model;
 using CadAuto.CadAdapter.Recognition;
 using CadAuto.CadAdapter.Rendering;
+using CadAuto.Core.Geometry;
 using CadAuto.Core.Model;
 using CadAuto.Core.Planning;
 using CadAuto.Core.Rules;
@@ -909,7 +910,7 @@ public sealed class Commands
 		}
 		try
 		{
-			string path = WriteDimensionDiagnosticReport(dimensionDiagnosticReport, outline, holes, slots, outputScope, diagnosticsEnabled, diagnosticSide, context, error);
+			string path = WriteDimensionDiagnosticReport(dimensionDiagnosticReport, outline, holes, slots, outputScope, diagnosticsEnabled, diagnosticSide, context, plan?.CoordinateFrame, error);
 			editor.WriteMessage("\n诊断报告已输出: {0}", path);
 		}
 		catch (System.Exception ex)
@@ -992,6 +993,7 @@ public sealed class Commands
 	private static DimensionPlan CreateCoreDebugRenderPlan(DimensionPlan source)
 	{
 		DimensionPlan dimensionPlan = new DimensionPlan();
+		dimensionPlan.CoordinateFrame = source?.CoordinateFrame ?? CoordinateFrame2D.Identity;
 		foreach (PinGroupPlan pinGroup in source.PinGroups)
 		{
 			dimensionPlan.PinGroups.Add(pinGroup);
@@ -1334,7 +1336,7 @@ public sealed class Commands
 		bounds.MaxZ = Math.Max(bounds.MaxZ, point.Z);
 	}
 
-	private static string WriteDimensionDiagnosticReport(DimensionDiagnosticReport diagnostics, OutlineFeature outline, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide, DiagnosticRunContext context, System.Exception error = null)
+	private static string WriteDimensionDiagnosticReport(DimensionDiagnosticReport diagnostics, OutlineFeature outline, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide, DiagnosticRunContext context, CoordinateFrame2D coordinateFrame, System.Exception error = null)
 	{
 		diagnostics = diagnostics ?? new DimensionDiagnosticReport();
 		List<HoleFeature> source = (holes ?? Enumerable.Empty<HoleFeature>()).Where((HoleFeature h) => h != null).ToList();
@@ -1357,7 +1359,7 @@ public sealed class Commands
 			text2 = Path.GetFullPath(text2);
 			Directory.CreateDirectory(Path.GetDirectoryName(text2));
 		}
-		File.WriteAllText(text2, SerializeDimensionDiagnosticReport(diagnostics, outputScope, diagnosticsEnabled, diagnosticSide, context, error), Encoding.UTF8);
+		File.WriteAllText(text2, SerializeDimensionDiagnosticReport(diagnostics, outputScope, diagnosticsEnabled, diagnosticSide, context, coordinateFrame, error), Encoding.UTF8);
 		return text2;
 	}
 
@@ -1379,7 +1381,7 @@ public sealed class Commands
 
 	private static int _nonFiniteJsonValueCount;
 
-	private static string SerializeDimensionDiagnosticReport(DimensionDiagnosticReport report, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide, DiagnosticRunContext context, System.Exception error = null)
+	private static string SerializeDimensionDiagnosticReport(DimensionDiagnosticReport report, AutoFixDimOutputScope outputScope, bool diagnosticsEnabled, DiagnosticDimensionSide diagnosticSide, DiagnosticRunContext context, CoordinateFrame2D coordinateFrame, System.Exception error = null)
 	{
 		_nonFiniteJsonValueCount = 0;
 		context = context ?? new DiagnosticRunContext
@@ -1411,6 +1413,11 @@ public sealed class Commands
 		AppendDiagnosticFileIdentity(stringBuilder, 1, "drawing", context.Drawing, comma: true);
 		AppendDiagnosticFileIdentity(stringBuilder, 1, "plugin", context.Plugin, comma: true);
 		AppendJsonProperty(stringBuilder, 1, "coordinateSystem", "WCS", comma: true);
+		CoordinateFrame2D effectiveFrame = coordinateFrame ?? CoordinateFrame2D.Identity;
+		AppendJsonProperty(stringBuilder, 1, "dimensionCoordinateSystem", effectiveFrame.IsIdentity ? "WCS" : "LocalPlanningFrame", comma: true);
+		AppendJsonProperty(stringBuilder, 1, "dimensionFrameAngleRadians", effectiveFrame.Angle, comma: true);
+		AppendJsonProperty(stringBuilder, 1, "dimensionFrameOriginX", effectiveFrame.Origin.X, comma: true);
+		AppendJsonProperty(stringBuilder, 1, "dimensionFrameOriginY", effectiveFrame.Origin.Y, comma: true);
 		AppendDiagnosticSelection(stringBuilder, context, comma: true);
 		AppendDiagnosticDatum(stringBuilder, context, comma: true);
 		AppendDiagnosticEnvironment(stringBuilder, context, comma: true);
@@ -1792,6 +1799,7 @@ public sealed class Commands
 			return source;
 		}
 		DimensionPlan dimensionPlan = new DimensionPlan();
+		dimensionPlan.CoordinateFrame = source.CoordinateFrame ?? CoordinateFrame2D.Identity;
 		foreach (PinGroupPlan pinGroup in source.PinGroups)
 		{
 			dimensionPlan.PinGroups.Add(pinGroup);

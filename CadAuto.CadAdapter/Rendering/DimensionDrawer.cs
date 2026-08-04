@@ -166,9 +166,29 @@ public sealed class DimensionDrawer
 
 	private DimensionDiagnosticReport _dimensionDiagnosticReport;
 
+	private CoordinateFrame2D _coordinateFrame = CoordinateFrame2D.Identity;
+
 	private void AddRotatedDimension(double rotation, Point3d xLine1, Point3d xLine2, Point3d dimLinePoint, string overrideText, bool useSegmentedExtensionLines, bool useCustomTextPosition = false, Point3d customTextPosition = default(Point3d))
 	{
-		_entityWriter.AddRotatedDimension(rotation, xLine1, xLine2, dimLinePoint, overrideText, useSegmentedExtensionLines, useCustomTextPosition, customTextPosition);
+		Point3d worldXLine1 = ToWorld(xLine1);
+		Point3d worldXLine2 = ToWorld(xLine2);
+		Point3d worldDimLinePoint = ToWorld(dimLinePoint);
+		Point3d worldCustomTextPosition = useCustomTextPosition ? ToWorld(customTextPosition) : customTextPosition;
+		_entityWriter.AddRotatedDimension(
+			rotation + _coordinateFrame.Angle,
+			worldXLine1,
+			worldXLine2,
+			worldDimLinePoint,
+			overrideText,
+			useSegmentedExtensionLines,
+			useCustomTextPosition,
+			worldCustomTextPosition);
+	}
+
+	private Point3d ToWorld(Point3d local)
+	{
+		Point2D world = _coordinateFrame.ToWorld(new Point2D(local.X, local.Y));
+		return new Point3d(world.X, world.Y, local.Z);
 	}
 
 	private ObjectId GetDimStyleTextStyle(ObjectId dimStyleId)
@@ -376,7 +396,7 @@ public sealed class DimensionDrawer
 			double num = Math.Max(textHeight * 0.38, Scale(1.2));
 			Point3d debugLabelPoint = ChooseDimensionDebugLabelPoint(placed, isHorizontal, text, num, out var bounds);
 			_dimensionDebugLabelBounds.Add(bounds);
-			_debugAnnotationRenderer.AddDimensionLabel(text, debugLabelPoint, placed.DimLinePoint, num, GetDebugLabelColor(placed.Dim));
+			_debugAnnotationRenderer.AddDimensionLabel(text, ToWorld(debugLabelPoint), ToWorld(placed.DimLinePoint), num, GetDebugLabelColor(placed.Dim));
 		}
 	}
 
@@ -642,6 +662,13 @@ public sealed class DimensionDrawer
 		{
 			return 0.0;
 		}
+		if (!_coordinateFrame.IsIdentity)
+		{
+			// ponytail: existing dimensions are WCS entities. Until their geometry is
+			// projected into the planning frame, ignoring them is safer than comparing
+			// WCS coordinates against local bounds and reserving a false lane.
+			return 0.0;
+		}
 		double num = 0.0;
 		foreach (ObjectId item in _space)
 		{
@@ -850,6 +877,9 @@ public sealed class DimensionDrawer
 		{
 			return;
 		}
+		_coordinateFrame = plan.CoordinateFrame ?? CoordinateFrame2D.Identity;
+		_outlineConversionSource = null;
+		_outlineConversionResult = null;
 		// A scope-filtered plan copy carries an empty diagnostics report; the caller
 		// passes the source plan's report so render-stage suppressions stay visible.
 		_dimensionDiagnosticReport = diagnostics ?? plan.Diagnostics;
@@ -1254,7 +1284,10 @@ public sealed class DimensionDrawer
 		if (!ReferenceEquals(outline, _outlineConversionSource))
 		{
 			_outlineConversionSource = outline;
-			_outlineConversionResult = CadToCoreModelMapper.ToCoreOutline(outline);
+			OutlineFeature2D worldOutline = CadToCoreModelMapper.ToCoreOutline(outline);
+			_outlineConversionResult = _coordinateFrame.IsIdentity
+				? worldOutline
+				: CoordinateFrameModelTransform.ToLocal(worldOutline, _coordinateFrame, _config.GeometryTolerance);
 		}
 		return _outlineConversionResult;
 	}

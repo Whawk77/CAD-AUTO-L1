@@ -10,6 +10,29 @@ namespace CadAuto.Core.Planning;
 
 public sealed partial class DimensionPlanner
 {
+	private const string BottomContourChainEvidence = "Bottom:RealContourChainMiddle";
+
+	private static bool HasBottomContourChainEvidence(PlannedDimension dimension)
+	{
+		return dimension != null
+			&& !string.IsNullOrEmpty(dimension.TopologyEvidence)
+			&& dimension.TopologyEvidence.IndexOf(BottomContourChainEvidence, StringComparison.Ordinal) >= 0;
+	}
+
+	private static string PreserveBottomContourChainEvidence(PlannedDimension dimension, string fallback)
+	{
+		if (!HasBottomContourChainEvidence(dimension))
+		{
+			return fallback;
+		}
+		if (string.IsNullOrEmpty(fallback)
+			|| fallback.IndexOf(BottomContourChainEvidence, StringComparison.Ordinal) >= 0)
+		{
+			return dimension.TopologyEvidence;
+		}
+		return dimension.TopologyEvidence + ";" + fallback;
+	}
+
 	// Suppression pipeline: 27 passes. THE ORDER IS PRODUCT BEHAVIOR -
 	// each inline note below records a constraint that was learned the hard way; keep
 	// the notes adjacent to the calls they explain. Stages:
@@ -36,6 +59,10 @@ public sealed partial class DimensionPlanner
 		SuppressRightStructureHeightsDuplicatingOverallHeight(plan);
 		SuppressLeftStructureHeightsCoveredByRight(plan);
 		SuppressBottomProtrusionInnerRemainders(plan, outline);
+		// A real bottom contour chain may use the inner ledge as its middle piece. Resolve
+		// that chain before later duplicate/partition passes remove its longest remainder
+		// or let the cross-level structure projection win the same interval.
+		SuppressBottomContourChainOverallRemainder(plan, outline);
 		// BuildOverallPartitionChain for structure: multi-piece contiguous cover of overall
 		// (structure roles + OutlineSegment partners). Suppress only structure members of the chain.
 		// Run before OutlineSegment overall-partition removal so OS partners still exist.
@@ -49,6 +76,10 @@ public sealed partial class DimensionPlanner
 		// Keep Overall + the boundary-backed step; suppress every equivalent body interval
 		// (projected BottomStructWidth and OutlineSegment) before either OS is removed.
 		ArbitrateOuterContourStepOverallRemainders(plan, outline);
+		// Keep the real outer-step arbitration ahead of this cleanup; its evidence and
+		// suppression reason must remain authoritative for datum-rooted contour steps.
+		SuppressProjectedStructureDimensionsThatPartitionOverall(plan, outline, horizontal: true);
+		SuppressProjectedStructureDimensionsThatPartitionOverall(plan, outline, horizontal: false);
 		// Drop raw OutlineSegment pairs that re-partition overall (before complementary remainder
 		// removes only the larger partner and leaves the smaller fragment orphaned).
 		// Scoped to OutlineSegment only — do not broaden complementary-remainder to Bottom/Left
@@ -57,6 +88,9 @@ public sealed partial class DimensionPlanner
 		SuppressOutlineSegmentsThatPartitionOverall(plan, outline, DimensionSide.Bottom, horizontal: true);
 		SuppressOutlineSegmentsThatPartitionOverall(plan, outline, DimensionSide.Right, horizontal: false);
 		SuppressOutlineSegmentsThatPartitionOverall(plan, outline, DimensionSide.Left, horizontal: false);
+		// An open three-piece bottom contour keeps the middle real edge and the MinY edge;
+		// the opposite projected interval is derivable from OverallWidth and is suppressed.
+		SuppressOpenBottomContourDerivableOuterStructure(plan, outline);
 		// Mirror before envelope: envelope may remove the primary-side outer tip first, which
 		// would orphan a same-interval secondary OutlineSegment (e.g. Right OS@inner X that
 		// matches Left envelope tip) and leave GEN|OutlineSegment*|R|L0 selected.
@@ -346,9 +380,192 @@ public sealed partial class DimensionPlanner
 			{
 				continue;
 			}
+			// Keep an inner OutlineSegment when it is the real middle piece of a complete
+			// bottom contour chain whose longest piece has a cross-level structure projection.
+			// Without this narrow exemption the chain loses its real evidence before arbitration.
+			if (isInnerOutline
+				&& (HasBottomContourChainEvidence(candidate)
+					|| IsBottomContourChainEvidence(candidate, plan, outline)))
+			{
+				if (!HasBottomContourChainEvidence(candidate))
+				{
+					plan.RecordRuleEvidence(candidate, null, null, BottomContourChainEvidence);
+				}
+				continue;
+			}
 			plan.MarkSuppressed(candidate, SuppressReason.BottomProtrusionInnerRemainder);
 			plan.Dimensions.RemoveAt(num);
 		}
+	}
+
+	private void SuppressBottomContourChainOverallRemainder(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		if (!TryFindBottomContourChainRemainder(
+			plan,
+			outline,
+			out List<PlannedDimension> chain,
+			out PlannedDimension remainder,
+			out List<PlannedDimension> projections))
+		{
+			return;
+		}
+		// A mirrored chain can expose a real short bottom structure on the opposite
+		// outer tip. Keep that structure as the representative for its interval while
+		// the middle real OutlineSegment remains the chain evidence.
+		foreach (PlannedDimension segment in chain.Where((PlannedDimension dimension) => dimension != remainder))
+		{
+			PlannedDimension realStructure = plan.Dimensions.FirstOrDefault((PlannedDimension dimension) =>
+				dimension.Kind == DimensionKind.Normal
+				&& dimension.Side == DimensionSide.Bottom
+				&& string.Equals(dimension.DebugRole, "BottomStructWidth", StringComparison.Ordinal)
+				&& !IsCrossLevelStructureProjection(dimension, horizontal: true)
+				&& HasRealStructurePartitionEdge(dimension, outline, horizontal: true)
+				&& IsSameMeasurementInterval(dimension, segment, horizontal: true));
+			if (realStructure != null)
+			{
+				plan.RecordRuleEvidence(realStructure, null, null, BottomContourChainEvidence);
+			}
+		}
+		// Remove the cross-level representative first; the real contour interval is the
+		// evidence used to choose the remainder, not a competing measured dimension.
+		foreach (PlannedDimension projection in projections)
+		{
+			if (!plan.Dimensions.Contains(projection))
+			{
+				continue;
+			}
+			plan.MarkSuppressed(projection, SuppressReason.ProjectedStructureOverallPartition);
+			plan.Dimensions.Remove(projection);
+		}
+		if (remainder != null && plan.Dimensions.Contains(remainder))
+		{
+			// Keep the two shorter real chain pieces; the longest piece is the overall
+			// remainder and is redundant once OverallWidth is present.
+			plan.MarkSuppressed(remainder, SuppressReason.OutlineSegmentOverallPartition);
+			plan.Dimensions.Remove(remainder);
+		}
+	}
+
+	private bool IsBottomContourChainEvidence(
+		PlannedDimension candidate,
+		DimensionPlan plan,
+		OutlineFeature2D outline)
+	{
+		if (candidate == null
+			|| !string.Equals(candidate.DebugRole, "OutlineSegment", StringComparison.Ordinal)
+			|| candidate.Side != DimensionSide.Bottom
+			|| candidate.Orientation != DimensionOrientation.Horizontal)
+		{
+			return false;
+		}
+		return TryFindBottomContourChainRemainder(
+			plan,
+			outline,
+			out List<PlannedDimension> chain,
+			out PlannedDimension remainder,
+			out List<PlannedDimension> projections)
+			&& chain.Contains(candidate)
+			&& remainder != null
+			&& projections.Count > 0;
+	}
+
+	private bool TryFindBottomContourChainRemainder(
+		DimensionPlan plan,
+		OutlineFeature2D outline,
+		out List<PlannedDimension> chain,
+		out PlannedDimension remainder,
+		out List<PlannedDimension> projections)
+	{
+		chain = new List<PlannedDimension>();
+		remainder = null;
+		projections = new List<PlannedDimension>();
+		if (plan == null || outline == null || outline.Segments == null || outline.Segments.Count == 0)
+		{
+			return false;
+		}
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension dimension) =>
+			dimension.Kind == DimensionKind.OverallWidth
+			&& dimension.Orientation == DimensionOrientation.Horizontal);
+		if (overall == null)
+		{
+			return false;
+		}
+		List<PlannedDimension> realOutlineSegments = plan.Dimensions
+			.Where((PlannedDimension dimension) => dimension.Kind == DimensionKind.Normal
+				&& dimension.Side == DimensionSide.Bottom
+				&& dimension.Orientation == DimensionOrientation.Horizontal
+				&& string.Equals(dimension.DebugRole, "OutlineSegment", StringComparison.Ordinal)
+				&& IsRealOutlineSegmentDimension(dimension, outline))
+			.ToList();
+		if (realOutlineSegments.Count < 3)
+		{
+			return false;
+		}
+		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal: true);
+		List<DimensionDeduplicationItem> items = new List<DimensionDeduplicationItem>(realOutlineSegments.Count);
+		Dictionary<DimensionDeduplicationItem, PlannedDimension> itemToDimension =
+			new Dictionary<DimensionDeduplicationItem, PlannedDimension>();
+		foreach (PlannedDimension segment in realOutlineSegments)
+		{
+			DimensionDeduplicationItem item = ToDeduplicationItem(segment);
+			items.Add(item);
+			itemToDimension[item] = segment;
+		}
+		IList<DimensionDeduplicationItem> chainItems = _dimensionDeduplicationRules.FindCompleteOverallPartitionChain(
+			items,
+			overallInterval.Item1,
+			overallInterval.Item2,
+			horizontal: true);
+		if (chainItems == null || chainItems.Count < 3)
+		{
+			return false;
+		}
+		chain = chainItems
+			.Where((DimensionDeduplicationItem item) => itemToDimension.ContainsKey(item))
+			.Select((DimensionDeduplicationItem item) => itemToDimension[item])
+			.ToList();
+		if (chain.Count < 3)
+		{
+			return false;
+		}
+		List<PlannedDimension> orderedChain = chain
+			.OrderBy((PlannedDimension dimension) => ComputeArrowInterval(dimension, horizontal: true).Item1)
+			.ThenBy((PlannedDimension dimension) => ComputeArrowInterval(dimension, horizontal: true).Item2)
+			.ToList();
+		PlannedDimension longest = orderedChain
+			.OrderByDescending((PlannedDimension dimension) => GetDimensionSpan(dimension, horizontal: true))
+			.FirstOrDefault();
+		if (longest == null)
+		{
+			return false;
+		}
+		projections = plan.Dimensions
+			.Where((PlannedDimension dimension) => dimension.Kind == DimensionKind.Normal
+				&& dimension.Side == DimensionSide.Bottom
+				&& dimension.Orientation == DimensionOrientation.Horizontal
+				&& string.Equals(dimension.DebugRole, "BottomStructWidth", StringComparison.Ordinal)
+				&& IsCrossLevelStructureProjection(dimension, horizontal: true)
+				&& IsSameMeasurementInterval(dimension, longest, horizontal: true))
+			.ToList();
+		if (projections.Count == 0)
+		{
+			return false;
+		}
+		remainder = longest;
+		return true;
+	}
+
+	private bool IsRealOutlineSegmentDimension(PlannedDimension dimension, OutlineFeature2D outline)
+	{
+		if (dimension == null || outline == null || dimension.Orientation != DimensionOrientation.Horizontal)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		return outline.Segments.Any((Segment2D segment) => segment != null
+			&& !segment.IsArcChord
+			&& segment.IsHorizontal(tol)
+			&& HasSameSegmentEndpoints(segment, dimension.FirstPoint, dimension.SecondPoint));
 	}
 
 	private bool IsBottomProtrusionWidth(PlannedDimension dimension, OutlineFeature2D outline)
@@ -670,7 +887,7 @@ public sealed partial class DimensionPlanner
 				retained.Key,
 				SuppressReason.OuterContourStepOverallRemainder,
 				CollectOuterContourStepSourceGeometryIds(retained.Key, null, outline),
-				retained.Value);
+				PreserveBottomContourChainEvidence(retained.Key, retained.Value));
 		}
 		for (int i = plan.Dimensions.Count - 1; i >= 0; i--)
 		{
@@ -1188,10 +1405,22 @@ public sealed partial class DimensionPlanner
 			return;
 		}
 		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>();
+		TryGetOpenBottomContourChain(
+			outline,
+			out Segment2D openBottomOuter,
+			out Segment2D openBottomMiddle,
+			out Segment2D openBottomMinY);
 		foreach (DimensionDeduplicationItem coverItem in cover)
 		{
 			if (itemToDim.TryGetValue(coverItem, out PlannedDimension match))
 			{
+				if (horizontal
+					&& side == DimensionSide.Bottom
+					&& openBottomMiddle != null
+					&& HasSameSegmentEndpoints(openBottomMiddle, match.FirstPoint, match.SecondPoint))
+				{
+					continue;
+				}
 				toSuppress.Add(match);
 			}
 		}
@@ -1209,6 +1438,105 @@ public sealed partial class DimensionPlanner
 			plan.MarkSuppressed(candidate, SuppressReason.OutlineSegmentOverallPartition);
 			plan.Dimensions.RemoveAt(num);
 		}
+	}
+
+	private void SuppressOpenBottomContourDerivableOuterStructure(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		if (plan == null || outline == null
+			|| !TryGetOpenBottomContourChain(
+				outline,
+				out Segment2D outer,
+				out Segment2D middle,
+				out Segment2D minY))
+		{
+			return;
+		}
+		if (!plan.Dimensions.Any((PlannedDimension dimension) =>
+			dimension.Kind == DimensionKind.Normal
+			&& string.Equals(dimension.DebugRole, "OutlineSegment", StringComparison.Ordinal)
+			&& HasSameSegmentEndpoints(middle, dimension.FirstPoint, dimension.SecondPoint)))
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		double outerMinX = Math.Min(outer.Start.X, outer.End.X);
+		double outerMaxX = Math.Max(outer.Start.X, outer.End.X);
+		foreach (PlannedDimension candidate in plan.Dimensions.ToList())
+		{
+			if (candidate.Kind != DimensionKind.Normal
+				|| candidate.Orientation != DimensionOrientation.Horizontal
+				|| candidate.Side != DimensionSide.Bottom
+				|| !string.Equals(candidate.DebugRole, "BottomStructWidth", StringComparison.Ordinal)
+				|| !IsCrossLevelStructureProjection(candidate, horizontal: true))
+			{
+				continue;
+			}
+			Tuple<double, double> interval = ComputeArrowInterval(candidate, horizontal: true);
+			if (Math.Abs(interval.Item1 - outerMinX) > tol
+				|| Math.Abs(interval.Item2 - outerMaxX) > tol)
+			{
+				continue;
+			}
+			plan.MarkSuppressed(
+				candidate,
+				SuppressReason.ProjectedStructureOverallPartition,
+				SuppressReason.ProjectedStructureOverallPartition,
+				new[] { outer.SourceKey, middle.SourceKey, minY.SourceKey },
+				"Bottom:OpenContourDerivableOuterInterval");
+			plan.Dimensions.Remove(candidate);
+		}
+	}
+
+	private bool TryGetOpenBottomContourChain(
+		OutlineFeature2D outline,
+		out Segment2D outer,
+		out Segment2D middle,
+		out Segment2D minY)
+	{
+		outer = null;
+		middle = null;
+		minY = null;
+		if (outline == null || outline.Segments == null)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		List<Segment2D> chain = outline.Segments
+			.Where((Segment2D segment) => segment != null
+				&& !segment.IsArcChord
+				&& segment.IsHorizontal(tol)
+				&& !IsOverallBoundarySegment(segment, outline))
+			.OrderBy((Segment2D segment) => segment.MinX)
+			.ToList();
+		if (chain.Count != 3
+			|| Math.Abs(chain[0].MinX - outline.MinX) > tol
+			|| Math.Abs(chain[2].MaxX - outline.MaxX) > tol
+			|| Math.Abs(chain[0].MaxX - chain[1].MinX) > tol
+			|| Math.Abs(chain[1].MaxX - chain[2].MinX) > tol)
+		{
+			return false;
+		}
+		bool rightMinY = Math.Abs(chain[2].MinY - outline.MinY) <= tol
+			&& chain[0].MinY > chain[1].MinY + tol
+			&& chain[1].MinY > chain[2].MinY + tol;
+		bool leftMinY = Math.Abs(chain[0].MinY - outline.MinY) <= tol
+			&& chain[0].MinY < chain[1].MinY - tol
+			&& chain[1].MinY < chain[2].MinY - tol;
+		if (!rightMinY && !leftMinY)
+		{
+			return false;
+		}
+		bool openAtBoundary = rightMinY
+			? !HasContinuousStraightOutlineEdge(outline, horizontal: false, outline.MinX, outline.MinY, chain[0].MinY)
+			: !HasContinuousStraightOutlineEdge(outline, horizontal: false, outline.MaxX, outline.MinY, chain[2].MinY);
+		if (!openAtBoundary)
+		{
+			return false;
+		}
+		outer = rightMinY ? chain[0] : chain[2];
+		middle = chain[1];
+		minY = rightMinY ? chain[2] : chain[0];
+		return true;
 	}
 
 	/// <summary>
@@ -1274,12 +1602,20 @@ public sealed partial class DimensionPlanner
 			{
 				continue;
 			}
+			if (HasBottomContourChainEvidence(structure))
+			{
+				continue;
+			}
 			if (IsBottomOuterArmResidual(structure, outline, plan))
 			{
 				toSuppress.Add(structure);
 				continue;
 			}
 			if (IsBottomProtrusionWidth(structure, outline))
+			{
+				continue;
+			}
+			if (IsRealPartialEnvelopeStructureWidth(structure, outline, tol))
 			{
 				continue;
 			}
@@ -1626,6 +1962,44 @@ public sealed partial class DimensionPlanner
 		return MergeVerticalIntervals(realEdgeIntervals, tol).Any(interval =>
 			dimensionInterval.Item1 >= interval.Item1 - tol
 			&& dimensionInterval.Item2 <= interval.Item2 + tol);
+	}
+
+	private bool IsRealPartialEnvelopeStructureWidth(PlannedDimension dimension, OutlineFeature2D outline, double tol)
+	{
+		if (dimension == null)
+		{
+			return false;
+		}
+		DimensionCandidateSemantics.ApplyLegacyMappings(dimension);
+		if (outline == null || outline.Segments == null || outline.Segments.Count == 0
+			|| dimension.Kind != DimensionKind.Normal
+			|| dimension.Orientation != DimensionOrientation.Horizontal
+			|| dimension.Role != DimensionCandidateRole.Structure
+			|| dimension.ForceOuterLevel
+			|| dimension.Side != DimensionSide.Top)
+		{
+			return false;
+		}
+		bool onMinY = Math.Abs(dimension.FirstPoint.Y - outline.MinY) <= tol
+			&& Math.Abs(dimension.SecondPoint.Y - outline.MinY) <= tol;
+		bool onMaxY = Math.Abs(dimension.FirstPoint.Y - outline.MaxY) <= tol
+			&& Math.Abs(dimension.SecondPoint.Y - outline.MaxY) <= tol;
+		if (!onMinY && !onMaxY)
+		{
+			return false;
+		}
+		double edgeY = onMinY ? outline.MinY : outline.MaxY;
+		if (IsFullLengthEnvelopeEdge(outline, horizontal: true, edgeY, tol))
+		{
+			return false;
+		}
+		Tuple<double, double> interval = ComputeArrowInterval(dimension, horizontal: true);
+		return outline.Segments.Any(segment => segment != null
+			&& segment.IsHorizontal(tol)
+			&& Math.Abs(segment.Start.Y - edgeY) <= tol
+			&& Math.Abs(segment.End.Y - edgeY) <= tol
+			&& interval.Item1 >= segment.MinX - tol
+			&& interval.Item2 <= segment.MaxX + tol);
 	}
 
 	private bool IsRightTopPartialEnvelopeStructureHeight(PlannedDimension dimension, OutlineFeature2D outline, double tol)
@@ -2138,7 +2512,8 @@ public sealed partial class DimensionPlanner
 				}
 			}
 			if (focusOnChain
-				&& !ShouldKeepSteppedStructureForCrossSideClosedChain(focus, plan, outline, tol))
+				&& !ShouldKeepSteppedStructureForCrossSideClosedChain(focus, plan, outline, tol)
+				&& !IsSameSideProjectedStructureOverallChainMember(focus, plan, outline, overallInterval, horizontal))
 			{
 				// Keep step lengths only when they close overall with an opposite-side body
 				// length; that partner is removed by the cross-side complementary pass.
@@ -2195,6 +2570,184 @@ public sealed partial class DimensionPlanner
 			&& Math.Abs(segment.MinX - dimension.FirstPoint.X) <= tol
 			&& segment.MinY <= minY + tol
 			&& segment.MaxY >= maxY - tol);
+	}
+
+	private void SuppressProjectedStructureDimensionsThatPartitionOverall(DimensionPlan plan, OutlineFeature2D outline, bool horizontal)
+	{
+		if (plan == null || outline == null)
+		{
+			return;
+		}
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => horizontal ? (d.Kind == DimensionKind.OverallWidth) : (d.Kind == DimensionKind.OverallHeight));
+		if (overall == null)
+		{
+			return;
+		}
+		DimensionOrientation expected = horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical;
+		if (overall.Orientation != expected)
+		{
+			return;
+		}
+		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal);
+		DimensionSide[] sides = horizontal
+			? new[] { DimensionSide.Top, DimensionSide.Bottom }
+			: new[] { DimensionSide.Left, DimensionSide.Right };
+		double tol = _config.GeometryTolerance;
+		foreach (DimensionSide side in sides)
+		{
+			List<PlannedDimension> chainDimensions = FindSameSideStructureOverallChain(plan, outline, side, expected, overallInterval, horizontal);
+			if (!chainDimensions.Any((PlannedDimension dimension) => HasRealStructurePartitionEdge(dimension, outline, horizontal)))
+			{
+				continue;
+			}
+			if (chainDimensions.Count == 2)
+			{
+				foreach (PlannedDimension candidate in chainDimensions)
+				{
+					if (!HasRealStructurePartitionEdge(candidate, outline, horizontal)
+						&& IsCrossLevelStructureProjection(candidate, horizontal)
+						&& !HasOppositeSideSameIntervalStructure(candidate, plan, horizontal))
+					{
+						SuppressProjectedStructureOverallPartition(plan, candidate);
+					}
+				}
+				continue;
+			}
+			if (!HasProjectedStructureChainTopology(chainDimensions, horizontal, tol))
+			{
+				continue;
+			}
+			PlannedDimension overallRemainder = null;
+			PlannedDimension minimumPiece = chainDimensions[0];
+			PlannedDimension maximumPiece = chainDimensions[chainDimensions.Count - 1];
+			if (HasRealStructurePartitionEdge(minimumPiece, outline, horizontal)
+				&& !HasRealStructurePartitionEdge(maximumPiece, outline, horizontal))
+			{
+				overallRemainder = maximumPiece;
+			}
+			else if (!HasRealStructurePartitionEdge(minimumPiece, outline, horizontal)
+				&& HasRealStructurePartitionEdge(maximumPiece, outline, horizontal))
+			{
+				overallRemainder = minimumPiece;
+			}
+			if (overallRemainder != null
+				&& !HasRealStructurePartitionEdge(overallRemainder, outline, horizontal)
+				&& IsCrossLevelStructureProjection(overallRemainder, horizontal)
+				&& !HasOppositeSideSameIntervalStructure(overallRemainder, plan, horizontal))
+			{
+				SuppressProjectedStructureOverallPartition(plan, overallRemainder);
+			}
+		}
+	}
+
+	private bool IsSameSideProjectedStructureOverallChainMember(PlannedDimension focus, DimensionPlan plan, OutlineFeature2D outline, Tuple<double, double> overallInterval, bool horizontal)
+	{
+		List<PlannedDimension> chain = FindSameSideStructureOverallChain(plan, outline, focus.Side, focus.Orientation, overallInterval, horizontal);
+		return chain.Contains(focus)
+			&& chain.Any((PlannedDimension dimension) => IsCrossLevelStructureProjection(dimension, horizontal));
+	}
+
+	private List<PlannedDimension> FindSameSideStructureOverallChain(DimensionPlan plan, OutlineFeature2D outline, DimensionSide side, DimensionOrientation expected, Tuple<double, double> overallInterval, bool horizontal)
+	{
+		List<PlannedDimension> dimensions = plan.Dimensions
+			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+				&& d.Side == side
+				&& d.Orientation == expected
+				&& IsStructureWidthOrHeightRole(d.DebugRole))
+			.OrderBy((PlannedDimension d) => ComputeArrowInterval(d, horizontal).Item1)
+			.ThenBy((PlannedDimension d) => ComputeArrowInterval(d, horizontal).Item2)
+			.ThenBy((PlannedDimension d) => HasRealStructurePartitionEdge(d, outline, horizontal) ? 0 : 1)
+			.ThenBy((PlannedDimension d) => GetProjectedStructureCrossAxisMin(d, horizontal))
+			.ThenBy((PlannedDimension d) => GetProjectedStructureCrossAxisMax(d, horizontal))
+			.ToList();
+		var itemToDimension = new Dictionary<DimensionDeduplicationItem, PlannedDimension>();
+		var items = new List<DimensionDeduplicationItem>(dimensions.Count);
+		foreach (PlannedDimension dimension in dimensions)
+		{
+			DimensionDeduplicationItem item = ToDeduplicationItem(dimension);
+			items.Add(item);
+			itemToDimension[item] = dimension;
+		}
+		IList<DimensionDeduplicationItem> chain = _dimensionDeduplicationRules.FindCompleteOverallPartitionChain(items, overallInterval.Item1, overallInterval.Item2, horizontal);
+		return chain == null
+			? new List<PlannedDimension>()
+			: chain.Where((DimensionDeduplicationItem item) => itemToDimension.ContainsKey(item))
+				.Select((DimensionDeduplicationItem item) => itemToDimension[item])
+				.ToList();
+	}
+
+	private static double GetProjectedStructureCrossAxisMin(PlannedDimension dimension, bool horizontal)
+	{
+		return horizontal
+			? Math.Min(dimension.FirstPoint.Y, dimension.SecondPoint.Y)
+			: Math.Min(dimension.FirstPoint.X, dimension.SecondPoint.X);
+	}
+
+	private static double GetProjectedStructureCrossAxisMax(PlannedDimension dimension, bool horizontal)
+	{
+		return horizontal
+			? Math.Max(dimension.FirstPoint.Y, dimension.SecondPoint.Y)
+			: Math.Max(dimension.FirstPoint.X, dimension.SecondPoint.X);
+	}
+
+	private static Point2D GetProjectedStructureIntervalEndpoint(PlannedDimension dimension, bool horizontal, bool minimum)
+	{
+		double first = horizontal ? dimension.FirstPoint.X : dimension.FirstPoint.Y;
+		double second = horizontal ? dimension.SecondPoint.X : dimension.SecondPoint.Y;
+		bool firstIsMinimum = first <= second;
+		return firstIsMinimum == minimum ? dimension.FirstPoint : dimension.SecondPoint;
+	}
+
+	private static bool HasProjectedStructureChainTopology(IList<PlannedDimension> chain, bool horizontal, double tolerance)
+	{
+		for (int i = 1; i < chain.Count; i++)
+		{
+			Point2D previousMaximum = GetProjectedStructureIntervalEndpoint(chain[i - 1], horizontal, minimum: false);
+			Point2D currentMinimum = GetProjectedStructureIntervalEndpoint(chain[i], horizontal, minimum: true);
+			if (Math.Abs(previousMaximum.X - currentMinimum.X) > tolerance
+				|| Math.Abs(previousMaximum.Y - currentMinimum.Y) > tolerance)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private void SuppressProjectedStructureOverallPartition(DimensionPlan plan, PlannedDimension candidate)
+	{
+		plan.MarkSuppressed(candidate, SuppressReason.ProjectedStructureOverallPartition);
+		plan.Dimensions.Remove(candidate);
+	}
+
+	private bool HasOppositeSideSameIntervalStructure(PlannedDimension candidate, DimensionPlan plan, bool horizontal)
+	{
+		if (candidate == null || plan == null)
+		{
+			return false;
+		}
+		DimensionSide opposite = candidate.Side == DimensionSide.Top ? DimensionSide.Bottom
+			: candidate.Side == DimensionSide.Bottom ? DimensionSide.Top
+			: candidate.Side == DimensionSide.Left ? DimensionSide.Right
+			: candidate.Side == DimensionSide.Right ? DimensionSide.Left
+			: candidate.Side;
+		return opposite != candidate.Side && plan.Dimensions.Any((PlannedDimension dimension) => dimension != candidate
+			&& dimension.Kind == DimensionKind.Normal
+			&& dimension.Side == opposite
+			&& dimension.Orientation == candidate.Orientation
+			&& IsStructureWidthOrHeightRole(dimension.DebugRole)
+			&& IsSameMeasurementInterval(candidate, dimension, horizontal));
+	}
+
+	private bool IsCrossLevelStructureProjection(PlannedDimension dimension, bool horizontal)
+	{
+		if (dimension == null)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		return horizontal
+			? Math.Abs(dimension.FirstPoint.Y - dimension.SecondPoint.Y) > tol
+			: Math.Abs(dimension.FirstPoint.X - dimension.SecondPoint.X) > tol;
 	}
 
 	/// <summary>

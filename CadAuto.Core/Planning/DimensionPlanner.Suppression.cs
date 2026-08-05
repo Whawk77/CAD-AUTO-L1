@@ -2634,38 +2634,7 @@ public sealed partial class DimensionPlanner
 
 	private bool HasRealStructurePartitionEdge(PlannedDimension dimension, OutlineFeature2D outline, bool horizontal)
 	{
-		if (dimension == null || outline == null)
-		{
-			return false;
-		}
-		double tol = _config.GeometryTolerance;
-		if (horizontal)
-		{
-			if (Math.Abs(dimension.FirstPoint.Y - dimension.SecondPoint.Y) > tol)
-			{
-				return false;
-			}
-			double minX = Math.Min(dimension.FirstPoint.X, dimension.SecondPoint.X);
-			double maxX = Math.Max(dimension.FirstPoint.X, dimension.SecondPoint.X);
-			return outline.Segments.Any((Segment2D segment) => segment != null
-				&& !segment.IsArcChord
-				&& segment.IsHorizontal(tol)
-				&& Math.Abs(segment.MinY - dimension.FirstPoint.Y) <= tol
-				&& segment.MinX <= minX + tol
-				&& segment.MaxX >= maxX - tol);
-		}
-		if (Math.Abs(dimension.FirstPoint.X - dimension.SecondPoint.X) > tol)
-		{
-			return false;
-		}
-		double minY = Math.Min(dimension.FirstPoint.Y, dimension.SecondPoint.Y);
-		double maxY = Math.Max(dimension.FirstPoint.Y, dimension.SecondPoint.Y);
-		return outline.Segments.Any((Segment2D segment) => segment != null
-			&& !segment.IsArcChord
-			&& segment.IsVertical(tol)
-			&& Math.Abs(segment.MinX - dimension.FirstPoint.X) <= tol
-			&& segment.MinY <= minY + tol
-			&& segment.MaxY >= maxY - tol);
+		return _structureEndpointRules.HasRealStructurePartitionEdge(dimension, outline, horizontal);
 	}
 
 	private void SuppressProjectedStructureDimensionsThatPartitionOverall(DimensionPlan plan, OutlineFeature2D outline, bool horizontal)

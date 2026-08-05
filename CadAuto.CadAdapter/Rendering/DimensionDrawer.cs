@@ -784,18 +784,41 @@ public sealed class DimensionDrawer
 		{
 			return;
 		}
-		foreach (PlacedDim placed in placedDims)
+		List<PlacedDim> finalPlacements = placedDims.ToList();
+		Dictionary<string, bool> rootedBlockCoordinates = new Dictionary<string, bool>(StringComparer.Ordinal);
+		double coordinateTolerance = Math.Max(_config.GeometryTolerance, 1E-09);
+		foreach (IGrouping<string, PlacedDim> block in finalPlacements
+			.Where(placed => string.Equals(placed.LayoutBlockType, "RootedAlignmentLane", StringComparison.Ordinal))
+			.GroupBy(GetRootedAlignmentGroupKey, StringComparer.Ordinal))
+		{
+			int expectedMemberCount = block.Max(placed => placed.AlignmentLaneMemberCount);
+			double firstCoordinate = isHorizontal ? block.First().DimLinePoint.Y : block.First().DimLinePoint.X;
+			bool hasAllMembers = expectedMemberCount <= 0 || block.Count() == expectedMemberCount;
+			bool sharesFinalCoordinate = block.All(placed =>
+				Math.Abs((isHorizontal ? placed.DimLinePoint.Y : placed.DimLinePoint.X) - firstCoordinate) <= coordinateTolerance);
+			rootedBlockCoordinates[block.Key] = hasAllMembers && sharesFinalCoordinate;
+		}
+		foreach (PlacedDim placed in finalPlacements)
 		{
 			if (placed.Dim.DiagnosticId <= 0)
 			{
 				continue;
 			}
 			double resolvedCoordinate = isHorizontal ? placed.DimLinePoint.Y : placed.DimLinePoint.X;
-			_dimensionDiagnosticReport.RecordFinalPlacement(placed.Dim.DiagnosticId, placed.Side.ToString(), placed.StackingLevel, placed.StackingOffset, resolvedCoordinate, placed.UsesLocalBoundary, placed.HasAlignmentCoordinateOverride, placed.AlignmentLaneKey, placed.AlignmentLaneMemberCount, GetAlignmentDecision(placed), placed.LayoutBlockId, placed.LayoutBlockType, placed.EffectiveSpan, placed.EffectiveOrder, placed.OrderingReason, placed.PromotedByConflictWith, placed.PhysicalOutwardDistance, placed.PhysicalOrderValidated);
+			_dimensionDiagnosticReport.RecordFinalPlacement(placed.Dim.DiagnosticId, placed.Side.ToString(), placed.StackingLevel, placed.StackingOffset, resolvedCoordinate, placed.UsesLocalBoundary, placed.HasAlignmentCoordinateOverride, placed.AlignmentLaneKey, placed.AlignmentLaneMemberCount, GetAlignmentDecision(placed, rootedBlockCoordinates), placed.LayoutBlockId, placed.LayoutBlockType, placed.EffectiveSpan, placed.EffectiveOrder, placed.OrderingReason, placed.PromotedByConflictWith, placed.PhysicalOutwardDistance, placed.PhysicalOrderValidated);
 		}
 	}
 
-	private static string GetAlignmentDecision(PlacedDim placed)
+	private static string GetRootedAlignmentGroupKey(PlacedDim placed)
+	{
+		if (!string.IsNullOrEmpty(placed.LayoutBlockId))
+		{
+			return "block:" + placed.LayoutBlockId;
+		}
+		return "lane:" + (placed.AlignmentLaneKey ?? string.Empty);
+	}
+
+	private static string GetAlignmentDecision(PlacedDim placed, IDictionary<string, bool> rootedBlockCoordinates)
 	{
 		if (string.IsNullOrEmpty(placed.Dim.AlignmentKey))
 		{
@@ -803,7 +826,9 @@ public sealed class DimensionDrawer
 		}
 		if (placed.HasAlignmentCoordinateOverride && string.Equals(placed.LayoutBlockType, "RootedAlignmentLane", StringComparison.Ordinal))
 		{
-			return "AlignedRootedLayoutBlock";
+			return rootedBlockCoordinates.TryGetValue(GetRootedAlignmentGroupKey(placed), out var sharesFinalCoordinate) && sharesFinalCoordinate
+				? "AlignedRootedLayoutBlock"
+				: "UnalignedNoSafeCoordinate";
 		}
 		if (placed.AlignmentLaneMemberCount < 2)
 		{

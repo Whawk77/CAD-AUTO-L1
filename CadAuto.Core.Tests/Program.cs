@@ -37,6 +37,7 @@ namespace CadAuto.Core.Tests
             nameof(GeometricMirrorOwnershipPrefersContourBackedCandidate),
 			nameof(SameSideClosedChainSuppressesCrossLevelProjection),
 			nameof(ProjectedThreePieceHorizontalChainKeepsRealSteps),
+			nameof(TopClosedChainDropsUnbackedBodyRemainder),
 			nameof(ProjectedThreePieceVerticalChainKeepsRealHeights),
 			nameof(OrthogonalRotatedVerticalChainKeepsRealWidths),
 			nameof(FullWidthSideSeamsDoNotCreateStructureHeights),
@@ -80,6 +81,7 @@ namespace CadAuto.Core.Tests
             nameof(NearEqualEffectiveSpansUseSemanticTieBreak),
             nameof(LayoutBlocksUseBottomV203SpanOrder),
             nameof(RootedLayoutBlockSurvivesLegacyLaneProcessing),
+            nameof(RootedLaneChoosesNearestSafeFiniteSegmentCoordinate),
             nameof(LooseChainFormsOneEffectiveSpanBlock),
             nameof(DisconnectedLooseChainsRemainSeparateBlocks),
             nameof(OverlappingRootedIntervalsSplitIntoSeparateLeftBlocks),
@@ -170,6 +172,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(NearEqualEffectiveSpansUseSemanticTieBreak), NearEqualEffectiveSpansUseSemanticTieBreak);
 				RunTest(nameof(LayoutBlocksUseBottomV203SpanOrder), LayoutBlocksUseBottomV203SpanOrder);
 				RunTest(nameof(RootedLayoutBlockSurvivesLegacyLaneProcessing), RootedLayoutBlockSurvivesLegacyLaneProcessing);
+				RunTest(nameof(RootedLaneChoosesNearestSafeFiniteSegmentCoordinate), RootedLaneChoosesNearestSafeFiniteSegmentCoordinate);
 				RunTest(nameof(LooseChainFormsOneEffectiveSpanBlock), LooseChainFormsOneEffectiveSpanBlock);
 				RunTest(nameof(DisconnectedLooseChainsRemainSeparateBlocks), DisconnectedLooseChainsRemainSeparateBlocks);
 				RunTest(nameof(OverlappingRootedIntervalsSplitIntoSeparateLeftBlocks), OverlappingRootedIntervalsSplitIntoSeparateLeftBlocks);
@@ -199,6 +202,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(GeometricMirrorOwnershipPrefersContourBackedCandidate), GeometricMirrorOwnershipPrefersContourBackedCandidate);
 				RunTest(nameof(SameSideClosedChainSuppressesCrossLevelProjection), SameSideClosedChainSuppressesCrossLevelProjection);
 				RunTest(nameof(ProjectedThreePieceHorizontalChainKeepsRealSteps), ProjectedThreePieceHorizontalChainKeepsRealSteps);
+				RunTest(nameof(TopClosedChainDropsUnbackedBodyRemainder), TopClosedChainDropsUnbackedBodyRemainder);
 				RunTest(nameof(ProjectedThreePieceVerticalChainKeepsRealHeights), ProjectedThreePieceVerticalChainKeepsRealHeights);
 				RunTest(nameof(OrthogonalRotatedVerticalChainKeepsRealWidths), OrthogonalRotatedVerticalChainKeepsRealWidths);
 				RunTest(nameof(FullWidthSideSeamsDoNotCreateStructureHeights), FullWidthSideSeamsDoNotCreateStructureHeights);
@@ -2088,6 +2092,135 @@ namespace CadAuto.Core.Tests
 				"isolated 223.5 transfer must remain inside the rooted 233.5 block");
 		}
 
+		private static void RootedLaneChoosesNearestSafeFiniteSegmentCoordinate()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 100.0,
+				MaxY = 100.0
+			};
+			var outlinePoints = new[]
+			{
+				new Point2D(0.0, 0.0),
+				new Point2D(100.0, 0.0),
+				new Point2D(100.0, 100.0),
+				new Point2D(80.0, 100.0),
+				new Point2D(80.0, 70.0),
+				new Point2D(40.0, 70.0),
+				new Point2D(40.0, 30.0),
+				new Point2D(0.0, 30.0),
+				new Point2D(0.0, 0.0)
+			};
+			for (int i = 1; i < outlinePoints.Length; i++)
+			{
+				AddSegment(outline, outlinePoints[i - 1], outlinePoints[i], "left-finite-segment");
+			}
+
+			const string alignmentKey = "PG1:DatumChain:V";
+			var dimensions = new[]
+			{
+				// No local boundary covers y=30..35 at this x, so this member falls back to the global left boundary.
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.PinGroupDistance,
+					FirstPoint = new Point2D(20.0, 30.0),
+					SecondPoint = new Point2D(20.0, 35.0),
+					Span = 5.0,
+					AlignmentKey = alignmentKey,
+					AlignmentPriority = 120,
+					ReadingLevel = DimensionReadingLevel.DatumTransfer
+				},
+				// These two members both have the finite x=40 local boundary and form the next chain links.
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.PinGroupDistance,
+					FirstPoint = new Point2D(60.0, 35.0),
+					SecondPoint = new Point2D(60.0, 50.0),
+					Span = 15.0,
+					AlignmentKey = alignmentKey,
+					AlignmentPriority = 100,
+					ReadingLevel = DimensionReadingLevel.DatumTransfer
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.PinGroupDistance,
+					FirstPoint = new Point2D(60.0, 50.0),
+					SecondPoint = new Point2D(60.0, 70.0),
+					Span = 20.0,
+					AlignmentKey = alignmentKey,
+					AlignmentPriority = 100,
+					ReadingLevel = DimensionReadingLevel.DatumTransfer
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.OverallHeight,
+					FirstPoint = new Point2D(0.0, 0.0),
+					SecondPoint = new Point2D(0.0, 100.0),
+					Span = 100.0,
+					ForceOuterLevel = true,
+					ReadingLevel = DimensionReadingLevel.Overall
+				}
+			};
+			var firstPoints = dimensions.Select(dimension => dimension.FirstPoint).ToArray();
+			var secondPoints = dimensions.Select(dimension => dimension.SecondPoint).ToArray();
+			var spans = dimensions.Select(dimension => dimension.Span).ToArray();
+			var rules = new DimensionLayoutRules(config);
+
+			Assert(!rules.TryGetDimensionLocalBoundary(dimensions[0], DimensionSide.Left, outline, out _),
+				"the first lane member must exercise the global-boundary fallback");
+			Assert(rules.TryGetDimensionLocalBoundary(dimensions[1], DimensionSide.Left, outline, out var firstLocalBoundary)
+				&& Math.Abs(firstLocalBoundary - 40.0) <= config.GeometryTolerance,
+				"the second lane member must expose the finite x=40 local boundary");
+			Assert(rules.TryGetDimensionLocalBoundary(dimensions[2], DimensionSide.Left, outline, out var secondLocalBoundary)
+				&& Math.Abs(secondLocalBoundary - 40.0) <= config.GeometryTolerance,
+				"the third lane member must expose the finite x=40 local boundary");
+
+			const double firstOffset = 5.0;
+			var placements = rules.CreateStackingPlan(
+				dimensions,
+				DimensionSide.Left,
+				outline,
+				2.5,
+				1.0,
+				firstOffset,
+				5.0,
+				isHorizontal: false).ToDictionary(item => item.Index);
+			var rooted = new[] { placements[0], placements[1], placements[2] };
+
+			Assert(rooted.Select(item => item.LayoutBlockId).Distinct().Count() == 1
+				&& rooted.All(item => item.LayoutBlockType == "RootedAlignmentLane" && item.AlignmentLaneMemberCount == 3),
+				"the global and local members must stay in one rooted alignment block");
+			Assert(rooted.All(item => item.DimLineCoordinateOverride.HasValue),
+				"every rooted member must receive a final coordinate override");
+
+			double globalCoordinate = rules.GetDimLineCoordinate(dimensions[0], DimensionSide.Left, outline, firstOffset);
+			double nearestSafeCoordinate = rules.GetDimLineCoordinate(dimensions[1], DimensionSide.Left, outline, firstOffset);
+			Assert(nearestSafeCoordinate > globalCoordinate + config.GeometryTolerance,
+				"the local candidate must be physically nearer to the left contour than the global fallback");
+			double unifiedCoordinate = rooted[0].DimLineCoordinateOverride.Value;
+			Assert(rooted.All(item => Math.Abs(item.DimLineCoordinateOverride.Value - unifiedCoordinate) <= config.GeometryTolerance),
+				"all rooted members must use one final dimension-line coordinate");
+			Assert(Math.Abs(unifiedCoordinate - nearestSafeCoordinate) <= config.GeometryTolerance,
+				"the block must choose the nearest candidate that is safe for every finite dimension segment");
+			Assert(rooted.All(item => !rules.DimensionLineEntersOutlineInterior(dimensions[item.Index], DimensionSide.Left, unifiedCoordinate, outline)),
+				"the shared coordinate must keep every finite dimension segment outside the outline interior");
+
+			double overallCoordinate = placements[3].DimLineCoordinateOverride
+				?? rules.GetDimLineCoordinate(dimensions[3], DimensionSide.Left, outline, placements[3].Offset);
+			Assert(overallCoordinate < unifiedCoordinate - config.GeometryTolerance,
+				"the forced overall height must remain physically outside the aligned block");
+			for (int i = 0; i < dimensions.Length; i++)
+			{
+				Assert(dimensions[i].FirstPoint.Equals(firstPoints[i])
+					&& dimensions[i].SecondPoint.Equals(secondPoints[i])
+					&& Math.Abs(dimensions[i].Span - spans[i]) <= config.GeometryTolerance,
+					"layout must not change dimension measurement endpoints or span");
+			}
+		}
+
 		private static void LooseChainFormsOneEffectiveSpanBlock()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -3704,6 +3837,52 @@ namespace CadAuto.Core.Tests
 			Assert(suppressed.Any(c => Math.Abs(Math.Round(c.Value, 2) - 169.21) <= config.GeometryTolerance
 				&& c.SuppressedReason == "ProjectedStructureOverallPartition"),
 				"cross-level top projection 169.21 must retain its projected-partition diagnostic");
+		}
+
+		private static void TopClosedChainDropsUnbackedBodyRemainder()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(338.0, 201.5);
+			var candidates = new List<PlannedDimension>
+			{
+				new PlannedDimension
+				{
+					Kind = DimensionKind.Normal,
+					Orientation = DimensionOrientation.Horizontal,
+					Side = DimensionSide.Top,
+					FirstPoint = new Point2D(0.0, 100.0),
+					SecondPoint = new Point2D(73.0, 90.0),
+					DebugRole = "TopStructWidth"
+				},
+				new PlannedDimension
+				{
+					Kind = DimensionKind.Normal,
+					Orientation = DimensionOrientation.Horizontal,
+					Side = DimensionSide.Top,
+					FirstPoint = new Point2D(73.0, 90.0),
+					SecondPoint = new Point2D(160.55427071, 0.0),
+					DebugRole = "TopStructWidth"
+				},
+				new PlannedDimension
+				{
+					Kind = DimensionKind.Normal,
+					Orientation = DimensionOrientation.Horizontal,
+					Side = DimensionSide.Top,
+					FirstPoint = new Point2D(160.55427071, 0.0),
+					SecondPoint = new Point2D(338.0, 5.0),
+					DebugRole = "TopStructWidth"
+				}
+			};
+
+			int removed = new StructureEndpointRules(config)
+				.FindLongestExtensionCandidateIndex(candidates, outline, DimensionSide.Top);
+
+			Assert(removed == 2, "DL01-like Top chain must drop only the unbacked body remainder");
+			Assert(candidates[removed].RuleId == "TopClosedOverallChainBodyRemainder",
+				"removed Top body remainder must record the closed-chain rule");
+			Assert(candidates[removed].TopologyEvidence
+				== "CompleteOverallChain:0-73|73-160.55427071|160.55427071-338",
+				"removed Top body remainder must record the complete chain intervals");
 		}
 
 		private static void ProjectedThreePieceVerticalChainKeepsRealHeights()

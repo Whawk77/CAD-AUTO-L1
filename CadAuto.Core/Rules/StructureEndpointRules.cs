@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using CadAuto.Core.Geometry;
 using CadAuto.Core.Model;
@@ -165,21 +166,33 @@ public sealed class StructureEndpointRules
 		// Preserve a real body length anchored at the datum corner and shoulder. Do not fall
 		// through to the next ranked item: that item may be the valid outer step length.
 		var longest = ranked[0];
-		if (IsCompleteOverallChainMember(longest.Dim, candidates, outline, side))
+		if (TryGetCompleteOverallChain(longest.Dim, candidates, outline, side, out IList<PlannedDimension> chain))
 		{
-			return -1;
+			bool horizontal = side == DimensionSide.Top || side == DimensionSide.Bottom;
+			if (side != DimensionSide.Top
+				|| chain.Any((PlannedDimension dimension) => HasRealStructurePartitionEdge(dimension, outline, horizontal)))
+			{
+				return -1;
+			}
+			longest.Dim.RuleId = "TopClosedOverallChainBodyRemainder";
+			longest.Dim.TopologyEvidence = BuildCompleteOverallChainEvidence(chain, horizontal);
+			longest.Dim.SourceGeometryIds = DimensionCandidateSemantics.MergeSourceGeometryIds(
+				longest.Dim.SourceGeometryIds,
+				chain.SelectMany((PlannedDimension dimension) => dimension.SourceGeometryIds ?? new List<string>()));
 		}
 		return IsProtectedBodyLengthCandidate(longest.Dim, outline, side)
 			? -1
 			: longest.Index;
 	}
 
-	private bool IsCompleteOverallChainMember(
+	private bool TryGetCompleteOverallChain(
 		PlannedDimension candidate,
 		IList<PlannedDimension> candidates,
 		OutlineFeature2D outline,
-		DimensionSide side)
+		DimensionSide side,
+		out IList<PlannedDimension> dimensions)
 	{
+		dimensions = new List<PlannedDimension>();
 		if (candidate == null || outline == null)
 		{
 			return false;
@@ -211,7 +224,66 @@ public sealed class StructureEndpointRules
 			horizontal ? outline.MinX : outline.MinY,
 			horizontal ? outline.MaxX : outline.MaxY,
 			horizontal);
-		return chain != null && chain.Count >= 3 && chain.Any((DimensionDeduplicationItem item) => source[item] == candidate);
+		if (chain == null || chain.Count < 3)
+		{
+			return false;
+		}
+		dimensions = chain.Select((DimensionDeduplicationItem item) => source[item]).ToList();
+		return dimensions.Contains(candidate);
+	}
+
+	private static string BuildCompleteOverallChainEvidence(IList<PlannedDimension> chain, bool horizontal)
+	{
+		return "CompleteOverallChain:"
+			+ string.Join("|", chain
+				.Select((PlannedDimension dimension) => new
+				{
+					Minimum = horizontal
+						? Math.Min(dimension.FirstPoint.X, dimension.SecondPoint.X)
+						: Math.Min(dimension.FirstPoint.Y, dimension.SecondPoint.Y),
+					Maximum = horizontal
+						? Math.Max(dimension.FirstPoint.X, dimension.SecondPoint.X)
+						: Math.Max(dimension.FirstPoint.Y, dimension.SecondPoint.Y)
+				})
+				.OrderBy(interval => interval.Minimum)
+				.Select(interval => interval.Minimum.ToString("0.###############", CultureInfo.InvariantCulture)
+					+ "-" + interval.Maximum.ToString("0.###############", CultureInfo.InvariantCulture)));
+	}
+
+	public bool HasRealStructurePartitionEdge(PlannedDimension dimension, OutlineFeature2D outline, bool horizontal)
+	{
+		if (dimension == null || outline == null)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		if (horizontal)
+		{
+			if (Math.Abs(dimension.FirstPoint.Y - dimension.SecondPoint.Y) > tol)
+			{
+				return false;
+			}
+			double minX = Math.Min(dimension.FirstPoint.X, dimension.SecondPoint.X);
+			double maxX = Math.Max(dimension.FirstPoint.X, dimension.SecondPoint.X);
+			return outline.Segments.Any((Segment2D segment) => segment != null
+				&& !segment.IsArcChord
+				&& segment.IsHorizontal(tol)
+				&& Math.Abs(segment.MinY - dimension.FirstPoint.Y) <= tol
+				&& segment.MinX <= minX + tol
+				&& segment.MaxX >= maxX - tol);
+		}
+		if (Math.Abs(dimension.FirstPoint.X - dimension.SecondPoint.X) > tol)
+		{
+			return false;
+		}
+		double minY = Math.Min(dimension.FirstPoint.Y, dimension.SecondPoint.Y);
+		double maxY = Math.Max(dimension.FirstPoint.Y, dimension.SecondPoint.Y);
+		return outline.Segments.Any((Segment2D segment) => segment != null
+			&& !segment.IsArcChord
+			&& segment.IsVertical(tol)
+			&& Math.Abs(segment.MinX - dimension.FirstPoint.X) <= tol
+			&& segment.MinY <= minY + tol
+			&& segment.MaxY >= maxY - tol);
 	}
 
 	public bool RemoveLongestExtensionCandidate(IList<PlannedDimension> candidates, OutlineFeature2D outline, DimensionSide side)

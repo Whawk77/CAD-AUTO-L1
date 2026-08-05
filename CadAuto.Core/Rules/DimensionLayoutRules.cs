@@ -902,13 +902,7 @@ public sealed class DimensionLayoutRules
 				placement.AlignmentLaneKey = alignmentLaneKey;
 				placement.AlignmentLaneMemberCount = members.Count;
 			}
-			DimensionStackingPlacement anchor = members
-				.OrderByDescending(placement => dimensions[placement.Index].AlignmentPriority)
-				.ThenBy(placement => dimensions[placement.Index].Span)
-				.ThenBy(placement => placement.Index)
-				.First();
-			double coordinate = GetDimLineCoordinate(dimensions[anchor.Index], side, outline, anchor.Offset);
-			if (members.Any(placement => DimensionLineEntersOutlineInterior(dimensions[placement.Index], side, coordinate, outline)))
+			if (!TrySelectRootedLayoutBlockCoordinate(members, dimensions, side, outline, out double coordinate))
 			{
 				continue;
 			}
@@ -917,6 +911,49 @@ public sealed class DimensionLayoutRules
 				placement.DimLineCoordinateOverride = coordinate;
 			}
 		}
+	}
+
+	private bool TrySelectRootedLayoutBlockCoordinate(IList<DimensionStackingPlacement> members, IList<DimensionLayoutItem> dimensions, DimensionSide side, OutlineFeature2D outline, out double coordinate)
+	{
+		coordinate = 0.0;
+		if (members == null || members.Count == 0)
+		{
+			return false;
+		}
+		DimensionStackingPlacement anchor = members
+			.OrderByDescending(placement => dimensions[placement.Index].AlignmentPriority)
+			.ThenBy(placement => dimensions[placement.Index].Span)
+			.ThenBy(placement => placement.Index)
+			.First();
+		if (outline == null)
+		{
+			coordinate = GetDimLineCoordinate(dimensions[anchor.Index], side, outline, anchor.Offset);
+			return !double.IsNaN(coordinate) && !double.IsInfinity(coordinate);
+		}
+
+		List<double> candidates = new List<double>();
+		foreach (DimensionStackingPlacement placement in members)
+		{
+			double naturalCoordinate = GetDimLineCoordinate(dimensions[placement.Index], side, outline, placement.Offset);
+			if (double.IsNaN(naturalCoordinate) || double.IsInfinity(naturalCoordinate)
+				|| candidates.Any(candidate => Math.Abs(candidate - naturalCoordinate) <= _config.GeometryTolerance))
+			{
+				continue;
+			}
+			candidates.Add(naturalCoordinate);
+		}
+		// The first safe natural coordinate is the layer nearest the outline. A rooted
+		// block must move together; never fall back to a split coordinate when one
+		// member rejects the candidate.
+		foreach (double candidate in candidates.OrderBy(value => GetPhysicalOutwardRank(side, value)))
+		{
+			if (members.All(placement => !DimensionLineEntersOutlineInterior(dimensions[placement.Index], side, candidate, outline)))
+			{
+				coordinate = candidate;
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private void EnsureOverallPhysicalOutermostOffset(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, DimensionSide side, OutlineFeature2D outline, double perLevelSpacing)

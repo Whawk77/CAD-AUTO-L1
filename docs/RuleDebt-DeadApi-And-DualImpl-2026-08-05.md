@@ -3,7 +3,7 @@
 > 日期：2026-08-05（S1 实施同步更新）  
 > 分支：`8.5`  
 > 仓库：`D:\work\AI\grok\cad\CAD-AUTO-L1`  
-> 状态：债务登记 + **S1 零行为清理已实施**（见 §7）；仍不授权删抑制 pass、不授权改 expectation、不含 §4.1  
+> 状态：债务登记 + **S1/S2 零行为清理已实施**（见 §7）；仍不授权删抑制 pass、不授权改 expectation、§4.1 未做  
 > 范围：插件规则层（`CadAuto.Core/Rules`、`DimensionPlanner` 抑制/结构、相关文档符号、镜像去重双通道）  
 > 方法：全仓库 `*.cs` 符号引用扫描 + 人工对照定义/调用点；知识图谱辅助导航（`graphify-out`）
 
@@ -77,12 +77,13 @@
 
 | 符号 | 定义 | 引用结论 | 状态 | 风险 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `LeftExtensionCrossesOutline` | `StructureSuppressionRules.cs:82` | 无外部调用 | `DEAD` + 见 §4.1 | R2 | 签名含 `firstDimensionOffset` |
-| `RightExtensionCrossesOutline` | `:105` | 无外部调用 | `DEAD` + 见 §4.1 | R2 | |
-| `TopExtensionCrossesOutline` | `:128` | 无外部调用 | `DEAD` + 见 §4.1 | R2 | |
-| `BottomExtensionCrossesOutline` | `:151` | 无外部调用 | `DEAD` + 见 §4.1 | R2 | |
+| `LeftExtensionCrossesOutline` | 原 Rules public | 无外部调用 | `REMOVED-S2` | R1 | S2 已删；生产仍用 StructureGeometry private |
+| `RightExtensionCrossesOutline` | 同上 | 无外部调用 | `REMOVED-S2` | R1 | |
+| `TopExtensionCrossesOutline` | 同上 | 无外部调用 | `REMOVED-S2` | R1 | |
+| `BottomExtensionCrossesOutline` | 同上 | 无外部调用 | `REMOVED-S2` | R1 | |
+| Rules 私有相交/重叠辅助 | `TryGet*` / `*ExtensionOverlaps*` / `PointLiesOnSegment*` | 仅服务上述四方法 | `REMOVED-S2` | R1 | P2 级联；StructureGeometry 自有副本未动 |
 
-> 说明：生产实际使用的是 `DimensionPlanner.StructureGeometry` 的 **private 同名方法**（见 §4.1）。Rules 侧四方法当前是「公开但无调用」的双实现半边。
+> 说明：S2 **只删 Rules 死半边**，不做委托合并。生产路径仍为 `DimensionPlanner.StructureGeometry` private 同名方法。完整合一见 §4.1（未做）。
 
 ### 3.3 `DimensionDeduplicationRules` — 对称半边
 
@@ -117,20 +118,21 @@
 
 ### 4.1 延伸线穿轮廓（同名双实现）— `DUAL` / R2
 
-| 侧 | 实现 A（**生产在用**） | 实现 B（**当前无调用**） | 差异要点 |
+| 侧 | 实现 A（**生产在用**） | 实现 B（Rules public） | 差异要点 |
 | --- | --- | --- | --- |
-| Left | `DimensionPlanner.StructureGeometry.cs:196` private | `StructureSuppressionRules.cs:82` public | A 固定 `_config.FirstDimOffset`；B 参数 `firstDimensionOffset` |
-| Right | StructureGeometry `:219` | Rules `:105` | 同上 |
-| Top | StructureGeometry `:438` | Rules `:128` | 同上 |
-| Bottom | StructureGeometry `:173` | Rules `:151` | 同上 |
+| Left | `DimensionPlanner.StructureGeometry` private | **S2 已删除** | 曾：A 固定 `FirstDimOffset`；B 参数化 offset |
+| Right | 同上 | **S2 已删除** | 同上 |
+| Top | 同上 | **S2 已删除** | 同上 |
+| Bottom | 同上 | **S2 已删除** | 同上 |
 
-**调用方（A）：** StructureGeometry 在收集 ignored structure points 时调用（约 `:54`–`:83`、`:287`），Reason 字符串与方法同名。
+**调用方（A）：** StructureGeometry 在收集 ignored structure points 时调用，Reason 字符串与方法同名。
+
+**S2 后状态：** Rules 死半边已清除；双实现「公开死副本」消失。§4.1 若再做，只能是把 StructureGeometry private 抽到共享 helper（可选），**不是**再恢复 Rules public。
 
 **合并建议（仅债务，不实施）：**
 
-1. 确认 A/B 算法是否字节级等价（当前阅读：主体循环与相交判断同构，offset 来源不同）。
-2. 若等价：让 A 委托 B（传入 `_config.FirstDimOffset`），再删 private 副本。
-3. 回归：OC01 / 结构台阶相关 Core 用例 + 任一 bottom/left outer-step CAD case（若 fixtureReady）。
+1. 将 StructureGeometry 四向 private 抽到单一实现（可放 Rules 或内部 static helper），offset 统一从 config。
+2. 回归：结构相关 Core 用例 + outer-step CAD case（若 fixtureReady）。
 
 ### 4.2 镜像抑制双通道 — `DUAL-LAYER` / R3
 
@@ -261,6 +263,7 @@ Get-ChildItem -Recurse -Filter *.cs |
 | --- | --- | --- |
 | 2026-08-05 | `ba25e04` / 分支 `8.5` | 首版：死 API 表 + 双实现对照；不改产品逻辑 |
 | 2026-08-05 | 分支 `8.5` S1 | **A/S1/D1/P2/N2**：删除 §3.1 死簇+级联 private、§3.3 对称死 API、文档 N2 正名；**不含 §4.1**；门禁 2 |
+| 2026-08-05 | 分支 `8.5` S2 | **A/S2**：删 Rules 四向 `*ExtensionCrossesOutline` 死半边 + 级联 private 相交辅助；**仍不含 §4.1 委托** |
 
 ### 7.1 S1 实施清单（已完成）
 
@@ -271,7 +274,14 @@ Get-ChildItem -Recurse -Filter *.cs |
 | `docs/DimensionRules.md` | 四条 `Draw*` → DebugRole + Structure 入口锚点（N2） |
 | `docs/RuleDebt-DeadApi-And-DualImpl-2026-08-05.md` | 本状态同步 |
 
-**明确未做：** Rules 四向 `*ExtensionCrossesOutline` 删除/委托（§4.1）、镜像双通道、四向结构点参数化、任何抑制 pass。
+### 7.2 S2 实施清单（已完成）
+
+| 文件 | 变更 |
+| --- | --- |
+| `CadAuto.Core/Rules/StructureSuppressionRules.cs` | 删四向 `*ExtensionCrossesOutline` public + 级联 `TryGet*` / `*Overlaps*` / `PointLiesOn*` |
+| `docs/RuleDebt-DeadApi-And-DualImpl-2026-08-05.md` | §3.2 → `REMOVED-S2` |
+
+**明确未做：** §4.1（StructureGeometry 委托/合一）、镜像双通道、四向结构点参数化、任何抑制 pass。`DimensionPlanner.StructureGeometry` 中的 private 延伸线实现 **保留且仍为生产路径**。
 
 ---
 

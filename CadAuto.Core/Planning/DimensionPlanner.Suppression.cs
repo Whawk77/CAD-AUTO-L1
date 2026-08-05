@@ -116,6 +116,10 @@ public sealed partial class DimensionPlanner
 		// Still requires real 1D abutment cover (never span-sum alone).
 		SuppressClosedOverallLengthRemainders(plan, horizontal: true);
 		SuppressClosedOverallLengthRemainders(plan, horizontal: false);
+		// Top structure closed overall chain: keep feature (interior) widths + datum-side
+		// location; suppress the opposite-side structure width that only closes overall
+		// (test2: keep 50+75, drop 90). Hole/pin roles are never considered here.
+		SuppressTopStructureClosedChainRedundantPositioning(plan, outline);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Bottom, horizontal: true);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Top, horizontal: true);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Left, horizontal: false);
@@ -1416,7 +1420,170 @@ public sealed partial class DimensionPlanner
 		SuppressClosedOverallLengthRemainders(plan, horizontal);
 	}
 
+	/// <summary>
+	/// Top structure closed overall chain product rule:
+	/// 1) keep interior feature widths (slot/step),
+	/// 2) keep one-side location on the datum side,
+	/// 3) suppress the opposite overall-boundary structure width that only closes overall,
+	/// 4) never touch hole/pin roles.
+	/// Requires hole/pin/datum dims in the plan to infer datum side; otherwise no-op.
+	/// </summary>
+	internal void SuppressTopStructureClosedChainRedundantPositioning(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		if (plan == null || outline == null)
+		{
+			return;
+		}
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallWidth);
+		if (overall == null || overall.Orientation != DimensionOrientation.Horizontal)
+		{
+			return;
+		}
+		List<PlannedDimension> topStructure = plan.Dimensions
+			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+				&& d.Orientation == DimensionOrientation.Horizontal
+				&& d.Side == DimensionSide.Top
+				&& (string.Equals(d.DebugRole, "TopStructWidth", StringComparison.Ordinal)
+					|| string.Equals(d.DebugRole, "TopChamferedStepWidth", StringComparison.Ordinal)))
+			.ToList();
+		if (topStructure.Count < 2)
+		{
+			return;
+		}
+		if (!TryInferHorizontalDatumPrefersMaxX(plan, outline, out bool preferMaxX))
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal: true);
+		List<DimensionDeduplicationItem> items = new List<DimensionDeduplicationItem>(topStructure.Count);
+		Dictionary<DimensionDeduplicationItem, PlannedDimension> itemToDim = new Dictionary<DimensionDeduplicationItem, PlannedDimension>();
+		foreach (PlannedDimension dim in topStructure)
+		{
+			DimensionDeduplicationItem item = ToDeduplicationItem(dim);
+			items.Add(item);
+			itemToDim[item] = dim;
+		}
+		IList<DimensionDeduplicationItem> chainItems = _dimensionDeduplicationRules.FindCompleteOverallPartitionChain(
+			items,
+			overallInterval.Item1,
+			overallInterval.Item2,
+			horizontal: true);
+		if (chainItems == null || chainItems.Count < 2)
+		{
+			return;
+		}
+		List<PlannedDimension> chain = chainItems
+			.Select((DimensionDeduplicationItem item) => itemToDim[item])
+			.ToList();
+		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>();
+		foreach (PlannedDimension member in chain)
+		{
+			Tuple<double, double> iv = ComputeArrowInterval(member, horizontal: true);
+			bool touchesMin = Math.Abs(iv.Item1 - overallInterval.Item1) <= tol;
+			bool touchesMax = Math.Abs(iv.Item2 - overallInterval.Item2) <= tol;
+			bool interiorFeature = !touchesMin && !touchesMax;
+			if (interiorFeature)
+			{
+				continue;
+			}
+			bool onDatumSide = preferMaxX ? touchesMax : touchesMin;
+			if (onDatumSide)
+			{
+				continue;
+			}
+			if (touchesMin || touchesMax)
+			{
+				toSuppress.Add(member);
+			}
+		}
+		if (toSuppress.Count == 0)
+		{
+			return;
+		}
+		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
+		{
+			PlannedDimension candidate = plan.Dimensions[num];
+			if (!toSuppress.Contains(candidate))
+			{
+				continue;
+			}
+			plan.MarkSuppressed(
+				candidate,
+				SuppressReason.TopClosedChainRedundantPositioning,
+				"TopClosedChainRedundantPositioning",
+				candidate.SourceGeometryIds,
+				"TopClosedChain:KeepFeatureAndDatumSideLocation");
+			plan.Dimensions.RemoveAt(num);
+		}
+	}
+
+	/// <summary>
+	/// Infer whether the horizontal datum anchors toward outline MaxX (true) or MinX (false)
+	/// from hole/pin/datum dimensions already on the plan. Returns false when no evidence.
+	/// </summary>
+	private bool TryInferHorizontalDatumPrefersMaxX(DimensionPlan plan, OutlineFeature2D outline, out bool preferMaxX)
+	{
+		preferMaxX = false;
+		if (plan == null || outline == null)
+		{
+			return false;
+		}
+		double tol = Math.Max(_config.GeometryTolerance, outline.Width * 0.02);
+		int scoreMax = 0;
+		int scoreMin = 0;
+		foreach (PlannedDimension dimension in plan.Dimensions)
+		{
+			if (!IsHorizontalHoleOrPinLocationRole(dimension))
+			{
+				continue;
+			}
+			double minX = Math.Min(dimension.FirstPoint.X, dimension.SecondPoint.X);
+			double maxX = Math.Max(dimension.FirstPoint.X, dimension.SecondPoint.X);
+			if (Math.Abs(maxX - outline.MaxX) <= tol || Math.Abs(minX - outline.MaxX) <= tol)
+			{
+				scoreMax++;
+			}
+			if (Math.Abs(minX - outline.MinX) <= tol || Math.Abs(maxX - outline.MinX) <= tol)
+			{
+				scoreMin++;
+			}
+		}
+		if (scoreMax == 0 && scoreMin == 0)
+		{
+			return false;
+		}
+		preferMaxX = scoreMax >= scoreMin;
+		return true;
+	}
+
+	private static bool IsHorizontalHoleOrPinLocationRole(PlannedDimension dimension)
+	{
+		if (dimension == null || dimension.Orientation != DimensionOrientation.Horizontal)
+		{
+			return false;
+		}
+		if (dimension.Kind == DimensionKind.DatumHoleLocationX
+			|| dimension.Kind == DimensionKind.PinDistance
+			|| dimension.Kind == DimensionKind.PinGroupDistance
+			|| dimension.Kind == DimensionKind.HoleLocation)
+		{
+			return true;
+		}
+		string role = dimension.DebugRole ?? string.Empty;
+		return string.Equals(role, "DatumX", StringComparison.Ordinal)
+			|| string.Equals(role, "HoleDatumX", StringComparison.Ordinal)
+			|| string.Equals(role, "PinDistance", StringComparison.Ordinal)
+			|| string.Equals(role, "PinGroupDistance", StringComparison.Ordinal)
+			|| string.Equals(role, "FunctionalHole", StringComparison.Ordinal)
+			|| string.Equals(role, "HoleLocation", StringComparison.Ordinal)
+			|| string.Equals(role, "HoleChainH", StringComparison.Ordinal)
+			|| string.Equals(role, "ThreadHoleChainH", StringComparison.Ordinal)
+			|| string.Equals(role, "LooseHole", StringComparison.Ordinal);
+	}
+
 	private static bool IsClosedChainLengthRole(string debugRole, bool horizontal)
+
 	{
 		if (string.Equals(debugRole, "OutlineSegment", StringComparison.Ordinal))
 		{

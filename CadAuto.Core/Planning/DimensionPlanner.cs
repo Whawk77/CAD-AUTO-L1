@@ -74,6 +74,8 @@ public sealed partial class DimensionPlanner
 		public const string ProjectedStructureOverallPartition = "ProjectedStructureOverallPartition";
 
 		public const string NonProfileBackedSideStructureHeight = "NonProfileBackedSideStructureHeight";
+
+		public const string TopClosedChainRedundantPositioning = "TopClosedChainRedundantPositioning";
 	}
 
 	private sealed class FunctionalHoleGroupPlan

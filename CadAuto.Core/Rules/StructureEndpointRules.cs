@@ -78,8 +78,15 @@ public sealed class StructureEndpointRules
 		if (TryGetCompleteOverallChain(longest.Dim, candidates, outline, side, out IList<PlannedDimension> chain))
 		{
 			bool horizontal = side == DimensionSide.Top || side == DimensionSide.Bottom;
-			if (side != DimensionSide.Top
-				|| chain.Any((PlannedDimension dimension) => HasRealStructurePartitionEdge(dimension, outline, horizontal)))
+			// Top closed overall chains that include real contour steps are resolved later by
+			// SuppressTopStructureClosedChainRedundantPositioning (feature width + datum-side
+			// location; drop the opposite overall-closing structure width). Only pure unbacked
+			// floating chains still drop the longest member here (legacy DL01-style case).
+			if (side != DimensionSide.Top)
+			{
+				return -1;
+			}
+			if (chain.Any((PlannedDimension dimension) => HasRealStructurePartitionEdge(dimension, outline, horizontal)))
 			{
 				return -1;
 			}
@@ -88,6 +95,9 @@ public sealed class StructureEndpointRules
 			longest.Dim.SourceGeometryIds = DimensionCandidateSemantics.MergeSourceGeometryIds(
 				longest.Dim.SourceGeometryIds,
 				chain.SelectMany((PlannedDimension dimension) => dimension.SourceGeometryIds ?? new List<string>()));
+			return IsProtectedBodyLengthCandidate(longest.Dim, outline, side)
+				? -1
+				: longest.Index;
 		}
 		return IsProtectedBodyLengthCandidate(longest.Dim, outline, side)
 			? -1

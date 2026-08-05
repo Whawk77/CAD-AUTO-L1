@@ -38,6 +38,7 @@ namespace CadAuto.Core.Tests
 			nameof(SameSideClosedChainSuppressesCrossLevelProjection),
 			nameof(ProjectedThreePieceHorizontalChainKeepsRealSteps),
 			nameof(TopClosedChainDropsUnbackedBodyRemainder),
+			nameof(TopClosedChainKeepsRealStepsDropsUnbackedBody),
 			nameof(ProjectedThreePieceVerticalChainKeepsRealHeights),
 			nameof(OrthogonalRotatedVerticalChainKeepsRealWidths),
 			nameof(FullWidthSideSeamsDoNotCreateStructureHeights),
@@ -203,6 +204,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(SameSideClosedChainSuppressesCrossLevelProjection), SameSideClosedChainSuppressesCrossLevelProjection);
 				RunTest(nameof(ProjectedThreePieceHorizontalChainKeepsRealSteps), ProjectedThreePieceHorizontalChainKeepsRealSteps);
 				RunTest(nameof(TopClosedChainDropsUnbackedBodyRemainder), TopClosedChainDropsUnbackedBodyRemainder);
+				RunTest(nameof(TopClosedChainKeepsRealStepsDropsUnbackedBody), TopClosedChainKeepsRealStepsDropsUnbackedBody);
 				RunTest(nameof(ProjectedThreePieceVerticalChainKeepsRealHeights), ProjectedThreePieceVerticalChainKeepsRealHeights);
 				RunTest(nameof(OrthogonalRotatedVerticalChainKeepsRealWidths), OrthogonalRotatedVerticalChainKeepsRealWidths);
 				RunTest(nameof(FullWidthSideSeamsDoNotCreateStructureHeights), FullWidthSideSeamsDoNotCreateStructureHeights);
@@ -3883,6 +3885,111 @@ namespace CadAuto.Core.Tests
 			Assert(candidates[removed].TopologyEvidence
 				== "CompleteOverallChain:0-73|73-160.55427071|160.55427071-338",
 				"removed Top body remainder must record the complete chain intervals");
+		}
+
+		/// <summary>
+		/// test2-like Top closed chain with datum on the right:
+		/// keep feature width 50 + datum-side location 75; suppress opposite overall-closing 90.
+		/// Hole/pin dims are present so datum side can be inferred; they must remain.
+		/// </summary>
+		private static void TopClosedChainKeepsRealStepsDropsUnbackedBody()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 215.0,
+				MaxY = 100.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(215.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(215.0, 0.0), new Point2D(215.0, 100.0), "right");
+			AddSegment(outline, new Point2D(215.0, 100.0), new Point2D(140.0, 100.0), "top-75");
+			AddSegment(outline, new Point2D(140.0, 100.0), new Point2D(90.0, 100.0), "top-50");
+			AddSegment(outline, new Point2D(90.0, 100.0), new Point2D(90.0, 80.0), "left-riser");
+			AddSegment(outline, new Point2D(90.0, 80.0), new Point2D(0.0, 80.0), "left-ledge");
+			AddSegment(outline, new Point2D(0.0, 80.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlan();
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallWidth,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(215.0, 0.0),
+				ForceOuterLevel = true,
+				DebugRole = "OverallWidth"
+			});
+			// Opposite overall-closing location (should drop).
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(0.0, 85.0),
+				SecondPoint = new Point2D(90.0, 85.0),
+				DebugRole = "TopStructWidth"
+			});
+			// Interior feature / slot width (keep).
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(90.0, 100.0),
+				SecondPoint = new Point2D(140.0, 100.0),
+				DebugRole = "TopStructWidth"
+			});
+			// Datum-side location (keep).
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(140.0, 100.0),
+				SecondPoint = new Point2D(215.0, 100.0),
+				DebugRole = "TopStructWidth"
+			});
+			// Datum evidence on the right (pin/datum base at MaxX).
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.DatumHoleLocationX,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(155.0, 90.0),
+				SecondPoint = new Point2D(215.0, 90.0),
+				DebugRole = "DatumX"
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.PinGroupDistance,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(100.0, 90.0),
+				SecondPoint = new Point2D(155.0, 90.0),
+				DebugRole = "PinGroupDistance"
+			});
+
+			new DimensionPlanner(config).SuppressTopStructureClosedChainRedundantPositioning(plan, outline);
+
+			var topStruct = plan.Dimensions.Where(d => d.DebugRole == "TopStructWidth").ToList();
+			Assert(topStruct.Any(d => Math.Abs(GetSpan(d) - 50.0) <= config.GeometryTolerance),
+				"feature width 50 must remain");
+			Assert(topStruct.Any(d => Math.Abs(GetSpan(d) - 75.0) <= config.GeometryTolerance),
+				"datum-side location 75 must remain");
+			Assert(!topStruct.Any(d => Math.Abs(GetSpan(d) - 90.0) <= config.GeometryTolerance),
+				"opposite overall-closing 90 must be suppressed");
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "DatumX"),
+				"hole/pin datum dims must not be killed by the structure closed-chain rule");
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "PinGroupDistance"),
+				"pin group distance must not be killed by the structure closed-chain rule");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
+					c.DebugRole == "TopStructWidth"
+					&& Math.Abs(c.Value - 90.0) <= config.GeometryTolerance
+					&& c.IsSuppressed
+					&& c.SuppressedReason == "TopClosedChainRedundantPositioning"),
+				"suppressed 90 must record TopClosedChainRedundantPositioning");
 		}
 
 		private static void ProjectedThreePieceVerticalChainKeepsRealHeights()

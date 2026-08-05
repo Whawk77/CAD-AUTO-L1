@@ -56,6 +56,10 @@ public sealed partial class DimensionPlanner
 	private void SuppressDuplicateDimensions(DimensionPlan plan, OutlineFeature2D outline)
 	{
 		List<PlannedDimension> localGeometryOnEnvelope = FindLocalGeometryOnOverallEnvelope(plan, outline);
+		// Side heights are useful only when they describe a real outer-profile step (or
+		// an explicit inner-groove chamfer). Remove projection-only heights before any
+		// mirror/partition pass can promote them to the visible side.
+		SuppressNonProfileBackedSideStructureHeights(plan, outline);
 		SuppressRightStructureHeightsDuplicatingOverallHeight(plan);
 		SuppressLeftStructureHeightsCoveredByRight(plan);
 		SuppressBottomProtrusionInnerRemainders(plan, outline);
@@ -117,6 +121,98 @@ public sealed partial class DimensionPlanner
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Left, horizontal: false);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Right, horizontal: false);
 		SuppressLocalGeometryOnOverallEnvelope(plan, localGeometryOnEnvelope);
+	}
+
+	private void SuppressNonProfileBackedSideStructureHeights(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		if (plan == null || outline == null)
+		{
+			return;
+		}
+		foreach (PlannedDimension candidate in plan.Dimensions
+			.Where((PlannedDimension dimension) =>
+				(dimension.DebugRole == "LeftStructHeight" || dimension.DebugRole == "RightStructHeight")
+				&& dimension.Orientation == DimensionOrientation.Vertical)
+			.ToList())
+		{
+			if (HasOuterProfileStepEvidence(candidate, outline))
+			{
+				continue;
+			}
+			plan.MarkSuppressed(candidate, SuppressReason.NonProfileBackedSideStructureHeight);
+			plan.Dimensions.Remove(candidate);
+		}
+	}
+
+	private bool HasOuterProfileStepEvidence(PlannedDimension candidate, OutlineFeature2D outline)
+	{
+		if (candidate == null || outline == null)
+		{
+			return true;
+		}
+		DimensionSide side = candidate.Side;
+		if (side != DimensionSide.Left && side != DimensionSide.Right)
+		{
+			return true;
+		}
+		if (HasSideInnerGrooveEvidence(candidate, outline, side))
+		{
+			return true;
+		}
+		double tol = _config.GeometryTolerance;
+		// Cross-level projections are resolved by the existing overall-partition passes;
+		// keep them in the plan until those passes can attach the authoritative reason.
+		if (Math.Abs(candidate.FirstPoint.X - candidate.SecondPoint.X) > tol)
+		{
+			return true;
+		}
+		return HasSideProfileBoundaryAt(outline, side, candidate.FirstPoint.Y)
+			|| HasSideProfileBoundaryAt(outline, side, candidate.SecondPoint.Y);
+	}
+
+	private bool HasSideProfileBoundaryAt(OutlineFeature2D outline, DimensionSide side, double y)
+	{
+		double tol = _config.GeometryTolerance;
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (segment == null || segment.IsArcChord || !segment.IsHorizontal(tol)
+				|| Math.Abs(segment.MinY - y) > tol)
+			{
+				continue;
+			}
+			if (side == DimensionSide.Left
+				&& Math.Abs(segment.MinX - outline.MinX) <= tol
+				&& segment.MaxX < outline.MaxX - tol)
+			{
+				return true;
+			}
+			if (side == DimensionSide.Right
+				&& Math.Abs(segment.MaxX - outline.MaxX) <= tol
+				&& segment.MinX > outline.MinX + tol)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private bool HasSideInnerGrooveEvidence(PlannedDimension candidate, OutlineFeature2D outline, DimensionSide side)
+	{
+		if (outline.Segments == null || outline.Segments.Count == 0)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		return outline.Segments.Any((Segment2D segment) =>
+			segment != null
+			&& !segment.IsHorizontal(tol)
+			&& !segment.IsVertical(tol)
+			&& IsFortyFiveDegreeSegment(segment)
+			&& IsSideInnerGrooveChamferSegment(segment, outline, side)
+			&& (Math.Abs(segment.Start.Y - candidate.FirstPoint.Y) <= tol
+				|| Math.Abs(segment.End.Y - candidate.FirstPoint.Y) <= tol
+				|| Math.Abs(segment.Start.Y - candidate.SecondPoint.Y) <= tol
+				|| Math.Abs(segment.End.Y - candidate.SecondPoint.Y) <= tol));
 	}
 
 	internal void SuppressLocalGeometryOnOverallEnvelope(DimensionPlan plan, OutlineFeature2D outline)

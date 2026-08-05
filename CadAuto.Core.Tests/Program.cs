@@ -35,10 +35,11 @@ namespace CadAuto.Core.Tests
             nameof(StructureWidthsThatPartitionOverallAreSuppressed),
             nameof(ProjectedCrossLevelStructureWidthsDoNotPartitionOverall),
             nameof(GeometricMirrorOwnershipPrefersContourBackedCandidate),
-            nameof(SameSideClosedChainSuppressesCrossLevelProjection),
+			nameof(SameSideClosedChainSuppressesCrossLevelProjection),
 			nameof(ProjectedThreePieceHorizontalChainKeepsRealSteps),
 			nameof(ProjectedThreePieceVerticalChainKeepsRealHeights),
 			nameof(OrthogonalRotatedVerticalChainKeepsRealWidths),
+			nameof(FullWidthSideSeamsDoNotCreateStructureHeights),
 			nameof(MirroredProjectedChainNormalizesStructureSelection),
 			nameof(Test2BottomContourChainKeepsTwoRealWidths),
 			nameof(RotatedTest2PreservesLocalSemanticSignature),
@@ -200,6 +201,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(ProjectedThreePieceHorizontalChainKeepsRealSteps), ProjectedThreePieceHorizontalChainKeepsRealSteps);
 				RunTest(nameof(ProjectedThreePieceVerticalChainKeepsRealHeights), ProjectedThreePieceVerticalChainKeepsRealHeights);
 				RunTest(nameof(OrthogonalRotatedVerticalChainKeepsRealWidths), OrthogonalRotatedVerticalChainKeepsRealWidths);
+				RunTest(nameof(FullWidthSideSeamsDoNotCreateStructureHeights), FullWidthSideSeamsDoNotCreateStructureHeights);
 				RunTest(nameof(MirroredProjectedChainNormalizesStructureSelection), MirroredProjectedChainNormalizesStructureSelection);
 				RunTest(nameof(Test2BottomContourChainKeepsTwoRealWidths), Test2BottomContourChainKeepsTwoRealWidths);
 				RunTest(nameof(RotatedTest2PreservesLocalSemanticSignature), RotatedTest2PreservesLocalSemanticSignature);
@@ -3762,6 +3764,46 @@ namespace CadAuto.Core.Tests
 				Math.Abs(c.Value - 140.43723701) <= config.GeometryTolerance
 				&& c.SuppressedReason == "ProjectedStructureOverallPartition"),
 				"actual rotated contour must record the derivable width suppression");
+		}
+
+		private static void FullWidthSideSeamsDoNotCreateStructureHeights()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 20.0,
+				MaxY = 29.038
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(20.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(20.0, 0.0), new Point2D(20.0, 20.0), "right-lower");
+			AddSegment(outline, new Point2D(20.0, 20.0), new Point2D(0.0, 20.0), "full-width-seam-lower");
+			AddSegment(outline, new Point2D(20.0, 20.0), new Point2D(20.0, 28.0), "right-upper");
+			AddSegment(outline, new Point2D(20.0, 28.0), new Point2D(0.0, 28.0), "full-width-seam-upper");
+			AddSegment(outline, new Point2D(20.0, 29.038), new Point2D(0.0, 29.038), "top");
+			AddSegment(outline, new Point2D(0.0, 29.038), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			var falseStructureCandidates = plan.Diagnostics.DimensionCandidates
+				.Where(c => (c.DebugRole == "LeftStructHeight" || c.DebugRole == "RightStructHeight")
+					&& (Math.Abs(c.Value - 8.0) <= config.GeometryTolerance
+						|| Math.Abs(c.Value - 20.0) <= config.GeometryTolerance))
+				.ToList();
+
+			Assert(falseStructureCandidates.Count > 0,
+				"full-width seams must still be visible in diagnostics as rejected structure candidates");
+			Assert(falseStructureCandidates.All(c => c.IsSuppressed)
+				&& falseStructureCandidates.Any(c => c.DebugRole == "RightStructHeight"
+					&& c.SuppressedReason == "NonProfileBackedSideStructureHeight"),
+				"full-width seam heights must be suppressed before mirror/partition promotion ("
+				+ string.Join(",", falseStructureCandidates.Select(c => c.DebugRole + "/" + c.Value
+					+ "/" + c.IsSelected + "/" + c.SuppressedReason)) + ")");
+			Assert(!plan.Dimensions.Any(d =>
+				(d.DebugRole == "LeftStructHeight" || d.DebugRole == "RightStructHeight")
+				&& (Math.Abs(GetSpan(d) - 8.0) <= config.GeometryTolerance
+					|| Math.Abs(GetSpan(d) - 20.0) <= config.GeometryTolerance)),
+				"full-width seams must not become visible side dimensions");
 		}
 
 		private static OutlineFeature2D BuildActualRotatedContourOutline()

@@ -13,7 +13,7 @@
       "status": "ConfirmedCorrect",
       "input": {
         "source": "CadAuto.Core.Tests/Program.cs",
-      "sha256": "8FC0CB041DF1F44D3153BB586FB2082519C9F8B0C234A25EAFA5106282517050",
+      "sha256": "1DC36850BB79E23AF238CDD3E68223949C02B64FE6D3C0808DF71A29761BF58E",
         "hashMode": "text-lf"
       },
       "evidence": [
@@ -37,7 +37,7 @@
       "status": "ConfirmedCorrect",
       "input": {
         "source": "CadAuto.Core.Tests/Program.cs",
-      "sha256": "8FC0CB041DF1F44D3153BB586FB2082519C9F8B0C234A25EAFA5106282517050",
+      "sha256": "1DC36850BB79E23AF238CDD3E68223949C02B64FE6D3C0808DF71A29761BF58E",
         "hashMode": "text-lf"
       },
       "evidence": [

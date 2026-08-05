@@ -76,8 +76,8 @@
   ],
   "outwardOrder": [
     "local-25-45",
-    "isolated-gd-223.5",
     "rooted-datum-chain-233.5",
+    "isolated-gd-223.5",
     "bottom-structure-305",
     "overall-338"
   ]

@@ -39,6 +39,7 @@ namespace CadAuto.Core.Tests
 			nameof(ProjectedThreePieceHorizontalChainKeepsRealSteps),
 			nameof(TopClosedChainDropsUnbackedBodyRemainder),
 			nameof(TopClosedChainKeepsRealStepsDropsUnbackedBody),
+			nameof(TopClosedChainWithoutDatumDropsOppositeBody),
 			nameof(ProjectedThreePieceVerticalChainKeepsRealHeights),
 			nameof(OrthogonalRotatedVerticalChainKeepsRealWidths),
 			nameof(FullWidthSideSeamsDoNotCreateStructureHeights),
@@ -205,6 +206,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(ProjectedThreePieceHorizontalChainKeepsRealSteps), ProjectedThreePieceHorizontalChainKeepsRealSteps);
 				RunTest(nameof(TopClosedChainDropsUnbackedBodyRemainder), TopClosedChainDropsUnbackedBodyRemainder);
 				RunTest(nameof(TopClosedChainKeepsRealStepsDropsUnbackedBody), TopClosedChainKeepsRealStepsDropsUnbackedBody);
+				RunTest(nameof(TopClosedChainWithoutDatumDropsOppositeBody), TopClosedChainWithoutDatumDropsOppositeBody);
 				RunTest(nameof(ProjectedThreePieceVerticalChainKeepsRealHeights), ProjectedThreePieceVerticalChainKeepsRealHeights);
 				RunTest(nameof(OrthogonalRotatedVerticalChainKeepsRealWidths), OrthogonalRotatedVerticalChainKeepsRealWidths);
 				RunTest(nameof(FullWidthSideSeamsDoNotCreateStructureHeights), FullWidthSideSeamsDoNotCreateStructureHeights);
@@ -2057,16 +2059,21 @@ namespace CadAuto.Core.Tests
 			var order = rules.GetStackingOrder(dimensions, isHorizontal: true);
 			var placements = rules.CreateStackingPlan(dimensions, DimensionSide.Bottom, outline, 2.5, 1.25, 5.0, 6.5, isHorizontal: true).ToDictionary(item => item.Index);
 
-			Assert(order.SequenceEqual(new[] { 6, 1, 2, 3, 4, 0, 5 }),
-				"v203 bottom order must be local25, isolated223.5, rooted233.5, structure305, overall338");
-			Assert(placements[1].Level < placements[2].Level && placements[2].Level < placements[0].Level && placements[0].Level < placements[5].Level,
-				"layout blocks must be stacked outward by effective span");
+			// Nested isolated 223.5 stacks OUTSIDE continuous 59.5+120+60 (union 233.5), not inside:
+			// local25 → rooted233.5 → isolated223.5 → structure305 → overall338
+			Assert(order.SequenceEqual(new[] { 6, 2, 3, 4, 1, 0, 5 }),
+				"bottom order must be local25, rooted233.5, isolated223.5, structure305, overall338");
+			Assert(placements[2].Level < placements[1].Level && placements[1].Level < placements[0].Level && placements[0].Level < placements[5].Level,
+				"nested PinGroupDistance 223.5 must stack outside the continuous rooted chain");
 			Assert(new[] { 2, 3, 4 }.Select(index => placements[index].LayoutBlockId).Distinct().Count() == 1
 				&& new[] { 2, 3, 4 }.All(index => placements[index].Level == placements[2].Level)
 				&& Math.Abs(placements[2].EffectiveSpan - 233.5) <= config.GeometryTolerance,
 				"the rooted datum chain must remain one indivisible 233.5 layout block");
+			Assert(placements[1].OrderingReason == "NestedPinGroupTransferOutsideChain"
+				|| placements[2].OrderingReason == "NestedPinGroupTransferOutsideChain",
+				"nested transfer vs continuous chain must expose NestedPinGroupTransferOutsideChain");
 			Assert(placements.Values.All(placement => placement.PhysicalOrderValidated),
-				"the final bottom physical coordinates must preserve the v203 outward order");
+				"the final bottom physical coordinates must preserve outward order");
 		}
 
 		private static void RootedLayoutBlockSurvivesLegacyLaneProcessing()
@@ -2090,8 +2097,8 @@ namespace CadAuto.Core.Tests
 				&& rooted.All(item => item.DimLineCoordinateOverride.HasValue)
 				&& rooted.Select(item => item.DimLineCoordinateOverride.Value).Distinct().Count() == 1,
 				"rooted layout-block diagnostics and physical coordinates must remain block-consistent");
-			Assert(placements[3].Level < rooted[0].Level && placements.Values.All(item => item.PhysicalOrderValidated),
-				"isolated 223.5 transfer must remain inside the rooted 233.5 block");
+			Assert(placements[3].Level > rooted[0].Level && placements.Values.All(item => item.PhysicalOrderValidated),
+				"isolated 223.5 transfer must stack outside the rooted 233.5 continuous chain");
 		}
 
 		private static void RootedLaneChoosesNearestSafeFiniteSegmentCoordinate()
@@ -3990,6 +3997,83 @@ namespace CadAuto.Core.Tests
 					&& c.IsSuppressed
 					&& c.SuppressedReason == "TopClosedChainRedundantPositioning"),
 				"suppressed 90 must record TopClosedChainRedundantPositioning");
+		}
+
+		/// <summary>
+		/// Same 90+50+75=215 top closed chain as test2 pure-structure selection: no hole/pin
+		/// datum dims. Must still drop opposite overall-closing 90 (default MaxX datum side).
+		/// </summary>
+		private static void TopClosedChainWithoutDatumDropsOppositeBody()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 215.0,
+				MaxY = 100.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(215.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(215.0, 0.0), new Point2D(215.0, 100.0), "right");
+			AddSegment(outline, new Point2D(215.0, 100.0), new Point2D(140.0, 100.0), "top-75");
+			AddSegment(outline, new Point2D(140.0, 100.0), new Point2D(90.0, 100.0), "top-50");
+			AddSegment(outline, new Point2D(90.0, 100.0), new Point2D(0.0, 100.0), "top-90");
+			AddSegment(outline, new Point2D(0.0, 100.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlan();
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallWidth,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(215.0, 0.0),
+				ForceOuterLevel = true,
+				DebugRole = "OverallWidth"
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(0.0, 100.0),
+				SecondPoint = new Point2D(90.0, 100.0),
+				DebugRole = "TopStructWidth"
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(90.0, 100.0),
+				SecondPoint = new Point2D(140.0, 100.0),
+				DebugRole = "TopStructWidth"
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(140.0, 100.0),
+				SecondPoint = new Point2D(215.0, 100.0),
+				DebugRole = "TopStructWidth"
+			});
+
+			new DimensionPlanner(config).SuppressTopStructureClosedChainRedundantPositioning(plan, outline);
+
+			var topStruct = plan.Dimensions.Where(d => d.DebugRole == "TopStructWidth").ToList();
+			Assert(topStruct.Any(d => Math.Abs(GetSpan(d) - 50.0) <= config.GeometryTolerance),
+				"feature width 50 must remain without hole/pin datum");
+			Assert(topStruct.Any(d => Math.Abs(GetSpan(d) - 75.0) <= config.GeometryTolerance),
+				"default MaxX-side location 75 must remain without hole/pin datum");
+			Assert(!topStruct.Any(d => Math.Abs(GetSpan(d) - 90.0) <= config.GeometryTolerance),
+				"opposite overall-closing 90 must still be suppressed without hole/pin datum");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
+					c.DebugRole == "TopStructWidth"
+					&& Math.Abs(c.Value - 90.0) <= config.GeometryTolerance
+					&& c.IsSuppressed
+					&& c.SuppressedReason == "TopClosedChainRedundantPositioning"),
+				"suppressed 90 must record TopClosedChainRedundantPositioning without datum");
 		}
 
 		private static void ProjectedThreePieceVerticalChainKeepsRealHeights()

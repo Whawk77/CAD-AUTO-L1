@@ -1450,9 +1450,14 @@ public sealed partial class DimensionPlanner
 		{
 			return;
 		}
+		// Prefer hole/pin evidence for which end is "datum side". When the part has no
+		// horizontal hole/pin locations (pure structure), do NOT no-op: default MaxX as
+		// datum side so the opposite overall-closing body (MinX end) is still dropped.
+		// Matches prior product intent (feature + datum-side location) and the common
+		// right-side reference convention; with-datum scoring still wins when present.
 		if (!TryInferHorizontalDatumPrefersMaxX(plan, outline, out bool preferMaxX))
 		{
-			return;
+			preferMaxX = true;
 		}
 		double tol = _config.GeometryTolerance;
 		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal: true);

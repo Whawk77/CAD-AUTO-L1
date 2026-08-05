@@ -209,12 +209,12 @@ public sealed class DimensionLayoutRules
 	private List<LayoutBlock> GetOrderedLayoutBlocks(IList<DimensionLayoutItem> dimensions, bool isHorizontal)
 	{
 		List<LayoutBlock> blocks = BuildLayoutBlocks(dimensions, isHorizontal);
-		blocks.Sort((first, second) => CompareLayoutBlocks(first, second));
+		blocks.Sort((first, second) => CompareLayoutBlocks(first, second, isHorizontal));
 		for (int index = 0; index < blocks.Count; index++)
 		{
 			LayoutBlock block = blocks[index];
 			block.EffectiveOrder = index;
-			block.OrderingReason = GetOrderingReason(block, blocks);
+			block.OrderingReason = GetOrderingReason(block, blocks, isHorizontal);
 		}
 		return blocks;
 	}
@@ -456,7 +456,7 @@ public sealed class DimensionLayoutRules
 		return block;
 	}
 
-	private int CompareLayoutBlocks(LayoutBlock first, LayoutBlock second)
+	private int CompareLayoutBlocks(LayoutBlock first, LayoutBlock second, bool isHorizontal)
 	{
 		if (first.ForceOuterLevel != second.ForceOuterLevel)
 		{
@@ -468,6 +468,15 @@ public sealed class DimensionLayoutRules
 		if (functionalBeyondChain != 0)
 		{
 			return functionalBeyondChain;
+		}
+		// Same AlignmentKey: an isolated PinGroupDistance that nests over a multi-member continuous
+		// rooted chain (e.g. 223.5 over 59.5+124+50) must stack OUTSIDE that chain even when the
+		// chain's union EffectiveSpan is larger (233.5 > 223.5). Product: long transfer below the
+		// short continuous chain, not sandwiched between the part and the chain.
+		int nestedTransferOutside = CompareNestedPinGroupTransferOutsideChain(first, second, isHorizontal);
+		if (nestedTransferOutside != 0)
+		{
+			return nestedTransferOutside;
 		}
 		double spanDifference = first.EffectiveSpan - second.EffectiveSpan;
 		if (Math.Abs(spanDifference) > _config.GeometryTolerance)
@@ -493,6 +502,94 @@ public sealed class DimensionLayoutRules
 			return FunctionalHoleOrdersBeyondChain(second, first) ? -1 : 1;
 		}
 		return 0;
+	}
+
+	/// <summary>
+	/// Isolated PinGroupDistance (cannot join the continuous endpoint chain) that nests over a
+	/// multi-member rooted datum/pin chain on the same AlignmentKey stacks outside that chain.
+	/// </summary>
+	private int CompareNestedPinGroupTransferOutsideChain(LayoutBlock first, LayoutBlock second, bool isHorizontal)
+	{
+		if (!SharesAlignmentKey(first, second))
+		{
+			return 0;
+		}
+		bool firstIsolated = IsIsolatedPinGroupDistanceBlock(first);
+		bool secondIsolated = IsIsolatedPinGroupDistanceBlock(second);
+		bool firstContinuous = IsMultiMemberRootedChainBlock(first);
+		bool secondContinuous = IsMultiMemberRootedChainBlock(second);
+		if (firstIsolated && secondContinuous && IsolatedPinGroupNestsOverChain(first, second, isHorizontal))
+		{
+			return 1;
+		}
+		if (secondIsolated && firstContinuous && IsolatedPinGroupNestsOverChain(second, first, isHorizontal))
+		{
+			return -1;
+		}
+		return 0;
+	}
+
+	private static bool SharesAlignmentKey(LayoutBlock first, LayoutBlock second)
+	{
+		string firstKey = GetBlockAlignmentKey(first);
+		string secondKey = GetBlockAlignmentKey(second);
+		return !string.IsNullOrEmpty(firstKey)
+			&& string.Equals(firstKey, secondKey, StringComparison.Ordinal);
+	}
+
+	private static string GetBlockAlignmentKey(LayoutBlock block)
+	{
+		if (block == null || block.Members.Count == 0)
+		{
+			return string.Empty;
+		}
+		return block.Members
+			.Select(member => member.Dimension?.AlignmentKey)
+			.FirstOrDefault(key => !string.IsNullOrEmpty(key)) ?? string.Empty;
+	}
+
+	private static bool IsIsolatedPinGroupDistanceBlock(LayoutBlock block)
+	{
+		return block != null
+			&& string.Equals(block.Type, "RootedAlignmentLane", StringComparison.Ordinal)
+			&& block.Members.Count == 1
+			&& block.Members[0].Dimension != null
+			&& block.Members[0].Dimension.Kind == DimensionKind.PinGroupDistance;
+	}
+
+	private static bool IsMultiMemberRootedChainBlock(LayoutBlock block)
+	{
+		return block != null
+			&& string.Equals(block.Type, "RootedAlignmentLane", StringComparison.Ordinal)
+			&& block.Members.Count >= 2
+			&& block.Members.All(member => member.Dimension != null
+				&& (member.Dimension.Kind == DimensionKind.DatumHoleLocationX
+					|| member.Dimension.Kind == DimensionKind.DatumHoleLocationY
+					|| member.Dimension.Kind == DimensionKind.PinDistance
+					|| member.Dimension.Kind == DimensionKind.PinGroupDistance));
+	}
+
+	private bool IsolatedPinGroupNestsOverChain(LayoutBlock isolated, LayoutBlock chain, bool isHorizontal)
+	{
+		if (isolated == null || chain == null || isolated.Members.Count == 0 || chain.Members.Count == 0)
+		{
+			return false;
+		}
+		DimensionLayoutItem transfer = isolated.Members[0].Dimension;
+		bool sharesEndpoint = false;
+		bool nests = false;
+		foreach (IndexedLayoutItem member in chain.Members)
+		{
+			if (SharesArrowEndpoint(transfer, member.Dimension, isHorizontal))
+			{
+				sharesEndpoint = true;
+			}
+			if (HasStrictArrowConflict(transfer, member.Dimension, isHorizontal))
+			{
+				nests = true;
+			}
+		}
+		return sharesEndpoint && nests;
 	}
 
 	private static bool IsPreserveLevelFunctionalHoleBlock(LayoutBlock block)
@@ -570,11 +667,16 @@ public sealed class DimensionLayoutRules
 		return false;
 	}
 
-	private string GetOrderingReason(LayoutBlock block, IList<LayoutBlock> orderedBlocks)
+	private string GetOrderingReason(LayoutBlock block, IList<LayoutBlock> orderedBlocks, bool isHorizontal)
 	{
 		if (block.ForceOuterLevel)
 		{
 			return "ForceOutermost";
+		}
+		if (orderedBlocks.Any(candidate => candidate != block
+			&& CompareNestedPinGroupTransferOutsideChain(block, candidate, isHorizontal) != 0))
+		{
+			return "NestedPinGroupTransferOutsideChain";
 		}
 		bool usedSemanticTieBreak = orderedBlocks.Any(candidate => candidate != block
 			&& Math.Abs(candidate.EffectiveSpan - block.EffectiveSpan) <= _config.GeometryTolerance

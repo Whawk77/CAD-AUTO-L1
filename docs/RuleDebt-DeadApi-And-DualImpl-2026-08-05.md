@@ -3,7 +3,7 @@
 > 日期：2026-08-05（S1 实施同步更新）  
 > 分支：`8.5`  
 > 仓库：`D:\work\AI\grok\cad\CAD-AUTO-L1`  
-> 状态：债务登记 + **S1/S2 零行为清理已实施**（见 §7）；仍不授权删抑制 pass、不授权改 expectation、§4.1 未做  
+> 状态：债务登记 + **S1/S2/A3 零行为清理已实施**（见 §7）；仍不授权删抑制 pass、不授权改 expectation、§4.1 未做  
 > 范围：插件规则层（`CadAuto.Core/Rules`、`DimensionPlanner` 抑制/结构、相关文档符号、镜像去重双通道）  
 > 方法：全仓库 `*.cs` 符号引用扫描 + 人工对照定义/调用点；知识图谱辅助导航（`graphify-out`）
 
@@ -264,6 +264,21 @@ Get-ChildItem -Recurse -Filter *.cs |
 | 2026-08-05 | `ba25e04` / 分支 `8.5` | 首版：死 API 表 + 双实现对照；不改产品逻辑 |
 | 2026-08-05 | 分支 `8.5` S1 | **A/S1/D1/P2/N2**：删除 §3.1 死簇+级联 private、§3.3 对称死 API、文档 N2 正名；**不含 §4.1**；门禁 2 |
 | 2026-08-05 | 分支 `8.5` S2 | **A/S2**：删 Rules 四向 `*ExtensionCrossesOutline` 死半边 + 级联 private 相交辅助；**仍不含 §4.1 委托** |
+| 2026-08-05 | 分支 `8.5` A3 | **A/A3**：再扫确认死 API 小批删除（Suppression/Endpoint/Layout/Dedup/Config）；门禁 2 |
+
+### 7.3 A3 实施清单（已完成）
+
+全仓 `Rules` public 再扫：仅删 **无外部入口** 的符号（同文件互调但可达 CreateStackingPlan 等活入口的 **不删**）。
+
+| 文件 | 删除摘要 |
+| --- | --- |
+| `StructureSuppressionRules.cs` | `IsOuterHorizontalSegment`、`IsTopChamferEndpoint`、`ShouldIgnoreSideInnerGrooveEndpoint`、`IsPointXWithinSegmentXRange`、`IsPointOnVertical/HorizontalOutlineSegment` |
+| `DimensionDeduplicationRules.cs` | `IsRightStructureHeightDuplicatingOverallHeight`（抑制侧已有自有实现） |
+| `StructureEndpointRules.cs` | 无调用的 `ResolveVerticalStepBoundarySpan`、四向 protrusion Is/Score public，及仅服务它们的 private 辅助 |
+| `DimensionLayoutRules.cs` | 无调用的文字滑动/延伸线打断 public 包装与 `ExtensionLineBreakCandidate`；删除类型 `ExtensionLineBreakRange.cs` |
+| `DimensionRuleConfig.cs` | `FormatCenterDistanceOverride`、`GetCenterDistanceTolerance`（字典 `CenterDistanceTolerance` 仍保留填充，暂未动配置面） |
+
+**明确未做：** Layout 内部大量「仅本类互调」的 public 辅助（实为 CreateStackingPlan 闭包）、§4.1、镜像统一、抑制 pass。
 
 ### 7.1 S1 实施清单（已完成）
 

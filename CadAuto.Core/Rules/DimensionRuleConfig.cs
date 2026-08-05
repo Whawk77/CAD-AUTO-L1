@@ -92,11 +92,6 @@ public sealed class DimensionRuleConfig
 		return TryFindByTolerance(HoleFitTolerance, diameter, out value) ? value : string.Empty;
 	}
 
-	public string GetCenterDistanceTolerance(double distance)
-	{
-		string value;
-		return TryFindByTolerance(CenterDistanceTolerance, distance, out value) ? value : string.Empty;
-	}
 
 	public string FormatHoleCallout(double diameter, int count)
 	{
@@ -109,11 +104,6 @@ public sealed class DimensionRuleConfig
 		return (count > 1) ? (count.ToString(CultureInfo.InvariantCulture) + "-" + text) : text;
 	}
 
-	public string FormatCenterDistanceOverride(double distance)
-	{
-		string centerDistanceTolerance = GetCenterDistanceTolerance(distance);
-		return string.IsNullOrEmpty(centerDistanceTolerance) ? string.Empty : (FormatNumber(distance) + FormatToleranceSuffix(centerDistanceTolerance));
-	}
 
 	public string FormatPinCenterDistanceOverride(double distance)
 	{

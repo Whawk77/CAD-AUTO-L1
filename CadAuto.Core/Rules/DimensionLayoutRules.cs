@@ -65,17 +65,6 @@ public sealed class DimensionLayoutRules
 		public int Score { get; set; }
 	}
 
-	private sealed class ExtensionLineBreakCandidate
-	{
-		public double A { get; set; }
-
-		public double B { get; set; }
-
-		public double DistanceToFeature { get; set; }
-
-		public double Length { get; set; }
-	}
-
 	private sealed class IndexedLayoutItem
 	{
 		public int SourceIndex { get; set; }
@@ -1741,10 +1730,6 @@ public sealed class DimensionLayoutRules
 			: new Point2D(placed.DimLinePoint.X, (placed.Dimension.FirstPoint.Y + placed.Dimension.SecondPoint.Y) / 2.0);
 	}
 
-	public List<DimensionTextSlidePlacement> SelectVerticalHoleLocationTextSlides(IList<DimensionTextPlacementItem> placedDimensions, IEnumerable<TextBounds2D> textObstacles, double textHeight, double gap, double dimScale)
-	{
-		return SelectShortLocalDimensionTextSlides(placedDimensions, textObstacles, textHeight, 0.0, gap);
-	}
 
 	public bool CanSlideShortLocalDimensionText(DimensionTextPlacementItem placed)
 	{
@@ -1792,15 +1777,7 @@ public sealed class DimensionLayoutRules
 		return requiredLength <= Math.Max(0.0, dim.Span) + _config.GeometryTolerance;
 	}
 
-	public bool VerticalDimensionTextFitsInsideOwnLines(DimensionLayoutItem dim, double textHeight)
-	{
-		return DimensionTextFitsBetweenOwnExtensionLines(dim, textHeight);
-	}
 
-	public bool CanSlideVerticalHoleLocationText(DimensionTextPlacementItem placed, double dimScale)
-	{
-		return placed != null && (placed.Side == DimensionSide.Left || placed.Side == DimensionSide.Right) && placed.Dimension != null && placed.Dimension.Kind == DimensionKind.HoleLocation && IsShortVerticalDimension(placed.Dimension, dimScale);
-	}
 
 	public int ScoreTextBoundsAgainstPlaced(TextBounds2D candidate, IList<TextBounds2D> placedBounds, IEnumerable<TextBounds2D> textObstacles, int selfIndex, double gap, double dimScale)
 	{
@@ -1916,74 +1893,9 @@ public sealed class DimensionLayoutRules
 		return num <= Math.Max(gap, _config.TextHeight * dimScale * 1.4);
 	}
 
-	public bool HasExtensionLineTextConflict(DimensionTextPlacementItem placed, IEnumerable<TextBounds2D> textBounds)
-	{
-		if (placed == null || placed.Dimension == null)
-		{
-			return false;
-		}
-		foreach (TextBounds2D item in textBounds ?? Enumerable.Empty<TextBounds2D>())
-		{
-			if (ExtensionLineCrossesText(placed, placed.Dimension.FirstPoint, item) || ExtensionLineCrossesText(placed, placed.Dimension.SecondPoint, item))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
 
-	public bool ExtensionLineCrossesText(DimensionTextPlacementItem placed, Point2D featurePoint, TextBounds2D text)
-	{
-		double geometryTolerance = _config.GeometryTolerance;
-		if (placed.Side == DimensionSide.Bottom || placed.Side == DimensionSide.Top)
-		{
-			double x = featurePoint.X;
-			double num = Math.Min(featurePoint.Y, placed.DimLinePoint.Y);
-			double num2 = Math.Max(featurePoint.Y, placed.DimLinePoint.Y);
-			return x >= text.MinX - geometryTolerance && x <= text.MaxX + geometryTolerance && num <= text.MaxY + geometryTolerance && num2 >= text.MinY - geometryTolerance;
-		}
-		double y = featurePoint.Y;
-		double num3 = Math.Min(featurePoint.X, placed.DimLinePoint.X);
-		double num4 = Math.Max(featurePoint.X, placed.DimLinePoint.X);
-		return y >= text.MinY - geometryTolerance && y <= text.MaxY + geometryTolerance && num3 <= text.MaxX + geometryTolerance && num4 >= text.MinX - geometryTolerance;
-	}
 
-	public List<ExtensionLineBreakRange> GetBreakRangesForExtensionLine(DimensionTextPlacementItem placed, Point2D featurePoint, IEnumerable<TextBounds2D> textBounds, double breakLength)
-	{
-		if (placed == null)
-		{
-			return new List<ExtensionLineBreakRange>();
-		}
-		Point2D dimPoint = GetExtensionLineEndPoint(placed, featurePoint);
-		List<ExtensionLineBreakCandidate> list = (from text in textBounds ?? Enumerable.Empty<TextBounds2D>()
-			where ExtensionLineCrossesText(placed, featurePoint, text)
-			select ToBreakRangeCandidate(placed, featurePoint, dimPoint, text, breakLength) into range
-			where range.B > range.A + _config.GeometryTolerance
-			orderby range.DistanceToFeature, range.Length
-			select range).ToList();
-		if (list.Count == 0)
-		{
-			return new List<ExtensionLineBreakRange>();
-		}
-		ExtensionLineBreakCandidate extensionLineBreakCandidate = list[0];
-		return new List<ExtensionLineBreakRange>
-		{
-			new ExtensionLineBreakRange
-			{
-				A = extensionLineBreakCandidate.A,
-				B = extensionLineBreakCandidate.B
-			}
-		};
-	}
 
-	public Point2D GetExtensionLineEndPoint(DimensionTextPlacementItem placed, Point2D featurePoint)
-	{
-		if (placed.Side == DimensionSide.Bottom || placed.Side == DimensionSide.Top)
-		{
-			return new Point2D(featurePoint.X, placed.DimLinePoint.Y);
-		}
-		return new Point2D(placed.DimLinePoint.X, featurePoint.Y);
-	}
 
 	private IEnumerable<TextSlideCandidate> GetShortDimensionTextSlideCandidates(DimensionTextPlacementItem placed, double textHeight, double arrowSize, double clearance)
 	{
@@ -2043,37 +1955,6 @@ public sealed class DimensionLayoutRules
 		};
 	}
 
-	private static ExtensionLineBreakCandidate ToBreakRangeCandidate(DimensionTextPlacementItem placed, Point2D featurePoint, Point2D dimPoint, TextBounds2D text, double breakLength)
-	{
-		double num;
-		double val;
-		double val2;
-		if (placed.Side == DimensionSide.Bottom || placed.Side == DimensionSide.Top)
-		{
-			num = featurePoint.Y;
-			val = dimPoint.Y;
-			val2 = (text.MinY + text.MaxY) / 2.0;
-		}
-		else
-		{
-			num = featurePoint.X;
-			val = dimPoint.X;
-			val2 = (text.MinX + text.MaxX) / 2.0;
-		}
-		double val3 = Math.Min(num, val);
-		double val4 = Math.Max(num, val);
-		double num2 = Math.Max(val3, Math.Min(val4, val2));
-		double num3 = breakLength / 2.0;
-		double num4 = Math.Max(val3, num2 - num3);
-		double num5 = Math.Min(val4, num2 + num3);
-		return new ExtensionLineBreakCandidate
-		{
-			A = num4,
-			B = num5,
-			DistanceToFeature = Math.Abs(num2 - num),
-			Length = num5 - num4
-		};
-	}
 
 	public Tuple<double, double> ComputeTextInterval(DimensionLayoutItem dim, bool isHorizontal, double textHeight)
 	{

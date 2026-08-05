@@ -61,10 +61,6 @@ public sealed class DimensionDeduplicationRules
 		return string.Equals(a, b, StringComparison.Ordinal);
 	}
 
-	public bool IsRightStructureHeightDuplicatingOverallHeight(DimensionDeduplicationItem right, DimensionDeduplicationItem overall)
-	{
-		return IsRightStructureHeight(right) && overall.Kind == DimensionKind.OverallHeight && IsSameVerticalInterval(right, overall);
-	}
 
 	public bool IsLeftStructureHeightCoveredByRight(DimensionDeduplicationItem left, DimensionDeduplicationItem right)
 	{

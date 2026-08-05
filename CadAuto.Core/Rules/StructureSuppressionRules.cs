@@ -40,15 +40,6 @@ public sealed class StructureSuppressionRules
 		return flag;
 	}
 
-	public bool IsOuterHorizontalSegment(Segment2D segment, OutlineFeature2D outline)
-	{
-		double geometryTolerance = _config.GeometryTolerance;
-		if (!segment.IsHorizontal(geometryTolerance))
-		{
-			return false;
-		}
-		return Math.Abs(segment.MinY - outline.MinY) <= geometryTolerance || Math.Abs(segment.MaxY - outline.MaxY) <= geometryTolerance;
-	}
 
 	public bool IsOuterVerticalSegment(Segment2D segment, OutlineFeature2D outline)
 	{
@@ -78,22 +69,6 @@ public sealed class StructureSuppressionRules
 		return point.Y <= outline.MinY + _config.GeometryTolerance || point.Y >= outline.MaxY - _config.GeometryTolerance;
 	}
 
-	public bool IsTopChamferEndpoint(Point2D point, OutlineFeature2D outline, double topBandDepth)
-	{
-		if (outline == null || outline.Chamfers.Count == 0)
-		{
-			return false;
-		}
-		if (point.Y < outline.MaxY - topBandDepth - _config.GeometryTolerance)
-		{
-			return false;
-		}
-		if (point.X <= outline.MinX + _config.GeometryTolerance || point.X >= outline.MaxX - _config.GeometryTolerance)
-		{
-			return false;
-		}
-		return outline.Chamfers.Any((ChamferFeature2D chamfer) => (PointsEqual(chamfer.StartPoint, point) || PointsEqual(chamfer.EndPoint, point)) && IsFortyFiveDegreeChamfer(chamfer));
-	}
 
 	public bool IsFortyFiveDegreeChamfer(ChamferFeature2D chamfer)
 	{
@@ -269,19 +244,6 @@ public sealed class StructureSuppressionRules
 			select s).Where(IsIgnorableFortyFiveDegreeSegment).Any((Segment2D s) => IsSideInnerGrooveChamferSegment(s, outline, side) ? IsSideInnerGrooveIgnoredEndpoint(point, s, outline, side) : IsSideDirectionalIgnoredEndpoint(point, s, side));
 	}
 
-	public bool ShouldIgnoreSideInnerGrooveEndpoint(Point2D point, OutlineFeature2D outline, DimensionSide side)
-	{
-		if (outline == null)
-		{
-			return false;
-		}
-		return (from s in (from s in outline.Segments
-				where !s.IsHorizontal(_config.GeometryTolerance)
-				where !s.IsVertical(_config.GeometryTolerance)
-				select s).Where(IsIgnorableFortyFiveDegreeSegment)
-			where IsSideInnerGrooveChamferSegment(s, outline, side)
-			select s).Any((Segment2D s) => IsSideInnerGrooveIgnoredEndpoint(point, s, outline, side));
-	}
 
 	public bool IsSideDirectionalIgnoredEndpoint(Point2D point, Segment2D segment, DimensionSide side)
 	{
@@ -304,13 +266,6 @@ public sealed class StructureSuppressionRules
 		return PointsEqual(point, b2);
 	}
 
-	public bool IsPointXWithinSegmentXRange(Point2D point, Segment2D segment)
-	{
-		double geometryTolerance = _config.GeometryTolerance;
-		double num = Math.Min(segment.Start.X, segment.End.X);
-		double num2 = Math.Max(segment.Start.X, segment.End.X);
-		return point.X >= num - geometryTolerance && point.X <= num2 + geometryTolerance;
-	}
 
 	public bool IsPointOnSegment(Point2D point, Segment2D segment)
 	{
@@ -330,17 +285,7 @@ public sealed class StructureSuppressionRules
 		return num9 <= num || num8 / num9 <= num;
 	}
 
-	public bool IsPointOnVerticalOutlineSegment(Point2D point, OutlineFeature2D outline)
-	{
-		double tolerance = _config.GeometryTolerance;
-		return outline.Segments.Where((Segment2D s) => s.IsVertical(tolerance)).Any((Segment2D s) => Math.Abs(s.MinX - point.X) <= tolerance && point.Y >= s.MinY - tolerance && point.Y <= s.MaxY + tolerance);
-	}
 
-	public bool IsPointOnHorizontalOutlineSegment(Point2D point, OutlineFeature2D outline)
-	{
-		double tolerance = _config.GeometryTolerance;
-		return outline.Segments.Where((Segment2D s) => s.IsHorizontal(tolerance)).Any((Segment2D s) => Math.Abs(s.MinY - point.Y) <= tolerance && point.X >= s.MinX - tolerance && point.X <= s.MaxX + tolerance);
-	}
 
 	private bool HorizontalOtherEndConnectsInnerGroove(Segment2D horizontal, Point2D sharedPoint, Segment2D currentChamfer, OutlineFeature2D outline)
 	{

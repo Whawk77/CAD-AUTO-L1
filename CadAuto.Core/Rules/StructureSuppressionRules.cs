@@ -287,6 +287,181 @@ public sealed class StructureSuppressionRules
 
 
 
+
+	/// <summary>
+	/// True when a side-outward extension from a feature point would cross outline geometry
+	/// before reaching the first dimension offset. Canonical implementation used by planner structure geometry.
+	/// </summary>
+	public bool LeftExtensionCrossesOutline(Point2D featurePoint, OutlineFeature2D outline, double firstDimensionOffset)
+	{
+		double geometryTolerance = _config.GeometryTolerance;
+		double num = outline.MinX - firstDimensionOffset;
+		double num2 = featurePoint.X - geometryTolerance;
+		if (num2 <= num + geometryTolerance)
+		{
+			return false;
+		}
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (TryGetHorizontalIntersectionX(segment, featurePoint.Y, out var x) && x >= num - geometryTolerance && x <= num2)
+			{
+				return true;
+			}
+			if (HorizontalExtensionOverlapsOutlineSegment(segment, featurePoint, num, num2))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public bool RightExtensionCrossesOutline(Point2D featurePoint, OutlineFeature2D outline, double firstDimensionOffset)
+	{
+		double geometryTolerance = _config.GeometryTolerance;
+		double num = featurePoint.X + geometryTolerance;
+		double num2 = outline.MaxX + firstDimensionOffset;
+		if (num2 <= num + geometryTolerance)
+		{
+			return false;
+		}
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (TryGetHorizontalIntersectionX(segment, featurePoint.Y, out var x) && x >= num && x <= num2 + geometryTolerance)
+			{
+				return true;
+			}
+			if (HorizontalExtensionOverlapsOutlineSegment(segment, featurePoint, num, num2))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public bool TopExtensionCrossesOutline(Point2D featurePoint, OutlineFeature2D outline, double firstDimensionOffset)
+	{
+		double geometryTolerance = _config.GeometryTolerance;
+		double num = featurePoint.Y + geometryTolerance;
+		double num2 = outline.MaxY + firstDimensionOffset;
+		if (num2 <= num + geometryTolerance)
+		{
+			return false;
+		}
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (TryGetVerticalIntersectionY(segment, featurePoint.X, out var y) && y >= num && y <= num2 + geometryTolerance)
+			{
+				return true;
+			}
+			if (VerticalExtensionOverlapsOutlineSegment(segment, featurePoint, num, num2))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public bool BottomExtensionCrossesOutline(Point2D featurePoint, OutlineFeature2D outline, double firstDimensionOffset)
+	{
+		double geometryTolerance = _config.GeometryTolerance;
+		double num = outline.MinY - firstDimensionOffset;
+		double num2 = featurePoint.Y - geometryTolerance;
+		if (num2 <= num + geometryTolerance)
+		{
+			return false;
+		}
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (TryGetVerticalIntersectionY(segment, featurePoint.X, out var y) && y >= num - geometryTolerance && y <= num2)
+			{
+				return true;
+			}
+			if (VerticalExtensionOverlapsOutlineSegment(segment, featurePoint, num, num2))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private bool TryGetVerticalIntersectionY(Segment2D segment, double x, out double y)
+	{
+		y = 0.0;
+		if (Math.Abs(segment.Start.X - segment.End.X) <= _config.GeometryTolerance)
+		{
+			return false;
+		}
+		if (x < segment.MinX - _config.GeometryTolerance || x > segment.MaxX + _config.GeometryTolerance)
+		{
+			return false;
+		}
+		y = segment.Start.Y + (x - segment.Start.X) * (segment.End.Y - segment.Start.Y) / (segment.End.X - segment.Start.X);
+		return true;
+	}
+
+	private bool TryGetHorizontalIntersectionX(Segment2D segment, double y, out double x)
+	{
+		x = 0.0;
+		if (Math.Abs(segment.Start.Y - segment.End.Y) <= _config.GeometryTolerance)
+		{
+			return false;
+		}
+		if (y < segment.MinY - _config.GeometryTolerance || y > segment.MaxY + _config.GeometryTolerance)
+		{
+			return false;
+		}
+		x = segment.Start.X + (y - segment.Start.Y) * (segment.End.X - segment.Start.X) / (segment.End.Y - segment.Start.Y);
+		return true;
+	}
+
+	private bool VerticalExtensionOverlapsOutlineSegment(Segment2D segment, Point2D featurePoint, double minY, double maxY)
+	{
+		if (!segment.IsVertical(_config.GeometryTolerance))
+		{
+			return false;
+		}
+		if (Math.Abs(segment.MinX - featurePoint.X) > _config.GeometryTolerance)
+		{
+			return false;
+		}
+		double num = Math.Max(segment.MinY, minY);
+		double num2 = Math.Min(segment.MaxY, maxY);
+		if (num2 <= num + _config.GeometryTolerance)
+		{
+			return false;
+		}
+		return !PointLiesOnSegmentVerticalExtent(segment, featurePoint.Y);
+	}
+
+	private bool HorizontalExtensionOverlapsOutlineSegment(Segment2D segment, Point2D featurePoint, double minX, double maxX)
+	{
+		if (!segment.IsHorizontal(_config.GeometryTolerance))
+		{
+			return false;
+		}
+		if (Math.Abs(segment.MinY - featurePoint.Y) > _config.GeometryTolerance)
+		{
+			return false;
+		}
+		double num = Math.Max(segment.MinX, minX);
+		double num2 = Math.Min(segment.MaxX, maxX);
+		if (num2 <= num + _config.GeometryTolerance)
+		{
+			return false;
+		}
+		return !PointLiesOnSegmentHorizontalExtent(segment, featurePoint.X);
+	}
+
+	private bool PointLiesOnSegmentVerticalExtent(Segment2D segment, double y)
+	{
+		return y >= segment.MinY - _config.GeometryTolerance && y <= segment.MaxY + _config.GeometryTolerance;
+	}
+
+	private bool PointLiesOnSegmentHorizontalExtent(Segment2D segment, double x)
+	{
+		return x >= segment.MinX - _config.GeometryTolerance && x <= segment.MaxX + _config.GeometryTolerance;
+	}
+
 	private bool HorizontalOtherEndConnectsInnerGroove(Segment2D horizontal, Point2D sharedPoint, Segment2D currentChamfer, OutlineFeature2D outline)
 	{
 		Point2D otherEnd = (PointsEqual(horizontal.Start, sharedPoint) ? horizontal.End : horizontal.Start);

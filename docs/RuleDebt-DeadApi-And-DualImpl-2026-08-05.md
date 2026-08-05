@@ -3,7 +3,7 @@
 > 日期：2026-08-05（S1 实施同步更新）  
 > 分支：`8.5`  
 > 仓库：`D:\work\AI\grok\cad\CAD-AUTO-L1`  
-> 状态：债务登记 + **S1/S2/A3 零行为清理已实施**（见 §7）；仍不授权删抑制 pass、不授权改 expectation、§4.1 未做  
+> 状态：债务登记 + **S1/S2/A3/§4.1 已实施**（见 §7）；仍不授权删抑制 pass、不授权改 expectation  
 > 范围：插件规则层（`CadAuto.Core/Rules`、`DimensionPlanner` 抑制/结构、相关文档符号、镜像去重双通道）  
 > 方法：全仓库 `*.cs` 符号引用扫描 + 人工对照定义/调用点；知识图谱辅助导航（`graphify-out`）
 
@@ -118,21 +118,11 @@
 
 ### 4.1 延伸线穿轮廓（同名双实现）— `DUAL` / R2
 
-| 侧 | 实现 A（**生产在用**） | 实现 B（Rules public） | 差异要点 |
+| 侧 | 权威实现 | 调用方 | 状态 |
 | --- | --- | --- | --- |
-| Left | `DimensionPlanner.StructureGeometry` private | **S2 已删除** | 曾：A 固定 `FirstDimOffset`；B 参数化 offset |
-| Right | 同上 | **S2 已删除** | 同上 |
-| Top | 同上 | **S2 已删除** | 同上 |
-| Bottom | 同上 | **S2 已删除** | 同上 |
+| Left/Right/Top/Bottom | `StructureSuppressionRules.*ExtensionCrossesOutline(..., firstDimensionOffset)` | `DimensionPlanner.StructureGeometry` 薄委托，传入 `_config.FirstDimOffset` | **§4.1 DONE** |
 
-**调用方（A）：** StructureGeometry 在收集 ignored structure points 时调用，Reason 字符串与方法同名。
-
-**S2 后状态：** Rules 死半边已清除；双实现「公开死副本」消失。§4.1 若再做，只能是把 StructureGeometry private 抽到共享 helper（可选），**不是**再恢复 Rules public。
-
-**合并建议（仅债务，不实施）：**
-
-1. 将 StructureGeometry 四向 private 抽到单一实现（可放 Rules 或内部 static helper），offset 统一从 config。
-2. 回归：结构相关 Core 用例 + outer-step CAD case（若 fixtureReady）。
+**§4.1 实施：** 算法迁回 Rules 为唯一实现；StructureGeometry 删除本地 `TryGet*` / `*Overlaps*` / `PointLiesOn*` 副本；Reason 字符串与调用点不变。
 
 ### 4.2 镜像抑制双通道 — `DUAL-LAYER` / R3
 
@@ -265,6 +255,17 @@ Get-ChildItem -Recurse -Filter *.cs |
 | 2026-08-05 | 分支 `8.5` S1 | **A/S1/D1/P2/N2**：删除 §3.1 死簇+级联 private、§3.3 对称死 API、文档 N2 正名；**不含 §4.1**；门禁 2 |
 | 2026-08-05 | 分支 `8.5` S2 | **A/S2**：删 Rules 四向 `*ExtensionCrossesOutline` 死半边 + 级联 private 相交辅助；**仍不含 §4.1 委托** |
 | 2026-08-05 | 分支 `8.5` A3 | **A/A3**：再扫确认死 API 小批删除（Suppression/Endpoint/Layout/Dedup/Config）；门禁 2 |
+| 2026-08-05 | 分支 `8.5` §4.1 | **A/§4.1**：延伸线穿轮廓单一实现于 Rules；StructureGeometry 委托；门禁 2 |
+
+### 7.4 §4.1 实施清单（已完成）
+
+| 文件 | 变更 |
+| --- | --- |
+| `StructureSuppressionRules.cs` | 恢复并定为权威：`Left/Right/Top/BottomExtensionCrossesOutline` + 相交/重叠 private 辅助（算法对齐原 StructureGeometry） |
+| `DimensionPlanner.StructureGeometry.cs` | 四向方法改委托；删除重复 helper |
+| 债务文档 | §4.1 标 DONE |
+
+**明确未做：** 镜像双通道、四向结构点参数化、Layout 拆文件、抑制 pass、`DebugRole` 语义收敛。
 
 ### 7.3 A3 实施清单（已完成）
 

@@ -14,6 +14,13 @@ public sealed class DimensionPlan
 
 	public List<PinGroupPlan> PinGroups { get; private set; }
 
+	/// <summary>
+	/// Frame in which the planner and layout rules evaluated this plan. Identity
+	/// means the legacy WCS/axis-aligned path was used. Diagnostics intentionally
+	/// remain in this planning frame; callers must not interpret them as WCS.
+	/// </summary>
+	public CoordinateFrame2D CoordinateFrame { get; set; } = CoordinateFrame2D.Identity;
+
 	public DimensionDiagnosticReport Diagnostics { get; private set; }
 
 	public DimensionPlan()

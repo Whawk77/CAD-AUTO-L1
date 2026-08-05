@@ -6,7 +6,7 @@ $writer = Join-Path $PSScriptRoot 'write-cad-visual-report.ps1'
 $legacyPowershell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $temp = Join-Path $env:TEMP ('cad-visual-report-' + [guid]::NewGuid().ToString('N'))
 $paths = @{}
-foreach ($name in 'zero', 'bad', 'deep', 'contact', 'left', 'collision') {
+foreach ($name in 'zero', 'bad', 'deep', 'contact', 'left', 'collision', 'modelText') {
     $paths[$name] = [pscustomobject]@{ Snapshot = "$temp-$name.tsv"; Report = "$temp-$name.json"; Markdown = "$temp-$name.md" }
 }
 
@@ -69,6 +69,17 @@ try {
     ) | Set-Content -LiteralPath $paths.collision.Snapshot -Encoding utf8
     $collision = Invoke-VisualReport collision; $collisionCodes = Get-Codes $collision
     if ('TEXT_TEXT_COLLISION' -notin $collisionCodes -or -not $collision.blocking -or @($collision.gate.blockingWarnings | ForEach-Object code) -notcontains 'TEXT_TEXT_COLLISION') { throw 'F did not fail the configured text-collision blocking warning.' }
+
+    @(
+        "META`tcaseId`tTEST-MODEL-TEXT", "META`texpectedDirection`tAll", "ENV`tACADVER`t24", "ENV`tDIMTXT`t1", "ENV`tDIMASZ`t1", "SOURCE`tS1`tLINE`t0`t0`t100`t100",
+        "SEG`tS1`t1`t0`t0`t100`t0", "SEG`tS1`t2`t100`t0`t100`t100", "SEG`tS1`t3`t100`t100`t0`t100", "SEG`tS1`t4`t0`t100`t0`t0",
+        "DIM`tD1`t0`t100`t100`t100`t100`t0`t120`t20`t120`t26`tB1", "TEXT`tD1`tT1`t20`t124`t25`t130", "ARROW`tD1`tA1`tSOLID`t0`t118`t2`t122",
+        "TEXT`tMODELSPACE`tM1`t45`t124`t55`t130", "TEXT`tMODELSPACE`tM2`t50`t124`t60`t130"
+    ) | Set-Content -LiteralPath $paths.modelText.Snapshot -Encoding utf8
+    $modelText = Invoke-VisualReport modelText; $modelTextCodes = Get-Codes $modelText
+    $modelTextWarnings = @($modelText.warnings | Where-Object code -eq 'TEXT_TEXT_COLLISION')
+    $modelTextHandles = @($modelTextWarnings | ForEach-Object { @($_.handles) })
+    if ('TEXT_TEXT_COLLISION' -notin $modelTextCodes -or -not $modelText.blocking -or 'MODELSPACE' -notin $modelTextHandles -or @($modelText.gate.blockingWarnings | ForEach-Object code) -notcontains 'TEXT_TEXT_COLLISION') { throw 'G did not fail the configured collision warning for standalone model-space text.' }
 
     Write-Output 'cad visual report self-check passed'
 }

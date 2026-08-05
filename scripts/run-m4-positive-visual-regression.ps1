@@ -105,7 +105,7 @@ try {
       (m4-positive-write *m4-positive-trace* (strcat "INPUT selection=" (itoa (sslength selection))))
       ;; M4 inspects the saved final CAD entities only: it never invokes ASDREPRO or changes annotations.
       (load $(Lisp (Join-Path $PSScriptRoot 'cad-visual-inspection.lsp')))
-      (setq capture-result (m4-capture selection *m4-positive-snapshot* "M4-positive-collisions" "All"))
+      (setq capture-result (m4-capture-modelspace selection *m4-positive-snapshot* "M4-positive-collisions" "All"))
       (if capture-result (m4-positive-write *m4-positive-trace* "COMPLETE") (m4-positive-stop "visualCaptureFailed"))
     )
   )

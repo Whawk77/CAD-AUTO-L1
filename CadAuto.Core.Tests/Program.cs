@@ -34,7 +34,16 @@ namespace CadAuto.Core.Tests
             nameof(MirroredEnvelopeStructureWidthsAreBothSuppressed),
             nameof(StructureWidthsThatPartitionOverallAreSuppressed),
             nameof(ProjectedCrossLevelStructureWidthsDoNotPartitionOverall),
-            nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed),
+            nameof(GeometricMirrorOwnershipPrefersContourBackedCandidate),
+			nameof(SameSideClosedChainSuppressesCrossLevelProjection),
+			nameof(ProjectedThreePieceHorizontalChainKeepsRealSteps),
+			nameof(ProjectedThreePieceVerticalChainKeepsRealHeights),
+			nameof(OrthogonalRotatedVerticalChainKeepsRealWidths),
+			nameof(FullWidthSideSeamsDoNotCreateStructureHeights),
+			nameof(MirroredProjectedChainNormalizesStructureSelection),
+			nameof(Test2BottomContourChainKeepsTwoRealWidths),
+			nameof(RotatedTest2PreservesLocalSemanticSignature),
+			nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed),
             nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide),
             nameof(TopEnvelopeHorizontalSegmentStaysTop),
             nameof(BottomEnvelopeHorizontalSegmentStaysBottom),
@@ -82,6 +91,9 @@ namespace CadAuto.Core.Tests
             nameof(PinGroupAnchoredLooseHolePreservesPreferredSide),
             nameof(FormattedDimensionTextLengthIgnoresControlCodes),
             nameof(FittingVerticalLocalTextStaysCentered),
+            nameof(HardTextOverlapSlidesVerticalDatumOnSameSide),
+            nameof(HardTextOverlapSlidesHorizontalDatumOnSameSide),
+            nameof(NonOverlappingDatumTextDoesNotSlide),
             nameof(ShortVerticalLocalTextClearsArrowheads),
             nameof(FittingHorizontalTextStaysCenteredDespiteNeighborArrow),
             nameof(ShortHorizontalLocalTextClearsArrowheads),
@@ -170,6 +182,9 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(RuleEvidenceRejectsReassignmentAndRenderSuppressionStaysCompatible), RuleEvidenceRejectsReassignmentAndRenderSuppressionStaysCompatible);
 				RunTest(nameof(FormattedDimensionTextLengthIgnoresControlCodes), FormattedDimensionTextLengthIgnoresControlCodes);
 				RunTest(nameof(FittingVerticalLocalTextStaysCentered), FittingVerticalLocalTextStaysCentered);
+				RunTest(nameof(HardTextOverlapSlidesVerticalDatumOnSameSide), HardTextOverlapSlidesVerticalDatumOnSameSide);
+				RunTest(nameof(HardTextOverlapSlidesHorizontalDatumOnSameSide), HardTextOverlapSlidesHorizontalDatumOnSameSide);
+				RunTest(nameof(NonOverlappingDatumTextDoesNotSlide), NonOverlappingDatumTextDoesNotSlide);
 				RunTest(nameof(ShortVerticalLocalTextClearsArrowheads), ShortVerticalLocalTextClearsArrowheads);
 				RunTest(nameof(FittingHorizontalTextStaysCenteredDespiteNeighborArrow), FittingHorizontalTextStaysCenteredDespiteNeighborArrow);
 				RunTest(nameof(ShortHorizontalLocalTextClearsArrowheads), ShortHorizontalLocalTextClearsArrowheads);
@@ -180,8 +195,17 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(NonFortyFiveSlopeIsNotChamfer), NonFortyFiveSlopeIsNotChamfer);
                 RunTest(nameof(VerticalStructurePointsCreateStepWidths), VerticalStructurePointsCreateStepWidths);
                 RunTest(nameof(StructureWidthsThatPartitionOverallAreSuppressed), StructureWidthsThatPartitionOverallAreSuppressed);
-                RunTest(nameof(ProjectedCrossLevelStructureWidthsDoNotPartitionOverall), ProjectedCrossLevelStructureWidthsDoNotPartitionOverall);
-                RunTest(nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed), CrossSideStructureWidthsThatCloseOverallChainAreSuppressed);
+				RunTest(nameof(ProjectedCrossLevelStructureWidthsDoNotPartitionOverall), ProjectedCrossLevelStructureWidthsDoNotPartitionOverall);
+				RunTest(nameof(GeometricMirrorOwnershipPrefersContourBackedCandidate), GeometricMirrorOwnershipPrefersContourBackedCandidate);
+				RunTest(nameof(SameSideClosedChainSuppressesCrossLevelProjection), SameSideClosedChainSuppressesCrossLevelProjection);
+				RunTest(nameof(ProjectedThreePieceHorizontalChainKeepsRealSteps), ProjectedThreePieceHorizontalChainKeepsRealSteps);
+				RunTest(nameof(ProjectedThreePieceVerticalChainKeepsRealHeights), ProjectedThreePieceVerticalChainKeepsRealHeights);
+				RunTest(nameof(OrthogonalRotatedVerticalChainKeepsRealWidths), OrthogonalRotatedVerticalChainKeepsRealWidths);
+				RunTest(nameof(FullWidthSideSeamsDoNotCreateStructureHeights), FullWidthSideSeamsDoNotCreateStructureHeights);
+				RunTest(nameof(MirroredProjectedChainNormalizesStructureSelection), MirroredProjectedChainNormalizesStructureSelection);
+				RunTest(nameof(Test2BottomContourChainKeepsTwoRealWidths), Test2BottomContourChainKeepsTwoRealWidths);
+				RunTest(nameof(RotatedTest2PreservesLocalSemanticSignature), RotatedTest2PreservesLocalSemanticSignature);
+				RunTest(nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed), CrossSideStructureWidthsThatCloseOverallChainAreSuppressed);
                 RunTest(nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide), InteriorHorizontalOutlineSegmentPrefersNonCrossingSide);
                 RunTest(nameof(TopEnvelopeHorizontalSegmentStaysTop), TopEnvelopeHorizontalSegmentStaysTop);
                 RunTest(nameof(BottomEnvelopeHorizontalSegmentStaysBottom), BottomEnvelopeHorizontalSegmentStaysBottom);
@@ -664,18 +688,18 @@ namespace CadAuto.Core.Tests
             var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
             var width = plan.Dimensions.Single(d => d.Kind == DimensionKind.OverallWidth);
             var height = plan.Dimensions.Single(d => d.Kind == DimensionKind.OverallHeight);
-            double expectedWidth = points.Max(point => point.X) - points.Min(point => point.X);
-            double expectedHeight = points.Max(point => point.Y) - points.Min(point => point.Y);
 
-            Assert(Math.Abs(GetSpan(width) - expectedWidth) <= 0.001,
-                "rotated overall width must equal the WCS real envelope");
-            Assert(Math.Abs(GetSpan(height) - expectedHeight) <= 0.001,
-                "rotated overall height must equal the WCS real envelope");
-            Assert(OutlineGeometryQuery.IsPointOnBoundary(width.FirstPoint, outline, config.GeometryTolerance)
-                && OutlineGeometryQuery.IsPointOnBoundary(width.SecondPoint, outline, config.GeometryTolerance)
-                && OutlineGeometryQuery.IsPointOnBoundary(height.FirstPoint, outline, config.GeometryTolerance)
-                && OutlineGeometryQuery.IsPointOnBoundary(height.SecondPoint, outline, config.GeometryTolerance),
-                "rotated overall grips must use actual rotated edges or endpoints");
+            Assert(Math.Abs(plan.CoordinateFrame.Angle - angle) <= 0.001,
+                "rotated outline must infer its local principal frame");
+            Assert(Math.Abs(GetSpan(width) - 100.0) <= 0.001,
+                "rotated overall width must use the local-frame span");
+            Assert(Math.Abs(GetSpan(height) - 50.0) <= 0.001,
+                "rotated overall height must use the local-frame span");
+            Assert(OutlineGeometryQuery.IsPointOnBoundary(plan.CoordinateFrame.ToWorld(width.FirstPoint), outline, config.GeometryTolerance)
+                && OutlineGeometryQuery.IsPointOnBoundary(plan.CoordinateFrame.ToWorld(width.SecondPoint), outline, config.GeometryTolerance)
+                && OutlineGeometryQuery.IsPointOnBoundary(plan.CoordinateFrame.ToWorld(height.FirstPoint), outline, config.GeometryTolerance)
+                && OutlineGeometryQuery.IsPointOnBoundary(plan.CoordinateFrame.ToWorld(height.SecondPoint), outline, config.GeometryTolerance),
+                "rotated overall grips must transform back to actual WCS geometry");
         }
 
         private static void DuplicateSegmentsAreSuppressedWithDiagnostic()
@@ -2409,6 +2433,130 @@ namespace CadAuto.Core.Tests
 				"fitting vertical text must stay at the center of its dimension line even when arrow clearance is tighter");
 		}
 
+		private static void HardTextOverlapSlidesVerticalDatumOnSameSide()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var datum = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.DatumHoleLocationY,
+				FirstPoint = new Point2D(20.0, 0.0),
+				SecondPoint = new Point2D(20.0, 10.0),
+				Span = 10.0,
+				OverrideText = "<>\\H0.8x;\u00B10.05\\H1x;"
+			};
+			var neighbor = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.PinDistance,
+				FirstPoint = new Point2D(20.0, 10.0),
+				SecondPoint = new Point2D(20.0, 40.0),
+				Span = 30.0,
+				OverrideText = "30\\H0.8x;\u00B10.02\\H1x;"
+			};
+			var datumLine = new Point2D(30.0, 5.0);
+			var neighborLine = new Point2D(30.0, 25.0);
+			var placed = new[]
+			{
+				new DimensionTextPlacementItem
+				{
+					Dimension = datum,
+					Side = DimensionSide.Right,
+					DimLinePoint = datumLine,
+					TextBounds = rules.ComputePlacedTextBounds(datum, datumLine, isHorizontal: false, textHeight: 2.5)
+				},
+				new DimensionTextPlacementItem
+				{
+					Dimension = neighbor,
+					Side = DimensionSide.Right,
+					DimLinePoint = neighborLine,
+					TextBounds = rules.ComputePlacedTextBounds(neighbor, neighborLine, isHorizontal: false, textHeight: 2.5)
+				}
+			};
+
+			var slides = rules.SelectShortLocalDimensionTextSlides(placed, new TextBounds2D[0], 2.5, 2.5, 3.0);
+			var datumSlide = slides.Single(slide => slide.Index == 0);
+
+			Assert(datumSlide.TextPosition.X == datumLine.X && datumSlide.TextPosition.Y < datumLine.Y,
+				"vertical hard text overlap must slide the datum along the existing right-side lane");
+			Assert(!rules.TextBoundsOverlap(datumSlide.TextBounds, placed[1].TextBounds, 0.0),
+				"vertical datum slide must clear the neighboring dimension text");
+		}
+
+		private static void HardTextOverlapSlidesHorizontalDatumOnSameSide()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var datum = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.DatumHoleLocationX,
+				FirstPoint = new Point2D(0.0, 20.0),
+				SecondPoint = new Point2D(10.0, 20.0),
+				Span = 10.0,
+				OverrideText = "<>\\H0.8x;\u00B10.05\\H1x;"
+			};
+			var neighbor = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.PinDistance,
+				FirstPoint = new Point2D(-5.0, 20.0),
+				SecondPoint = new Point2D(25.0, 20.0),
+				Span = 30.0,
+				OverrideText = "30\\H0.8x;\u00B10.02\\H1x;"
+			};
+			var datumLine = new Point2D(5.0, 30.0);
+			var neighborLine = new Point2D(10.0, 30.0);
+			var placed = new[]
+			{
+				new DimensionTextPlacementItem
+				{
+					Dimension = datum,
+					Side = DimensionSide.Top,
+					DimLinePoint = datumLine,
+					TextBounds = rules.ComputePlacedTextBounds(datum, datumLine, isHorizontal: true, textHeight: 2.5)
+				},
+				new DimensionTextPlacementItem
+				{
+					Dimension = neighbor,
+					Side = DimensionSide.Top,
+					DimLinePoint = neighborLine,
+					TextBounds = rules.ComputePlacedTextBounds(neighbor, neighborLine, isHorizontal: true, textHeight: 2.5)
+				}
+			};
+
+			var slides = rules.SelectShortLocalDimensionTextSlides(placed, new TextBounds2D[0], 2.5, 2.5, 3.0);
+			var datumSlide = slides.Single(slide => slide.Index == 0);
+
+			Assert(datumSlide.TextPosition.Y == datumLine.Y && datumSlide.TextPosition.X < datumLine.X,
+				"horizontal hard text overlap must slide the datum along the existing top-side lane");
+			Assert(!rules.TextBoundsOverlap(datumSlide.TextBounds, placed[1].TextBounds, 0.0),
+				"horizontal datum slide must clear the neighboring dimension text");
+		}
+
+		private static void NonOverlappingDatumTextDoesNotSlide()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var datum = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.DatumHoleLocationY,
+				FirstPoint = new Point2D(20.0, 0.0),
+				SecondPoint = new Point2D(20.0, 10.0),
+				Span = 10.0,
+				OverrideText = "<>\\H0.8x;\u00B10.05\\H1x;"
+			};
+			var dimLine = new Point2D(30.0, 5.0);
+			var placed = new DimensionTextPlacementItem
+			{
+				Dimension = datum,
+				Side = DimensionSide.Right,
+				DimLinePoint = dimLine,
+				TextBounds = rules.ComputePlacedTextBounds(datum, dimLine, isHorizontal: false, textHeight: 2.5)
+			};
+
+			var slides = rules.SelectShortLocalDimensionTextSlides(new[] { placed }, new TextBounds2D[0], 2.5, 2.5, 3.0);
+
+			Assert(slides.Count == 0, "a datum dimension without text overlap must keep its default placement");
+		}
+
 		private static void ShortVerticalLocalTextClearsArrowheads()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -3463,6 +3611,523 @@ namespace CadAuto.Core.Tests
 				"bottom arm 68 must not be wiped only via StructureOverallPartition from cross-level tops");
 			Assert(bottom68.All(c => c.SuppressedReason != "LocalGeometryOnOverallEnvelope"),
 				"bottom arm 68 on partial MinY must not be removed by full-envelope local geometry");
+		}
+
+		private static void GeometricMirrorOwnershipPrefersContourBackedCandidate()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 96.0,
+				MaxY = 35.5
+			};
+			AddSegment(outline, new Point2D(0.0, 20.0), new Point2D(0.0, 35.5), "left");
+			AddSegment(outline, new Point2D(0.0, 35.5), new Point2D(25.0, 35.5), "top-step");
+			AddSegment(outline, new Point2D(25.0, 0.0), new Point2D(25.0, 35.5), "top-riser");
+			AddSegment(outline, new Point2D(28.0, 0.0), new Point2D(28.0, 20.0), "inner-riser");
+			AddSegment(outline, new Point2D(28.0, 0.0), new Point2D(96.0, 0.0), "bottom-main");
+			AddSegment(outline, new Point2D(28.0, 20.0), new Point2D(96.0, 20.0), "arm-top");
+			AddSegment(outline, new Point2D(96.0, 0.0), new Point2D(96.0, 35.5), "right");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			var top25 = plan.Dimensions.Where(d => d.DebugRole == "TopStructWidth"
+				&& Math.Abs(GetSpan(d) - 25.0) <= config.GeometryTolerance).ToList();
+			var bottom25 = plan.Diagnostics.DimensionCandidates.Where(c => c.DebugRole == "BottomStructWidth"
+				&& Math.Abs(c.Value - 25.0) <= config.GeometryTolerance).ToList();
+			var candidates25 = plan.Diagnostics.DimensionCandidates.Where(c =>
+					(c.DebugRole == "TopStructWidth" || c.DebugRole == "BottomStructWidth")
+					&& Math.Abs(c.Value - 25.0) <= config.GeometryTolerance)
+				.ToList();
+
+			Assert(top25.Count == 1, "the contour-backed top structure width 25 must remain selected (candidates: "
+				+ string.Join(",", candidates25.Select(c => c.DebugRole + "/sel=" + c.IsSelected
+					+ "/supp=" + c.IsSuppressed + "/reason=" + c.SuppressedReason
+					+ "/p=" + c.FirstPointX + ":" + c.FirstPointY + "-" + c.SecondPointX + ":" + c.SecondPointY)) + ")");
+			Assert(bottom25.Any(c => c.SuppressedReason == "MirroredDuplicate"),
+				"the cross-level bottom projection 25 must be suppressed as the mirror duplicate");
+		}
+
+		private static void SameSideClosedChainSuppressesCrossLevelProjection()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 36.0,
+				MaxY = 35.5
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(36.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(36.0, 0.0), new Point2D(36.0, 35.5), "right");
+			AddSegment(outline, new Point2D(36.0, 35.5), new Point2D(18.0, 35.5), "top-real");
+			AddSegment(outline, new Point2D(18.0, 35.5), new Point2D(18.0, 20.0), "step-riser");
+			AddSegment(outline, new Point2D(18.0, 20.0), new Point2D(0.0, 20.0), "lower-step");
+			AddSegment(outline, new Point2D(0.0, 20.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			var projected = plan.Diagnostics.DimensionCandidates
+				.Where(c => c.DebugRole == "TopStructWidth"
+					&& Math.Abs(c.Value - 18.0) <= config.GeometryTolerance
+					&& Math.Abs(c.FirstPointY - c.SecondPointY) > config.GeometryTolerance)
+				.ToList();
+			var real = plan.Diagnostics.DimensionCandidates
+				.Where(c => c.DebugRole == "TopStructWidth"
+					&& Math.Abs(c.Value - 18.0) <= config.GeometryTolerance
+					&& Math.Abs(c.FirstPointY - c.SecondPointY) <= config.GeometryTolerance)
+				.ToList();
+
+			Assert(projected.Count > 0, "cross-level top projection 18 must be generated");
+			Assert(real.Count > 0 && real.Any(c => c.IsSelected), "real top edge 18 must remain selected");
+			Assert(projected.All(c => c.IsSuppressed
+				&& c.SuppressedReason == "ProjectedStructureOverallPartition"),
+				"same-side closed chain must suppress only the cross-level projection");
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
+				&& Math.Abs(GetSpan(d) - 36.0) <= config.GeometryTolerance),
+				"overall width 36 must remain");
+		}
+
+		private static void ProjectedThreePieceHorizontalChainKeepsRealSteps()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(BuildProjectedHorizontalChainOutline(mirrored: false));
+			var selected = plan.Dimensions.Where(d => d.DebugRole == "TopStructWidth").ToList();
+			var suppressed = plan.Diagnostics.DimensionCandidates
+				.Where(c => c.DebugRole == "TopStructWidth" && c.IsSuppressed)
+				.ToList();
+
+			Assert(selected.Count(d => Math.Abs(Math.Round(GetSpan(d), 2) - 134.79) <= config.GeometryTolerance) == 2,
+				"two real top steps 134.79 must remain selected");
+			Assert(!selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 169.21) <= config.GeometryTolerance),
+				"cross-level top projection 169.21 must not remain selected");
+			Assert(suppressed.Any(c => Math.Abs(Math.Round(c.Value, 2) - 169.21) <= config.GeometryTolerance
+				&& c.SuppressedReason == "ProjectedStructureOverallPartition"),
+				"cross-level top projection 169.21 must retain its projected-partition diagnostic");
+		}
+
+		private static void ProjectedThreePieceVerticalChainKeepsRealHeights()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(BuildProjectedVerticalChainOutline());
+			var selected = plan.Dimensions.Where(d => d.DebugRole == "LeftStructHeight").ToList();
+			var suppressed = plan.Diagnostics.DimensionCandidates
+				.Where(c => c.DebugRole == "LeftStructHeight" && c.IsSuppressed)
+				.ToList();
+
+			Assert(selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 163.37) <= config.GeometryTolerance),
+				"real left height 163.37 must remain selected");
+			Assert(selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 126.11) <= config.GeometryTolerance),
+				"real left height 126.11 must remain selected");
+			Assert(!selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 140.44) <= config.GeometryTolerance),
+				"cross-level left residual 140.44 must not remain selected");
+			Assert(suppressed.Any(c => Math.Abs(Math.Round(c.Value, 2) - 140.44) <= config.GeometryTolerance
+				&& c.SuppressedReason == "ProjectedStructureOverallPartition"),
+				"cross-level left residual 140.44 must retain its projected-partition diagnostic (suppressed: "
+				+ string.Join(",", suppressed.Select(c => c.Value + "/" + c.SuppressedReason)) + ")");
+		}
+
+		private static void OrthogonalRotatedVerticalChainKeepsRealWidths()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			foreach (double angle in new[] { Math.PI / 2.0, -Math.PI / 2.0 })
+			{
+				var rotated = TransformOutline(BuildProjectedVerticalChainOutline(), angle);
+				var plan = new DimensionPlanner(config).CreateOutlinePlan(rotated);
+				var selected = plan.Dimensions
+					.Where(d => (d.DebugRole == "TopStructWidth" || d.DebugRole == "BottomStructWidth" || d.DebugRole == "OutlineSegment")
+						&& d.Orientation == DimensionOrientation.Horizontal)
+					.ToList();
+				Assert(selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 163.37) <= config.GeometryTolerance),
+					"90-degree rotated chain must retain real width 163.37");
+				Assert(selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 126.11) <= config.GeometryTolerance),
+					"90-degree rotated chain must retain real width 126.11");
+				Assert(!selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 140.44) <= config.GeometryTolerance),
+					"90-degree rotated chain must suppress derivable width 140.44");
+			}
+
+			var actual = new DimensionPlanner(config).CreateDimensionPlan(
+				BuildActualRotatedContourOutline(),
+				null,
+				new HoleFeature2D[0]);
+			var actualSelected = actual.Dimensions
+				.Where(d => (d.DebugRole == "TopStructWidth" || d.DebugRole == "BottomStructWidth" || d.DebugRole == "OutlineSegment")
+					&& d.Orientation == DimensionOrientation.Horizontal)
+				.ToList();
+			Assert(actualSelected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 163.37) <= config.GeometryTolerance),
+				"actual rotated contour must retain real width 163.37");
+			Assert(actualSelected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 126.11) <= config.GeometryTolerance),
+				"actual rotated contour must retain real width 126.11");
+			Assert(!actualSelected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 140.44) <= config.GeometryTolerance),
+				"actual rotated contour must suppress derivable width 140.44");
+			Assert(actual.Diagnostics.DimensionCandidates.Any(c =>
+				Math.Abs(c.Value - 140.43723701) <= config.GeometryTolerance
+				&& c.SuppressedReason == "ProjectedStructureOverallPartition"),
+				"actual rotated contour must record the derivable width suppression");
+		}
+
+		private static void FullWidthSideSeamsDoNotCreateStructureHeights()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 20.0,
+				MaxY = 29.038
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(20.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(20.0, 0.0), new Point2D(20.0, 20.0), "right-lower");
+			AddSegment(outline, new Point2D(20.0, 20.0), new Point2D(0.0, 20.0), "full-width-seam-lower");
+			AddSegment(outline, new Point2D(20.0, 20.0), new Point2D(20.0, 28.0), "right-upper");
+			AddSegment(outline, new Point2D(20.0, 28.0), new Point2D(0.0, 28.0), "full-width-seam-upper");
+			AddSegment(outline, new Point2D(20.0, 29.038), new Point2D(0.0, 29.038), "top");
+			AddSegment(outline, new Point2D(0.0, 29.038), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			var falseStructureCandidates = plan.Diagnostics.DimensionCandidates
+				.Where(c => (c.DebugRole == "LeftStructHeight" || c.DebugRole == "RightStructHeight")
+					&& (Math.Abs(c.Value - 8.0) <= config.GeometryTolerance
+						|| Math.Abs(c.Value - 20.0) <= config.GeometryTolerance))
+				.ToList();
+
+			Assert(falseStructureCandidates.Count > 0,
+				"full-width seams must still be visible in diagnostics as rejected structure candidates");
+			Assert(falseStructureCandidates.All(c => c.IsSuppressed)
+				&& falseStructureCandidates.Any(c => c.DebugRole == "RightStructHeight"
+					&& c.SuppressedReason == "NonProfileBackedSideStructureHeight"),
+				"full-width seam heights must be suppressed before mirror/partition promotion ("
+				+ string.Join(",", falseStructureCandidates.Select(c => c.DebugRole + "/" + c.Value
+					+ "/" + c.IsSelected + "/" + c.SuppressedReason)) + ")");
+			Assert(!plan.Dimensions.Any(d =>
+				(d.DebugRole == "LeftStructHeight" || d.DebugRole == "RightStructHeight")
+				&& (Math.Abs(GetSpan(d) - 8.0) <= config.GeometryTolerance
+					|| Math.Abs(GetSpan(d) - 20.0) <= config.GeometryTolerance)),
+				"full-width seams must not become visible side dimensions");
+		}
+
+		private static OutlineFeature2D BuildActualRotatedContourOutline()
+		{
+			const double width = 429.90990921;
+			const double height = 438.79648808;
+			const double firstBreak = 140.43723701;
+			const double secondBreak = 266.54414371;
+			const double lowerStep = 169.20909149;
+			const double upperStep = 304.00278979;
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = width,
+				MaxY = height
+			};
+			AddSegment(outline, new Point2D(0.0, height), new Point2D(0.0, upperStep), "left-outer");
+			AddSegment(outline, new Point2D(0.0, upperStep), new Point2D(firstBreak, upperStep), "step-1");
+			AddSegment(outline, new Point2D(firstBreak, upperStep), new Point2D(firstBreak, lowerStep), "riser-1");
+			AddSegment(outline, new Point2D(firstBreak, lowerStep), new Point2D(secondBreak, lowerStep), "step-2");
+			AddSegment(outline, new Point2D(secondBreak, lowerStep), new Point2D(secondBreak, 0.0), "riser-2");
+			AddSegment(outline, new Point2D(secondBreak, 0.0), new Point2D(width, 0.0), "step-3");
+			AddSegment(outline, new Point2D(width, 0.0), new Point2D(width, height), "right-outer");
+			AddSegment(outline, new Point2D(width, height), new Point2D(0.0, height), "top");
+			return outline;
+		}
+
+		private static void MirroredProjectedChainNormalizesStructureSelection()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			DimensionPlan original = new DimensionPlanner(config).CreateOutlinePlan(BuildProjectedHorizontalChainOutline(mirrored: false));
+			DimensionPlan mirrored = new DimensionPlanner(config).CreateOutlinePlan(BuildProjectedHorizontalChainOutline(mirrored: true));
+			string[] originalSelection = original.Dimensions
+				.Where(d => d.DebugRole == "TopStructWidth" || d.DebugRole == "BottomStructWidth")
+				.Select(d => "HorizontalStructWidth@" + Math.Round(GetSpan(d), 3).ToString("0.000"))
+				.OrderBy(value => value, StringComparer.Ordinal)
+				.ToArray();
+			string[] mirroredSelection = mirrored.Dimensions
+				.Where(d => d.DebugRole == "TopStructWidth" || d.DebugRole == "BottomStructWidth")
+				.Select(d => "HorizontalStructWidth@" + Math.Round(GetSpan(d), 3).ToString("0.000"))
+				.OrderBy(value => value, StringComparer.Ordinal)
+				.ToArray();
+
+			Assert(originalSelection.SequenceEqual(mirroredSelection),
+				"mirroring must preserve normalized structure selection; only placement side may change (original: "
+				+ string.Join(",", originalSelection) + "; mirrored: " + string.Join(",", mirroredSelection) + ")");
+		}
+
+		private static void Test2BottomContourChainKeepsTwoRealWidths()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var originalOutline = BuildTest2BottomContourOutline(mirrored: false);
+			var mirroredOutline = BuildTest2BottomContourOutline(mirrored: true);
+			var original = planner.CreateOutlinePlan(originalOutline);
+			var mirrored = planner.CreateOutlinePlan(mirroredOutline);
+
+			AssertTest2BottomContourPlan(original, originalOutline, config);
+			AssertTest2BottomContourPlan(mirrored, mirroredOutline, config);
+
+			string[] originalSelection = original.Dimensions
+				.Where(d => (d.DebugRole == "BottomStructWidth" || d.DebugRole == "OutlineSegment")
+					&& d.Orientation == DimensionOrientation.Horizontal)
+				.Select(d => d.DebugRole + "@" + Math.Round(GetSpan(d), 3).ToString("0.000"))
+				.OrderBy(value => value, StringComparer.Ordinal)
+				.ToArray();
+			string[] mirroredSelection = mirrored.Dimensions
+				.Where(d => (d.DebugRole == "BottomStructWidth" || d.DebugRole == "OutlineSegment")
+					&& d.Orientation == DimensionOrientation.Horizontal)
+				.Select(d => d.DebugRole + "@" + Math.Round(GetSpan(d), 3).ToString("0.000"))
+				.OrderBy(value => value, StringComparer.Ordinal)
+				.ToArray();
+			Assert(originalSelection.SequenceEqual(mirroredSelection),
+				"test2 X mirror must preserve Bottom/Outline selection semantics (original: "
+				+ string.Join(",", originalSelection) + "; mirrored: " + string.Join(",", mirroredSelection) + ")");
+		}
+
+		private static void RotatedTest2PreservesLocalSemanticSignature()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var baselineOutline = BuildTest2BottomContourOutline(mirrored: false);
+			var baseline = planner.CreateOutlinePlan(baselineOutline);
+			string[] baselineSignature = GetPlanningSemanticSignature(baseline);
+			Assert(baseline.CoordinateFrame.IsIdentity,
+				"axis-aligned Test2 baseline must retain the identity planning frame");
+
+			foreach (double angle in new[] { 27.0, -33.0 })
+			{
+				double radians = angle * Math.PI / 180.0;
+				var rotatedOutline = TransformOutline(baselineOutline, radians);
+				var rotated = planner.CreateOutlinePlan(rotatedOutline);
+
+				Assert(Math.Abs(rotated.CoordinateFrame.Angle - radians) <= 1E-9,
+					"rotated Test2 must infer its principal local frame (angle " + angle + ")");
+				string[] rotatedSignature = GetPlanningSemanticSignature(rotated);
+				Assert(rotatedSignature.SequenceEqual(baselineSignature),
+					"rotated Test2 must preserve selected/suppressed local semantics (angle " + angle + ")");
+
+				var explicitFrame = new CoordinateFrame2D(
+					new Point2D(0.0, 0.0),
+					new Point2D(Math.Cos(radians), Math.Sin(radians)));
+				var explicitPlan = planner.CreateOutlinePlan(rotatedOutline, explicitFrame);
+				Assert(Math.Abs(explicitPlan.CoordinateFrame.Angle - radians) <= 1E-9,
+					"explicit rotated Test2 frame must be retained (angle " + angle + ")");
+				Assert(GetPlanningSemanticSignature(explicitPlan).SequenceEqual(baselineSignature),
+					"explicit rotated Test2 frame must preserve local semantics (angle " + angle + ")");
+			}
+
+			var mirroredOutline = BuildTest2BottomContourOutline(mirrored: true);
+			var mirrored = planner.CreateOutlinePlan(mirroredOutline);
+			Assert(mirrored.CoordinateFrame.IsIdentity,
+				"X-mirrored Test2 must keep the identity planning frame");
+			AssertTest2BottomContourPlan(mirrored, mirroredOutline, config);
+			string[] baselineBottomSelection = baseline.Dimensions
+				.Where(d => (d.DebugRole == "BottomStructWidth" || d.DebugRole == "OutlineSegment")
+					&& d.Orientation == DimensionOrientation.Horizontal)
+				.Select(d => d.DebugRole + "@" + Math.Round(GetSpan(d), 3).ToString("0.000"))
+				.OrderBy(value => value, StringComparer.Ordinal)
+				.ToArray();
+			string[] mirroredBottomSelection = mirrored.Dimensions
+				.Where(d => (d.DebugRole == "BottomStructWidth" || d.DebugRole == "OutlineSegment")
+					&& d.Orientation == DimensionOrientation.Horizontal)
+				.Select(d => d.DebugRole + "@" + Math.Round(GetSpan(d), 3).ToString("0.000"))
+				.OrderBy(value => value, StringComparer.Ordinal)
+				.ToArray();
+			Assert(mirroredBottomSelection.SequenceEqual(baselineBottomSelection),
+				"X-mirrored Test2 must preserve bottom selected role/value semantics");
+		}
+
+		private static string[] GetPlanningSemanticSignature(DimensionPlan plan)
+		{
+			return plan.Diagnostics.DimensionCandidates
+				.Where(candidate => candidate.IsSelected || candidate.IsSuppressed)
+				.Select(candidate => string.Join("|",
+					candidate.Kind ?? string.Empty,
+					candidate.DebugRole ?? string.Empty,
+					candidate.Role.ToString(),
+					candidate.IsSelected ? "selected" : "suppressed",
+					candidate.IsSuppressed ? "suppressed" : "active",
+					candidate.SuppressedReason ?? string.Empty,
+					candidate.RuleId ?? string.Empty,
+					Math.Round(candidate.Value, 3).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+					Math.Round(Math.Abs(candidate.MeasurementMaximum - candidate.MeasurementMinimum), 3)
+						.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+					candidate.Orientation ?? string.Empty,
+					candidate.PlacementSide ?? string.Empty,
+					candidate.RequestedPlacementSide ?? string.Empty,
+					string.Join(",", (candidate.SourceGeometryIds ?? new List<string>())
+						.Where(id => !string.IsNullOrWhiteSpace(id))
+						.OrderBy(id => id, StringComparer.Ordinal))))
+				.OrderBy(value => value, StringComparer.Ordinal)
+				.ToArray();
+		}
+
+		private static OutlineFeature2D TransformOutline(OutlineFeature2D source, double angle)
+		{
+			var transformed = new OutlineFeature2D();
+			foreach (Point2D vertex in source.Vertices)
+			{
+				transformed.Vertices.Add(TransformPoint(vertex, angle));
+			}
+			foreach (Segment2D segment in source.Segments)
+			{
+				if (segment == null)
+				{
+					transformed.Segments.Add(null);
+					continue;
+				}
+				transformed.Segments.Add(new Segment2D(
+					TransformPoint(segment.Start, angle),
+					TransformPoint(segment.End, angle))
+				{
+					SourceKey = segment.SourceKey,
+					IsArcChord = segment.IsArcChord
+				});
+			}
+			if (transformed.Segments.Count == 0)
+			{
+				transformed.MinX = source.MinX;
+				transformed.MaxX = source.MaxX;
+				transformed.MinY = source.MinY;
+				transformed.MaxY = source.MaxY;
+				return transformed;
+			}
+			var points = transformed.Segments
+				.Where(segment => segment != null)
+				.SelectMany(segment => new[] { segment.Start, segment.End })
+				.ToList();
+			transformed.MinX = points.Min(point => point.X);
+			transformed.MaxX = points.Max(point => point.X);
+			transformed.MinY = points.Min(point => point.Y);
+			transformed.MaxY = points.Max(point => point.Y);
+			return transformed;
+		}
+
+		private static Point2D TransformPoint(Point2D point, double angle)
+		{
+			double cosine = Math.Cos(angle);
+			double sine = Math.Sin(angle);
+			return new Point2D(
+				cosine * point.X - sine * point.Y,
+				sine * point.X + cosine * point.Y);
+		}
+
+		private static void AssertTest2BottomContourPlan(
+			DimensionPlan plan,
+			OutlineFeature2D outline,
+			DimensionRuleConfig config)
+		{
+			const double overallWidth = 438.79648808;
+			const double realWidth = 134.79369829;
+			const double projectedWidth = 169.20909149;
+			var selected = plan.Dimensions
+				.Where(d => (d.DebugRole == "BottomStructWidth" || d.DebugRole == "OutlineSegment")
+					&& d.Orientation == DimensionOrientation.Horizontal)
+				.ToList();
+			var selectedReal = selected
+				.Where(d => Math.Abs(GetSpan(d) - realWidth) <= config.GeometryTolerance
+					&& Math.Abs(d.FirstPoint.Y - d.SecondPoint.Y) <= config.GeometryTolerance)
+				.ToList();
+			var projectedCandidates = plan.Diagnostics.DimensionCandidates
+				.Where(c => (c.DebugRole == "BottomStructWidth" || c.DebugRole == "OutlineSegment")
+					&& Math.Abs(c.Value - projectedWidth) <= config.GeometryTolerance)
+				.ToList();
+
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
+				&& Math.Abs(GetSpan(d) - overallWidth) <= config.GeometryTolerance),
+				"test2 overall width 438.79648808 must remain");
+			Assert(selectedReal.Count == 2
+				&& selectedReal.Count(d => d.DebugRole == "BottomStructWidth") == 1
+				&& selectedReal.Count(d => d.DebugRole == "OutlineSegment") == 1
+				&& selectedReal.All(d => HasRealHorizontalSegment(d, outline, config)),
+				"test2 must retain exactly one real BottomStructWidth and one real OutlineSegment at 134.79369829");
+			Assert(!selected.Any(d => Math.Abs(GetSpan(d) - projectedWidth) <= config.GeometryTolerance),
+				"test2 derived/projection width 169.20909149 must not remain selected");
+			Assert(selected.All(d => Math.Abs(d.FirstPoint.Y - d.SecondPoint.Y) <= config.GeometryTolerance),
+				"test2 selected Bottom/Outline widths must attach to real horizontal edges, not cross-level projections");
+			Assert(projectedCandidates.Count > 0 && projectedCandidates.All(c => c.IsSuppressed && !c.IsSelected),
+				"test2 169.20909149 candidates must all be suppressed");
+			Assert(projectedCandidates.Any(c => c.DebugRole == "BottomStructWidth"
+				&& c.SuppressedReason == "ProjectedStructureOverallPartition"),
+				"test2 cross-level BottomStructWidth 169.20909149 must record ProjectedStructureOverallPartition");
+			Assert(projectedCandidates.Any(c => c.DebugRole == "OutlineSegment"
+				&& c.SuppressedReason == "OutlineSegmentOverallPartition"),
+				"test2 real OutlineSegment 169.20909149 must record OutlineSegmentOverallPartition");
+		}
+
+		private static bool HasRealHorizontalSegment(
+			PlannedDimension dimension,
+			OutlineFeature2D outline,
+			DimensionRuleConfig config)
+		{
+			double minX = Math.Min(dimension.FirstPoint.X, dimension.SecondPoint.X);
+			double maxX = Math.Max(dimension.FirstPoint.X, dimension.SecondPoint.X);
+			return outline.Segments.Any(segment => segment != null
+				&& segment.IsHorizontal(config.GeometryTolerance)
+				&& Math.Abs(segment.MinY - dimension.FirstPoint.Y) <= config.GeometryTolerance
+				&& segment.MinX <= minX + config.GeometryTolerance
+				&& segment.MaxX >= maxX - config.GeometryTolerance);
+		}
+
+		private static OutlineFeature2D BuildProjectedHorizontalChainOutline(bool mirrored)
+		{
+			const double overallWidth = 438.7964881;
+			const double firstBreak = 169.2090915;
+			const double secondBreak = 304.0027898;
+			const double maxY = 429.9099092;
+			Func<double, double> x = value => mirrored ? overallWidth - value : value;
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = overallWidth, MaxY = maxY };
+			AddSegment(outline, new Point2D(x(0.0), 0.0), new Point2D(x(0.0), 163.37), "left-lower");
+			AddSegment(outline, new Point2D(x(0.0), 163.37), new Point2D(x(firstBreak), 163.37), "step-1");
+			AddSegment(outline, new Point2D(x(firstBreak), 163.37), new Point2D(x(firstBreak), 289.48), "riser-1");
+			AddSegment(outline, new Point2D(x(firstBreak), 289.48), new Point2D(x(secondBreak), 289.48), "step-2");
+			AddSegment(outline, new Point2D(x(secondBreak), 289.48), new Point2D(x(secondBreak), maxY), "riser-2");
+			AddSegment(outline, new Point2D(x(secondBreak), maxY), new Point2D(x(overallWidth), maxY), "top");
+			AddSegment(outline, new Point2D(x(overallWidth), maxY), new Point2D(x(overallWidth), 0.0), "right");
+			AddSegment(outline, new Point2D(x(overallWidth), 0.0), new Point2D(x(0.0), 0.0), "bottom");
+			return outline;
+		}
+
+		private static OutlineFeature2D BuildTest2BottomContourOutline(bool mirrored)
+		{
+			const double overallWidth = 438.79648808;
+			const double firstBreak = 134.79369829;
+			const double secondBreak = 269.58739658;
+			const double minY = -266.54414371;
+			const double middleY = -126.10690670;
+			const double upperY = 0.0;
+			const double maxY = 163.36576550;
+			Func<double, double> x = value => mirrored ? overallWidth - value : value;
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = minY,
+				MaxX = overallWidth,
+				MaxY = maxY
+			};
+			AddSegment(outline, new Point2D(x(0.0), maxY), new Point2D(x(0.0), minY), "left-outer");
+			AddSegment(outline, new Point2D(x(0.0), minY), new Point2D(x(firstBreak), minY), "bottom-real-1");
+			AddSegment(outline, new Point2D(x(firstBreak), minY), new Point2D(x(firstBreak), middleY), "riser-1");
+			AddSegment(outline, new Point2D(x(firstBreak), middleY), new Point2D(x(secondBreak), middleY), "bottom-real-2");
+			AddSegment(outline, new Point2D(x(secondBreak), middleY), new Point2D(x(secondBreak), upperY), "riser-2");
+			AddSegment(outline, new Point2D(x(secondBreak), upperY), new Point2D(x(overallWidth), upperY), "bottom-real-3");
+			AddSegment(outline, new Point2D(x(overallWidth), upperY), new Point2D(x(overallWidth), maxY), "right-outer");
+			AddSegment(outline, new Point2D(x(overallWidth), maxY), new Point2D(x(0.0), maxY), "top");
+			return outline;
+		}
+
+		private static OutlineFeature2D BuildProjectedVerticalChainOutline()
+		{
+			const double overallWidth = 438.7964881;
+			const double overallHeight = 429.9099092;
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = overallWidth, MaxY = overallHeight };
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(0.0, 163.3658), "left-lower");
+			AddSegment(outline, new Point2D(0.0, 163.3658), new Point2D(126.1069, 163.3658), "step-1");
+			AddSegment(outline, new Point2D(126.1069, 163.3658), new Point2D(126.1069, 289.4727), "left-middle");
+			AddSegment(outline, new Point2D(126.1069, 289.4727), new Point2D(266.5441, 289.4727), "step-2");
+			AddSegment(outline, new Point2D(266.5441, 289.4727), new Point2D(266.5441, overallHeight), "left-upper");
+			AddSegment(outline, new Point2D(266.5441, overallHeight), new Point2D(overallWidth, overallHeight), "top");
+			AddSegment(outline, new Point2D(overallWidth, overallHeight), new Point2D(overallWidth, 0.0), "right");
+			AddSegment(outline, new Point2D(overallWidth, 0.0), new Point2D(0.0, 0.0), "bottom");
+			return outline;
 		}
 
 		private static void DatumRootedLeftOuterEnvelopeDimensionsAreSuppressed()

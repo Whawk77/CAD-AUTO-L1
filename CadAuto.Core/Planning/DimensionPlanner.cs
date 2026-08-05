@@ -70,6 +70,10 @@ public sealed partial class DimensionPlanner
 		public const string LeftStructureHeightCoveredByDatumRootedOuterStep = "LeftStructureHeightCoveredByDatumRootedOuterStep";
 
 		public const string StructureOverallPartition = "StructureOverallPartition";
+
+		public const string ProjectedStructureOverallPartition = "ProjectedStructureOverallPartition";
+
+		public const string NonProfileBackedSideStructureHeight = "NonProfileBackedSideStructureHeight";
 	}
 
 	private sealed class FunctionalHoleGroupPlan
@@ -147,6 +151,32 @@ public sealed partial class DimensionPlanner
 		{
 			throw new ArgumentNullException("outline");
 		}
+		CoordinateFrame2D frame = CoordinateFrame2D.InferFromOutline(outline, _config.GeometryTolerance);
+		OutlineFeature2D localOutline = frame.IsIdentity
+			? outline
+			: CoordinateFrameModelTransform.ToLocal(outline, frame, _config.GeometryTolerance);
+		DimensionPlan dimensionPlan = CreateOutlinePlanLocal(localOutline);
+		dimensionPlan.CoordinateFrame = frame;
+		return dimensionPlan;
+	}
+
+	public DimensionPlan CreateOutlinePlan(OutlineFeature2D outline, CoordinateFrame2D coordinateFrame)
+	{
+		if (outline == null)
+		{
+			throw new ArgumentNullException("outline");
+		}
+		CoordinateFrame2D frame = coordinateFrame ?? CoordinateFrame2D.InferFromOutline(outline, _config.GeometryTolerance);
+		OutlineFeature2D localOutline = frame.IsIdentity
+			? outline
+			: CoordinateFrameModelTransform.ToLocal(outline, frame, _config.GeometryTolerance);
+		DimensionPlan dimensionPlan = CreateOutlinePlanLocal(localOutline);
+		dimensionPlan.CoordinateFrame = frame;
+		return dimensionPlan;
+	}
+
+	private DimensionPlan CreateOutlinePlanLocal(OutlineFeature2D outline)
+	{
 		_nextLooseChainId = 1;
 		DimensionPlan dimensionPlan = new DimensionPlan();
 		AddOverallWidth(dimensionPlan, outline);
@@ -166,14 +196,36 @@ public sealed partial class DimensionPlanner
 
 	public DimensionPlan CreateDimensionPlan(OutlineFeature2D outline, Datum2D datum, IEnumerable<HoleFeature2D> holes, IEnumerable<SlotFeature2D> slots)
 	{
-		DimensionPlan dimensionPlan = CreateOutlinePlan(outline);
-		Datum2D datum2 = datum ?? Datum2D.FromOutline(outline);
-		List<HoleFeature2D> holes2 = (holes ?? new HoleFeature2D[0]).Where((HoleFeature2D h) => h != null).ToList();
-		AddHolePositionDimensions(dimensionPlan, outline, datum2, holes2);
-		AddSlotDimensions(dimensionPlan, outline, datum2, holes2, slots ?? new SlotFeature2D[0]);
-		SuppressDuplicateDimensions(dimensionPlan, outline);
-		_postValidator.Validate(dimensionPlan, outline);
+		return CreateDimensionPlan(outline, datum, holes, slots, null);
+	}
+
+	public DimensionPlan CreateDimensionPlan(OutlineFeature2D outline, Datum2D datum, IEnumerable<HoleFeature2D> holes, IEnumerable<SlotFeature2D> slots, CoordinateFrame2D coordinateFrame)
+	{
+		if (outline == null)
+		{
+			throw new ArgumentNullException("outline");
+		}
+		CoordinateFrame2D frame = coordinateFrame ?? CoordinateFrame2D.InferFromOutline(outline, _config.GeometryTolerance);
+		OutlineFeature2D localOutline = frame.IsIdentity
+			? outline
+			: CoordinateFrameModelTransform.ToLocal(outline, frame, _config.GeometryTolerance);
+		Datum2D localDatum = datum == null
+			? null
+			: (frame.IsIdentity ? datum : CoordinateFrameModelTransform.ToLocal(datum, frame));
+		List<HoleFeature2D> localHoles = frame.IsIdentity
+			? (holes ?? new HoleFeature2D[0]).Where((HoleFeature2D h) => h != null).ToList()
+			: CoordinateFrameModelTransform.ToLocal(holes, frame);
+		List<SlotFeature2D> localSlots = frame.IsIdentity
+			? (slots ?? new SlotFeature2D[0]).Where((SlotFeature2D s) => s != null).ToList()
+			: CoordinateFrameModelTransform.ToLocal(slots, frame);
+		DimensionPlan dimensionPlan = CreateOutlinePlanLocal(localOutline);
+		Datum2D datum2 = localDatum ?? Datum2D.FromOutline(localOutline);
+		AddHolePositionDimensions(dimensionPlan, localOutline, datum2, localHoles);
+		AddSlotDimensions(dimensionPlan, localOutline, datum2, localHoles, localSlots);
+		SuppressDuplicateDimensions(dimensionPlan, localOutline);
+		_postValidator.Validate(dimensionPlan, localOutline);
 		dimensionPlan.CaptureFinalDimensions();
+		dimensionPlan.CoordinateFrame = frame;
 		return dimensionPlan;
 	}
 

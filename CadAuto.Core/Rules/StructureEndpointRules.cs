@@ -165,9 +165,53 @@ public sealed class StructureEndpointRules
 		// Preserve a real body length anchored at the datum corner and shoulder. Do not fall
 		// through to the next ranked item: that item may be the valid outer step length.
 		var longest = ranked[0];
+		if (IsCompleteOverallChainMember(longest.Dim, candidates, outline, side))
+		{
+			return -1;
+		}
 		return IsProtectedBodyLengthCandidate(longest.Dim, outline, side)
 			? -1
 			: longest.Index;
+	}
+
+	private bool IsCompleteOverallChainMember(
+		PlannedDimension candidate,
+		IList<PlannedDimension> candidates,
+		OutlineFeature2D outline,
+		DimensionSide side)
+	{
+		if (candidate == null || outline == null)
+		{
+			return false;
+		}
+		bool horizontal = side == DimensionSide.Top || side == DimensionSide.Bottom;
+		DimensionOrientation expected = horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical;
+		Dictionary<DimensionDeduplicationItem, PlannedDimension> source = new Dictionary<DimensionDeduplicationItem, PlannedDimension>();
+		List<DimensionDeduplicationItem> items = new List<DimensionDeduplicationItem>();
+		foreach (PlannedDimension dimension in candidates)
+		{
+			if (dimension == null || dimension.Orientation != expected)
+			{
+				continue;
+			}
+			DimensionDeduplicationItem item = new DimensionDeduplicationItem
+			{
+				FirstPoint = dimension.FirstPoint,
+				SecondPoint = dimension.SecondPoint,
+				Span = GetCandidateSpan(dimension, side),
+				Kind = dimension.Kind,
+				ForceOuterLevel = dimension.ForceOuterLevel,
+				DebugRole = dimension.DebugRole
+			};
+			items.Add(item);
+			source[item] = dimension;
+		}
+		IList<DimensionDeduplicationItem> chain = new DimensionDeduplicationRules(_config).FindCompleteOverallPartitionChain(
+			items,
+			horizontal ? outline.MinX : outline.MinY,
+			horizontal ? outline.MaxX : outline.MaxY,
+			horizontal);
+		return chain != null && chain.Count >= 3 && chain.Any((DimensionDeduplicationItem item) => source[item] == candidate);
 	}
 
 	public bool RemoveLongestExtensionCandidate(IList<PlannedDimension> candidates, OutlineFeature2D outline, DimensionSide side)

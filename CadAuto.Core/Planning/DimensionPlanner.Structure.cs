@@ -458,9 +458,19 @@ public sealed partial class DimensionPlanner
 		RecordDiscardedCandidates(plan, snapshot, list2, "LongestExtensionCandidate");
 		SnapComplementaryVerticalRemainderEndpoints(list2, outline);
 		snapshot = new List<PlannedDimension>(list2);
-		RemoveComplementaryOverallRemainderCandidates(list2, outline.MinY, outline.MaxY, horizontal: false);
+		// Preserve a real partial MaxX edge (the upper rectangle). Its projected
+		// complementary residual is removed, not the real right-side structure height.
+		RemoveComplementaryOverallRemainderCandidates(
+			list2,
+			outline.MinY,
+			outline.MaxY,
+			horizontal: false,
+			preserveCandidate: (PlannedDimension candidate) => IsRealPartialEnvelopeStructureHeight(candidate, outline, _config.GeometryTolerance)
+				|| IsRightTopPartialEnvelopeStructureHeight(candidate, outline, _config.GeometryTolerance));
 		RecordDiscardedCandidates(plan, snapshot, list2, "ComplementaryOverallRemainder");
-		List<PlannedDimension> kept = list2.Where((PlannedDimension dim) => IsRightSideVerticalStructureCandidate(dim, outline, ignoredPoints)).ToList();
+		List<PlannedDimension> kept = list2.Where((PlannedDimension dim) =>
+			IsRightSideVerticalStructureCandidate(dim, outline, ignoredPoints)
+			|| IsRightTopPartialEnvelopeStructureHeight(dim, outline, _config.GeometryTolerance)).ToList();
 		RecordDiscardedCandidates(plan, list2, kept, "NotRightSideStructureCandidate");
 		return kept;
 	}
@@ -547,8 +557,17 @@ public sealed partial class DimensionPlanner
 			{
 				continue;
 			}
-			dimension.FirstPoint = SnapHorizontalPointToLeftConnectedVertical(dimension.FirstPoint, outline);
-			dimension.SecondPoint = SnapHorizontalPointToLeftConnectedVertical(dimension.SecondPoint, outline);
+			if (dimension.Side == DimensionSide.Right
+				&& IsRightTopPartialEnvelopeStructureHeight(dimension, outline, _config.GeometryTolerance))
+			{
+				dimension.FirstPoint = SnapHorizontalPointToRightConnectedVertical(dimension.FirstPoint, outline);
+				dimension.SecondPoint = SnapHorizontalPointToRightConnectedVertical(dimension.SecondPoint, outline);
+			}
+			else
+			{
+				dimension.FirstPoint = SnapHorizontalPointToLeftConnectedVertical(dimension.FirstPoint, outline);
+				dimension.SecondPoint = SnapHorizontalPointToLeftConnectedVertical(dimension.SecondPoint, outline);
+			}
 		}
 	}
 
@@ -633,6 +652,26 @@ public sealed partial class DimensionPlanner
 			.SelectMany((Segment2D s) => new Point2D[2] { s.Start, s.End })
 			.Where((Point2D p) => Math.Abs(p.Y - point.Y) <= _config.GeometryTolerance && p.X < point.X - _config.GeometryTolerance)
 			.OrderByDescending((Point2D p) => p.X)
+			.Select((Point2D p) => (Point2D?)p)
+			.FirstOrDefault();
+		return found ?? point;
+	}
+
+	/// <summary>
+	/// Snap a horizontal-edge point right onto a connected vertical segment endpoint.
+	/// Uses the nearest endpoint to preserve the right-side attachment.
+	/// </summary>
+	internal Point2D SnapHorizontalPointToRightConnectedVertical(Point2D point, OutlineFeature2D outline)
+	{
+		if (outline == null)
+		{
+			return point;
+		}
+		Point2D? found = outline.Segments
+			.Where((Segment2D s) => s != null && s.IsVertical(_config.GeometryTolerance))
+			.SelectMany((Segment2D s) => new Point2D[2] { s.Start, s.End })
+			.Where((Point2D p) => Math.Abs(p.Y - point.Y) <= _config.GeometryTolerance && p.X > point.X + _config.GeometryTolerance)
+			.OrderBy((Point2D p) => p.X)
 			.Select((Point2D p) => (Point2D?)p)
 			.FirstOrDefault();
 		return found ?? point;

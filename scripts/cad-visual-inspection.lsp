@@ -194,8 +194,20 @@
   (max (* base 2.0) maximum current)
 )
 
+(defun m4-text-value (data / dxf value chunks)
+  (setq dxf (cdr (assoc 0 data)) value "")
+  (if (= dxf "MTEXT")
+    (progn
+      (foreach pair data (if (= (car pair) 3) (setq chunks (cons (cdr pair) chunks))))
+      (foreach chunk (reverse chunks) (setq value (strcat value chunk)))
+    )
+  )
+  (if (cdr (assoc 1 data)) (setq value (strcat value (cdr (assoc 1 data)))))
+  (m4-clean value)
+)
+
 (defun m4-text-bounds (data / point height width actual-width actual-height text visible-width rotation dxf attachment h-anchor v-anchor cosr sinr p1 p2 p3 p4)
-  (setq point (cdr (assoc 10 data)) height (cdr (assoc 40 data)) text (m4-clean (cdr (assoc 1 data)))
+  (setq point (cdr (assoc 10 data)) height (cdr (assoc 40 data)) text (m4-text-value data)
         actual-width (cdr (assoc 42 data)) actual-height (cdr (assoc 43 data)) dxf (cdr (assoc 0 data))
         attachment (cdr (assoc 71 data)) rotation (if (numberp (cdr (assoc 50 data))) (cdr (assoc 50 data)) 0.0))
   (if (or (null point) (not (numberp height)))
@@ -218,6 +230,30 @@
       (m4-bounds-from-points (list p1 p2 p3 p4))
     )
   )
+)
+
+(defun m4-annotation-layer (dimensions / data)
+  (if (and dimensions (> (sslength dimensions) 0) (setq data (entget (ssname dimensions 0))))
+    (m4-clean (cdr (assoc 8 data)))
+    ""
+  )
+)
+
+(defun m4-modelspace-text (stream annotation-layer / filter selection index count entity data dxf handle bounds)
+  ;;; Test-only bridge: capture standalone annotation-layer text without changing product output.
+  (setq filter (list (cons -4 "<OR") (cons 0 "TEXT") (cons 0 "MTEXT") (cons -4 "OR>") (cons 410 "Model")))
+  (if (/= annotation-layer "") (setq filter (append filter (list (cons 8 annotation-layer)))))
+  (setq selection (ssget "_X" filter)
+        index 0 count (if selection (sslength selection) 0))
+  (while (< index count)
+    (setq entity (ssname selection index) data (entget entity) dxf (m4-clean (cdr (assoc 0 data))) handle (m4-handle entity)
+          bounds (m4-text-bounds data))
+    (if bounds
+      (m4-row stream (append (list "TEXT" "MODELSPACE" handle) bounds))
+      (m4-error stream "modelspace-text" handle (strcat dxf " missing group 10 or 40")))
+    (setq index (1+ index))
+  )
+  count
 )
 
 (defun m4-solid-bounds (data / points point)
@@ -303,7 +339,7 @@
   (if style (m4-clean (cdr (assoc 3 style))) "")
 )
 
-(defun m4-capture-core (stream source-selection case-id expected-direction / dimensions index count)
+(defun m4-capture-core (stream source-selection case-id expected-direction include-modelspace-text / dimensions index count annotation-layer modelspace-text-count)
   (m4-row stream (list "META" "schemaVersion" "1"))
   (m4-row stream (list "META" "caseId" case-id))
   (m4-row stream (list "META" "expectedDirection" expected-direction))
@@ -323,19 +359,32 @@
   (m4-row stream (list "META" "dimensionCount" (itoa count)))
   (setq index 0)
   (while (< index count) (m4-dimension stream (ssname dimensions index)) (setq index (1+ index)))
+  (setq annotation-layer (m4-annotation-layer dimensions))
+  (m4-row stream (list "META" "annotationLayer" annotation-layer))
+  (setq modelspace-text-count (if include-modelspace-text (m4-modelspace-text stream annotation-layer) 0))
+  (m4-row stream (list "META" "modelspaceTextCount" (itoa modelspace-text-count)))
 )
 
-(defun m4-capture (sourceSelection snapshotPath caseId expectedDirection / stream result)
+(defun m4-capture-run (sourceSelection snapshotPath caseId expectedDirection include-modelspace-text / stream result)
   (setq stream (open snapshotPath "w"))
   (if stream
     (progn
-      (setq result (vl-catch-all-apply 'm4-capture-core (list stream sourceSelection caseId expectedDirection)))
+      (setq result (vl-catch-all-apply 'm4-capture-core (list stream sourceSelection caseId expectedDirection include-modelspace-text)))
       (if (vl-catch-all-error-p result) (m4-error stream "top" "" (vl-catch-all-error-message result)))
       (close stream)
       (not (vl-catch-all-error-p result))
     )
     nil
   )
+)
+
+(defun m4-capture (sourceSelection snapshotPath caseId expectedDirection)
+  (m4-capture-run sourceSelection snapshotPath caseId expectedDirection nil)
+)
+
+(defun m4-capture-modelspace (sourceSelection snapshotPath caseId expectedDirection)
+  ;;; Test-only entry point; normal Core/nightly capture remains dimension-owned.
+  (m4-capture-run sourceSelection snapshotPath caseId expectedDirection T)
 )
 
 (princ)

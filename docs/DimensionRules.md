@@ -51,11 +51,11 @@
 
 ## Step And Structure Dimensions
 
-- Four side-specific step/structure flows exist:
-  - Top: `DrawTopStepWidth`
-  - Bottom: `DrawLowerRightStepWidth`
-  - Left: `DrawRightStepHeight`
-  - Right: `DrawRightSideStepHeight`
+- Four side-specific step/structure flows exist (current code anchors by `DebugRole` and planner structure generation, not legacy `Draw*` method names):
+  - Top: `TopStructWidth` (`CadAuto.Core/Planning/DimensionPlanner.Structure.cs`, `AddStepOutlineDimensions` / horizontal structure family)
+  - Bottom: `BottomStructWidth` (same planner structure family)
+  - Left: `LeftStructHeight` (`AddDatumRootedLeftOuterStepDimension` / vertical structure family)
+  - Right: `RightStructHeight` (same vertical structure family)
 - Top and bottom horizontal width rules collect side-specific structure points and ignored points before emitting dimensions.
 - Left and right vertical height rules collect side-specific structure points and ignored points before emitting dimensions.
 - Same-side structure segments share one rooted alignment key so adjacent chain members can stay on one dim-line level:

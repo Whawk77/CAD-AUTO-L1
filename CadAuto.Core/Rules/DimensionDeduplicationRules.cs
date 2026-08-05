@@ -76,18 +76,6 @@ public sealed class DimensionDeduplicationRules
 	}
 
 	/// <summary>
-	/// Symmetric opposite of <see cref="IsLeftStructureHeightCoveredByRight"/>.
-	/// </summary>
-	public bool IsRightStructureHeightCoveredByLeft(DimensionDeduplicationItem right, DimensionDeduplicationItem left)
-	{
-		if (!IsRightStructureHeight(right) || !IsLeftStructureHeight(left))
-		{
-			return false;
-		}
-		return IsVerticalStructureIntervalCoveredByOther(right, left);
-	}
-
-	/// <summary>
 	/// True when <paramref name="inner"/> Y-interval is covered by <paramref name="outer"/>
 	/// and they share an endpoint (stacked step relationship).
 	/// </summary>

@@ -20,65 +20,6 @@ public sealed class StructureSuppressionRules
 		_config = config;
 	}
 
-	public bool IsUsefulHorizontalStep(Segment2D segment, OutlineFeature2D outline)
-	{
-		return segment.IsHorizontal(_config.GeometryTolerance) && segment.LengthX > _config.GeometryTolerance && segment.LengthX < outline.Width - _config.GeometryTolerance;
-	}
-
-	public bool IsUsefulVerticalStep(Segment2D segment, OutlineFeature2D outline)
-	{
-		return segment.IsVertical(_config.GeometryTolerance) && segment.LengthY > _config.GeometryTolerance && segment.LengthY < outline.Height - _config.GeometryTolerance;
-	}
-
-	public bool IsFeatureRedundantStepDimension(Segment2D segment, OutlineFeature2D outline, double smallFeatureLimitFloor, double singleTangentLimitFloor)
-	{
-		return IsRedundantChamferStepDimension(segment, outline, smallFeatureLimitFloor) || IsRedundantFilletStepDimension(segment, outline, smallFeatureLimitFloor, singleTangentLimitFloor);
-	}
-
-	public bool IsRedundantChamferStepDimension(Segment2D segment, OutlineFeature2D outline, double smallFeatureLimitFloor)
-	{
-		if (IsBetweenTwoChamfersAndDerivedFromOverall(segment, outline))
-		{
-			return true;
-		}
-		return outline.Chamfers.Any(delegate(ChamferFeature2D chamfer)
-		{
-			double featureSize = Math.Max(chamfer.DeltaX, chamfer.DeltaY);
-			return IsSmallFeatureAdjacentDimension(segment, featureSize, smallFeatureLimitFloor) && SegmentTouchesPoint(segment, chamfer.StartPoint) && SegmentTouchesPoint(segment, chamfer.EndPoint);
-		});
-	}
-
-	public bool IsRedundantFilletStepDimension(Segment2D segment, OutlineFeature2D outline, double smallFeatureLimitFloor, double singleTangentLimitFloor)
-	{
-		return outline.Fillets.Any(delegate(FilletFeature2D fillet)
-		{
-			double featureSize = fillet.Radius * 2.0;
-			return IsSmallFeatureAdjacentDimension(segment, featureSize, smallFeatureLimitFloor) && ((SegmentTouchesPoint(segment, fillet.StartPoint) && SegmentTouchesPoint(segment, fillet.EndPoint)) || IsSingleTangentFilletStepDimension(segment, fillet, singleTangentLimitFloor));
-		});
-	}
-
-	public bool IsSingleTangentFilletStepDimension(Segment2D segment, FilletFeature2D fillet, double singleTangentLimitFloor)
-	{
-		if (!SegmentTouchesPoint(segment, fillet.StartPoint) && !SegmentTouchesPoint(segment, fillet.EndPoint))
-		{
-			return false;
-		}
-		double num = Math.Max(fillet.Radius * 10.0, singleTangentLimitFloor);
-		return segment.Length <= num + _config.GeometryTolerance;
-	}
-
-	public bool IsSmallFeatureAdjacentDimension(Segment2D segment, double featureSize, double smallFeatureLimitFloor)
-	{
-		double num = Math.Max(featureSize * 2.5, smallFeatureLimitFloor);
-		return segment.Length <= num + _config.GeometryTolerance;
-	}
-
-	public bool StepHeightExtensionCrossesOutlineInterior(Segment2D segment, OutlineFeature2D outline, DimensionSide side, double firstDimensionOffset)
-	{
-		double toX = ((side == DimensionSide.Left) ? (outline.MinX - firstDimensionOffset) : (outline.MaxX + firstDimensionOffset));
-		return HorizontalProbeCrossesInterior(segment.MaxY, segment.MinX, toX, outline) || HorizontalProbeCrossesInterior(segment.MinY, segment.MinX, toX, outline);
-	}
-
 	public bool LeftExtensionCrossesOutline(Point2D featurePoint, OutlineFeature2D outline, double firstDimensionOffset)
 	{
 		double geometryTolerance = _config.GeometryTolerance;
@@ -369,11 +310,6 @@ public sealed class StructureSuppressionRules
 		};
 	}
 
-	public bool ShouldIgnoreDirectionalInclinedEndpoint(Point2D point, OutlineFeature2D outline, bool invertDirection)
-	{
-		return !string.IsNullOrEmpty(GetDirectionalInclinedIgnoreReason(point, outline, invertDirection));
-	}
-
 	public string GetDirectionalInclinedIgnoreReason(Point2D point, OutlineFeature2D outline, bool invertDirection)
 	{
 		if (outline == null)
@@ -498,35 +434,6 @@ public sealed class StructureSuppressionRules
 		return outline.Segments.Where((Segment2D s) => s.IsHorizontal(tolerance)).Any((Segment2D s) => Math.Abs(s.MinY - point.Y) <= tolerance && point.X >= s.MinX - tolerance && point.X <= s.MaxX + tolerance);
 	}
 
-	private bool HorizontalProbeCrossesInterior(double y, double fromX, double toX, OutlineFeature2D outline)
-	{
-		double geometryTolerance = _config.GeometryTolerance;
-		double num = Math.Min(fromX, toX);
-		double num2 = Math.Max(fromX, toX);
-		foreach (double probeSampleX in GetProbeSampleXs(num, num2, outline))
-		{
-			if (probeSampleX <= num + geometryTolerance || probeSampleX >= num2 - geometryTolerance || !IsPointInsideOutlineByRayCast(probeSampleX, y, outline))
-			{
-				continue;
-			}
-			return true;
-		}
-		return false;
-	}
-
-	private static IEnumerable<double> GetProbeSampleXs(double minX, double maxX, OutlineFeature2D outline)
-	{
-		foreach (Segment2D segment in outline.Segments)
-		{
-			yield return Math.Max(minX, Math.Min(maxX, segment.MinX));
-			yield return Math.Max(minX, Math.Min(maxX, segment.MaxX));
-		}
-		for (int i = 1; i < 8; i++)
-		{
-			yield return minX + (maxX - minX) * (double)i / 8.0;
-		}
-	}
-
 	private bool TryGetHorizontalIntersectionX(Segment2D segment, double y, out double x)
 	{
 		double geometryTolerance = _config.GeometryTolerance;
@@ -615,27 +522,6 @@ public sealed class StructureSuppressionRules
 		return y >= segment.MinY - geometryTolerance && y <= segment.MaxY + geometryTolerance;
 	}
 
-	private bool IsBetweenTwoChamfersAndDerivedFromOverall(Segment2D segment, OutlineFeature2D outline)
-	{
-		if (!segment.IsHorizontal(_config.GeometryTolerance) && !segment.IsVertical(_config.GeometryTolerance))
-		{
-			return false;
-		}
-		ChamferFeature2D chamferFeature2D = FindChamferTouchingPoint(outline, segment.Start);
-		ChamferFeature2D chamferFeature2D2 = FindChamferTouchingPoint(outline, segment.End);
-		if (chamferFeature2D == null || chamferFeature2D2 == null || chamferFeature2D == chamferFeature2D2)
-		{
-			return false;
-		}
-		if (segment.IsVertical(_config.GeometryTolerance))
-		{
-			double num = outline.Height - GetChamferProjectionY(chamferFeature2D) - GetChamferProjectionY(chamferFeature2D2);
-			return Math.Abs(segment.LengthY - num) <= Math.Max(_config.GeometryTolerance, 0.2);
-		}
-		double num2 = outline.Width - GetChamferProjectionX(chamferFeature2D) - GetChamferProjectionX(chamferFeature2D2);
-		return Math.Abs(segment.LengthX - num2) <= Math.Max(_config.GeometryTolerance, 0.2);
-	}
-
 	private bool HorizontalOtherEndConnectsInnerGroove(Segment2D horizontal, Point2D sharedPoint, Segment2D currentChamfer, OutlineFeature2D outline)
 	{
 		Point2D otherEnd = (PointsEqual(horizontal.Start, sharedPoint) ? horizontal.End : horizontal.Start);
@@ -667,21 +553,6 @@ public sealed class StructureSuppressionRules
 		}
 		Point2D b2 = ((!invertDirection) ? ((segment.Start.X >= segment.End.X) ? segment.Start : segment.End) : ((segment.Start.X <= segment.End.X) ? segment.Start : segment.End));
 		return PointsEqual(point, b2);
-	}
-
-	private ChamferFeature2D FindChamferTouchingPoint(OutlineFeature2D outline, Point2D point)
-	{
-		return outline.Chamfers.FirstOrDefault((ChamferFeature2D chamfer) => PointsEqual(chamfer.StartPoint, point) || PointsEqual(chamfer.EndPoint, point));
-	}
-
-	private static double GetChamferProjectionX(ChamferFeature2D chamfer)
-	{
-		return Math.Abs(chamfer.StartPoint.X - chamfer.EndPoint.X);
-	}
-
-	private static double GetChamferProjectionY(ChamferFeature2D chamfer)
-	{
-		return Math.Abs(chamfer.StartPoint.Y - chamfer.EndPoint.Y);
 	}
 
 	private bool SegmentTouchesPoint(Segment2D segment, Point2D point)

@@ -76,9 +76,11 @@ public sealed partial class DimensionPlanner
 		SuppressStructureDimensionsThatPartitionOverall(plan, outline, horizontal: false);
 		SuppressDatumRootedOuterStepComplements(plan, outline, horizontal: true);
 		SuppressDatumRootedOuterStepComplements(plan, outline, horizontal: false);
-		// A real bottom outer step may be shorter or longer than its body remainder.
-		// Keep Overall + the boundary-backed step; suppress every equivalent body interval
-		// (projected BottomStructWidth and OutlineSegment) before either OS is removed.
+		// Unified four-way structure step/remainder rule (grill-me Phase 1):
+		// 1) Keep boundary-backed real steps on Top/Bottom/Left/Right; suppress overall body
+		//    remainders (structure or OS partners) that complete overall with that step.
+		// 2) Then structure-only short/long complementary on all four sides (keep short,
+		//    drop long when they form a complete overall partition). Hole/pin never enter.
 		ArbitrateOuterContourStepOverallRemainders(plan, outline);
 		// Keep the real outer-step arbitration ahead of this cleanup; its evidence and
 		// suppression reason must remain authoritative for datum-rooted contour steps.
@@ -94,6 +96,7 @@ public sealed partial class DimensionPlanner
 		SuppressOutlineSegmentsThatPartitionOverall(plan, outline, DimensionSide.Left, horizontal: false);
 		// An open three-piece bottom contour keeps the middle real edge and the MinY edge;
 		// the opposite projected interval is derivable from OverallWidth and is suppressed.
+		// Phase 1 (grill-me): leave Bottom-only; four-way open-contour is deferred.
 		SuppressOpenBottomContourDerivableOuterStructure(plan, outline);
 		// Mirror before envelope: envelope may remove the primary-side outer tip first, which
 		// would orphan a same-interval secondary OutlineSegment (e.g. Right OS@inner X that
@@ -108,16 +111,18 @@ public sealed partial class DimensionPlanner
 		SuppressOrphanOuterVerticalStructureHeightTips(plan, outline);
 		// Outer-envelope collinear OutlineSegment fragments (+ same-interval structure dups).
 		SuppressOutlineSegmentsOnOverallEnvelope(plan, outline);
-		// Existing complementary remainder for structure/normal remainders (Top/Right only).
+		// Structure-only complementary short/long on all four sides (merged with OuterContour).
 		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Top, horizontal: true, outline);
+		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Bottom, horizontal: true, outline);
 		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Right, horizontal: false, outline);
+		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Left, horizontal: false, outline);
 		// Closed length chains (any side pairing): body 70 + step 20 = overall 90 → drop 70.
 		// Includes OutlineSegment body lengths after interior edges resolve to Bottom/Top.
 		// Still requires real 1D abutment cover (never span-sum alone).
 		SuppressClosedOverallLengthRemainders(plan, horizontal: true);
 		SuppressClosedOverallLengthRemainders(plan, horizontal: false);
-		// Top structure closed overall chain: keep feature (interior) widths + datum-side
-		// location; suppress the opposite-side structure width that only closes overall
+		// Structure closed overall chain (Top/Bottom/Left/Right symmetric): keep interior
+		// feature widths + datum-side location; suppress the opposite overall-closing body
 		// (test2: keep 50+75, drop 90). Hole/pin roles are never considered here.
 		SuppressTopStructureClosedChainRedundantPositioning(plan, outline);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Bottom, horizontal: true);
@@ -967,7 +972,7 @@ public sealed partial class DimensionPlanner
 
 	/// <summary>
 	/// Collect bottom and left outer-contour-step decisions from one immutable candidate set,
-	/// then apply the shared rule once after both directions have contributed their evidence.
+	/// then apply the shared rule once after all four sides have contributed their evidence.
 	/// </summary>
 	private void ArbitrateOuterContourStepOverallRemainders(DimensionPlan plan, OutlineFeature2D outline)
 	{
@@ -978,11 +983,22 @@ public sealed partial class DimensionPlanner
 		Dictionary<PlannedDimension, string> retainedEvidence = new Dictionary<PlannedDimension, string>();
 		Dictionary<PlannedDimension, Tuple<PlannedDimension, string>> suppressionEvidence =
 			new Dictionary<PlannedDimension, Tuple<PlannedDimension, string>>();
+		// Four-way real-step collection (grill-me Phase 1 merge).
 		CollectBottomOuterContourStepBodyRemainders(plan, outline, retainedEvidence, suppressionEvidence);
+		CollectTopOuterContourStepBodyRemainders(plan, outline, retainedEvidence, suppressionEvidence);
 		CollectLeftOuterContourStepBodyRemainders(plan, outline, retainedEvidence, suppressionEvidence);
+		CollectRightOuterContourStepBodyRemainders(plan, outline, retainedEvidence, suppressionEvidence);
 
+		// Only stamp OuterContour RuleId on retained steps that actually witnessed a suppression.
+		// Avoid stamping idle "retained" candidates (four-way collectors) that never drop a partner.
 		foreach (KeyValuePair<PlannedDimension, string> retained in retainedEvidence)
 		{
+			bool witnessedSuppression = suppressionEvidence.Values.Any(evidence =>
+				evidence != null && ReferenceEquals(evidence.Item1, retained.Key));
+			if (!witnessedSuppression)
+			{
+				continue;
+			}
 			plan.RecordRuleEvidence(
 				retained.Key,
 				SuppressReason.OuterContourStepOverallRemainder,
@@ -1016,6 +1032,41 @@ public sealed partial class DimensionPlanner
 		IDictionary<PlannedDimension, string> retainedEvidence,
 		IDictionary<PlannedDimension, Tuple<PlannedDimension, string>> suppressionEvidence)
 	{
+		CollectVerticalPartialEnvelopeFaceRemainders(
+			plan,
+			outline,
+			DimensionSide.Left,
+			"Left",
+			retainedEvidence,
+			suppressionEvidence);
+	}
+
+	/// <summary>
+	/// MaxX dual of left partial-envelope face retention (four-way OuterContour symmetry).
+	/// </summary>
+	private void CollectRightOuterContourStepBodyRemainders(
+		DimensionPlan plan,
+		OutlineFeature2D outline,
+		IDictionary<PlannedDimension, string> retainedEvidence,
+		IDictionary<PlannedDimension, Tuple<PlannedDimension, string>> suppressionEvidence)
+	{
+		CollectVerticalPartialEnvelopeFaceRemainders(
+			plan,
+			outline,
+			DimensionSide.Right,
+			"Right",
+			retainedEvidence,
+			suppressionEvidence);
+	}
+
+	private void CollectVerticalPartialEnvelopeFaceRemainders(
+		DimensionPlan plan,
+		OutlineFeature2D outline,
+		DimensionSide side,
+		string sideToken,
+		IDictionary<PlannedDimension, string> retainedEvidence,
+		IDictionary<PlannedDimension, Tuple<PlannedDimension, string>> suppressionEvidence)
+	{
 		if (plan == null || outline == null)
 		{
 			return;
@@ -1029,22 +1080,22 @@ public sealed partial class DimensionPlanner
 		}
 		double tol = _config.GeometryTolerance;
 		List<PlannedDimension> snapshot = plan.Dimensions.ToList();
-		List<PlannedDimension> realLeftFaces = snapshot.Where((PlannedDimension d) =>
+		List<PlannedDimension> realFaces = snapshot.Where((PlannedDimension d) =>
 			d.Kind == DimensionKind.Normal
 			&& d.Orientation == DimensionOrientation.Vertical
-			&& d.Side == DimensionSide.Left
+			&& d.Side == side
 			&& d.Role == DimensionCandidateRole.Structure
 			&& IsRealPartialEnvelopeStructureHeight(d, outline, tol))
 			.ToList();
-		foreach (PlannedDimension face in realLeftFaces)
+		foreach (PlannedDimension face in realFaces)
 		{
-			retainedEvidence[face] = "Left:RetainedPartialEnvelopeFace";
+			retainedEvidence[face] = sideToken + ":RetainedPartialEnvelopeFace";
 			foreach (PlannedDimension candidate in snapshot)
 			{
 				if (candidate == face
 					|| candidate.Kind != DimensionKind.Normal
 					|| candidate.Orientation != DimensionOrientation.Vertical
-					|| candidate.Side != DimensionSide.Left
+					|| candidate.Side != side
 					|| !(candidate.Role == DimensionCandidateRole.Structure
 						|| candidate.Role == DimensionCandidateRole.OutlineSegment)
 					|| IsRealPartialEnvelopeStructureHeight(candidate, outline, tol)
@@ -1055,8 +1106,72 @@ public sealed partial class DimensionPlanner
 				if (!suppressionEvidence.ContainsKey(candidate))
 				{
 					suppressionEvidence[candidate] =
-						Tuple.Create(face, "Left:SuppressedOverallRemainder");
+						Tuple.Create(face, sideToken + ":SuppressedOverallRemainder");
 				}
+			}
+		}
+	}
+
+	/// <summary>
+	/// MaxY dual of bottom outer-step retention: keep real partial top envelope widths,
+	/// suppress structure/OS partners that complete overall with that step.
+	/// </summary>
+	private void CollectTopOuterContourStepBodyRemainders(
+		DimensionPlan plan,
+		OutlineFeature2D outline,
+		IDictionary<PlannedDimension, string> retainedEvidence,
+		IDictionary<PlannedDimension, Tuple<PlannedDimension, string>> suppressionEvidence)
+	{
+		if (plan == null || outline == null)
+		{
+			return;
+		}
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) =>
+			d.Role == DimensionCandidateRole.Overall
+			&& d.Kind == DimensionKind.OverallWidth);
+		if (overall == null || overall.Orientation != DimensionOrientation.Horizontal)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		List<PlannedDimension> snapshot = plan.Dimensions.ToList();
+		List<PlannedDimension> realTopSteps = snapshot.Where((PlannedDimension d) =>
+			d.Kind == DimensionKind.Normal
+			&& d.Orientation == DimensionOrientation.Horizontal
+			&& d.Side == DimensionSide.Top
+			&& d.Role == DimensionCandidateRole.Structure
+			&& IsRealPartialEnvelopeStructureWidth(d, outline, tol))
+			.ToList();
+		foreach (PlannedDimension step in realTopSteps)
+		{
+			bool suppressedPartner = false;
+			foreach (PlannedDimension candidate in snapshot)
+			{
+				if (candidate == step
+					|| candidate.Kind != DimensionKind.Normal
+					|| candidate.Orientation != DimensionOrientation.Horizontal
+					|| candidate.Side != DimensionSide.Top
+					|| !(candidate.Role == DimensionCandidateRole.Structure
+						|| candidate.Role == DimensionCandidateRole.OutlineSegment)
+					|| IsRealPartialEnvelopeStructureWidth(candidate, outline, tol)
+					// Cross-level / non-collinear projections belong to ProjectedStructure rules.
+					|| Math.Abs(candidate.FirstPoint.Y - candidate.SecondPoint.Y) > tol
+					|| Math.Abs(step.FirstPoint.Y - step.SecondPoint.Y) > tol
+					|| Math.Abs(candidate.FirstPoint.Y - step.FirstPoint.Y) > tol
+					|| !FormsCompleteOverallPartition(step, candidate, overall, horizontal: true))
+				{
+					continue;
+				}
+				if (!suppressionEvidence.ContainsKey(candidate))
+				{
+					suppressionEvidence[candidate] =
+						Tuple.Create(step, "Top:SuppressedOverallRemainder");
+					suppressedPartner = true;
+				}
+			}
+			if (suppressedPartner)
+			{
+				retainedEvidence[step] = "Top:RetainedPartialEnvelopeWidth";
 			}
 		}
 	}
@@ -1318,6 +1433,11 @@ public sealed partial class DimensionPlanner
 		return false;
 	}
 
+	/// <summary>
+	/// Structure-only complementary short/long on one side (four-way via call sites).
+	/// Keep shorter structure when two structure dims form a complete overall partition;
+	/// never drop real partial-envelope steps / Right top partial face; never touch hole/pin.
+	/// </summary>
 	private void SuppressComplementaryOutlineRemainders(DimensionPlan plan, DimensionSide side, bool horizontal, OutlineFeature2D outline)
 	{
 		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => horizontal ? (d.Kind == DimensionKind.OverallWidth) : (d.Kind == DimensionKind.OverallHeight));
@@ -1325,42 +1445,93 @@ public sealed partial class DimensionPlanner
 		{
 			return;
 		}
-		List<PlannedDimension> source = plan.Dimensions.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal && d.Side == side).ToList();
+		double tol = _config.GeometryTolerance;
+		List<PlannedDimension> source = plan.Dimensions
+			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+				&& d.Side == side
+				&& d.Role == DimensionCandidateRole.Structure
+				// Same-level collinear structure only; cross-level projections use other rules.
+				&& IsAxisAlignedStructureMember(d, horizontal, tol))
+			.ToList();
 		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
 		{
 			PlannedDimension candidate = plan.Dimensions[num];
-			if (candidate.Kind == DimensionKind.Normal && candidate.Side == side)
+			if (candidate.Kind != DimensionKind.Normal
+				|| candidate.Side != side
+				|| candidate.Role != DimensionCandidateRole.Structure
+				|| !IsAxisAlignedStructureMember(candidate, horizontal, tol))
 			{
-				// A right-side top partial envelope is the real upper-rectangle height;
-				// never discard it as the larger complementary remainder.
-				if (side == DimensionSide.Right
-					&& !horizontal
-					&& IsRightTopPartialEnvelopeStructureHeight(candidate, outline, _config.GeometryTolerance))
-				{
-					continue;
-				}
-				// Once that real upper-rectangle height is retained, its lower partner is
-				// the complementary remainder and must be the one removed.
-				if (side == DimensionSide.Right
-					&& !horizontal
-					&& source.Any((PlannedDimension other) => other != candidate
-						&& IsRightTopPartialEnvelopeStructureHeight(other, outline, _config.GeometryTolerance)
-						&& FormsCompleteOverallPartition(candidate, other, overall, horizontal)))
-				{
-					plan.MarkSuppressed(candidate, SuppressReason.ComplementaryOutlineRemainder);
-					plan.Dimensions.RemoveAt(num);
-					continue;
-				}
-				double span = GetDimensionSpan(candidate, horizontal);
-				if (source.Any((PlannedDimension other) => other != candidate
-					&& GetDimensionSpan(other, horizontal) < span - _config.GeometryTolerance
-					&& FormsCompleteOverallPartition(candidate, other, overall, horizontal)))
-				{
-					plan.MarkSuppressed(candidate, SuppressReason.ComplementaryOutlineRemainder);
-					plan.Dimensions.RemoveAt(num);
-				}
+				continue;
+			}
+			// Real partial-envelope steps are never the discarded long body.
+			if (IsProtectedRealStructureStep(candidate, outline, tol))
+			{
+				continue;
+			}
+			// Partner is a protected real step that completes overall with this candidate.
+			if (source.Any((PlannedDimension other) => other != candidate
+				&& IsProtectedRealStructureStep(other, outline, tol)
+				&& FormsCompleteOverallPartition(candidate, other, overall, horizontal)))
+			{
+				plan.MarkSuppressed(candidate, SuppressReason.ComplementaryOutlineRemainder);
+				plan.Dimensions.RemoveAt(num);
+				continue;
+			}
+			double span = GetDimensionSpan(candidate, horizontal);
+			if (source.Any((PlannedDimension other) => other != candidate
+				&& other.Role == DimensionCandidateRole.Structure
+				&& GetDimensionSpan(other, horizontal) < span - tol
+				&& FormsCompleteOverallPartition(candidate, other, overall, horizontal)))
+			{
+				plan.MarkSuppressed(candidate, SuppressReason.ComplementaryOutlineRemainder);
+				plan.Dimensions.RemoveAt(num);
 			}
 		}
+	}
+
+	private static bool IsAxisAlignedStructureMember(PlannedDimension dimension, bool horizontal, double tol)
+	{
+		if (dimension == null)
+		{
+			return false;
+		}
+		if (horizontal)
+		{
+			return Math.Abs(dimension.FirstPoint.Y - dimension.SecondPoint.Y) <= tol;
+		}
+		return Math.Abs(dimension.FirstPoint.X - dimension.SecondPoint.X) <= tol;
+	}
+
+	private bool IsProtectedRealStructureStep(PlannedDimension dimension, OutlineFeature2D outline, double tol)
+	{
+		if (dimension == null)
+		{
+			return false;
+		}
+		if (IsRealPartialEnvelopeStructureHeight(dimension, outline, tol)
+			|| IsRealPartialEnvelopeStructureWidth(dimension, outline, tol)
+			|| IsRightTopPartialEnvelopeStructureHeight(dimension, outline, tol))
+		{
+			return true;
+		}
+		// Bottom outer-contour step (chamfer-aware path) — only when overall width exists.
+		if (dimension.Side == DimensionSide.Bottom
+			&& dimension.Orientation == DimensionOrientation.Horizontal
+			&& dimension.Role == DimensionCandidateRole.Structure
+			&& outline != null)
+		{
+			// Lightweight protect: horizontal structure on MinY partial edge with one overall end.
+			Tuple<double, double> iv = ComputeArrowInterval(dimension, horizontal: true);
+			bool onMinY = Math.Abs(dimension.FirstPoint.Y - outline.MinY) <= tol
+				&& Math.Abs(dimension.SecondPoint.Y - outline.MinY) <= tol;
+			bool touchesMin = Math.Abs(iv.Item1 - outline.MinX) <= tol;
+			bool touchesMax = Math.Abs(iv.Item2 - outline.MaxX) <= tol;
+			if (onMinY && (touchesMin ^ touchesMax) && !IsFullLengthEnvelopeEdge(outline, horizontal: true, outline.MinY, tol))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/// <summary>
@@ -1421,12 +1592,12 @@ public sealed partial class DimensionPlanner
 	}
 
 	/// <summary>
-	/// Top structure closed overall chain product rule:
+	/// Side-symmetric structure closed overall chain product rule (Top/Bottom/Left/Right):
 	/// 1) keep interior feature widths (slot/step),
 	/// 2) keep one-side location on the datum side,
 	/// 3) suppress the opposite overall-boundary structure width that only closes overall,
 	/// 4) never touch hole/pin roles.
-	/// Requires hole/pin/datum dims in the plan to infer datum side; otherwise no-op.
+	/// Name kept for call-site/test compatibility; applies to all four placement sides.
 	/// </summary>
 	internal void SuppressTopStructureClosedChainRedundantPositioning(DimensionPlan plan, OutlineFeature2D outline)
 	{
@@ -1434,36 +1605,62 @@ public sealed partial class DimensionPlanner
 		{
 			return;
 		}
-		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallWidth);
-		if (overall == null || overall.Orientation != DimensionOrientation.Horizontal)
+		SuppressStructureClosedChainRedundantPositioningOnSide(plan, outline, DimensionSide.Top, horizontal: true);
+		SuppressStructureClosedChainRedundantPositioningOnSide(plan, outline, DimensionSide.Bottom, horizontal: true);
+		SuppressStructureClosedChainRedundantPositioningOnSide(plan, outline, DimensionSide.Left, horizontal: false);
+		SuppressStructureClosedChainRedundantPositioningOnSide(plan, outline, DimensionSide.Right, horizontal: false);
+	}
+
+	private void SuppressStructureClosedChainRedundantPositioningOnSide(
+		DimensionPlan plan,
+		OutlineFeature2D outline,
+		DimensionSide side,
+		bool horizontal)
+	{
+		if (plan == null || outline == null)
 		{
 			return;
 		}
-		List<PlannedDimension> topStructure = plan.Dimensions
+		DimensionKind overallKind = horizontal ? DimensionKind.OverallWidth : DimensionKind.OverallHeight;
+		DimensionOrientation expectedOrientation = horizontal
+			? DimensionOrientation.Horizontal
+			: DimensionOrientation.Vertical;
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) =>
+			d.Kind == overallKind && d.Orientation == expectedOrientation);
+		if (overall == null)
+		{
+			return;
+		}
+		List<PlannedDimension> sideStructure = plan.Dimensions
 			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
-				&& d.Orientation == DimensionOrientation.Horizontal
-				&& d.Side == DimensionSide.Top
-				&& (string.Equals(d.DebugRole, "TopStructWidth", StringComparison.Ordinal)
-					|| string.Equals(d.DebugRole, "TopChamferedStepWidth", StringComparison.Ordinal)))
+				&& d.Orientation == expectedOrientation
+				&& d.Side == side
+				&& IsStructureClosedChainMemberRole(d.DebugRole, side))
 			.ToList();
-		if (topStructure.Count < 2)
+		if (sideStructure.Count < 2)
 		{
 			return;
 		}
-		// Prefer hole/pin evidence for which end is "datum side". When the part has no
-		// horizontal hole/pin locations (pure structure), do NOT no-op: default MaxX as
-		// datum side so the opposite overall-closing body (MinX end) is still dropped.
-		// Matches prior product intent (feature + datum-side location) and the common
-		// right-side reference convention; with-datum scoring still wins when present.
-		if (!TryInferHorizontalDatumPrefersMaxX(plan, outline, out bool preferMaxX))
+		// Prefer hole/pin evidence for which end is "datum side". Pure structure: default Max
+		// axis end (MaxX / MaxY) so the opposite overall-closing body is still dropped.
+		bool preferMax;
+		if (horizontal)
 		{
-			preferMaxX = true;
+			if (!TryInferHorizontalDatumPrefersMaxX(plan, outline, out preferMax))
+			{
+				preferMax = true;
+			}
+		}
+		else if (!TryInferVerticalDatumPrefersMaxY(plan, outline, out preferMax))
+		{
+			preferMax = true;
 		}
 		double tol = _config.GeometryTolerance;
-		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal: true);
-		List<DimensionDeduplicationItem> items = new List<DimensionDeduplicationItem>(topStructure.Count);
-		Dictionary<DimensionDeduplicationItem, PlannedDimension> itemToDim = new Dictionary<DimensionDeduplicationItem, PlannedDimension>();
-		foreach (PlannedDimension dim in topStructure)
+		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal);
+		List<DimensionDeduplicationItem> items = new List<DimensionDeduplicationItem>(sideStructure.Count);
+		Dictionary<DimensionDeduplicationItem, PlannedDimension> itemToDim =
+			new Dictionary<DimensionDeduplicationItem, PlannedDimension>();
+		foreach (PlannedDimension dim in sideStructure)
 		{
 			DimensionDeduplicationItem item = ToDeduplicationItem(dim);
 			items.Add(item);
@@ -1473,7 +1670,7 @@ public sealed partial class DimensionPlanner
 			items,
 			overallInterval.Item1,
 			overallInterval.Item2,
-			horizontal: true);
+			horizontal);
 		if (chainItems == null || chainItems.Count < 2)
 		{
 			return;
@@ -1484,7 +1681,7 @@ public sealed partial class DimensionPlanner
 		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>();
 		foreach (PlannedDimension member in chain)
 		{
-			Tuple<double, double> iv = ComputeArrowInterval(member, horizontal: true);
+			Tuple<double, double> iv = ComputeArrowInterval(member, horizontal);
 			bool touchesMin = Math.Abs(iv.Item1 - overallInterval.Item1) <= tol;
 			bool touchesMax = Math.Abs(iv.Item2 - overallInterval.Item2) <= tol;
 			bool interiorFeature = !touchesMin && !touchesMax;
@@ -1492,7 +1689,7 @@ public sealed partial class DimensionPlanner
 			{
 				continue;
 			}
-			bool onDatumSide = preferMaxX ? touchesMax : touchesMin;
+			bool onDatumSide = preferMax ? touchesMax : touchesMin;
 			if (onDatumSide)
 			{
 				continue;
@@ -1506,6 +1703,7 @@ public sealed partial class DimensionPlanner
 		{
 			return;
 		}
+		string sideToken = side.ToString();
 		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
 		{
 			PlannedDimension candidate = plan.Dimensions[num];
@@ -1513,13 +1711,44 @@ public sealed partial class DimensionPlanner
 			{
 				continue;
 			}
+			// Already claimed by OuterContour / complementary — do not reassign RuleId.
+			if (!string.IsNullOrEmpty(candidate.RuleId)
+				&& !string.Equals(candidate.RuleId, "TopClosedChainRedundantPositioning", StringComparison.Ordinal))
+			{
+				plan.Dimensions.RemoveAt(num);
+				continue;
+			}
+			// Keep stable diagnostic id for existing Top regressions; evidence names the side.
 			plan.MarkSuppressed(
 				candidate,
 				SuppressReason.TopClosedChainRedundantPositioning,
 				"TopClosedChainRedundantPositioning",
 				candidate.SourceGeometryIds,
-				"TopClosedChain:KeepFeatureAndDatumSideLocation");
+				"StructureClosedChain:" + sideToken + ":KeepFeatureAndDatumSideLocation");
 			plan.Dimensions.RemoveAt(num);
+		}
+	}
+
+	private static bool IsStructureClosedChainMemberRole(string debugRole, DimensionSide side)
+	{
+		if (string.IsNullOrEmpty(debugRole))
+		{
+			return false;
+		}
+		switch (side)
+		{
+		case DimensionSide.Top:
+			return string.Equals(debugRole, "TopStructWidth", StringComparison.Ordinal)
+				|| string.Equals(debugRole, "TopChamferedStepWidth", StringComparison.Ordinal);
+		case DimensionSide.Bottom:
+			return string.Equals(debugRole, "BottomStructWidth", StringComparison.Ordinal);
+		case DimensionSide.Left:
+			return string.Equals(debugRole, "LeftStructHeight", StringComparison.Ordinal);
+		case DimensionSide.Right:
+			return string.Equals(debugRole, "RightStructHeight", StringComparison.Ordinal)
+				|| string.Equals(debugRole, "RightChamferedStepHeight", StringComparison.Ordinal);
+		default:
+			return false;
 		}
 	}
 
@@ -1562,6 +1791,45 @@ public sealed partial class DimensionPlanner
 		return true;
 	}
 
+	/// <summary>
+	/// Infer whether the vertical datum anchors toward outline MaxY (true) or MinY (false)
+	/// from hole/pin/datum dimensions already on the plan. Returns false when no evidence.
+	/// </summary>
+	private bool TryInferVerticalDatumPrefersMaxY(DimensionPlan plan, OutlineFeature2D outline, out bool preferMaxY)
+	{
+		preferMaxY = false;
+		if (plan == null || outline == null)
+		{
+			return false;
+		}
+		double tol = Math.Max(_config.GeometryTolerance, outline.Height * 0.02);
+		int scoreMax = 0;
+		int scoreMin = 0;
+		foreach (PlannedDimension dimension in plan.Dimensions)
+		{
+			if (!IsVerticalHoleOrPinLocationRole(dimension))
+			{
+				continue;
+			}
+			double minY = Math.Min(dimension.FirstPoint.Y, dimension.SecondPoint.Y);
+			double maxY = Math.Max(dimension.FirstPoint.Y, dimension.SecondPoint.Y);
+			if (Math.Abs(maxY - outline.MaxY) <= tol || Math.Abs(minY - outline.MaxY) <= tol)
+			{
+				scoreMax++;
+			}
+			if (Math.Abs(minY - outline.MinY) <= tol || Math.Abs(maxY - outline.MinY) <= tol)
+			{
+				scoreMin++;
+			}
+		}
+		if (scoreMax == 0 && scoreMin == 0)
+		{
+			return false;
+		}
+		preferMaxY = scoreMax >= scoreMin;
+		return true;
+	}
+
 	private static bool IsHorizontalHoleOrPinLocationRole(PlannedDimension dimension)
 	{
 		if (dimension == null || dimension.Orientation != DimensionOrientation.Horizontal)
@@ -1584,6 +1852,31 @@ public sealed partial class DimensionPlanner
 			|| string.Equals(role, "HoleLocation", StringComparison.Ordinal)
 			|| string.Equals(role, "HoleChainH", StringComparison.Ordinal)
 			|| string.Equals(role, "ThreadHoleChainH", StringComparison.Ordinal)
+			|| string.Equals(role, "LooseHole", StringComparison.Ordinal);
+	}
+
+	private static bool IsVerticalHoleOrPinLocationRole(PlannedDimension dimension)
+	{
+		if (dimension == null || dimension.Orientation != DimensionOrientation.Vertical)
+		{
+			return false;
+		}
+		if (dimension.Kind == DimensionKind.DatumHoleLocationY
+			|| dimension.Kind == DimensionKind.PinDistance
+			|| dimension.Kind == DimensionKind.PinGroupDistance
+			|| dimension.Kind == DimensionKind.HoleLocation)
+		{
+			return true;
+		}
+		string role = dimension.DebugRole ?? string.Empty;
+		return string.Equals(role, "DatumY", StringComparison.Ordinal)
+			|| string.Equals(role, "HoleDatumY", StringComparison.Ordinal)
+			|| string.Equals(role, "PinDistance", StringComparison.Ordinal)
+			|| string.Equals(role, "PinGroupDistance", StringComparison.Ordinal)
+			|| string.Equals(role, "FunctionalHole", StringComparison.Ordinal)
+			|| string.Equals(role, "HoleLocation", StringComparison.Ordinal)
+			|| string.Equals(role, "HoleChainV", StringComparison.Ordinal)
+			|| string.Equals(role, "ThreadHoleChainV", StringComparison.Ordinal)
 			|| string.Equals(role, "LooseHole", StringComparison.Ordinal);
 	}
 

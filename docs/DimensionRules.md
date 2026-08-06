@@ -6,7 +6,7 @@
 - Overall dimensions have highest priority.
 - Do not replace overall dimensions with local step, chamfer tangent, fillet tangent, or feature projection dimensions.
 - Raw `OutlineSegment` dimensions that only re-partition overall (e.g. 25 + 232 with overall 257 on the same side) must be suppressed on all four sides (`OutlineSegmentOverallPartition`). Both partners are dropped — they do not express manufacturing intent beyond overall.
-- Complementary remainders of overall for general structure/normal dims remain on Top/Right only (`ComplementaryOutlineRemainder`); do not broaden that path to Bottom/Left in a way that can remove slot/hole location dimensions.
+- Structure overall step/remainder is **four-way** (`OuterContourStepOverallRemainder` + structure-only `ComplementaryOutlineRemainder` on Top/Bottom/Left/Right): keep real outer steps, drop overall-completing structure bodies. Hole/pin/slot dimensions never enter this path. See `docs/RotationInvariance.md`.
 
 ## Attachment Rules
 

@@ -40,12 +40,16 @@ namespace CadAuto.Core.Tests
 			nameof(TopClosedChainDropsUnbackedBodyRemainder),
 			nameof(TopClosedChainKeepsRealStepsDropsUnbackedBody),
 			nameof(TopClosedChainWithoutDatumDropsOppositeBody),
+			nameof(BottomClosedChainWithoutDatumDropsOppositeBody),
+			nameof(RightClosedChainWithoutDatumDropsOppositeBody),
 			nameof(ProjectedThreePieceVerticalChainKeepsRealHeights),
 			nameof(OrthogonalRotatedVerticalChainKeepsRealWidths),
 			nameof(FullWidthSideSeamsDoNotCreateStructureHeights),
 			nameof(MirroredProjectedChainNormalizesStructureSelection),
 			nameof(Test2BottomContourChainKeepsTwoRealWidths),
 			nameof(RotatedTest2PreservesLocalSemanticSignature),
+			nameof(RotationSignature_OuterStepOverallStructureIsStable),
+			nameof(RotationSignature_ClosedChainStructureIsStable),
 			nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed),
             nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide),
             nameof(TopEnvelopeHorizontalSegmentStaysTop),
@@ -207,12 +211,16 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(TopClosedChainDropsUnbackedBodyRemainder), TopClosedChainDropsUnbackedBodyRemainder);
 				RunTest(nameof(TopClosedChainKeepsRealStepsDropsUnbackedBody), TopClosedChainKeepsRealStepsDropsUnbackedBody);
 				RunTest(nameof(TopClosedChainWithoutDatumDropsOppositeBody), TopClosedChainWithoutDatumDropsOppositeBody);
+				RunTest(nameof(BottomClosedChainWithoutDatumDropsOppositeBody), BottomClosedChainWithoutDatumDropsOppositeBody);
+				RunTest(nameof(RightClosedChainWithoutDatumDropsOppositeBody), RightClosedChainWithoutDatumDropsOppositeBody);
 				RunTest(nameof(ProjectedThreePieceVerticalChainKeepsRealHeights), ProjectedThreePieceVerticalChainKeepsRealHeights);
 				RunTest(nameof(OrthogonalRotatedVerticalChainKeepsRealWidths), OrthogonalRotatedVerticalChainKeepsRealWidths);
 				RunTest(nameof(FullWidthSideSeamsDoNotCreateStructureHeights), FullWidthSideSeamsDoNotCreateStructureHeights);
 				RunTest(nameof(MirroredProjectedChainNormalizesStructureSelection), MirroredProjectedChainNormalizesStructureSelection);
 				RunTest(nameof(Test2BottomContourChainKeepsTwoRealWidths), Test2BottomContourChainKeepsTwoRealWidths);
 				RunTest(nameof(RotatedTest2PreservesLocalSemanticSignature), RotatedTest2PreservesLocalSemanticSignature);
+				RunTest(nameof(RotationSignature_OuterStepOverallStructureIsStable), RotationSignature_OuterStepOverallStructureIsStable);
+				RunTest(nameof(RotationSignature_ClosedChainStructureIsStable), RotationSignature_ClosedChainStructureIsStable);
 				RunTest(nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed), CrossSideStructureWidthsThatCloseOverallChainAreSuppressed);
                 RunTest(nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide), InteriorHorizontalOutlineSegmentPrefersNonCrossingSide);
                 RunTest(nameof(TopEnvelopeHorizontalSegmentStaysTop), TopEnvelopeHorizontalSegmentStaysTop);
@@ -3448,8 +3456,13 @@ namespace CadAuto.Core.Tests
 					c.DebugRole == "BottomStructWidth"
 					&& Math.Abs(c.Value - 70.0) <= config.GeometryTolerance),
 				"bottom body width 70 must appear in diagnostics");
-			Assert(!plan.Diagnostics.DimensionCandidates.Any(c => c.RuleId == ruleId),
-				"adjacent same-level bottom geometry must not be claimed by the outer-step remainder rule");
+			// Four-way OuterContour may stamp RuleId on other sides; this fixture only forbids
+			// claiming the same-level bottom body 70 as an outer-step remainder.
+			Assert(!plan.Diagnostics.DimensionCandidates.Any(c =>
+					c.DebugRole == "BottomStructWidth"
+					&& Math.Abs(c.Value - 70.0) <= config.GeometryTolerance
+					&& c.RuleId == ruleId),
+				"adjacent same-level bottom body 70 must not be claimed by the outer-step remainder rule");
 		}
 
 		private static void BottomOuterContourStepKeeps20AndSuppresses70Body()
@@ -4076,6 +4089,159 @@ namespace CadAuto.Core.Tests
 				"suppressed 90 must record TopClosedChainRedundantPositioning without datum");
 		}
 
+		/// <summary>
+		/// 180°-style bottom closed chain 75+50+90=215: same rule as Top (default MaxX datum).
+		/// Keep interior 50 + MaxX-side 90; drop MinX overall-closing 75.
+		/// </summary>
+		private static void BottomClosedChainWithoutDatumDropsOppositeBody()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 215.0,
+				MaxY = 100.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(215.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(215.0, 0.0), new Point2D(215.0, 100.0), "right");
+			AddSegment(outline, new Point2D(215.0, 100.0), new Point2D(0.0, 100.0), "top");
+			AddSegment(outline, new Point2D(0.0, 100.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlan();
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallWidth,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(215.0, 0.0),
+				ForceOuterLevel = true,
+				DebugRole = "OverallWidth"
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(75.0, 0.0),
+				DebugRole = "BottomStructWidth"
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(75.0, 0.0),
+				SecondPoint = new Point2D(125.0, 0.0),
+				DebugRole = "BottomStructWidth"
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(125.0, 0.0),
+				SecondPoint = new Point2D(215.0, 0.0),
+				DebugRole = "BottomStructWidth"
+			});
+
+			new DimensionPlanner(config).SuppressTopStructureClosedChainRedundantPositioning(plan, outline);
+
+			var bottomStruct = plan.Dimensions.Where(d => d.DebugRole == "BottomStructWidth").ToList();
+			Assert(bottomStruct.Any(d => Math.Abs(GetSpan(d) - 50.0) <= config.GeometryTolerance),
+				"bottom feature width 50 must remain");
+			Assert(bottomStruct.Any(d => Math.Abs(GetSpan(d) - 90.0) <= config.GeometryTolerance),
+				"bottom MaxX-side location 90 must remain");
+			Assert(!bottomStruct.Any(d => Math.Abs(GetSpan(d) - 75.0) <= config.GeometryTolerance),
+				"bottom MinX overall-closing 75 must be suppressed (Top↔Bottom symmetry)");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
+					c.DebugRole == "BottomStructWidth"
+					&& Math.Abs(c.Value - 75.0) <= config.GeometryTolerance
+					&& c.IsSuppressed
+					&& c.SuppressedReason == "TopClosedChainRedundantPositioning"),
+				"suppressed bottom 75 must record closed-chain reason");
+		}
+
+		/// <summary>
+		/// Right-side vertical closed chain 42+50+108=200: default MaxY datum keeps top-side
+		/// location + interior feature; drops MinY overall-closing body.
+		/// </summary>
+		private static void RightClosedChainWithoutDatumDropsOppositeBody()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 100.0,
+				MaxY = 200.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(100.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(100.0, 0.0), new Point2D(100.0, 200.0), "right");
+			AddSegment(outline, new Point2D(100.0, 200.0), new Point2D(0.0, 200.0), "top");
+			AddSegment(outline, new Point2D(0.0, 200.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlan();
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallHeight,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(0.0, 200.0),
+				ForceOuterLevel = true,
+				DebugRole = "OverallHeight"
+			});
+			// MinY overall-closing body (should drop with default MaxY datum).
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right,
+				FirstPoint = new Point2D(100.0, 0.0),
+				SecondPoint = new Point2D(100.0, 108.0),
+				DebugRole = "RightStructHeight"
+			});
+			// Interior feature (keep).
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right,
+				FirstPoint = new Point2D(100.0, 108.0),
+				SecondPoint = new Point2D(100.0, 158.0),
+				DebugRole = "RightStructHeight"
+			});
+			// MaxY-side location (keep).
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right,
+				FirstPoint = new Point2D(100.0, 158.0),
+				SecondPoint = new Point2D(100.0, 200.0),
+				DebugRole = "RightStructHeight"
+			});
+
+			new DimensionPlanner(config).SuppressTopStructureClosedChainRedundantPositioning(plan, outline);
+
+			var rightStruct = plan.Dimensions.Where(d => d.DebugRole == "RightStructHeight").ToList();
+			Assert(rightStruct.Any(d => Math.Abs(GetSpan(d) - 50.0) <= config.GeometryTolerance),
+				"right interior feature 50 must remain");
+			Assert(rightStruct.Any(d => Math.Abs(GetSpan(d) - 42.0) <= config.GeometryTolerance),
+				"right MaxY-side location 42 must remain");
+			Assert(!rightStruct.Any(d => Math.Abs(GetSpan(d) - 108.0) <= config.GeometryTolerance),
+				"right MinY overall-closing 108 must be suppressed (Left↔Right symmetry)");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
+					c.DebugRole == "RightStructHeight"
+					&& Math.Abs(c.Value - 108.0) <= config.GeometryTolerance
+					&& c.IsSuppressed
+					&& c.SuppressedReason == "TopClosedChainRedundantPositioning"),
+				"suppressed right 108 must record closed-chain reason");
+		}
+
 		private static void ProjectedThreePieceVerticalChainKeepsRealHeights()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -4328,6 +4494,112 @@ namespace CadAuto.Core.Tests
 						.OrderBy(id => id, StringComparer.Ordinal))))
 				.OrderBy(value => value, StringComparer.Ordinal)
 				.ToArray();
+		}
+
+		/// <summary>
+		/// Phase 0 rotation gate (grill-me): multiset of selected Overall + Structure values only.
+		/// Placement side / debug-role prefix are ignored.
+		/// </summary>
+		private static double[] GetOverallStructureValueSignature(DimensionPlan plan, double tolerance)
+		{
+			return plan.Dimensions
+				.Where(d => d.Kind == DimensionKind.OverallWidth
+					|| d.Kind == DimensionKind.OverallHeight
+					|| d.Role == DimensionCandidateRole.Structure
+					|| string.Equals(d.DebugRole, "TopStructWidth", StringComparison.Ordinal)
+					|| string.Equals(d.DebugRole, "BottomStructWidth", StringComparison.Ordinal)
+					|| string.Equals(d.DebugRole, "LeftStructHeight", StringComparison.Ordinal)
+					|| string.Equals(d.DebugRole, "RightStructHeight", StringComparison.Ordinal)
+					|| string.Equals(d.DebugRole, "TopChamferedStepWidth", StringComparison.Ordinal)
+					|| string.Equals(d.DebugRole, "RightChamferedStepHeight", StringComparison.Ordinal))
+				.Select(d => Math.Round(GetSpan(d), 2))
+				.OrderBy(v => v)
+				.ToArray();
+		}
+
+		private static bool SignatureContains(double[] signature, double value, double tol)
+		{
+			return signature.Any(v => Math.Abs(v - value) <= tol);
+		}
+
+		/// <summary>
+		/// OC01 outer-step fixture — Phase 1 hard gate (suppression four-way):
+		/// every 90° orientation keeps Overall 90, overall height ~28.26, and real step 20.
+		/// Full multiset equality is Phase 2 (generation symmetry).
+		/// </summary>
+		private static void RotationSignature_OuterStepOverallStructureIsStable()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var baselineOutline = CreateOuterContourStepOutline(translateX: 0.0, translateY: 0.0);
+			int orientationsKeepingStep20 = 0;
+			foreach (double degrees in new[] { 0.0, 90.0, 180.0, 270.0 })
+			{
+				var outline = degrees == 0.0
+					? baselineOutline
+					: TransformOutline(baselineOutline, degrees * Math.PI / 180.0);
+				double[] signature = GetOverallStructureValueSignature(planner.CreateOutlinePlan(outline), config.GeometryTolerance);
+				Console.WriteLine("OC01-outer-step @" + degrees + "° sig=[" + string.Join(",", signature) + "]");
+				Assert(SignatureContains(signature, 90.0, config.GeometryTolerance),
+					"OC01 @" + degrees + "° must keep Overall 90; sig=[" + string.Join(",", signature) + "]");
+				Assert(SignatureContains(signature, 28.26, 0.05),
+					"OC01 @" + degrees + "° must keep overall height ~28.26; sig=[" + string.Join(",", signature) + "]");
+				if (SignatureContains(signature, 20.0, config.GeometryTolerance))
+				{
+					orientationsKeepingStep20++;
+				}
+			}
+			// Phase 1: step 20 must survive most orientations; full 4/4 is Phase 2 generation.
+			Assert(orientationsKeepingStep20 >= 3,
+				"OC01 real step 20 must remain in at least 3/4 orientations (Phase 1); got "
+				+ orientationsKeepingStep20);
+		}
+
+		/// <summary>
+		/// 215 closed-chain silhouette — Phase 1 hard gate:
+		/// every 90° orientation keeps Overall 215 + height 100, and never re-selects the
+		/// overall-closing body 90 once the feature chain is present.
+		/// Full multiset equality (always keep 50+75) is Phase 2 generation work.
+		/// </summary>
+		private static void RotationSignature_ClosedChainStructureIsStable()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var baselineOutline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 215.0,
+				MaxY = 100.0
+			};
+			AddSegment(baselineOutline, new Point2D(0.0, 0.0), new Point2D(215.0, 0.0), "bottom");
+			AddSegment(baselineOutline, new Point2D(215.0, 0.0), new Point2D(215.0, 100.0), "right");
+			AddSegment(baselineOutline, new Point2D(215.0, 100.0), new Point2D(140.0, 100.0), "top-75");
+			AddSegment(baselineOutline, new Point2D(140.0, 100.0), new Point2D(140.0, 90.0), "notch-r");
+			AddSegment(baselineOutline, new Point2D(140.0, 90.0), new Point2D(90.0, 90.0), "notch-bottom");
+			AddSegment(baselineOutline, new Point2D(90.0, 90.0), new Point2D(90.0, 100.0), "notch-l");
+			AddSegment(baselineOutline, new Point2D(90.0, 100.0), new Point2D(0.0, 100.0), "top-90");
+			AddSegment(baselineOutline, new Point2D(0.0, 100.0), new Point2D(0.0, 0.0), "left");
+
+			foreach (double degrees in new[] { 0.0, 90.0, 180.0, 270.0 })
+			{
+				var outline = degrees == 0.0
+					? baselineOutline
+					: TransformOutline(baselineOutline, degrees * Math.PI / 180.0);
+				double[] signature = GetOverallStructureValueSignature(planner.CreateOutlinePlan(outline), config.GeometryTolerance);
+				Console.WriteLine("closed-chain-215 @" + degrees + "° sig=[" + string.Join(",", signature) + "]");
+				Assert(SignatureContains(signature, 215.0, config.GeometryTolerance),
+					"215-chain @" + degrees + "° must keep Overall 215; sig=[" + string.Join(",", signature) + "]");
+				Assert(SignatureContains(signature, 100.0, config.GeometryTolerance),
+					"215-chain @" + degrees + "° must keep Overall height 100; sig=[" + string.Join(",", signature) + "]");
+				// Phase 1: never keep full 90+50+75 closed body on the structure set.
+				bool hasFeature50 = SignatureContains(signature, 50.0, config.GeometryTolerance);
+				bool hasSide75 = SignatureContains(signature, 75.0, config.GeometryTolerance);
+				bool hasBody90 = SignatureContains(signature, 90.0, config.GeometryTolerance);
+				Assert(!(hasFeature50 && hasSide75 && hasBody90),
+					"215-chain @" + degrees + "° must not keep full closed body 90+50+75; sig=["
+					+ string.Join(",", signature) + "]");
+			}
 		}
 
 		private static OutlineFeature2D TransformOutline(OutlineFeature2D source, double angle)

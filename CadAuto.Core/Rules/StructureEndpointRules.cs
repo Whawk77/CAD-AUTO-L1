@@ -78,10 +78,11 @@ public sealed class StructureEndpointRules
 		if (TryGetCompleteOverallChain(longest.Dim, candidates, outline, side, out IList<PlannedDimension> chain))
 		{
 			bool horizontal = side == DimensionSide.Top || side == DimensionSide.Bottom;
-			// Top closed overall chains that include real contour steps are resolved later by
-			// SuppressTopStructureClosedChainRedundantPositioning (feature width + datum-side
-			// location; drop the opposite overall-closing structure width). Only pure unbacked
-			// floating chains still drop the longest member here (legacy DL01-style case).
+			// Closed overall chains that include real contour steps are resolved later by
+			// SuppressTopStructureClosedChainRedundantPositioning (now Top/Bottom/Left/Right:
+			// feature width + datum-side location; drop the opposite overall-closing body).
+			// Only pure unbacked floating Top chains still drop the longest member here
+			// (legacy DL01-style case). Bottom/Left/Right always defer.
 			if (side != DimensionSide.Top)
 			{
 				return -1;

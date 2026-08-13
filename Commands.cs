@@ -676,6 +676,9 @@ public sealed class Commands
 		Database database = mdiActiveDocument.Database;
 		Editor editor = mdiActiveDocument.Editor;
 		DimensionRuleConfig config = DimensionRuleConfig.CreateDefault();
+		// grill-me: CreateDefault stays false. CAD opens FeatureFirst after
+		// RotationSignature_F338CadGoldenMultisetFourWayEqual is green (166/166).
+		config.UseFeatureFirstStructurePipeline = true;
 		string groupId = DateTime.Now.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
 		DiagnosticDimensionSide diagnosticSide = (diagnosticsEnabled ? PromptForDiagnosticSide(editor) : DiagnosticDimensionSide.All);
 		bool flag = outputScope != AutoFixDimOutputScope.CornerOnly;

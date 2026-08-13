@@ -1,49 +1,83 @@
-# 旋转不变量（四向标注一致）
+# 旋转不变量（四向标注一致）v3
 
-## 产品共识（grill-me 2026-08-06）
+## 产品共识（grill-me 2026-08-07 锁定）
 
 | 决策 | 选择 |
 |------|------|
-| Phase 1 硬门禁 | **数值多重集**（忽略放置侧） |
-| Phase 2 增强 | 语义对（Overall / 真实台阶 / 内部特征） |
-| Signature 成员 | **仅 Overall + 结构族**（不含 OS / 孔销） |
-| 金标 | **最干净合法集**（不盲从 0°） |
-| 干净集规则 | Overall + 真实台阶；Overall−台阶可推余量删除 |
-| 台阶对 | 留真实短台阶，删互补长 body |
-| Phase 1 范围 | **只改抑制**；生成不对称 → Phase 2 |
-| 实现 | OuterContour + Complementary **合并为四向**结构规则 |
-| P1 冲突 | 列表 → 人工批准后再改期望 |
-| 开链 Bottom 专用 | Phase 1 **不动** |
+| 验收 | **四向 Signature 多重集严格全等**（0°/90°/180°/270°） |
+| Signature 成员 | Overall + **Structure only**（OS 不得顶替金标 span） |
+| 集合 | **final = 金标**（不多不少） |
+| 选边 | **以几何为准**；放置侧可变 |
+| span 真值 | **合成外轮廓边**（圆角/倒角只作 micro-gap 邻接） |
+| 主路径 | **FeatureFirst** |
+| 默认开关 | `CreateDefault.UseFeatureFirstStructurePipeline = false` |
+| ASD 开 FF | 仅当 **Golden338Cad 四向绿** 之后 |
+| 禁止 | Left/Right 专用结构补丁当终态 |
 
-## Signature 定义
+## Signature
 
 ```text
 Signature(plan) = sorted multiset of round(span, 2)
   for selected dims where
     Kind ∈ { OverallWidth, OverallHeight }
     OR Role == Structure
-    OR DebugRole ∈ structure family (Top/Bottom/Left/Right Struct*, ChamferedStep*)
+    OR DebugRole ∈ { Top/Bottom/Left/Right Struct*, ChamferedStep* }
 ```
 
-验收：`Signature(0°) == Signature(90°) == Signature(180°) == Signature(270°)`。
+## 金标分轨
 
-## 核心测试
+### 直角单测 F215
 
-| 测试 | Fixture |
-|------|---------|
-| `RotationSignature_OuterStepOverallStructureIsStable` | OC01 外轮廓台阶 90×28 |
-| `RotationSignature_ClosedChainStructureIsStable` | 215 顶凹口封闭链轮廓 |
+```text
+Golden215 = { 42, 50, 75, 100, 120, 215 }
+```
+
+### 直角单测 F338
+
+```text
+Golden338 = { 73, 87.55, 100, 201.5, 305, 338 }   // 无 20
+```
+
+### CAD 真图轨 F338（test2 拓扑 / 合成边）
+
+**槽宽不是固定数**：中间台阶「槽/台面净宽」由相邻立面间距几何量出（直角件常为 87.55，真图圆角后常见 ~92.55）。  
+四向必须都有这一 **Structure 槽宽**，且同一朝向序列下 span 全等。
+
+```text
+# 直角/合成 fixture 门禁示例（槽宽=87.55）
+Golden338Cad = { 20, 73, 87.55, 100, 201.5, 305, 338 }
+
+# 真图手测：槽宽取实测（如 92.55），集合形如
+# { 20, 73, <槽宽>, 100, 201.5, 305, 338 }
+```
+
+| 必须（特征） | 禁止 |
+|--------------|------|
+| 脚尖 20、外台阶 73、**槽宽**、臂高 100、长臂 305、overall | 体残差 265/172.45/171.5；肩高 91.5 顶替槽宽 |
+
+实现：`StepGroove` = 相邻台阶立面间距；禁止 Corner/InteriorRiser 抹掉槽宽。
+
+## 架构
+
+```text
+Outline → StructureFeatureExtractor   // 合成边 + 特征
+       → StructureMeasurementSelector  // 无 Side 键
+       → StructurePlacementAdapter     // 仅放置
+       → Layout
+```
 
 ## Phase 状态
 
-- [x] Phase 0：旋转 Signature 门禁（Phase 1 硬不变量 + 完整多重集日志）
-- [x] Phase 1：抑制四向（OuterContour Top/Right + 结构互补四向）
-- [ ] Phase 2：结构生成统一抽取；**完整多重集四向相等**
-- [ ] Phase 3：默认基准端点（可选）
+- [x] Phase A–C：直角 F215/F338 四向金标 + FeatureFirst 管线
+- [x] Phase D1：Golden338Cad fixture + 四向门禁（166/166 含 F338Cad 四向绿）
+- [x] Phase D2：合成外轮廓边（collinear micro-gap）+ tip 再发射
+- [x] Phase D3：ASD 打开 FeatureFirst（门禁已绿；CreateDefault 仍 false）
+- [ ] Phase D4：CAD 真图 test2 手测四向 + 若需再抽 last-run 折线替换 fixture
 
-### Phase 1 硬不变量（已测）
+## 核心测试
 
-| Fixture | 四向必须 |
-|---------|----------|
-| OC01 | 含 90、20、~28.26 |
-| 215 封闭链 | 含 215、100；**禁止**同时选中 90+50+75 |
+| 测试 | 期望 |
+|------|------|
+| `RotationSignature_F215GoldenMultisetFourWayEqual` | 四向 == Golden215（FF=true） |
+| `RotationSignature_F338GoldenMultisetFourWayEqual` | 四向 == Golden338（FF=true，无 20） |
+| `RotationSignature_F338CadGoldenMultisetFourWayEqual` | 四向 == **Golden338Cad**（FF=true，含 20） |

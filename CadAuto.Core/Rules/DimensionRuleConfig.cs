@@ -42,6 +42,12 @@ public sealed class DimensionRuleConfig
 
 	public string PinHoleFitToleranceText { get; set; }
 
+	/// <summary>
+	/// Phase B: structure dimensions from StructureFeatureExtractor/Selector/PlacementAdapter
+	/// instead of side-asymmetric BuildTop/Bottom/Left/Right + LEGACY patches.
+	/// </summary>
+	public bool UseFeatureFirstStructurePipeline { get; set; }
+
 	public DimensionRuleConfig()
 	{
 		HoleFitTolerance = new Dictionary<double, string>();
@@ -59,6 +65,9 @@ public sealed class DimensionRuleConfig
 			FirstDimOffset = 10.0,
 			DimTextClearance = 3.0,
 			LeaderOffset = 12.0,
+			// Phase C: F215/F338 four-way green with FeatureFirst forced in tests.
+			// Default stays false until LEGACY OutlineSegment suite is migrated (default true regresses P0).
+			UseFeatureFirstStructurePipeline = false,
 			// Conservative first rollout: 10.0 would also accept 260-270 degree
 			// non-thread arcs. Widen only after a clean production run.
 			ThreadArcAngleToleranceDegrees = 2.0,
@@ -172,3 +181,4 @@ public sealed class DimensionRuleConfig
 		return false;
 	}
 }
+

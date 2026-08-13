@@ -53,6 +53,10 @@ public sealed partial class DimensionPlanner
 
 		public const string LeftStructureHeightDuplicatesOverallHeight = "LeftStructureHeightDuplicatesOverallHeight";
 
+		/// <summary>Inset structure span ≥80% overall on that axis (e.g. CAD 171.5 vs H=201.5).</summary>
+		public const string NearOverallInsetStructureBody = "NearOverallInsetStructureBody";
+
+
 		public const string LeftStructureHeightCoveredByRight = "LeftStructureHeightCoveredByRight";
 
 		public const string OrphanOuterVerticalStructureHeightTip = "OrphanOuterVerticalStructureHeightTip";
@@ -76,6 +80,24 @@ public sealed partial class DimensionPlanner
 		public const string NonProfileBackedSideStructureHeight = "NonProfileBackedSideStructureHeight";
 
 		public const string TopClosedChainRedundantPositioning = "TopClosedChainRedundantPositioning";
+
+		/// <summary>
+		/// Multi-piece structure chain (n≥3) covers overall: drop the unique longest body
+		/// remainder (e.g. 177.45 when 73+87.55+177.45=338), keep real steps.
+		/// </summary>
+		public const string MultiPieceStructureOverallRemainder = "MultiPieceStructureOverallRemainder";
+
+		/// <summary>
+		/// Same-side structure: a major piece (≥45% overall) coexists with a smaller piece that
+		/// does not share an endpoint — drop the disconnected secondary (e.g. top 87 next to 120).
+		/// </summary>
+		public const string DisconnectedSecondaryStructure = "DisconnectedSecondaryStructure";
+
+		/// <summary>
+		/// Single side-height residual (25–40% overall) when the opposite side already carries a
+		/// major structure (≥50% overall) — e.g. right 72 with left 120 on rotated 215 part.
+		/// </summary>
+		public const string OppositeMajorResidualSideHeight = "OppositeMajorResidualSideHeight";
 	}
 
 	private sealed class FunctionalHoleGroupPlan
@@ -183,12 +205,44 @@ public sealed partial class DimensionPlanner
 		DimensionPlan dimensionPlan = new DimensionPlan();
 		AddOverallWidth(dimensionPlan, outline);
 		AddOverallHeight(dimensionPlan, outline);
-		AddStepOutlineDimensions(dimensionPlan, outline);
+		if (_config.UseFeatureFirstStructurePipeline)
+		{
+			AddFeatureFirstStructureDimensions(dimensionPlan, outline);
+		}
+		else
+		{
+			AddStepOutlineDimensions(dimensionPlan, outline);
+		}
 		AddLinearSegmentDimensions(dimensionPlan, outline);
 		SuppressDuplicateDimensions(dimensionPlan, outline);
 		_postValidator.Validate(dimensionPlan, outline);
 		dimensionPlan.CaptureFinalDimensions();
 		return dimensionPlan;
+	}
+
+	/// <summary>
+	/// Phase B structure path: extract → select → place (structure only; Overall already added).
+	/// </summary>
+	private void AddFeatureFirstStructureDimensions(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		var extractor = new StructureFeatureExtractor(_config);
+		var selector = new StructureMeasurementSelector(_config);
+		var adapter = new StructurePlacementAdapter(_config);
+		IList<StructureFeature> features = extractor.Extract(outline);
+		IList<StructureFeature> kept = selector.Select(features, outline)
+			.Where(f => f != null && f.Kind != StructureFeatureKind.Overall)
+			.ToList();
+		foreach (PlannedDimension dim in adapter.Place(kept, outline))
+		{
+			if (dim == null || dim.Kind == DimensionKind.OverallWidth || dim.Kind == DimensionKind.OverallHeight)
+			{
+				continue;
+			}
+			dim.TopologyEvidence = string.IsNullOrEmpty(dim.TopologyEvidence)
+				? "FeatureFirstStructure"
+				: dim.TopologyEvidence + ";FeatureFirstStructure";
+			plan.Add(dim);
+		}
 	}
 
 	public DimensionPlan CreateDimensionPlan(OutlineFeature2D outline, Datum2D datum, IEnumerable<HoleFeature2D> holes)

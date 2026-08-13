@@ -426,7 +426,19 @@ public sealed partial class DimensionPlanner
 			horizontal: false,
 			preserveCandidate: (PlannedDimension candidate) => IsRealPartialEnvelopeStructureHeight(candidate, outline, _config.GeometryTolerance));
 		RecordDiscardedCandidates(plan, snapshot, list2, "ComplementaryOverallRemainder");
-		List<PlannedDimension> kept = list2.Where((PlannedDimension dim) => IsLeftSideVerticalStructureCandidate(dim, outline, ignoredPoints)).ToList();
+		// LEGACY-SIDE-PATCH (v19–v23): WCS left notch recovery — do not extend (Phase B feature-first).
+		HashSet<PlannedDimension> keptByContour = new HashSet<PlannedDimension>();
+		SnapCrossLevelVerticalCandidatesOntoSideFacingEdges(list2, outline, DimensionSide.Left, keptByContour);
+		AddSideFacingVerticalContourEdgeHeights(list2, outline, DimensionSide.Left, "LeftStructHeight", keptByContour);
+		PreferContourBackedVerticalStructureOverOverlappingProjection(list2, outline, DimensionSide.Left);
+		AbsorbMicroVerticalStructureSpans(list2, outline, keptByContour);
+		BridgeSmallChamferGapsInVerticalStructure(list2, outline, keptByContour);
+		DeduplicateSameIntervalVerticalStructure(list2, keptByContour);
+		List<PlannedDimension> kept = list2
+			.Where((PlannedDimension dim) => IsLeftSideVerticalStructureCandidate(dim, outline, ignoredPoints)
+				|| keptByContour.Contains(dim)
+				|| IsInsetContourBackedVerticalStructureEdge(dim, outline, DimensionSide.Left))
+			.ToList();
 		RecordDiscardedCandidates(plan, list2, kept, "NotLeftSideStructureCandidate");
 		return kept;
 	}
@@ -468,11 +480,524 @@ public sealed partial class DimensionPlanner
 			preserveCandidate: (PlannedDimension candidate) => IsRealPartialEnvelopeStructureHeight(candidate, outline, _config.GeometryTolerance)
 				|| IsRightTopPartialEnvelopeStructureHeight(candidate, outline, _config.GeometryTolerance));
 		RecordDiscardedCandidates(plan, snapshot, list2, "ComplementaryOverallRemainder");
+		// LEGACY-SIDE-PATCH (v19–v23): WCS right dual of left notch recovery — do not extend.
+		HashSet<PlannedDimension> keptByContour = new HashSet<PlannedDimension>();
+		SnapCrossLevelVerticalCandidatesOntoSideFacingEdges(list2, outline, DimensionSide.Right, keptByContour);
+		AddSideFacingVerticalContourEdgeHeights(list2, outline, DimensionSide.Right, "RightStructHeight", keptByContour);
+		PreferContourBackedVerticalStructureOverOverlappingProjection(list2, outline, DimensionSide.Right);
+		AbsorbMicroVerticalStructureSpans(list2, outline, keptByContour);
+		BridgeSmallChamferGapsInVerticalStructure(list2, outline, keptByContour);
+		DeduplicateSameIntervalVerticalStructure(list2, keptByContour);
 		List<PlannedDimension> kept = list2.Where((PlannedDimension dim) =>
 			IsRightSideVerticalStructureCandidate(dim, outline, ignoredPoints)
-			|| IsRightTopPartialEnvelopeStructureHeight(dim, outline, _config.GeometryTolerance)).ToList();
+			|| IsRightTopPartialEnvelopeStructureHeight(dim, outline, _config.GeometryTolerance)
+			|| keptByContour.Contains(dim)
+			|| IsInsetContourBackedVerticalStructureEdge(dim, outline, DimensionSide.Right)).ToList();
 		RecordDiscardedCandidates(plan, list2, kept, "NotRightSideStructureCandidate");
 		return kept;
+	}
+
+	/// <summary>
+	/// When an inset contour edge (notch 50) is present, drop outer Y-column pieces that
+	/// heavily overlap it (e.g. outer 56 overlapping inset 50) so the feature chain stays clean.
+	/// </summary>
+	private void PreferContourBackedVerticalStructureOverOverlappingProjection(
+		IList<PlannedDimension> candidates,
+		OutlineFeature2D outline,
+		DimensionSide side)
+	{
+		if (candidates == null || candidates.Count < 2 || outline == null)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		List<PlannedDimension> insetContour = candidates
+			.Where((PlannedDimension d) => IsInsetContourBackedVerticalStructureEdge(d, outline, side))
+			.ToList();
+		if (insetContour.Count == 0)
+		{
+			return;
+		}
+		for (int i = candidates.Count - 1; i >= 0; i--)
+		{
+			PlannedDimension dim = candidates[i];
+			if (dim == null || IsInsetContourBackedVerticalStructureEdge(dim, outline, side))
+			{
+				continue;
+			}
+			double a0 = Math.Min(dim.FirstPoint.Y, dim.SecondPoint.Y);
+			double a1 = Math.Max(dim.FirstPoint.Y, dim.SecondPoint.Y);
+			double aSpan = a1 - a0;
+			if (aSpan <= tol)
+			{
+				continue;
+			}
+			bool overlapsInset = insetContour.Any((PlannedDimension c) =>
+			{
+				double c0 = Math.Min(c.FirstPoint.Y, c.SecondPoint.Y);
+				double c1 = Math.Max(c.FirstPoint.Y, c.SecondPoint.Y);
+				double overlap = Math.Min(a1, c1) - Math.Max(a0, c0);
+				return overlap > tol && overlap + tol >= Math.Min(aSpan, c1 - c0) * 0.5;
+			});
+			if (overlapsInset)
+			{
+				candidates.RemoveAt(i);
+			}
+		}
+	}
+
+	private bool IsInsetContourBackedVerticalStructureEdge(
+		PlannedDimension dim,
+		OutlineFeature2D outline,
+		DimensionSide side)
+	{
+		if (!IsContourBackedVerticalStructureEdge(dim, outline, side))
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		double x = (dim.FirstPoint.X + dim.SecondPoint.X) * 0.5;
+		bool onOuter = (side == DimensionSide.Left && Math.Abs(x - outline.MinX) <= tol)
+			|| (side == DimensionSide.Right && Math.Abs(x - outline.MaxX) <= tol);
+		return !onOuter;
+	}
+
+	/// <summary>
+	/// Inject each left/right-side vertical contour edge as an atomic structure height.
+	/// Y-column projection alone misses inset notch walls (last-run 90° OS 50 at x≈MinX+3).
+	/// </summary>
+	private void AddSideFacingVerticalContourEdgeHeights(
+		IList<PlannedDimension> candidates,
+		OutlineFeature2D outline,
+		DimensionSide side,
+		string debugRole,
+		ISet<PlannedDimension> keptByContour)
+	{
+		if (candidates == null || outline?.Segments == null)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		double overall = outline.Height;
+		double sideBand = Math.Max(tol * 8.0, outline.Width * 0.35);
+		string alignmentKey = GetStructureAlignmentKey(side, horizontal: false);
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (segment == null || segment.IsArcChord || !segment.IsVertical(tol))
+			{
+				continue;
+			}
+			double span = segment.LengthY;
+			if (IsTooSmallStructureSpan(span) || Math.Abs(span - overall) <= tol)
+			{
+				continue;
+			}
+			double x = (segment.Start.X + segment.End.X) * 0.5;
+			// Only inset step walls (not outer envelope). Outer spans come from Y-column
+			// projection; injecting outer edges re-adds dropped closed-chain body (e.g. 80).
+			bool onOuterEnvelope = (side == DimensionSide.Left && Math.Abs(x - outline.MinX) <= tol)
+				|| (side == DimensionSide.Right && Math.Abs(x - outline.MaxX) <= tol);
+			if (onOuterEnvelope)
+			{
+				continue;
+			}
+			if (side == DimensionSide.Left)
+			{
+				if (x > outline.MinX + sideBand + tol)
+				{
+					continue;
+				}
+			}
+			else if (x < outline.MaxX - sideBand - tol)
+			{
+				continue;
+			}
+			double y0 = Math.Min(segment.Start.Y, segment.End.Y);
+			double y1 = Math.Max(segment.Start.Y, segment.End.Y);
+			bool sameInterval = candidates.Any((PlannedDimension other) =>
+				other != null
+				&& Math.Abs(Math.Min(other.FirstPoint.Y, other.SecondPoint.Y) - y0) <= tol
+				&& Math.Abs(Math.Max(other.FirstPoint.Y, other.SecondPoint.Y) - y1) <= tol
+				&& Math.Abs(Math.Abs(other.SecondPoint.Y - other.FirstPoint.Y) - span) <= tol);
+			if (sameInterval)
+			{
+				continue;
+			}
+			PlannedDimension dim = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = side,
+				FirstPoint = new Point2D(x, y0),
+				SecondPoint = new Point2D(x, y1),
+				OverrideText = string.Empty,
+				DebugRole = debugRole ?? string.Empty,
+				SourceKey = segment.SourceKey,
+				AlignmentKey = alignmentKey,
+				AlignmentPriority = 70,
+				ReadingLevel = DimensionReadingLevel.LocalSpacing
+			};
+			candidates.Add(dim);
+			if (keptByContour != null)
+			{
+				keptByContour.Add(dim);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Remove micro vertical structure spans (chamfer risers) and extend the larger abutting
+	/// neighbor across them so 72 | 3 | 50 becomes 72 | 50 with a 3-unit gap for bridging.
+	/// </summary>
+	private void AbsorbMicroVerticalStructureSpans(
+		IList<PlannedDimension> candidates,
+		OutlineFeature2D outline,
+		ISet<PlannedDimension> keptByContour = null)
+	{
+		if (candidates == null || candidates.Count < 2 || outline == null)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		double maxMicro = Math.Max(5.0, Math.Max(outline.Width, outline.Height) * 0.025);
+		bool changed;
+		do
+		{
+			changed = false;
+			List<PlannedDimension> ordered = candidates
+				.Where((PlannedDimension d) => d != null)
+				.OrderBy((PlannedDimension d) => Math.Min(d.FirstPoint.Y, d.SecondPoint.Y))
+				.ToList();
+			for (int i = 0; i < ordered.Count; i++)
+			{
+				PlannedDimension micro = ordered[i];
+				double m0 = Math.Min(micro.FirstPoint.Y, micro.SecondPoint.Y);
+				double m1 = Math.Max(micro.FirstPoint.Y, micro.SecondPoint.Y);
+				double mSpan = m1 - m0;
+				if (mSpan <= tol || mSpan > maxMicro + tol)
+				{
+					continue;
+				}
+				// Prefer absorbing into the larger abutting neighbor (not another micro).
+				PlannedDimension lower = i > 0 ? ordered[i - 1] : null;
+				PlannedDimension upper = i + 1 < ordered.Count ? ordered[i + 1] : null;
+				double lower1 = lower == null ? double.NaN : Math.Max(lower.FirstPoint.Y, lower.SecondPoint.Y);
+				double upper0 = upper == null ? double.NaN : Math.Min(upper.FirstPoint.Y, upper.SecondPoint.Y);
+				bool abutsLower = lower != null && Math.Abs(lower1 - m0) <= tol;
+				bool abutsUpper = upper != null && Math.Abs(upper0 - m1) <= tol;
+				if (!abutsLower && !abutsUpper)
+				{
+					continue;
+				}
+				PlannedDimension absorbInto = null;
+				if (abutsLower && abutsUpper)
+				{
+					double ls = Math.Abs(lower.SecondPoint.Y - lower.FirstPoint.Y);
+					double us = Math.Abs(upper.SecondPoint.Y - upper.FirstPoint.Y);
+					absorbInto = ls >= us ? lower : upper;
+				}
+				else if (abutsLower)
+				{
+					absorbInto = lower;
+				}
+				else
+				{
+					absorbInto = upper;
+				}
+				double a0 = Math.Min(absorbInto.FirstPoint.Y, absorbInto.SecondPoint.Y);
+				double a1 = Math.Max(absorbInto.FirstPoint.Y, absorbInto.SecondPoint.Y);
+				double new0 = Math.Min(a0, m0);
+				double new1 = Math.Max(a1, m1);
+				double x = (absorbInto.FirstPoint.X + absorbInto.SecondPoint.X) * 0.5;
+				absorbInto.FirstPoint = new Point2D(x, new0);
+				absorbInto.SecondPoint = new Point2D(x, new1);
+				if (keptByContour != null)
+				{
+					keptByContour.Add(absorbInto);
+				}
+				candidates.Remove(micro);
+				if (keptByContour != null)
+				{
+					keptByContour.Remove(micro);
+				}
+				changed = true;
+				break;
+			}
+		}
+		while (changed);
+	}
+
+	/// <summary>
+	/// Close small chamfer gaps between same-side vertical structure pieces so a 72 edge that
+	/// sits 3 above a 50 notch wall becomes the full 75 location span (0° top dual).
+	/// </summary>
+	private void BridgeSmallChamferGapsInVerticalStructure(
+		IList<PlannedDimension> candidates,
+		OutlineFeature2D outline,
+		ISet<PlannedDimension> keptByContour = null)
+	{
+		if (candidates == null || candidates.Count < 2 || outline == null)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		double maxGap = Math.Max(5.0, Math.Max(outline.Width, outline.Height) * 0.025);
+		List<PlannedDimension> ordered = candidates
+			.Where((PlannedDimension d) => d != null)
+			.OrderBy((PlannedDimension d) => Math.Min(d.FirstPoint.Y, d.SecondPoint.Y))
+			.ToList();
+		for (int i = 0; i < ordered.Count - 1; i++)
+		{
+			PlannedDimension lower = ordered[i];
+			PlannedDimension upper = ordered[i + 1];
+			double lower0 = Math.Min(lower.FirstPoint.Y, lower.SecondPoint.Y);
+			double lower1 = Math.Max(lower.FirstPoint.Y, lower.SecondPoint.Y);
+			double upper0 = Math.Min(upper.FirstPoint.Y, upper.SecondPoint.Y);
+			double upper1 = Math.Max(upper.FirstPoint.Y, upper.SecondPoint.Y);
+			double gap = upper0 - lower1;
+			if (gap <= tol || gap > maxGap + tol)
+			{
+				continue;
+			}
+			// Bridge when either end sits on an overall Y envelope (75 can be MaxY or MinY
+			// depending on 90° vs 270°). Only extend the envelope-touching piece toward the other.
+			bool upperOnEnvelope = Math.Abs(upper1 - outline.MaxY) <= tol;
+			bool lowerOnEnvelope = Math.Abs(lower0 - outline.MinY) <= tol;
+			if (!upperOnEnvelope && !lowerOnEnvelope)
+			{
+				continue;
+			}
+			if (upperOnEnvelope && (!lowerOnEnvelope || GetDimensionSpan(upper, horizontal: false) >= GetDimensionSpan(lower, horizontal: false) - tol))
+			{
+				double x = (upper.FirstPoint.X + upper.SecondPoint.X) * 0.5;
+				upper.FirstPoint = new Point2D(x, lower1);
+				upper.SecondPoint = new Point2D(x, upper1);
+				if (keptByContour != null)
+				{
+					keptByContour.Add(upper);
+				}
+			}
+			else if (lowerOnEnvelope)
+			{
+				double x = (lower.FirstPoint.X + lower.SecondPoint.X) * 0.5;
+				lower.FirstPoint = new Point2D(x, lower0);
+				lower.SecondPoint = new Point2D(x, upper0);
+				if (keptByContour != null)
+				{
+					keptByContour.Add(lower);
+				}
+			}
+		}
+	}
+
+	private bool IsContourBackedVerticalStructureEdge(
+		PlannedDimension dim,
+		OutlineFeature2D outline,
+		DimensionSide side)
+	{
+		if (dim == null || outline?.Segments == null)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		double y0 = Math.Min(dim.FirstPoint.Y, dim.SecondPoint.Y);
+		double y1 = Math.Max(dim.FirstPoint.Y, dim.SecondPoint.Y);
+		double span = y1 - y0;
+		if (span <= tol)
+		{
+			return false;
+		}
+		double x = (dim.FirstPoint.X + dim.SecondPoint.X) * 0.5;
+		double sideBand = Math.Max(tol * 8.0, outline.Width * 0.35);
+		if (side == DimensionSide.Left && x > outline.MinX + sideBand + tol)
+		{
+			return false;
+		}
+		if (side == DimensionSide.Right && x < outline.MaxX - sideBand - tol)
+		{
+			return false;
+		}
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (segment == null || segment.IsArcChord || !segment.IsVertical(tol))
+			{
+				continue;
+			}
+			double edgeX = (segment.Start.X + segment.End.X) * 0.5;
+			if (Math.Abs(edgeX - x) > Math.Max(tol * 4.0, outline.Width * 0.05))
+			{
+				continue;
+			}
+			double overlap = Math.Min(segment.MaxY, y1) - Math.Max(segment.MinY, y0);
+			if (overlap + tol >= span * 0.85)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/// <summary>
+	/// Vertical dual of bottom ledge snap: cross-axis height chords (ΔX &gt; ΔY) that land on a
+	/// side-facing vertical contour edge are projected onto that edge so rotated top steps
+	/// (50+75) survive as Left/RightStructHeight.
+	/// </summary>
+	private void SnapCrossLevelVerticalCandidatesOntoSideFacingEdges(
+		IList<PlannedDimension> candidates,
+		OutlineFeature2D outline,
+		DimensionSide side,
+		ISet<PlannedDimension> snapped)
+	{
+		if (candidates == null || outline == null)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		foreach (PlannedDimension dim in candidates)
+		{
+			if (dim == null || !IsCrossAxisStructureSpanTooLarge(dim.FirstPoint, dim.SecondPoint, horizontal: false))
+			{
+				continue;
+			}
+			Segment2D edge = FindStepSideVerticalEdgeCoveringSpan(dim, outline, side);
+			if (edge == null)
+			{
+				continue;
+			}
+			double x = (edge.Start.X + edge.End.X) * 0.5;
+			// Keep candidate Y span (feature height); only snap onto edge X.
+			double y0 = Math.Min(dim.FirstPoint.Y, dim.SecondPoint.Y);
+			double y1 = Math.Max(dim.FirstPoint.Y, dim.SecondPoint.Y);
+			if (y1 - y0 <= tol)
+			{
+				continue;
+			}
+			double candidateSpan = y1 - y0;
+			bool sameSpanClassicExists = candidates.Any((PlannedDimension other) =>
+				other != null
+				&& other != dim
+				&& !IsCrossAxisStructureSpanTooLarge(other.FirstPoint, other.SecondPoint, horizontal: false)
+				&& Math.Abs(Math.Abs(other.SecondPoint.Y - other.FirstPoint.Y) - candidateSpan) <= tol);
+			if (sameSpanClassicExists)
+			{
+				continue;
+			}
+			dim.FirstPoint = new Point2D(x, y0);
+			dim.SecondPoint = new Point2D(x, y1);
+			if (snapped != null)
+			{
+				snapped.Add(dim);
+			}
+		}
+	}
+
+	private Segment2D FindStepSideVerticalEdgeCoveringSpan(PlannedDimension dim, OutlineFeature2D outline, DimensionSide side)
+	{
+		if (dim == null || outline == null || outline.Segments == null)
+		{
+			return null;
+		}
+		double tol = _config.GeometryTolerance;
+		double y0 = Math.Min(dim.FirstPoint.Y, dim.SecondPoint.Y);
+		double y1 = Math.Max(dim.FirstPoint.Y, dim.SecondPoint.Y);
+		double span = y1 - y0;
+		if (span <= tol)
+		{
+			return null;
+		}
+		// Prefer the more extreme X toward the placement side (left: smaller X, right: larger X).
+		double sideX = side == DimensionSide.Left
+			? Math.Min(dim.FirstPoint.X, dim.SecondPoint.X)
+			: Math.Max(dim.FirstPoint.X, dim.SecondPoint.X);
+		Segment2D best = null;
+		double bestScore = double.NegativeInfinity;
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (segment == null || segment.IsArcChord || !segment.IsVertical(tol))
+			{
+				continue;
+			}
+			double edgeX = (segment.Start.X + segment.End.X) * 0.5;
+			double overlap = Math.Min(segment.MaxY, y1) - Math.Max(segment.MinY, y0);
+			if (overlap <= tol)
+			{
+				continue;
+			}
+			double lengthRatio = overlap / Math.Max(span, segment.LengthY);
+			if (lengthRatio + tol < 0.9)
+			{
+				continue;
+			}
+			bool nearSideX = Math.Abs(edgeX - sideX) <= Math.Max(tol * 4.0, Math.Abs(dim.FirstPoint.X - dim.SecondPoint.X) * 0.15 + tol);
+			if (!nearSideX)
+			{
+				continue;
+			}
+			// Prefer edges not on the continuous outer envelope wall.
+			bool onOuterEnvelope = (side == DimensionSide.Left && Math.Abs(edgeX - outline.MinX) <= tol)
+				|| (side == DimensionSide.Right && Math.Abs(edgeX - outline.MaxX) <= tol);
+			double score = (nearSideX ? 1000.0 : 0.0) + (onOuterEnvelope ? 0.0 : 200.0) + overlap;
+			if (score > bestScore + tol)
+			{
+				bestScore = score;
+				best = segment;
+			}
+		}
+		return best;
+	}
+
+	private void DeduplicateSameIntervalVerticalStructure(
+		IList<PlannedDimension> candidates,
+		ISet<PlannedDimension> preferDropIfDuplicate)
+	{
+		if (candidates == null || candidates.Count < 2)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		for (int i = candidates.Count - 1; i >= 0; i--)
+		{
+			PlannedDimension a = candidates[i];
+			if (a == null)
+			{
+				continue;
+			}
+			double a0 = Math.Min(a.FirstPoint.Y, a.SecondPoint.Y);
+			double a1 = Math.Max(a.FirstPoint.Y, a.SecondPoint.Y);
+			double ax = (a.FirstPoint.X + a.SecondPoint.X) * 0.5;
+			for (int j = 0; j < i; j++)
+			{
+				PlannedDimension b = candidates[j];
+				if (b == null)
+				{
+					continue;
+				}
+				double b0 = Math.Min(b.FirstPoint.Y, b.SecondPoint.Y);
+				double b1 = Math.Max(b.FirstPoint.Y, b.SecondPoint.Y);
+				double bx = (b.FirstPoint.X + b.SecondPoint.X) * 0.5;
+				if (Math.Abs(a0 - b0) > tol || Math.Abs(a1 - b1) > tol || Math.Abs(ax - bx) > tol)
+				{
+					continue;
+				}
+				bool aSnapped = preferDropIfDuplicate != null && preferDropIfDuplicate.Contains(a);
+				if (aSnapped)
+				{
+					preferDropIfDuplicate.Remove(a);
+					candidates.RemoveAt(i);
+					break;
+				}
+				bool bSnapped = preferDropIfDuplicate != null && preferDropIfDuplicate.Contains(b);
+				if (bSnapped)
+				{
+					preferDropIfDuplicate.Remove(b);
+					candidates.RemoveAt(j);
+					i = candidates.Count;
+					break;
+				}
+				candidates.RemoveAt(i);
+				break;
+			}
+		}
 	}
 
 	private static void RecordDiscardedCandidates(DimensionPlan plan, IList<PlannedDimension> before, IList<PlannedDimension> after, string reason)
@@ -757,12 +1282,232 @@ public sealed partial class DimensionPlanner
 		List<PlannedDimension> snapshot = new List<PlannedDimension>(list2);
 		RemoveLongestBottomExtensionCandidate(list2, outline);
 		RecordDiscardedCandidates(plan, snapshot, list2, "LongestExtensionCandidate");
+		// Multi-level bottom steps: consecutive column bottoms can form a cross-level span that
+		// is still covered by a real bottom-facing horizontal ledge (e.g. 180° of former top
+		// 73+87.55). Snap those spans onto the ledge and keep only via the snapped set — do not
+		// broadly relax NotBottomSideStructureCandidate (preserves test2 / residual-arm baselines).
+		HashSet<PlannedDimension> snappedToBottomFacingEdge = new HashSet<PlannedDimension>();
+		SnapCrossLevelBottomCandidatesOntoBottomFacingEdges(list2, outline, snappedToBottomFacingEdge);
+		DeduplicateSameIntervalHorizontalStructure(list2, snappedToBottomFacingEdge);
 		// ponytail: Bottom intentionally skips the complementary-remainder snap/removal that
 		// Top/Left/Right run here (Bottom is the datum side); add it only when a concrete
 		// repro shows a bottom remainder duplicate.
-		List<PlannedDimension> kept = list2.Where((PlannedDimension dim) => IsBottomSideHorizontalStructureCandidate(dim, outline, ignoredPoints)).ToList();
+		List<PlannedDimension> kept = list2
+			.Where((PlannedDimension dim) => IsBottomSideHorizontalStructureCandidate(dim, outline, ignoredPoints)
+				|| snappedToBottomFacingEdge.Contains(dim))
+			.ToList();
 		RecordDiscardedCandidates(plan, list2, kept, "NotBottomSideStructureCandidate");
 		return kept;
+	}
+
+	/// <summary>
+	/// Remove later horizontal structure dims that share the same X interval and Y (tol).
+	/// Prefer keeping non-snapped (classic bottom-most) members.
+	/// </summary>
+	private void DeduplicateSameIntervalHorizontalStructure(
+		IList<PlannedDimension> candidates,
+		ISet<PlannedDimension> preferDropIfDuplicate)
+	{
+		if (candidates == null || candidates.Count < 2)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		// Drop snapped duplicates first when they collide with a classic member.
+		for (int i = candidates.Count - 1; i >= 0; i--)
+		{
+			PlannedDimension a = candidates[i];
+			if (a == null)
+			{
+				continue;
+			}
+			double a0 = Math.Min(a.FirstPoint.X, a.SecondPoint.X);
+			double a1 = Math.Max(a.FirstPoint.X, a.SecondPoint.X);
+			double ay = (a.FirstPoint.Y + a.SecondPoint.Y) * 0.5;
+			for (int j = 0; j < i; j++)
+			{
+				PlannedDimension b = candidates[j];
+				if (b == null)
+				{
+					continue;
+				}
+				double b0 = Math.Min(b.FirstPoint.X, b.SecondPoint.X);
+				double b1 = Math.Max(b.FirstPoint.X, b.SecondPoint.X);
+				double by = (b.FirstPoint.Y + b.SecondPoint.Y) * 0.5;
+				if (Math.Abs(a0 - b0) > tol || Math.Abs(a1 - b1) > tol || Math.Abs(ay - by) > tol)
+				{
+					continue;
+				}
+				// Same interval: drop the snapped one if either is snapped; else drop later.
+				bool aSnapped = preferDropIfDuplicate != null && preferDropIfDuplicate.Contains(a);
+				bool bSnapped = preferDropIfDuplicate != null && preferDropIfDuplicate.Contains(b);
+				if (aSnapped)
+				{
+					preferDropIfDuplicate.Remove(a);
+					candidates.RemoveAt(i);
+					break;
+				}
+				if (bSnapped)
+				{
+					preferDropIfDuplicate.Remove(b);
+					candidates.RemoveAt(j);
+					// indices shifted; restart outer from i
+					i = candidates.Count;
+					break;
+				}
+				candidates.RemoveAt(i);
+				break;
+			}
+		}
+	}
+
+	/// <summary>
+	/// When consecutive bottom-most column points produce a cross-level span, snap onto a real
+	/// horizontal contour edge at the higher column Y (the step ledge). Ray-cast "bottom-facing"
+	/// alone is insufficient: after 180° the ledge OS may resolve Top while still being the
+	/// real step face between the two bottom-most column points (last-run 87.55 case).
+	/// </summary>
+	private void SnapCrossLevelBottomCandidatesOntoBottomFacingEdges(
+		IList<PlannedDimension> candidates,
+		OutlineFeature2D outline,
+		ISet<PlannedDimension> snapped)
+	{
+		if (candidates == null || outline == null)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		foreach (PlannedDimension dim in candidates)
+		{
+			if (dim == null || !IsCrossAxisStructureSpanTooLarge(dim.FirstPoint, dim.SecondPoint, horizontal: true))
+			{
+				continue;
+			}
+			Segment2D edge = FindStepLedgeHorizontalEdgeCoveringSpan(dim, outline);
+			if (edge == null)
+			{
+				continue;
+			}
+			double y = (edge.Start.Y + edge.End.Y) * 0.5;
+			// Keep the column-bottom X span (e.g. 177.45→265 = 87.55), only project onto ledge Y.
+			// Using edge.Min/Max alone shortens the step (last-run: 82.55) and leaves a gap so
+			// 177+82.55+73 never completes overall and MultiPiece cannot drop 177.
+			double x0 = Math.Min(dim.FirstPoint.X, dim.SecondPoint.X);
+			double x1 = Math.Max(dim.FirstPoint.X, dim.SecondPoint.X);
+			if (x1 - x0 <= tol)
+			{
+				continue;
+			}
+			// Only recover multi-level ledges above MinY (not the outer bottom envelope).
+			if (Math.Abs(y - outline.MinY) <= tol)
+			{
+				continue;
+			}
+			double candidateSpan = x1 - x0;
+			// Block snap when a classic collinear BottomStructWidth already has the same span —
+			// open-contour fixtures intentionally keep that length once as structure and once as OS
+			// (test2 134.79 pair). Mid-level recovery still works when the span is new (87.55).
+			bool sameSpanClassicExists = candidates.Any((PlannedDimension other) =>
+				other != null
+				&& other != dim
+				&& !IsCrossAxisStructureSpanTooLarge(other.FirstPoint, other.SecondPoint, horizontal: true)
+				&& Math.Abs(Math.Abs(other.SecondPoint.X - other.FirstPoint.X) - candidateSpan) <= tol);
+			if (sameSpanClassicExists)
+			{
+				continue;
+			}
+			// If any collinear classic structure already covers ≥90% of this X span at ledge Y, skip.
+			bool edgeAlreadyOwned = candidates.Any((PlannedDimension other) =>
+			{
+				if (other == null || other == dim
+					|| IsCrossAxisStructureSpanTooLarge(other.FirstPoint, other.SecondPoint, horizontal: true))
+				{
+					return false;
+				}
+				double oy = (other.FirstPoint.Y + other.SecondPoint.Y) * 0.5;
+				if (Math.Abs(oy - y) > tol)
+				{
+					return false;
+				}
+				double o0 = Math.Min(other.FirstPoint.X, other.SecondPoint.X);
+				double o1 = Math.Max(other.FirstPoint.X, other.SecondPoint.X);
+				double overlap = Math.Min(o1, x1) - Math.Max(o0, x0);
+				return overlap >= candidateSpan * 0.9 - tol;
+			});
+			if (edgeAlreadyOwned)
+			{
+				continue;
+			}
+			dim.FirstPoint = new Point2D(x0, y);
+			dim.SecondPoint = new Point2D(x1, y);
+			if (snapped != null)
+			{
+				snapped.Add(dim);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Find a real horizontal outline edge covering the cross-level chord's X span, preferring
+	/// edges near the higher bottom-most column Y (step ledge). Falls back to ray-cast
+	/// bottom-facing edges when no ledge-at-higher-Y match exists.
+	/// </summary>
+	private Segment2D FindStepLedgeHorizontalEdgeCoveringSpan(PlannedDimension dim, OutlineFeature2D outline)
+	{
+		if (dim == null || outline == null || outline.Segments == null)
+		{
+			return null;
+		}
+		double tol = _config.GeometryTolerance;
+		double x0 = Math.Min(dim.FirstPoint.X, dim.SecondPoint.X);
+		double x1 = Math.Max(dim.FirstPoint.X, dim.SecondPoint.X);
+		double span = x1 - x0;
+		if (span <= tol)
+		{
+			return null;
+		}
+		// Higher of the two column bottoms sits on the step ledge after rotation.
+		double ledgeY = Math.Max(dim.FirstPoint.Y, dim.SecondPoint.Y);
+		Segment2D best = null;
+		double bestScore = double.NegativeInfinity;
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (segment == null || segment.IsArcChord || !segment.IsHorizontal(tol))
+			{
+				continue;
+			}
+			double edgeY = (segment.Start.Y + segment.End.Y) * 0.5;
+			// Never snap onto outer MinY envelope (test2 open-contour).
+			if (Math.Abs(edgeY - outline.MinY) <= tol)
+			{
+				continue;
+			}
+			double overlap = Math.Min(segment.MaxX, x1) - Math.Max(segment.MinX, x0);
+			if (overlap <= tol)
+			{
+				continue;
+			}
+			double lengthRatio = overlap / Math.Max(span, segment.LengthX);
+			if (lengthRatio + tol < 0.9)
+			{
+				continue;
+			}
+			bool nearLedgeY = Math.Abs(edgeY - ledgeY) <= Math.Max(tol * 4.0, Math.Abs(dim.FirstPoint.Y - dim.SecondPoint.Y) * 0.15);
+			bool bottomFacing = _structureEndpointRules.IsBottomFacingHorizontalSegment(segment, outline);
+			// Prefer ledge-Y match (works when OS side resolves Top); allow bottom-facing fallback.
+			if (!nearLedgeY && !bottomFacing)
+			{
+				continue;
+			}
+			// Score: prefer near ledge Y, then larger overlap.
+			double score = (nearLedgeY ? 1000.0 : 0.0) + (bottomFacing ? 100.0 : 0.0) + overlap;
+			if (score > bestScore + tol)
+			{
+				bestScore = score;
+				best = segment;
+			}
+		}
+		return best;
 	}
 
 	private List<Point2D> BuildBottomSideHorizontalStructurePoints(OutlineFeature2D outline, IList<IgnoredPoint> ignoredPoints)

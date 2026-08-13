@@ -42,6 +42,16 @@ namespace CadAuto.Core.Tests
 			nameof(TopClosedChainWithoutDatumDropsOppositeBody),
 			nameof(BottomClosedChainWithoutDatumDropsOppositeBody),
 			nameof(RightClosedChainWithoutDatumDropsOppositeBody),
+			nameof(MultiPieceStructureOverallRemainderDropsLongBody),
+			nameof(BottomMultiLevelStepsKeepFeatureChainDropBodyRemainder),
+			nameof(BottomCrossLevelLedgeSnapWhenOutlineSegmentResolvesTop),
+			nameof(LeftMultiPieceStepsSurviveOrphanTipOnTallOverall),
+			nameof(BottomClosedChainFlippedKeepsShorterEnd75Drops90),
+			nameof(TopCrossAxisStructWidth8IsRejected),
+			nameof(RightSplitHeights56And72AreOrphanTipsOn215),
+			nameof(TopDisconnectedSecondary87WithMajor120IsSuppressed),
+			nameof(RightResidual72WithLeftMajor120IsSuppressed),
+			nameof(Rotated215Notch50And75SurviveOnLeftAndRight),
 			nameof(ProjectedThreePieceVerticalChainKeepsRealHeights),
 			nameof(OrthogonalRotatedVerticalChainKeepsRealWidths),
 			nameof(FullWidthSideSeamsDoNotCreateStructureHeights),
@@ -50,6 +60,14 @@ namespace CadAuto.Core.Tests
 			nameof(RotatedTest2PreservesLocalSemanticSignature),
 			nameof(RotationSignature_OuterStepOverallStructureIsStable),
 			nameof(RotationSignature_ClosedChainStructureIsStable),
+			nameof(RotationSignature_F215GoldenMultisetFourWayEqual),
+			nameof(RotationSignature_F215CadGoldenMultisetFourWayEqual),
+			nameof(F215CadRotatedKeeps42Drops32Stub),
+			nameof(RotationSignature_F338GoldenMultisetFourWayEqual),
+			nameof(RotationSignature_F338CadGoldenMultisetFourWayEqual),
+			nameof(CadLastRunGrooveSnapsToWallClearWidthFourWay),
+			nameof(RotationSignature_Stair3GoldenMultisetFourWayEqual),
+			nameof(StepGroovePlacesOnSameSideAsOuterStepFourWay),
 			nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed),
             nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide),
             nameof(TopEnvelopeHorizontalSegmentStaysTop),
@@ -213,6 +231,16 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(TopClosedChainWithoutDatumDropsOppositeBody), TopClosedChainWithoutDatumDropsOppositeBody);
 				RunTest(nameof(BottomClosedChainWithoutDatumDropsOppositeBody), BottomClosedChainWithoutDatumDropsOppositeBody);
 				RunTest(nameof(RightClosedChainWithoutDatumDropsOppositeBody), RightClosedChainWithoutDatumDropsOppositeBody);
+				RunTest(nameof(MultiPieceStructureOverallRemainderDropsLongBody), MultiPieceStructureOverallRemainderDropsLongBody);
+				RunTest(nameof(BottomMultiLevelStepsKeepFeatureChainDropBodyRemainder), BottomMultiLevelStepsKeepFeatureChainDropBodyRemainder);
+				RunTest(nameof(BottomCrossLevelLedgeSnapWhenOutlineSegmentResolvesTop), BottomCrossLevelLedgeSnapWhenOutlineSegmentResolvesTop);
+				RunTest(nameof(LeftMultiPieceStepsSurviveOrphanTipOnTallOverall), LeftMultiPieceStepsSurviveOrphanTipOnTallOverall);
+				RunTest(nameof(BottomClosedChainFlippedKeepsShorterEnd75Drops90), BottomClosedChainFlippedKeepsShorterEnd75Drops90);
+				RunTest(nameof(TopCrossAxisStructWidth8IsRejected), TopCrossAxisStructWidth8IsRejected);
+				RunTest(nameof(RightSplitHeights56And72AreOrphanTipsOn215), RightSplitHeights56And72AreOrphanTipsOn215);
+				RunTest(nameof(TopDisconnectedSecondary87WithMajor120IsSuppressed), TopDisconnectedSecondary87WithMajor120IsSuppressed);
+				RunTest(nameof(RightResidual72WithLeftMajor120IsSuppressed), RightResidual72WithLeftMajor120IsSuppressed);
+				RunTest(nameof(Rotated215Notch50And75SurviveOnLeftAndRight), Rotated215Notch50And75SurviveOnLeftAndRight);
 				RunTest(nameof(ProjectedThreePieceVerticalChainKeepsRealHeights), ProjectedThreePieceVerticalChainKeepsRealHeights);
 				RunTest(nameof(OrthogonalRotatedVerticalChainKeepsRealWidths), OrthogonalRotatedVerticalChainKeepsRealWidths);
 				RunTest(nameof(FullWidthSideSeamsDoNotCreateStructureHeights), FullWidthSideSeamsDoNotCreateStructureHeights);
@@ -221,6 +249,14 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(RotatedTest2PreservesLocalSemanticSignature), RotatedTest2PreservesLocalSemanticSignature);
 				RunTest(nameof(RotationSignature_OuterStepOverallStructureIsStable), RotationSignature_OuterStepOverallStructureIsStable);
 				RunTest(nameof(RotationSignature_ClosedChainStructureIsStable), RotationSignature_ClosedChainStructureIsStable);
+				RunTest(nameof(RotationSignature_F215GoldenMultisetFourWayEqual), RotationSignature_F215GoldenMultisetFourWayEqual);
+				RunTest(nameof(RotationSignature_F215CadGoldenMultisetFourWayEqual), RotationSignature_F215CadGoldenMultisetFourWayEqual);
+				RunTest(nameof(F215CadRotatedKeeps42Drops32Stub), F215CadRotatedKeeps42Drops32Stub);
+				RunTest(nameof(RotationSignature_F338GoldenMultisetFourWayEqual), RotationSignature_F338GoldenMultisetFourWayEqual);
+				RunTest(nameof(RotationSignature_F338CadGoldenMultisetFourWayEqual), RotationSignature_F338CadGoldenMultisetFourWayEqual);
+				RunTest(nameof(CadLastRunGrooveSnapsToWallClearWidthFourWay), CadLastRunGrooveSnapsToWallClearWidthFourWay);
+				RunTest(nameof(RotationSignature_Stair3GoldenMultisetFourWayEqual), RotationSignature_Stair3GoldenMultisetFourWayEqual);
+				RunTest(nameof(StepGroovePlacesOnSameSideAsOuterStepFourWay), StepGroovePlacesOnSameSideAsOuterStepFourWay);
 				RunTest(nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed), CrossSideStructureWidthsThatCloseOverallChainAreSuppressed);
                 RunTest(nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide), InteriorHorizontalOutlineSegmentPrefersNonCrossingSide);
                 RunTest(nameof(TopEnvelopeHorizontalSegmentStaysTop), TopEnvelopeHorizontalSegmentStaysTop);
@@ -4078,9 +4114,9 @@ namespace CadAuto.Core.Tests
 			Assert(topStruct.Any(d => Math.Abs(GetSpan(d) - 50.0) <= config.GeometryTolerance),
 				"feature width 50 must remain without hole/pin datum");
 			Assert(topStruct.Any(d => Math.Abs(GetSpan(d) - 75.0) <= config.GeometryTolerance),
-				"default MaxX-side location 75 must remain without hole/pin datum");
+				"shorter overall-closing end 75 must remain without hole/pin datum");
 			Assert(!topStruct.Any(d => Math.Abs(GetSpan(d) - 90.0) <= config.GeometryTolerance),
-				"opposite overall-closing 90 must still be suppressed without hole/pin datum");
+				"longer overall-closing body 90 must still be suppressed without hole/pin datum");
 			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
 					c.DebugRole == "TopStructWidth"
 					&& Math.Abs(c.Value - 90.0) <= config.GeometryTolerance
@@ -4090,8 +4126,7 @@ namespace CadAuto.Core.Tests
 		}
 
 		/// <summary>
-		/// 180°-style bottom closed chain 75+50+90=215: same rule as Top (default MaxX datum).
-		/// Keep interior 50 + MaxX-side 90; drop MinX overall-closing 75.
+		/// 180°-style bottom closed chain 75+50+90=215: no-datum keeps shorter end 75, drops 90.
 		/// </summary>
 		private static void BottomClosedChainWithoutDatumDropsOppositeBody()
 		{
@@ -4152,16 +4187,16 @@ namespace CadAuto.Core.Tests
 			var bottomStruct = plan.Dimensions.Where(d => d.DebugRole == "BottomStructWidth").ToList();
 			Assert(bottomStruct.Any(d => Math.Abs(GetSpan(d) - 50.0) <= config.GeometryTolerance),
 				"bottom feature width 50 must remain");
-			Assert(bottomStruct.Any(d => Math.Abs(GetSpan(d) - 90.0) <= config.GeometryTolerance),
-				"bottom MaxX-side location 90 must remain");
-			Assert(!bottomStruct.Any(d => Math.Abs(GetSpan(d) - 75.0) <= config.GeometryTolerance),
-				"bottom MinX overall-closing 75 must be suppressed (Top↔Bottom symmetry)");
+			Assert(bottomStruct.Any(d => Math.Abs(GetSpan(d) - 75.0) <= config.GeometryTolerance),
+				"shorter overall-closing end 75 must remain");
+			Assert(!bottomStruct.Any(d => Math.Abs(GetSpan(d) - 90.0) <= config.GeometryTolerance),
+				"longer overall-closing body 90 must be suppressed");
 			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
 					c.DebugRole == "BottomStructWidth"
-					&& Math.Abs(c.Value - 75.0) <= config.GeometryTolerance
+					&& Math.Abs(c.Value - 90.0) <= config.GeometryTolerance
 					&& c.IsSuppressed
 					&& c.SuppressedReason == "TopClosedChainRedundantPositioning"),
-				"suppressed bottom 75 must record closed-chain reason");
+				"suppressed bottom 90 must record closed-chain reason");
 		}
 
 		/// <summary>
@@ -4240,6 +4275,157 @@ namespace CadAuto.Core.Tests
 					&& c.IsSuppressed
 					&& c.SuppressedReason == "TopClosedChainRedundantPositioning"),
 				"suppressed right 108 must record closed-chain reason");
+		}
+
+		/// <summary>
+		/// 180°-style multi-level bottom: real horizontal ledges 177.45 + 87.55 + 73 = 338.
+		/// Generation must admit 87.55 (bottom-facing edge), multi-piece rule drops 177.45.
+		/// Must not break cross-axis rejection (BottomStructureRejectsCrossAxisProjection).
+		/// </summary>
+		private static void BottomMultiLevelStepsKeepFeatureChainDropBodyRemainder()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			// Stepped bottom silhouette (former top two-step after 180°).
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 338.0,
+				MaxY = 200.0
+			};
+			AddSegment(outline, new Point2D(0.0, 100.0), new Point2D(177.45, 100.0), "bottom-body-177");
+			AddSegment(outline, new Point2D(177.45, 100.0), new Point2D(177.45, 50.0), "riser-1");
+			AddSegment(outline, new Point2D(177.45, 50.0), new Point2D(265.0, 50.0), "bottom-step-87.55");
+			AddSegment(outline, new Point2D(265.0, 50.0), new Point2D(265.0, 0.0), "riser-2");
+			AddSegment(outline, new Point2D(265.0, 0.0), new Point2D(338.0, 0.0), "bottom-step-73");
+			AddSegment(outline, new Point2D(338.0, 0.0), new Point2D(338.0, 200.0), "right");
+			AddSegment(outline, new Point2D(338.0, 200.0), new Point2D(0.0, 200.0), "top");
+			AddSegment(outline, new Point2D(0.0, 200.0), new Point2D(0.0, 100.0), "left");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			var bottom = plan.Dimensions.Where(d => d.DebugRole == "BottomStructWidth").ToList();
+			double[] sig = bottom.Select(d => Math.Round(GetSpan(d), 2)).OrderBy(v => v).ToArray();
+			Assert(bottom.Any(d => Math.Abs(GetSpan(d) - 73.0) <= config.GeometryTolerance),
+				"bottom step 73 must be selected; bottom=[" + string.Join(",", sig) + "]");
+			Assert(bottom.Any(d => Math.Abs(GetSpan(d) - 87.55) <= config.GeometryTolerance),
+				"bottom step 87.55 must be selected (bottom-facing edge); bottom=[" + string.Join(",", sig) + "]");
+			Assert(!bottom.Any(d => Math.Abs(GetSpan(d) - 177.45) <= config.GeometryTolerance),
+				"body remainder 177.45 must be suppressed; bottom=[" + string.Join(",", sig) + "]");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
+					c.DebugRole == "BottomStructWidth"
+					&& Math.Abs(c.Value - 177.45) <= config.GeometryTolerance
+					&& c.IsSuppressed),
+				"177.45 must appear as a suppressed BottomStructWidth candidate");
+		}
+
+		/// <summary>
+		/// last-run repro: mid ledge is classified as Top OS (solid below pocket), yet column
+		/// bottoms still emit cross-axis BottomStructWidth 87.55. Snap must use ledge-Y match
+		/// (not only ray-cast bottom-facing) so 87.55 is kept and 177.45 is dropped.
+		/// </summary>
+		private static void BottomCrossLevelLedgeSnapWhenOutlineSegmentResolvesTop()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			// Geometry inspired by last-run (relative bbox): mid ledge at y=106.5 with solid
+			// both above and partially below so OS may resolve Top; foot at MinY.
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 338.0,
+				MaxY = 201.5
+			};
+			// Upper body top
+			AddSegment(outline, new Point2D(0.0, 201.5), new Point2D(305.0, 201.5), "top-305");
+			AddSegment(outline, new Point2D(305.0, 201.5), new Point2D(305.0, 20.0), "right-inner");
+			AddSegment(outline, new Point2D(305.0, 20.0), new Point2D(338.0, 20.0), "right-shelf");
+			AddSegment(outline, new Point2D(338.0, 20.0), new Point2D(338.0, 0.0), "right-foot");
+			AddSegment(outline, new Point2D(338.0, 0.0), new Point2D(265.0, 0.0), "bottom-73");
+			AddSegment(outline, new Point2D(265.0, 0.0), new Point2D(265.0, 10.0), "foot-riser");
+			// Mid ledge ~87.55 (last-run OS was Top @ y=106.5 x=177.45..260)
+			AddSegment(outline, new Point2D(265.0, 10.0), new Point2D(265.0, 106.5), "mid-riser");
+			AddSegment(outline, new Point2D(265.0, 106.5), new Point2D(177.45, 106.5), "mid-ledge-87");
+			AddSegment(outline, new Point2D(177.45, 106.5), new Point2D(177.45, 101.5), "ledge-step");
+			AddSegment(outline, new Point2D(177.45, 101.5), new Point2D(0.0, 101.5), "mid-body-177");
+			AddSegment(outline, new Point2D(0.0, 101.5), new Point2D(0.0, 201.5), "left");
+
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			var bottom = plan.Dimensions.Where(d => d.DebugRole == "BottomStructWidth").ToList();
+			double[] sig = bottom.Select(d => Math.Round(GetSpan(d), 2)).OrderBy(v => v).ToArray();
+			Assert(bottom.Any(d => Math.Abs(GetSpan(d) - 73.0) <= 1.0),
+				"foot 73-class step must remain; bottom=[" + string.Join(",", sig) + "]");
+			Assert(bottom.Any(d => Math.Abs(GetSpan(d) - 87.55) <= 5.0),
+				"mid ledge ~87.55 must be snapped/kept as BottomStructWidth; bottom=["
+				+ string.Join(",", sig) + "]");
+			Assert(!bottom.Any(d => Math.Abs(GetSpan(d) - 177.45) <= 1.0),
+				"177.45 body remainder must not remain selected; bottom=[" + string.Join(",", sig) + "]");
+		}
+
+		/// <summary>
+		/// P0: bottom structure 177.45+73+87.55=338 overall → keep 73+87.55, drop body 177.45.
+		/// </summary>
+		private static void MultiPieceStructureOverallRemainderDropsLongBody()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 338.0,
+				MaxY = 100.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(338.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(338.0, 0.0), new Point2D(338.0, 100.0), "right");
+			AddSegment(outline, new Point2D(338.0, 100.0), new Point2D(0.0, 100.0), "top");
+			AddSegment(outline, new Point2D(0.0, 100.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlan();
+			void AddStruct(double x0, double x1, string role)
+			{
+				var dim = new PlannedDimension
+				{
+					Kind = DimensionKind.Normal,
+					Orientation = DimensionOrientation.Horizontal,
+					Side = DimensionSide.Bottom,
+					FirstPoint = new Point2D(x0, 0.0),
+					SecondPoint = new Point2D(x1, 0.0),
+					DebugRole = role,
+					Role = DimensionCandidateRole.Structure
+				};
+				plan.Add(dim);
+			}
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallWidth,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(338.0, 0.0),
+				ForceOuterLevel = true,
+				DebugRole = "OverallWidth",
+				Role = DimensionCandidateRole.Overall
+			});
+			// Body remainder (should drop).
+			AddStruct(0.0, 177.45, "BottomStructWidth");
+			// Real two-step chain (keep).
+			AddStruct(177.45, 250.45, "BottomStructWidth"); // 73
+			AddStruct(250.45, 338.0, "BottomStructWidth"); // 87.55
+
+			new DimensionPlanner(config).SuppressMultiPieceStructureOverallRemainders(plan, outline);
+
+			var bottom = plan.Dimensions.Where(d => d.DebugRole == "BottomStructWidth").ToList();
+			Assert(bottom.Any(d => Math.Abs(GetSpan(d) - 73.0) <= config.GeometryTolerance),
+				"feature step 73 must remain");
+			Assert(bottom.Any(d => Math.Abs(GetSpan(d) - 87.55) <= config.GeometryTolerance),
+				"feature step 87.55 must remain");
+			Assert(!bottom.Any(d => Math.Abs(GetSpan(d) - 177.45) <= config.GeometryTolerance),
+				"overall-closing body 177.45 must be suppressed");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
+					c.DebugRole == "BottomStructWidth"
+					&& Math.Abs(c.Value - 177.45) <= config.GeometryTolerance
+					&& c.IsSuppressed
+					&& c.SuppressedReason == "MultiPieceStructureOverallRemainder"),
+				"suppressed 177.45 must record MultiPieceStructureOverallRemainder");
 		}
 
 		private static void ProjectedThreePieceVerticalChainKeepsRealHeights()
@@ -4602,6 +4788,425 @@ namespace CadAuto.Core.Tests
 			}
 		}
 
+		/// <summary>
+		/// Phase A hard gate: F215 four-way Signature must equal Golden215 exactly.
+		/// Expected RED on legacy side-patch pipeline until Phase B/C feature-first lands.
+		/// Golden215 = {42, 50, 75, 100, 120, 215}
+		/// </summary>
+		private static void RotationSignature_F215GoldenMultisetFourWayEqual()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var planner = new DimensionPlanner(config);
+			double[] golden = { 42.0, 50.0, 75.0, 100.0, 120.0, 215.0 };
+			var baseline = CreateF215NotchOutline();
+			AssertFourWaySignatureEqualsGolden(planner, baseline, golden, config.GeometryTolerance, "F215");
+		}
+
+		/// <summary>
+		/// last-run v42 F215 CAD: 假槽宽 95 挤掉 120，顶 75/80 被圆角切成 72/77。
+		/// 槽宽必须两侧内凹；缺口 3mm 内凹仍算 notch。Golden215 四向全等。
+		/// </summary>
+		private static void RotationSignature_F215CadGoldenMultisetFourWayEqual()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var planner = new DimensionPlanner(config);
+			double[] golden = { 42.0, 50.0, 75.0, 100.0, 120.0, 215.0 };
+			var baseline = CreateF215CadFilletedOutline();
+			AssertFourWaySignatureEqualsGolden(planner, baseline, golden, config.GeometryTolerance, "F215Cad");
+		}
+
+		/// <summary>
+		/// last-run v44 90°: Bottom 32 stub + plat at X=42 + C10. Must keep 42, drop 32.
+		/// </summary>
+		private static void F215CadRotatedKeeps42Drops32Stub()
+		{
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 100.0, MaxY = 215.0 };
+			AddSegment(outline, new Point2D(10.0, 0.0), new Point2D(42.0, 0.0), "stub32");
+			AddSegment(outline, new Point2D(42.0, 0.0), new Point2D(42.0, 75.0), "plat75");
+			AddSegment(outline, new Point2D(0.0, 10.0), new Point2D(10.0, 0.0), "c10");
+			AddSegment(outline, new Point2D(0.0, 10.0), new Point2D(0.0, 87.0), "t77");
+			AddSegment(outline, new Point2D(0.0, 140.0), new Point2D(0.0, 215.0), "t75");
+			AddSegment(outline, new Point2D(3.0, 90.0), new Point2D(3.0, 140.0), "n50");
+			AddSegment(outline, new Point2D(62.0, 95.0), new Point2D(100.0, 95.0), "pr38");
+			AddSegment(outline, new Point2D(100.0, 95.0), new Point2D(100.0, 215.0), "r120");
+			AddSegment(outline, new Point2D(100.0, 215.0), new Point2D(0.0, 215.0), "top");
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			double[] signature = GetOverallStructureValueSignature(plan, config.GeometryTolerance);
+			Console.WriteLine("F215Cad-90-repro sig=[" + string.Join(",", signature) + "]");
+			Assert(SignatureContains(signature, 42.0, 1.0),
+				"rotated F215 must keep arm 42; sig=[" + string.Join(",", signature) + "]");
+			Assert(!SignatureContains(signature, 32.0, 1.0),
+				"rotated F215 must drop chamfer stub 32; sig=[" + string.Join(",", signature) + "]");
+		}
+
+		/// <summary>
+		/// Phase A/B hard gate: F338 four-way Signature must equal Golden338 exactly.
+		/// Golden338 = {73, 87.55, 100, 201.5, 305, 338} (305 kept by product decision).
+		/// </summary>
+		private static void RotationSignature_F338GoldenMultisetFourWayEqual()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var planner = new DimensionPlanner(config);
+			double[] golden = { 73.0, 87.55, 100.0, 201.5, 305.0, 338.0 };
+			var baseline = CreateF338StepOutline();
+			AssertFourWaySignatureEqualsGolden(planner, baseline, golden, config.GeometryTolerance, "F338");
+		}
+
+		/// <summary>
+		/// CAD 轨门禁：Golden338Cad = {20, 73, 87.55, 100, 201.5, 305, 338} 四向全等。
+		/// Fixture 模拟 test2 圆角缝（合成边还原 305）+ 外轮廓脚尖 20。
+		/// ASD 打开 FeatureFirst 的前置条件（grill-me 2026-08-07）。
+		/// </summary>
+		private static void RotationSignature_F338CadGoldenMultisetFourWayEqual()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var planner = new DimensionPlanner(config);
+			double[] golden = { 20.0, 73.0, 87.55, 100.0, 201.5, 305.0, 338.0 };
+			var baseline = CreateF338CadFilletedOutline();
+			AssertFourWaySignatureEqualsGolden(planner, baseline, golden, config.GeometryTolerance, "F338Cad");
+		}
+
+		/// <summary>
+		/// last-run 8-line staircase: three abutting treads and three risers, all similar
+		/// (no 50%+ body). Keep every step including both 134.79 edges; four-way equal.
+		/// </summary>
+		private static void RotationSignature_Stair3GoldenMultisetFourWayEqual()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var planner = new DimensionPlanner(config);
+			// Open chain: both 134.79 + locating 163.37 + mid riser 126.11; ring is 169.21/140.44.
+			double[] golden = { 126.11, 134.79, 134.79, 163.37, 429.91, 438.80 };
+			var baseline = CreateStair3Outline();
+			AssertFourWaySignatureEqualsGolden(planner, baseline, golden, 0.05, "Stair3");
+		}
+
+		private static void AssertFourWaySignatureEqualsGolden(
+			DimensionPlanner planner,
+			OutlineFeature2D baseline,
+			double[] golden,
+			double tol,
+			string label)
+		{
+			double[] sortedGolden = golden.OrderBy(v => v).ToArray();
+			foreach (double degrees in new[] { 0.0, 90.0, 180.0, 270.0 })
+			{
+				OutlineFeature2D outline = degrees == 0.0
+					? baseline
+					: TransformOutline(baseline, degrees * Math.PI / 180.0);
+				double[] signature = GetOverallStructureValueSignature(
+					planner.CreateOutlinePlan(outline),
+					tol);
+				Console.WriteLine(label + " @" + degrees + "° sig=[" + string.Join(",", signature) + "]"
+					+ " golden=[" + string.Join(",", sortedGolden) + "]");
+				Assert(SignaturesEqualMultiset(signature, sortedGolden, tol),
+					label + " @" + degrees + "° Signature must equal golden; got=["
+					+ string.Join(",", signature) + "] expected=["
+					+ string.Join(",", sortedGolden) + "]");
+			}
+		}
+
+		private static bool SignaturesEqualMultiset(double[] actual, double[] goldenSorted, double tol)
+		{
+			if (actual == null || goldenSorted == null || actual.Length != goldenSorted.Length)
+			{
+				return false;
+			}
+			double[] a = actual.OrderBy(v => v).ToArray();
+			for (int i = 0; i < a.Length; i++)
+			{
+				if (Math.Abs(a[i] - goldenSorted[i]) > tol)
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+
+		/// <summary>
+		/// F215: overall 215×100, top notch 50 with sides 75/90, bottom platform 120+95, left arm 42.
+		/// </summary>
+		private static OutlineFeature2D CreateF215NotchOutline()
+		{
+			var o = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 215.0, MaxY = 100.0 };
+			AddSegment(o, new Point2D(0.0, 0.0), new Point2D(95.0, 0.0), "b95");
+			AddSegment(o, new Point2D(95.0, 0.0), new Point2D(215.0, 0.0), "b120");
+			AddSegment(o, new Point2D(215.0, 0.0), new Point2D(215.0, 100.0), "right");
+			AddSegment(o, new Point2D(215.0, 100.0), new Point2D(140.0, 100.0), "t75");
+			AddSegment(o, new Point2D(140.0, 100.0), new Point2D(140.0, 90.0), "nr");
+			AddSegment(o, new Point2D(140.0, 90.0), new Point2D(90.0, 90.0), "n50");
+			AddSegment(o, new Point2D(90.0, 90.0), new Point2D(90.0, 100.0), "nl");
+			AddSegment(o, new Point2D(90.0, 100.0), new Point2D(10.0, 100.0), "tl");
+			AddSegment(o, new Point2D(10.0, 100.0), new Point2D(0.0, 90.0), "ch");
+			AddSegment(o, new Point2D(0.0, 90.0), new Point2D(0.0, 58.0), "lu");
+			AddSegment(o, new Point2D(0.0, 58.0), new Point2D(95.0, 58.0), "pt");
+			AddSegment(o, new Point2D(95.0, 58.0), new Point2D(95.0, 0.0), "pr");
+			return o;
+		}
+
+		/// <summary>
+		/// last-run F215 CAD：顶缺口 50 @ Y=97（圆角 3mm），左右顶臂 77/72，
+		/// 底 95+120，内台 0–95 @ Y=48（不得报 StepGroove:95），左臂残 42。
+		/// </summary>
+		private static OutlineFeature2D CreateF215CadFilletedOutline()
+		{
+			var o = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 215.0, MaxY = 100.0 };
+			AddSegment(o, new Point2D(0.0, 0.0), new Point2D(95.0, 0.0), "b95");
+			AddSegment(o, new Point2D(95.0, 0.0), new Point2D(215.0, 0.0), "b120");
+			AddSegment(o, new Point2D(215.0, 0.0), new Point2D(215.0, 100.0), "right");
+			AddSegment(o, new Point2D(143.0, 100.0), new Point2D(215.0, 100.0), "t72");
+			AddSegment(o, new Point2D(143.0, 100.0), new Point2D(140.0, 97.0), "chamfer-tr");
+			AddSegment(o, new Point2D(140.0, 97.0), new Point2D(90.0, 97.0), "n50");
+			AddSegment(o, new Point2D(90.0, 97.0), new Point2D(87.0, 100.0), "chamfer-tl-notch");
+			AddSegment(o, new Point2D(10.0, 100.0), new Point2D(87.0, 100.0), "t77");
+			AddSegment(o, new Point2D(10.0, 100.0), new Point2D(0.0, 90.0), "chamfer-left");
+			AddSegment(o, new Point2D(0.0, 90.0), new Point2D(0.0, 58.0), "lu32");
+			AddSegment(o, new Point2D(0.0, 58.0), new Point2D(95.0, 58.0), "plat95");
+			AddSegment(o, new Point2D(95.0, 58.0), new Point2D(95.0, 0.0), "pr");
+			return o;
+		}
+
+		/// <summary>
+		/// F338: overall 338×201.5, multi-level steps 73+87.55, arm 100, long structure 305.
+		/// Matches product golden that keeps 305.
+		/// </summary>
+		private static OutlineFeature2D CreateF338StepOutline()
+		{
+			var o = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 338.0, MaxY = 201.5 };
+			// Top outer 305 + small tip shelf 20/33 region simplified as continuous top then step
+			AddSegment(o, new Point2D(0.0, 201.5), new Point2D(305.0, 201.5), "top-305");
+			AddSegment(o, new Point2D(305.0, 201.5), new Point2D(305.0, 100.0), "right-upper");
+			AddSegment(o, new Point2D(305.0, 100.0), new Point2D(338.0, 100.0), "right-arm-100");
+			AddSegment(o, new Point2D(338.0, 100.0), new Point2D(338.0, 0.0), "right-foot");
+			// Bottom multi-level: 73 + 87.55 + body remainder geometry (body suppressed in golden)
+			AddSegment(o, new Point2D(338.0, 0.0), new Point2D(265.0, 0.0), "bottom-73");
+			AddSegment(o, new Point2D(265.0, 0.0), new Point2D(265.0, 50.0), "riser-87");
+			AddSegment(o, new Point2D(265.0, 50.0), new Point2D(177.45, 50.0), "bottom-87.55");
+			AddSegment(o, new Point2D(177.45, 50.0), new Point2D(177.45, 100.0), "riser-body");
+			AddSegment(o, new Point2D(177.45, 100.0), new Point2D(0.0, 100.0), "bottom-body-177");
+			AddSegment(o, new Point2D(0.0, 100.0), new Point2D(0.0, 201.5), "left");
+			return o;
+		}
+
+		/// <summary>
+		/// last-run 8-line 3-step stair (no fillet). Both 134.79 treads are required.
+		/// </summary>
+		private static OutlineFeature2D CreateStair3Outline()
+		{
+			var o = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 438.79648808,
+				MaxY = 429.90990921
+			};
+			AddSegment(o, new Point2D(0.0, 0.0), new Point2D(438.79648808, 0.0), "bottom");
+			AddSegment(o, new Point2D(438.79648808, 0.0), new Point2D(438.79648808, 429.90990921), "right");
+			AddSegment(o, new Point2D(304.00278978, 429.90990921), new Point2D(438.79648808, 429.90990921), "top-134");
+			AddSegment(o, new Point2D(304.00278978, 289.47267220), new Point2D(304.00278978, 429.90990921), "rise-140");
+			AddSegment(o, new Point2D(169.20909149, 289.47267220), new Point2D(304.00278978, 289.47267220), "mid-134");
+			AddSegment(o, new Point2D(169.20909149, 163.36576549), new Point2D(169.20909149, 289.47267220), "rise-126");
+			AddSegment(o, new Point2D(0.0, 163.36576549), new Point2D(169.20909149, 163.36576549), "ledge-169");
+			AddSegment(o, new Point2D(0.0, 0.0), new Point2D(0.0, 163.36576549), "left-163");
+			return o;
+		}
+
+		/// <summary>
+		/// CAD 轨 F338：顶 305 共线微缝 + MaxX 脚尖 20 + 整脚 100（ledge residual）+ 台阶 73/87.55。
+		/// Golden338Cad = {20, 73, 87.55, 100, 201.5, 305, 338}.
+		/// </summary>
+		private static OutlineFeature2D CreateF338CadFilletedOutline()
+		{
+			var o = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 338.0, MaxY = 201.5 };
+			// Fillet-truncated top: straight 300 only; arc chords bridge to verticals at x=0 and x=305
+			// (real CAD skips arc chords → need ExpandFeaturesAcrossFilletBridges → 305).
+			AddSegment(o, new Point2D(2.5, 201.5), new Point2D(302.5, 201.5), "top-truncated");
+			o.Segments.Add(new Segment2D(new Point2D(0.0, 201.5), new Point2D(2.5, 201.5))
+			{
+				SourceKey = "fillet-tl",
+				IsArcChord = true
+			});
+			o.Segments.Add(new Segment2D(new Point2D(302.5, 201.5), new Point2D(305.0, 201.5))
+			{
+				SourceKey = "fillet-tr",
+				IsArcChord = true
+			});
+			AddSegment(o, new Point2D(305.0, 201.5), new Point2D(305.0, 100.0), "right-upper");
+			AddSegment(o, new Point2D(305.0, 100.0), new Point2D(338.0, 100.0), "right-arm");
+			AddSegment(o, new Point2D(338.0, 100.0), new Point2D(338.0, 20.0), "right-foot-80");
+			AddSegment(o, new Point2D(338.0, 20.0), new Point2D(338.0, 0.0), "tip-20");
+			// Bottom 73 truncated by fillet to 63; arc bridges to riser at x=265
+			AddSegment(o, new Point2D(333.0, 0.0), new Point2D(270.0, 0.0), "bottom-73-trunc");
+			o.Segments.Add(new Segment2D(new Point2D(338.0, 0.0), new Point2D(333.0, 0.0))
+			{
+				SourceKey = "fillet-br",
+				IsArcChord = true
+			});
+			o.Segments.Add(new Segment2D(new Point2D(270.0, 0.0), new Point2D(265.0, 0.0))
+			{
+				SourceKey = "fillet-bl",
+				IsArcChord = true
+			});
+			AddSegment(o, new Point2D(265.0, 0.0), new Point2D(265.0, 50.0), "riser-87");
+			// mid step 87.55 truncated similarly
+			AddSegment(o, new Point2D(262.5, 50.0), new Point2D(180.0, 50.0), "bottom-87-trunc");
+			o.Segments.Add(new Segment2D(new Point2D(265.0, 50.0), new Point2D(262.5, 50.0))
+			{
+				SourceKey = "fillet-mr",
+				IsArcChord = true
+			});
+			o.Segments.Add(new Segment2D(new Point2D(180.0, 50.0), new Point2D(177.45, 50.0))
+			{
+				SourceKey = "fillet-ml",
+				IsArcChord = true
+			});
+			AddSegment(o, new Point2D(177.45, 50.0), new Point2D(177.45, 100.0), "riser-body");
+			AddSegment(o, new Point2D(177.45, 100.0), new Point2D(0.0, 100.0), "bottom-body-177");
+			AddSegment(o, new Point2D(0.0, 100.0), new Point2D(0.0, 201.5), "left");
+			return o;
+		}
+
+		/// <summary>
+		/// last-run v38: truncated mid floor 82.55 at Y=106.5, body ledge ends at 172.45 / Y=101.5,
+		/// 73-riser at X=265. 槽宽 = wall-to-wall 92.55, not floor length 82.55, not riser 86.5.
+		/// </summary>
+		private static OutlineFeature2D CreateF338CadLastRunGrooveOutline()
+		{
+			var o = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 338.0, MaxY = 201.5 };
+			AddSegment(o, new Point2D(2.5, 201.5), new Point2D(302.5, 201.5), "top-truncated");
+			o.Segments.Add(new Segment2D(new Point2D(0.0, 201.5), new Point2D(2.5, 201.5))
+			{
+				SourceKey = "fillet-tl",
+				IsArcChord = true
+			});
+			o.Segments.Add(new Segment2D(new Point2D(302.5, 201.5), new Point2D(305.0, 201.5))
+			{
+				SourceKey = "fillet-tr",
+				IsArcChord = true
+			});
+			// last-run right wall is 171.5 (fillet-truncated), not a clean 100 arm.
+			AddSegment(o, new Point2D(305.0, 196.5), new Point2D(305.0, 25.0), "right-upper-171.5");
+			o.Segments.Add(new Segment2D(new Point2D(305.0, 201.5), new Point2D(305.0, 196.5))
+			{
+				SourceKey = "fillet-right-top",
+				IsArcChord = true
+			});
+			AddSegment(o, new Point2D(305.0, 25.0), new Point2D(310.0, 20.0), "chamfer-right-arm");
+			AddSegment(o, new Point2D(310.0, 20.0), new Point2D(338.0, 20.0), "right-arm-28");
+			AddSegment(o, new Point2D(338.0, 20.0), new Point2D(338.0, 0.0), "tip-20");
+			// Truncated 73 starts at 275; diagonal chamfer to riser 265@Y=10.
+			// 1D furthest-station snap used to jump 260→275 and emit 102.55.
+			AddSegment(o, new Point2D(275.0, 0.0), new Point2D(338.0, 0.0), "bottom-63");
+			AddSegment(o, new Point2D(275.0, 0.0), new Point2D(265.0, 10.0), "chamfer-foot");
+			AddSegment(o, new Point2D(265.0, 10.0), new Point2D(265.0, 101.5), "riser-91.5");
+			// Right chamfer: floor X=260 / Y=106.5 → riser X=265 / Y=101.5
+			AddSegment(o, new Point2D(260.0, 106.5), new Point2D(265.0, 101.5), "chamfer-groove-right");
+			// Truncated mid floor 82.55 (last-run StepGroove:82.55)
+			AddSegment(o, new Point2D(177.45, 106.5), new Point2D(260.0, 106.5), "mid-floor-82.55");
+			// Left chamfer off-band: floor X=177.45 / Y=106.5 → body X=172.45 / Y=101.5
+			AddSegment(o, new Point2D(177.45, 106.5), new Point2D(172.45, 101.5), "chamfer-groove-left");
+			AddSegment(o, new Point2D(172.45, 101.5), new Point2D(0.0, 101.5), "body-172.45");
+			AddSegment(o, new Point2D(0.0, 101.5), new Point2D(0.0, 201.5), "left");
+			return o;
+		}
+
+		/// <summary>
+		/// last-run v38 emitted StepGroove:82.55 (truncated floor) + StepGroove:86.5 (riser).
+		/// Four-way must keep wall-to-wall 槽宽 ~92.55 and must not keep 82.55 / 86.5.
+		/// </summary>
+		private static void CadLastRunGrooveSnapsToWallClearWidthFourWay()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var planner = new DimensionPlanner(config);
+			var extractor = new StructureFeatureExtractor(config);
+			var selector = new StructureMeasurementSelector(config);
+			var baseline = CreateF338CadLastRunGrooveOutline();
+			const double groove = 92.55;
+			const double truncatedFloor = 82.55;
+			const double falseRiser = 86.5;
+			foreach (double degrees in new[] { 0.0, 90.0, 180.0, 270.0 })
+			{
+				OutlineFeature2D outline = degrees == 0.0
+					? baseline
+					: TransformOutline(baseline, degrees * Math.PI / 180.0);
+				IList<StructureFeature> kept = selector.Select(extractor.Extract(outline), outline);
+				double[] spans = kept
+					.Where(f => f.Kind != StructureFeatureKind.Overall)
+					.Select(f => Math.Round(f.Span, 2))
+					.OrderBy(v => v)
+					.ToArray();
+				Console.WriteLine("CAD-last-run-groove @" + degrees + "° kept=[" + string.Join(",", spans) + "]");
+				Assert(spans.Any(s => Math.Abs(s - groove) <= 1.0),
+					"CAD-last-run @" + degrees + "° must keep 槽宽 ~92.55; kept=[" + string.Join(",", spans) + "]");
+				Assert(!spans.Any(s => Math.Abs(s - truncatedFloor) <= 1.0),
+					"CAD-last-run @" + degrees + "° must not keep truncated floor 82.55; kept=[" + string.Join(",", spans) + "]");
+				Assert(!spans.Any(s => Math.Abs(s - falseRiser) <= 1.0),
+					"CAD-last-run @" + degrees + "° must not keep riser 86.5 as groove; kept=[" + string.Join(",", spans) + "]");
+				Assert(!spans.Any(s => Math.Abs(s - 102.55) <= 1.0),
+					"CAD-last-run @" + degrees + "° must not over-snap 槽宽 to 102.55; kept=[" + string.Join(",", spans) + "]");
+				Assert(spans.Any(s => Math.Abs(s - 20.0) <= 1.0),
+					"CAD-last-run @" + degrees + "° must keep foot tip 20; kept=[" + string.Join(",", spans) + "]");
+
+				double[] signature = GetOverallStructureValueSignature(
+					planner.CreateOutlinePlan(outline),
+					config.GeometryTolerance);
+				Console.WriteLine("CAD-last-run-groove @" + degrees + "° sig=[" + string.Join(",", signature) + "]");
+				Assert(SignatureContains(signature, groove, 1.0),
+					"CAD-last-run @" + degrees + "° plan must include 槽宽 ~92.55; sig=[" + string.Join(",", signature) + "]");
+				Assert(!SignatureContains(signature, truncatedFloor, 1.0),
+					"CAD-last-run @" + degrees + "° plan must not include 82.55; sig=[" + string.Join(",", signature) + "]");
+				Assert(!SignatureContains(signature, falseRiser, 1.0),
+					"CAD-last-run @" + degrees + "° plan must not include 86.5; sig=[" + string.Join(",", signature) + "]");
+			}
+		}
+
+		/// <summary>
+		/// 槽宽优先与定位台阶 73 同侧对齐（不要贴到对面的 305）。
+		/// </summary>
+		private static void StepGroovePlacesOnSameSideAsOuterStepFourWay()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var planner = new DimensionPlanner(config);
+			var cases = new[]
+			{
+				new { Label = "F338Cad", Outline = CreateF338CadFilletedOutline(), Groove = 87.55 },
+				new { Label = "CAD-last-run", Outline = CreateF338CadLastRunGrooveOutline(), Groove = 92.55 }
+			};
+			foreach (var c in cases)
+			{
+				foreach (double degrees in new[] { 0.0, 90.0, 180.0, 270.0 })
+				{
+					OutlineFeature2D outline = degrees == 0.0
+						? c.Outline
+						: TransformOutline(c.Outline, degrees * Math.PI / 180.0);
+					var structs = planner.CreateOutlinePlan(outline).Dimensions
+						.Where(d => d.Role == DimensionCandidateRole.Structure)
+						.ToList();
+					var groove = structs.FirstOrDefault(d => Math.Abs(GetSpan(d) - c.Groove) <= 1.0);
+					var step73 = structs.FirstOrDefault(d => Math.Abs(GetSpan(d) - 73.0) <= 1.0);
+					Assert(groove != null,
+						c.Label + " @" + degrees + "° missing 槽宽; sides=["
+						+ string.Join(",", structs.Select(d => GetSpan(d) + "@" + d.Side)) + "]");
+					Assert(step73 != null,
+						c.Label + " @" + degrees + "° missing 73; sides=["
+						+ string.Join(",", structs.Select(d => GetSpan(d) + "@" + d.Side)) + "]");
+					Console.WriteLine(c.Label + " @" + degrees + "° groove=" + groove.Side
+						+ " 73=" + step73.Side);
+					Assert(groove.Side == step73.Side,
+						c.Label + " @" + degrees + "° 槽宽 must sit with 73; groove="
+						+ groove.Side + " 73=" + step73.Side);
+				}
+			}
+		}
+
 		private static OutlineFeature2D TransformOutline(OutlineFeature2D source, double angle)
 		{
 			var transformed = new OutlineFeature2D();
@@ -4645,6 +5250,26 @@ namespace CadAuto.Core.Tests
 
 		private static Point2D TransformPoint(Point2D point, double angle)
 		{
+			// Snap cardinal angles so H/V edges stay exactly axis-aligned after 90° steps
+			// (feature extractor requires IsHorizontal/IsVertical).
+			double degrees = angle * 180.0 / Math.PI;
+			double norm = ((degrees % 360) + 360) % 360;
+			if (Math.Abs(norm) < 1e-9 || Math.Abs(norm - 360) < 1e-9)
+			{
+				return new Point2D(point.X, point.Y);
+			}
+			if (Math.Abs(norm - 90) < 1e-9)
+			{
+				return new Point2D(-point.Y, point.X);
+			}
+			if (Math.Abs(norm - 180) < 1e-9)
+			{
+				return new Point2D(-point.X, -point.Y);
+			}
+			if (Math.Abs(norm - 270) < 1e-9)
+			{
+				return new Point2D(point.Y, -point.X);
+			}
 			double cosine = Math.Cos(angle);
 			double sine = Math.Sin(angle);
 			return new Point2D(
@@ -4680,7 +5305,11 @@ namespace CadAuto.Core.Tests
 				&& selectedReal.Count(d => d.DebugRole == "BottomStructWidth") == 1
 				&& selectedReal.Count(d => d.DebugRole == "OutlineSegment") == 1
 				&& selectedReal.All(d => HasRealHorizontalSegment(d, outline, config)),
-				"test2 must retain exactly one real BottomStructWidth and one real OutlineSegment at 134.79369829");
+				"test2 must retain exactly one real BottomStructWidth and one real OutlineSegment at 134.79369829 (selected="
+				+ string.Join(",", selected.Select(d => d.DebugRole + "@" + Math.Round(GetSpan(d), 3)
+					+ "/yΔ=" + Math.Round(Math.Abs(d.FirstPoint.Y - d.SecondPoint.Y), 3)))
+				+ "; real=" + string.Join(",", selectedReal.Select(d => d.DebugRole + "@" + Math.Round(GetSpan(d), 3)))
+				+ ")");
 			Assert(!selected.Any(d => Math.Abs(GetSpan(d) - projectedWidth) <= config.GeometryTolerance),
 				"test2 derived/projection width 169.20909149 must not remain selected");
 			Assert(selected.All(d => Math.Abs(d.FirstPoint.Y - d.SecondPoint.Y) <= config.GeometryTolerance),
@@ -5333,6 +5962,416 @@ namespace CadAuto.Core.Tests
                 "right structure height duplicating overall height should be suppressed");
         }
 
+
+		/// <summary>
+		/// 180°-style bottom closed chain: 75 on MinX + 50 interior + 90 on MaxX.
+		/// No-datum rule keeps shorter end 75 (not MaxX 90).
+		/// </summary>
+		private static void BottomClosedChainFlippedKeepsShorterEnd75Drops90()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 215.0,
+				MaxY = 100.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(215.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(215.0, 0.0), new Point2D(215.0, 100.0), "right");
+			AddSegment(outline, new Point2D(215.0, 100.0), new Point2D(0.0, 100.0), "top");
+			AddSegment(outline, new Point2D(0.0, 100.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlan();
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallWidth,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(215.0, 0.0),
+				ForceOuterLevel = true,
+				DebugRole = "OverallWidth"
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(75.0, 0.0),
+				DebugRole = "BottomStructWidth",
+				Role = DimensionCandidateRole.Structure
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(75.0, 0.0),
+				SecondPoint = new Point2D(125.0, 0.0),
+				DebugRole = "BottomStructWidth",
+				Role = DimensionCandidateRole.Structure
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(125.0, 0.0),
+				SecondPoint = new Point2D(215.0, 0.0),
+				DebugRole = "BottomStructWidth",
+				Role = DimensionCandidateRole.Structure
+			});
+
+			new DimensionPlanner(config).SuppressTopStructureClosedChainRedundantPositioning(plan, outline);
+
+			var bottom = plan.Dimensions.Where(d => d.DebugRole == "BottomStructWidth").ToList();
+			Assert(bottom.Any(d => Math.Abs(GetSpan(d) - 50.0) <= config.GeometryTolerance),
+				"feature 50 must remain");
+			Assert(bottom.Any(d => Math.Abs(GetSpan(d) - 75.0) <= config.GeometryTolerance),
+				"shorter end 75 must remain after 180° flip");
+			Assert(!bottom.Any(d => Math.Abs(GetSpan(d) - 90.0) <= config.GeometryTolerance),
+				"longer end 90 must be suppressed after 180° flip");
+		}
+
+		/// <summary>
+		/// 180° 215 part: top major 120 + disconnected 87 → drop 87.
+		/// </summary>
+		private static void TopDisconnectedSecondary87WithMajor120IsSuppressed()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 215.0,
+				MaxY = 100.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(215.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(215.0, 0.0), new Point2D(215.0, 100.0), "right");
+			AddSegment(outline, new Point2D(215.0, 100.0), new Point2D(0.0, 100.0), "top");
+			AddSegment(outline, new Point2D(0.0, 100.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlan();
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallWidth,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(215.0, 0.0),
+				ForceOuterLevel = true,
+				DebugRole = "OverallWidth",
+				Role = DimensionCandidateRole.Overall
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(0.0, 100.0),
+				SecondPoint = new Point2D(120.0, 100.0),
+				DebugRole = "TopStructWidth",
+				Role = DimensionCandidateRole.Structure
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(128.0, 100.0),
+				SecondPoint = new Point2D(215.0, 100.0),
+				DebugRole = "TopStructWidth",
+				Role = DimensionCandidateRole.Structure
+			});
+
+			new DimensionPlanner(config).SuppressDisconnectedSecondaryStructure(plan, outline);
+
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "TopStructWidth"
+					&& Math.Abs(GetSpan(d) - 120.0) <= config.GeometryTolerance),
+				"major top 120 must remain");
+			Assert(!plan.Dimensions.Any(d => d.DebugRole == "TopStructWidth"
+					&& Math.Abs(GetSpan(d) - 87.0) <= config.GeometryTolerance),
+				"disconnected secondary 87 must be suppressed");
+		}
+
+		/// <summary>
+		/// 90°/270° of the 215 notch part: top 50+75 become left/right heights and must stay
+		/// (not cover-killed by opposite major body; closed chain drops longer 90 body).
+		/// </summary>
+		private static void Rotated215Notch50And75SurviveOnLeftAndRight()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			OutlineFeature2D Build0()
+			{
+				var o = new OutlineFeature2D { MinX = 0, MinY = 0, MaxX = 215, MaxY = 100 };
+				AddSegment(o, new Point2D(0, 0), new Point2D(95, 0), "b1");
+				AddSegment(o, new Point2D(95, 0), new Point2D(215, 0), "b120");
+				AddSegment(o, new Point2D(215, 0), new Point2D(215, 100), "right");
+				AddSegment(o, new Point2D(215, 100), new Point2D(140, 100), "t75");
+				AddSegment(o, new Point2D(140, 100), new Point2D(140, 90), "nr");
+				AddSegment(o, new Point2D(140, 90), new Point2D(90, 90), "n50");
+				AddSegment(o, new Point2D(90, 90), new Point2D(90, 100), "nl");
+				AddSegment(o, new Point2D(90, 100), new Point2D(10, 100), "tl");
+				AddSegment(o, new Point2D(10, 100), new Point2D(0, 90), "ch");
+				AddSegment(o, new Point2D(0, 90), new Point2D(0, 58), "lu");
+				AddSegment(o, new Point2D(0, 58), new Point2D(95, 58), "pt");
+				AddSegment(o, new Point2D(95, 58), new Point2D(95, 0), "pr");
+				return o;
+			}
+			OutlineFeature2D Rot(OutlineFeature2D src, double deg)
+			{
+				double a = deg * Math.PI / 180.0, c = Math.Cos(a), sn = Math.Sin(a);
+				var t = new OutlineFeature2D();
+				foreach (var seg in src.Segments)
+				{
+					t.Segments.Add(new Segment2D(
+						new Point2D(c * seg.Start.X - sn * seg.Start.Y, sn * seg.Start.X + c * seg.Start.Y),
+						new Point2D(c * seg.End.X - sn * seg.End.Y, sn * seg.End.X + c * seg.End.Y))
+					{ SourceKey = seg.SourceKey });
+				}
+				var pts = t.Segments.SelectMany(sg => new[] { sg.Start, sg.End }).ToList();
+				t.MinX = pts.Min(p => p.X);
+				t.MaxX = pts.Max(p => p.X);
+				t.MinY = pts.Min(p => p.Y);
+				t.MaxY = pts.Max(p => p.Y);
+				return t;
+			}
+			var planner = new DimensionPlanner(config);
+			var plan90 = planner.CreateOutlinePlan(Rot(Build0(), 90));
+			var left = plan90.Dimensions.Where(d => d.DebugRole == "LeftStructHeight").ToList();
+			Assert(left.Any(d => Math.Abs(GetSpan(d) - 50.0) <= 1.0),
+				"90° must keep left ~50; left=[" + string.Join(",", left.Select(d => Math.Round(GetSpan(d), 1))) + "]");
+			Assert(left.Any(d => Math.Abs(GetSpan(d) - 75.0) <= 1.0),
+				"90° must keep left ~75 (not cover-killed); left=[" + string.Join(",", left.Select(d => Math.Round(GetSpan(d), 1))) + "]");
+			Assert(!left.Any(d => Math.Abs(GetSpan(d) - 90.0) <= 1.0),
+				"90° must drop left body ~90; left=[" + string.Join(",", left.Select(d => Math.Round(GetSpan(d), 1))) + "]");
+
+			var plan270 = planner.CreateOutlinePlan(Rot(Build0(), 270));
+			var right = plan270.Dimensions.Where(d => d.DebugRole == "RightStructHeight").ToList();
+			Assert(right.Any(d => Math.Abs(GetSpan(d) - 50.0) <= 1.0),
+				"270° must keep right ~50; right=[" + string.Join(",", right.Select(d => Math.Round(GetSpan(d), 1))) + "]");
+			Assert(right.Any(d => Math.Abs(GetSpan(d) - 75.0) <= 1.0),
+				"270° must keep right ~75; right=[" + string.Join(",", right.Select(d => Math.Round(GetSpan(d), 1))) + "]");
+		}
+
+		/// <summary>
+		/// 270° 215 part: left major 120 + lone right 72 residual → drop 72; keep short tip 42.
+		/// </summary>
+		private static void RightResidual72WithLeftMajor120IsSuppressed()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 100.0,
+				MaxY = 215.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(100.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(100.0, 0.0), new Point2D(100.0, 215.0), "right");
+			AddSegment(outline, new Point2D(100.0, 215.0), new Point2D(0.0, 215.0), "top");
+			AddSegment(outline, new Point2D(0.0, 215.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlan();
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallHeight,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(0.0, 215.0),
+				ForceOuterLevel = true,
+				DebugRole = "OverallHeight",
+				Role = DimensionCandidateRole.Overall
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(0.0, 120.0),
+				DebugRole = "LeftStructHeight",
+				Role = DimensionCandidateRole.Structure
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right,
+				FirstPoint = new Point2D(100.0, 0.0),
+				SecondPoint = new Point2D(100.0, 72.0),
+				DebugRole = "RightStructHeight",
+				Role = DimensionCandidateRole.Structure
+			});
+
+			new DimensionPlanner(config).SuppressOppositeMajorResidualSideHeights(plan, outline);
+
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "LeftStructHeight"
+					&& Math.Abs(GetSpan(d) - 120.0) <= config.GeometryTolerance),
+				"left major 120 must remain");
+			Assert(!plan.Dimensions.Any(d => d.DebugRole == "RightStructHeight"),
+				"right residual 72 must be suppressed");
+		}
+
+		/// <summary>
+		/// Rotated 215 part right side 56+72: chain &lt; overall, max 72 just over old 30% floor —
+		/// must be orphan tips, not kept as multi-piece "real steps".
+		/// </summary>
+		private static void RightSplitHeights56And72AreOrphanTipsOn215()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 100.0,
+				MaxY = 215.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(100.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(100.0, 0.0), new Point2D(100.0, 215.0), "right");
+			AddSegment(outline, new Point2D(100.0, 215.0), new Point2D(0.0, 215.0), "top");
+			AddSegment(outline, new Point2D(0.0, 215.0), new Point2D(0.0, 0.0), "left");
+
+			var plan = new DimensionPlan();
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallHeight,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(0.0, 215.0),
+				ForceOuterLevel = true,
+				DebugRole = "OverallHeight",
+				Role = DimensionCandidateRole.Overall
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right,
+				FirstPoint = new Point2D(100.0, 0.0),
+				SecondPoint = new Point2D(100.0, 72.0),
+				DebugRole = "RightStructHeight",
+				Role = DimensionCandidateRole.Structure
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right,
+				FirstPoint = new Point2D(100.0, 72.0),
+				SecondPoint = new Point2D(100.0, 128.0),
+				DebugRole = "RightStructHeight",
+				Role = DimensionCandidateRole.Structure
+			});
+
+			new DimensionPlanner(config).SuppressOrphanOuterVerticalStructureHeightTips(plan, outline);
+
+			Assert(!plan.Dimensions.Any(d => d.DebugRole == "RightStructHeight"),
+				"56+72-class right split heights must be suppressed as orphan tips on overall 215");
+		}
+
+		/// <summary>
+		/// last-run top 8: ΔX=8 ΔY=100 — pure cross-axis, must not pass top candidate filter.
+		/// </summary>
+		private static void TopCrossAxisStructWidth8IsRejected()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 215.0,
+				MaxY = 100.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(215.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(215.0, 0.0), new Point2D(215.0, 100.0), "right");
+			AddSegment(outline, new Point2D(215.0, 100.0), new Point2D(0.0, 100.0), "top");
+			AddSegment(outline, new Point2D(0.0, 100.0), new Point2D(0.0, 0.0), "left");
+			var rules = new StructureEndpointRules(config);
+			var crossAxis = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Top,
+				FirstPoint = new Point2D(120.0, 0.0),
+				SecondPoint = new Point2D(128.0, 100.0),
+				DebugRole = "TopStructWidth"
+			};
+			Assert(!rules.IsTopSideHorizontalStructureCandidate(crossAxis, outline, new List<Point2D>()),
+				"cross-axis TopStructWidth ΔX=8 ΔY=100 must fail IsTopSideHorizontalStructureCandidate");
+		}
+
+		/// <summary>
+		/// last-run left/tall orientation: abutting left steps 73+92.55≈165.5 are just under
+		/// 50% of overall 338 and were wiped as OrphanOuterVerticalStructureHeightTip.
+		/// Multi-piece real steps (each ≥15% overall) must survive.
+		/// </summary>
+		private static void LeftMultiPieceStepsSurviveOrphanTipOnTallOverall()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 201.5,
+				MaxY = 338.0
+			};
+			// Simplified tall-L: left multi-step riser chain 0-73-165.55 plus overall 338.
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(20.0, 0.0), "foot");
+			AddSegment(outline, new Point2D(20.0, 0.0), new Point2D(20.0, 73.0), "left-step-73");
+			AddSegment(outline, new Point2D(20.0, 73.0), new Point2D(100.0, 73.0), "ledge");
+			AddSegment(outline, new Point2D(100.0, 73.0), new Point2D(100.0, 165.55), "left-step-92");
+			AddSegment(outline, new Point2D(100.0, 165.55), new Point2D(101.5, 165.55), "notch");
+			AddSegment(outline, new Point2D(101.5, 165.55), new Point2D(101.5, 338.0), "left-upper");
+			AddSegment(outline, new Point2D(101.5, 338.0), new Point2D(201.5, 338.0), "top");
+			AddSegment(outline, new Point2D(201.5, 338.0), new Point2D(201.5, 0.0), "right");
+			AddSegment(outline, new Point2D(201.5, 0.0), new Point2D(20.0, 0.0), "bottom-close");
+
+			var plan = new DimensionPlan();
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallHeight,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(0.0, 338.0),
+				ForceOuterLevel = true,
+				DebugRole = "OverallHeight",
+				Role = DimensionCandidateRole.Overall
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(10.0, 73.0),
+				DebugRole = "LeftStructHeight",
+				Role = DimensionCandidateRole.Structure
+			});
+			plan.Add(new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Left,
+				FirstPoint = new Point2D(10.0, 73.0),
+				SecondPoint = new Point2D(101.5, 165.55),
+				DebugRole = "LeftStructHeight",
+				Role = DimensionCandidateRole.Structure
+			});
+
+			new DimensionPlanner(config).SuppressOrphanOuterVerticalStructureHeightTips(plan, outline);
+
+			var left = plan.Dimensions.Where(d => d.DebugRole == "LeftStructHeight").ToList();
+			Assert(left.Any(d => Math.Abs(GetSpan(d) - 73.0) <= config.GeometryTolerance),
+				"left step 73 must survive orphan-tip on tall overall");
+			Assert(left.Any(d => Math.Abs(GetSpan(d) - 92.55) <= config.GeometryTolerance),
+				"left step ~92.55 must survive orphan-tip on tall overall");
+		}
 
 		/// <summary>
 		/// A short structure height is not orphan noise when an actual partial-envelope segment
@@ -6541,3 +7580,4 @@ namespace CadAuto.Core.Tests
         }
     }
 }
+

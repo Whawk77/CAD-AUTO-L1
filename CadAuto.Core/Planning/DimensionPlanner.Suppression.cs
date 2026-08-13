@@ -56,11 +56,41 @@ public sealed partial class DimensionPlanner
 	private void SuppressDuplicateDimensions(DimensionPlan plan, OutlineFeature2D outline)
 	{
 		List<PlannedDimension> localGeometryOnEnvelope = FindLocalGeometryOnOverallEnvelope(plan, outline);
+		if (_config.UseFeatureFirstStructurePipeline)
+		{
+			// Phase B: structure keep/drop already decided by StructureMeasurementSelector.
+			// CAD real geometry can still emit near-overall inset bodies via OS / residual paths.
+			SuppressNearOverallInsetStructureBodies(plan, outline);
+			SuppressInsetStructureComplementaryToEnvelopeArm(plan, outline);
+			// Only clean OutlineSegment / envelope noise so OS does not re-win over structure.
+			SuppressOutlineSegmentsThatPartitionOverall(plan, outline, DimensionSide.Top, horizontal: true);
+			SuppressOutlineSegmentsThatPartitionOverall(plan, outline, DimensionSide.Bottom, horizontal: true);
+			SuppressOutlineSegmentsThatPartitionOverall(plan, outline, DimensionSide.Right, horizontal: false);
+			SuppressOutlineSegmentsThatPartitionOverall(plan, outline, DimensionSide.Left, horizontal: false);
+			SuppressMirroredDuplicates(plan, DimensionSide.Bottom, DimensionSide.Top, horizontal: true, outline: outline);
+			SuppressMirroredDuplicates(plan, DimensionSide.Left, DimensionSide.Right, horizontal: false, outline: outline);
+			SuppressOutlineSegmentsOnOverallEnvelope(plan, outline);
+			SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Bottom, horizontal: true);
+			SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Top, horizontal: true);
+			SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Left, horizontal: false);
+			SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Right, horizontal: false);
+			SuppressLocalGeometryOnOverallEnvelope(plan, localGeometryOnEnvelope);
+			return;
+		}
 		// Side heights are useful only when they describe a real outer-profile step (or
 		// an explicit inner-groove chamfer). Remove projection-only heights before any
 		// mirror/partition pass can promote them to the visible side.
 		SuppressNonProfileBackedSideStructureHeights(plan, outline);
 		SuppressRightStructureHeightsDuplicatingOverallHeight(plan);
+		// Rotation-stable: drop inset near-overall structure (CAD 171.5 vs Overall 201.5)
+		// without touching outer long arms (305 on envelope).
+		SuppressNearOverallInsetStructureBodies(plan, outline);
+		// Geometry-first: drop inset shoulders that only complete overall with an envelope arm
+		// (CAD 91.5 + outer 100 ≈ H 201.5). Keeps envelope arm; same rule both 0°/180°.
+		SuppressInsetStructureComplementaryToEnvelopeArm(plan, outline);
+		// Early pass: drop singleton left residuals covered by right. Multi-piece left chains
+		// (rotated top 50+75) are protected inside the method. A second pass runs after
+		// complementary right cleanup so a temporary right body (e.g. 120) cannot stick.
 		SuppressLeftStructureHeightsCoveredByRight(plan);
 		SuppressBottomProtrusionInnerRemainders(plan, outline);
 		// A real bottom contour chain may use the inner ledge as its middle piece. Resolve
@@ -105,7 +135,8 @@ public sealed partial class DimensionPlanner
 		SuppressMirroredDuplicates(plan, DimensionSide.Left, DimensionSide.Right, horizontal: false, outline: outline);
 		// After mirror keeps structure heights over OS, drop secondary-side vertical OS that only
 		// restate the primary structure stack or the overall residual (left/right step symmetry).
-		SuppressSecondaryVerticalOutlineSegmentsRedundantWithPrimaryStructureStack(plan);
+		// Pass outline so real outer tips (foot 20) are not killed as overall residual (G1).
+		SuppressSecondaryVerticalOutlineSegmentsRedundantWithPrimaryStructureStack(plan, outline);
 		// Structure>OS mirror can leave short outer tips that only restate overall residual noise.
 		// Keep short dimensions backed by a real partial envelope edge: those are real steps.
 		SuppressOrphanOuterVerticalStructureHeightTips(plan, outline);
@@ -116,6 +147,11 @@ public sealed partial class DimensionPlanner
 		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Bottom, horizontal: true, outline);
 		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Right, horizontal: false, outline);
 		SuppressComplementaryOutlineRemainders(plan, DimensionSide.Left, horizontal: false, outline);
+		// After right complementary body is gone, re-check left cover-kill (90°: 75 vs right 120).
+		SuppressLeftStructureHeightsCoveredByRight(plan);
+		// Multi-piece structure chain (n≥3) covering overall: drop unique longest body remainder
+		// (P0: 73+87.55+177.45=338 → suppress 177.45). Pairwise short/long is handled above.
+		SuppressMultiPieceStructureOverallRemainders(plan, outline);
 		// Closed length chains (any side pairing): body 70 + step 20 = overall 90 → drop 70.
 		// Includes OutlineSegment body lengths after interior edges resolve to Bottom/Top.
 		// Still requires real 1D abutment cover (never span-sum alone).
@@ -125,6 +161,11 @@ public sealed partial class DimensionPlanner
 		// feature widths + datum-side location; suppress the opposite overall-closing body
 		// (test2: keep 50+75, drop 90). Hole/pin roles are never considered here.
 		SuppressTopStructureClosedChainRedundantPositioning(plan, outline);
+		// LEGACY-SIDE-PATCH: near-abut body drop for 215 notch — retire in Phase C selector R3/R5.
+		SuppressNearAbutBodyBesideInsetNotchFeatureChain(plan, outline);
+		// Rotated 215 residuals: top 87 next to 120; lone right 72 with left 120 major.
+		SuppressDisconnectedSecondaryStructure(plan, outline);
+		SuppressOppositeMajorResidualSideHeights(plan, outline);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Bottom, horizontal: true);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Top, horizontal: true);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Left, horizontal: false);
@@ -175,8 +216,126 @@ public sealed partial class DimensionPlanner
 		{
 			return true;
 		}
+		// Inset vertical contour walls (rotated notch 50) are real profile steps even when
+		// their Y-ends do not lie on a MinX/MaxX horizontal envelope ledge.
+		if (HasCoveringVerticalContourEdge(candidate, outline, side))
+		{
+			return true;
+		}
+		// Outer location end (75) that nearly abuts an inset notch wall (50) after chamfer gap.
+		if (NearlyAbutsInsetVerticalContourEdge(candidate, outline, side))
+		{
+			return true;
+		}
 		return HasSideProfileBoundaryAt(outline, side, candidate.FirstPoint.Y)
 			|| HasSideProfileBoundaryAt(outline, side, candidate.SecondPoint.Y);
+	}
+
+	private bool NearlyAbutsInsetVerticalContourEdge(PlannedDimension candidate, OutlineFeature2D outline, DimensionSide side)
+	{
+		if (candidate == null || outline?.Segments == null)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		double maxGap = Math.Max(5.0, Math.Max(outline.Width, outline.Height) * 0.025);
+		double y0 = Math.Min(candidate.FirstPoint.Y, candidate.SecondPoint.Y);
+		double y1 = Math.Max(candidate.FirstPoint.Y, candidate.SecondPoint.Y);
+		double sideBand = Math.Max(tol * 8.0, outline.Width * 0.35);
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (segment == null || segment.IsArcChord || !segment.IsVertical(tol))
+			{
+				continue;
+			}
+			double edgeX = (segment.Start.X + segment.End.X) * 0.5;
+			bool edgeOnOuter = (side == DimensionSide.Left && Math.Abs(edgeX - outline.MinX) <= tol)
+				|| (side == DimensionSide.Right && Math.Abs(edgeX - outline.MaxX) <= tol);
+			if (edgeOnOuter)
+			{
+				continue;
+			}
+			if (side == DimensionSide.Left && edgeX > outline.MinX + sideBand + tol)
+			{
+				continue;
+			}
+			if (side == DimensionSide.Right && edgeX < outline.MaxX - sideBand - tol)
+			{
+				continue;
+			}
+			double e0 = Math.Min(segment.Start.Y, segment.End.Y);
+			double e1 = Math.Max(segment.Start.Y, segment.End.Y);
+			double gap;
+			if (y1 <= e0)
+			{
+				gap = e0 - y1;
+			}
+			else if (e1 <= y0)
+			{
+				gap = y0 - e1;
+			}
+			else
+			{
+				return true;
+			}
+			if (gap <= maxGap + tol)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private bool HasCoveringVerticalContourEdge(PlannedDimension candidate, OutlineFeature2D outline, DimensionSide side)
+	{
+		if (candidate == null || outline?.Segments == null)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		double y0 = Math.Min(candidate.FirstPoint.Y, candidate.SecondPoint.Y);
+		double y1 = Math.Max(candidate.FirstPoint.Y, candidate.SecondPoint.Y);
+		double span = y1 - y0;
+		if (span <= tol)
+		{
+			return false;
+		}
+		double x = (candidate.FirstPoint.X + candidate.SecondPoint.X) * 0.5;
+		double sideBand = Math.Max(tol * 8.0, outline.Width * 0.35);
+		if (side == DimensionSide.Left && x > outline.MinX + sideBand + tol)
+		{
+			return false;
+		}
+		if (side == DimensionSide.Right && x < outline.MaxX - sideBand - tol)
+		{
+			return false;
+		}
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (segment == null || segment.IsArcChord || !segment.IsVertical(tol))
+			{
+				continue;
+			}
+			double edgeX = (segment.Start.X + segment.End.X) * 0.5;
+			// Outer envelope walls are not "step evidence" — full-width seam fragments on
+			// MaxX/MinX must remain NonProfileBacked. Only inset notch walls qualify.
+			bool edgeOnOuter = (side == DimensionSide.Left && Math.Abs(edgeX - outline.MinX) <= tol)
+				|| (side == DimensionSide.Right && Math.Abs(edgeX - outline.MaxX) <= tol);
+			if (edgeOnOuter)
+			{
+				continue;
+			}
+			if (Math.Abs(edgeX - x) > Math.Max(tol * 4.0, outline.Width * 0.05))
+			{
+				continue;
+			}
+			double overlap = Math.Min(segment.MaxY, y1) - Math.Max(segment.MinY, y0);
+			if (overlap + tol >= span * 0.85)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private bool HasSideProfileBoundaryAt(OutlineFeature2D outline, DimensionSide side, double y)
@@ -1502,6 +1661,119 @@ public sealed partial class DimensionPlanner
 		return Math.Abs(dimension.FirstPoint.X - dimension.SecondPoint.X) <= tol;
 	}
 
+	/// <summary>
+	/// When ≥3 collinear structure dims on one side form a complete overall partition chain,
+	/// suppress the unique longest member if it is strictly longer than the second-longest
+	/// and is not a protected real step. Keeps multi-step feature chains (73+87.55) and drops
+	/// the complementary body (177.45). Hole/pin never enter.
+	/// </summary>
+	internal void SuppressMultiPieceStructureOverallRemainders(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		if (plan == null || outline == null)
+		{
+			return;
+		}
+		SuppressMultiPieceStructureOverallRemaindersOnSide(plan, outline, DimensionSide.Top, horizontal: true);
+		SuppressMultiPieceStructureOverallRemaindersOnSide(plan, outline, DimensionSide.Bottom, horizontal: true);
+		SuppressMultiPieceStructureOverallRemaindersOnSide(plan, outline, DimensionSide.Left, horizontal: false);
+		SuppressMultiPieceStructureOverallRemaindersOnSide(plan, outline, DimensionSide.Right, horizontal: false);
+	}
+
+	private void SuppressMultiPieceStructureOverallRemaindersOnSide(
+		DimensionPlan plan,
+		OutlineFeature2D outline,
+		DimensionSide side,
+		bool horizontal)
+	{
+		DimensionKind overallKind = horizontal ? DimensionKind.OverallWidth : DimensionKind.OverallHeight;
+		DimensionOrientation expected = horizontal
+			? DimensionOrientation.Horizontal
+			: DimensionOrientation.Vertical;
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) =>
+			d.Kind == overallKind && d.Orientation == expected);
+		if (overall == null)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		List<PlannedDimension> structure = plan.Dimensions
+			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+				&& d.Side == side
+				&& d.Orientation == expected
+				&& d.Role == DimensionCandidateRole.Structure
+				&& IsAxisAlignedStructureMember(d, horizontal, tol))
+			.ToList();
+		if (structure.Count < 3)
+		{
+			return;
+		}
+		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal);
+		List<DimensionDeduplicationItem> items = new List<DimensionDeduplicationItem>(structure.Count);
+		Dictionary<DimensionDeduplicationItem, PlannedDimension> itemToDim =
+			new Dictionary<DimensionDeduplicationItem, PlannedDimension>();
+		foreach (PlannedDimension dim in structure)
+		{
+			DimensionDeduplicationItem item = ToDeduplicationItem(dim);
+			items.Add(item);
+			itemToDim[item] = dim;
+		}
+		IList<DimensionDeduplicationItem> chainItems = _dimensionDeduplicationRules.FindCompleteOverallPartitionChain(
+			items,
+			overallInterval.Item1,
+			overallInterval.Item2,
+			horizontal);
+		if (chainItems == null || chainItems.Count < 3)
+		{
+			return;
+		}
+		List<PlannedDimension> chain = chainItems
+			.Select((DimensionDeduplicationItem item) => itemToDim[item])
+			.ToList();
+		List<PlannedDimension> bySpanDesc = chain
+			.OrderByDescending((PlannedDimension d) => GetDimensionSpan(d, horizontal))
+			.ThenBy((PlannedDimension d) => d.DiagnosticId)
+			.ToList();
+		PlannedDimension longest = bySpanDesc[0];
+		PlannedDimension second = bySpanDesc[1];
+		double longestSpan = GetDimensionSpan(longest, horizontal);
+		double secondSpan = GetDimensionSpan(second, horizontal);
+		if (longestSpan <= secondSpan + tol)
+		{
+			// No unique longest body (e.g. equal third-steps) — do not guess.
+			return;
+		}
+		if (IsProtectedRealStructureStep(longest, outline, tol))
+		{
+			return;
+		}
+		// Others must themselves form a contiguous abutting block (the multi-step feature chain).
+		List<Tuple<double, double>> otherIntervals = chain
+			.Where((PlannedDimension d) => d != longest)
+			.Select((PlannedDimension d) => ComputeArrowInterval(d, horizontal))
+			.OrderBy((Tuple<double, double> iv) => iv.Item1)
+			.ToList();
+		if (otherIntervals.Count < 2)
+		{
+			return;
+		}
+		for (int i = 0; i < otherIntervals.Count - 1; i++)
+		{
+			if (Math.Abs(otherIntervals[i].Item2 - otherIntervals[i + 1].Item1) > tol)
+			{
+				return;
+			}
+		}
+		// Complete n≥3 chain already verified by FindCompleteOverallPartitionChain; unique
+		// longest non-protected member is the overall-closing body remainder.
+		plan.MarkSuppressed(
+			longest,
+			SuppressReason.MultiPieceStructureOverallRemainder,
+			SuppressReason.MultiPieceStructureOverallRemainder,
+			longest.SourceGeometryIds,
+			side + ":MultiPieceChainBodyRemainder");
+		plan.Dimensions.Remove(longest);
+	}
+
 	private bool IsProtectedRealStructureStep(PlannedDimension dimension, OutlineFeature2D outline, double tol)
 	{
 		if (dimension == null)
@@ -1641,20 +1913,6 @@ public sealed partial class DimensionPlanner
 		{
 			return;
 		}
-		// Prefer hole/pin evidence for which end is "datum side". Pure structure: default Max
-		// axis end (MaxX / MaxY) so the opposite overall-closing body is still dropped.
-		bool preferMax;
-		if (horizontal)
-		{
-			if (!TryInferHorizontalDatumPrefersMaxX(plan, outline, out preferMax))
-			{
-				preferMax = true;
-			}
-		}
-		else if (!TryInferVerticalDatumPrefersMaxY(plan, outline, out preferMax))
-		{
-			preferMax = true;
-		}
 		double tol = _config.GeometryTolerance;
 		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal);
 		List<DimensionDeduplicationItem> items = new List<DimensionDeduplicationItem>(sideStructure.Count);
@@ -1679,24 +1937,68 @@ public sealed partial class DimensionPlanner
 			.Select((DimensionDeduplicationItem item) => itemToDim[item])
 			.ToList();
 		HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>();
-		foreach (PlannedDimension member in chain)
+		bool preferMax;
+		bool hasDatumEvidence = horizontal
+			? TryInferHorizontalDatumPrefersMaxX(plan, outline, out preferMax)
+			: TryInferVerticalDatumPrefersMaxY(plan, outline, out preferMax);
+		if (hasDatumEvidence)
 		{
-			Tuple<double, double> iv = ComputeArrowInterval(member, horizontal);
-			bool touchesMin = Math.Abs(iv.Item1 - overallInterval.Item1) <= tol;
-			bool touchesMax = Math.Abs(iv.Item2 - overallInterval.Item2) <= tol;
-			bool interiorFeature = !touchesMin && !touchesMax;
-			if (interiorFeature)
+			// With hole/pin: keep datum-side end + interiors; drop opposite overall-closing body.
+			foreach (PlannedDimension member in chain)
 			{
-				continue;
+				Tuple<double, double> iv = ComputeArrowInterval(member, horizontal);
+				bool touchesMin = Math.Abs(iv.Item1 - overallInterval.Item1) <= tol;
+				bool touchesMax = Math.Abs(iv.Item2 - overallInterval.Item2) <= tol;
+				if (!touchesMin && !touchesMax)
+				{
+					continue;
+				}
+				bool onDatumSide = preferMax ? touchesMax : touchesMin;
+				if (!onDatumSide && (touchesMin || touchesMax))
+				{
+					toSuppress.Add(member);
+				}
 			}
-			bool onDatumSide = preferMax ? touchesMax : touchesMin;
-			if (onDatumSide)
+		}
+		else
+		{
+			// Pure structure: drop only the STRICTLY longer overall-closing end (rotation-stable:
+			// 90 vs 75 → always drop 90). Equal-length ends (e.g. two 134.79 steps) → keep both.
+			PlannedDimension minEnd = null;
+			PlannedDimension maxEnd = null;
+			double minEndSpan = 0.0;
+			double maxEndSpan = 0.0;
+			foreach (PlannedDimension member in chain)
 			{
-				continue;
+				Tuple<double, double> iv = ComputeArrowInterval(member, horizontal);
+				bool touchesMin = Math.Abs(iv.Item1 - overallInterval.Item1) <= tol;
+				bool touchesMax = Math.Abs(iv.Item2 - overallInterval.Item2) <= tol;
+				if (touchesMin && touchesMax)
+				{
+					continue;
+				}
+				double span = GetDimensionSpan(member, horizontal);
+				if (touchesMin && (minEnd == null || span > minEndSpan + tol))
+				{
+					minEnd = member;
+					minEndSpan = span;
+				}
+				if (touchesMax && (maxEnd == null || span > maxEndSpan + tol))
+				{
+					maxEnd = member;
+					maxEndSpan = span;
+				}
 			}
-			if (touchesMin || touchesMax)
+			if (minEnd != null && maxEnd != null)
 			{
-				toSuppress.Add(member);
+				if (minEndSpan > maxEndSpan + tol)
+				{
+					toSuppress.Add(minEnd);
+				}
+				else if (maxEndSpan > minEndSpan + tol)
+				{
+					toSuppress.Add(maxEnd);
+				}
 			}
 		}
 		if (toSuppress.Count == 0)
@@ -1727,6 +2029,376 @@ public sealed partial class DimensionPlanner
 				"StructureClosedChain:" + sideToken + ":KeepFeatureAndDatumSideLocation");
 			plan.Dimensions.RemoveAt(num);
 		}
+	}
+
+	/// <summary>
+	/// When an inset notch wall (50) plus an envelope location end (75) form a feature stack,
+	/// drop the opposite overall-closing body (87) that only nearly abuts across a chamfer gap.
+	/// Exact <see cref="FindCompleteOverallPartitionChain"/> misses these near-abut cases.
+	/// </summary>
+	internal void SuppressNearAbutBodyBesideInsetNotchFeatureChain(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		if (plan == null || outline == null)
+		{
+			return;
+		}
+		SuppressNearAbutBodyBesideInsetNotchFeatureChainOnSide(plan, outline, DimensionSide.Left);
+		SuppressNearAbutBodyBesideInsetNotchFeatureChainOnSide(plan, outline, DimensionSide.Right);
+	}
+
+	private void SuppressNearAbutBodyBesideInsetNotchFeatureChainOnSide(
+		DimensionPlan plan,
+		OutlineFeature2D outline,
+		DimensionSide side)
+	{
+		double tol = _config.GeometryTolerance;
+		double maxGap = Math.Max(5.0, Math.Max(outline.Width, outline.Height) * 0.025);
+		double sideBand = Math.Max(tol * 8.0, outline.Width * 0.35);
+		List<PlannedDimension> heights = plan.Dimensions
+			.Where((PlannedDimension d) => d != null
+				&& d.Kind == DimensionKind.Normal
+				&& d.Orientation == DimensionOrientation.Vertical
+				&& d.Side == side
+				&& (IsLeftStructureHeight(d) || IsRightStructureHeight(d)))
+			.ToList();
+		if (heights.Count < 3)
+		{
+				return;
+		}
+		List<PlannedDimension> insets = heights
+			.Where((PlannedDimension d) =>
+			{
+				// True vertical only — cross-axis body residuals (10,0)-(0,87) are not notch walls.
+				if (Math.Abs(d.FirstPoint.X - d.SecondPoint.X) > tol)
+				{
+					return false;
+				}
+				double x = (d.FirstPoint.X + d.SecondPoint.X) * 0.5;
+				bool onOuter = (side == DimensionSide.Left && Math.Abs(x - outline.MinX) <= tol)
+					|| (side == DimensionSide.Right && Math.Abs(x - outline.MaxX) <= tol);
+				if (onOuter)
+				{
+					return false;
+				}
+				if (side == DimensionSide.Left)
+				{
+					return x <= outline.MinX + sideBand + tol;
+				}
+				return x >= outline.MaxX - sideBand - tol;
+			})
+			.ToList();
+		if (insets.Count == 0)
+		{
+				return;
+		}
+		// Location ends: touch overall MinY or MaxY, near-abut an inset, and not a long
+		// body residual (87 is ≥40% overall; location 75 is shorter).
+		List<PlannedDimension> locationEnds = heights
+			.Where((PlannedDimension d) =>
+			{
+				if (insets.Contains(d))
+				{
+					return false;
+				}
+				double y0 = Math.Min(d.FirstPoint.Y, d.SecondPoint.Y);
+				double y1 = Math.Max(d.FirstPoint.Y, d.SecondPoint.Y);
+				double span = y1 - y0;
+				if (span + tol >= outline.Height * 0.4)
+				{
+					return false;
+				}
+				bool onEnv = Math.Abs(y0 - outline.MinY) <= tol || Math.Abs(y1 - outline.MaxY) <= tol;
+				if (!onEnv)
+				{
+					return false;
+				}
+				return insets.Any((PlannedDimension inset) => VerticalNearAbutIntervals(inset, d, maxGap, tol));
+			})
+			.ToList();
+		if (locationEnds.Count == 0)
+		{
+				return;
+		}
+		HashSet<PlannedDimension> feature = new HashSet<PlannedDimension>(insets);
+		foreach (PlannedDimension loc in locationEnds)
+		{
+			feature.Add(loc);
+		}
+		double f0 = feature.Min((PlannedDimension d) => Math.Min(d.FirstPoint.Y, d.SecondPoint.Y));
+		double f1 = feature.Max((PlannedDimension d) => Math.Max(d.FirstPoint.Y, d.SecondPoint.Y));
+		// Feature must own one overall Y end (the location 75).
+		bool ownsMax = Math.Abs(f1 - outline.MaxY) <= maxGap + tol;
+		bool ownsMin = Math.Abs(f0 - outline.MinY) <= maxGap + tol;
+		if (!ownsMax && !ownsMin)
+		{
+			return;
+		}
+		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
+		{
+			PlannedDimension cand = plan.Dimensions[num];
+			if (!heights.Contains(cand) || feature.Contains(cand))
+			{
+				continue;
+			}
+			double y0 = Math.Min(cand.FirstPoint.Y, cand.SecondPoint.Y);
+			double y1 = Math.Max(cand.FirstPoint.Y, cand.SecondPoint.Y);
+			double span = y1 - y0;
+			// Body residual: sits entirely outside the feature band, on the opposite envelope.
+			bool entirelyBelow = y1 <= f0 + maxGap + tol;
+			bool entirelyAbove = y0 >= f1 - maxGap - tol;
+			if (!entirelyBelow && !entirelyAbove)
+			{
+				continue;
+			}
+			bool touchesOpposite = ownsMax
+				? Math.Abs(y0 - outline.MinY) <= maxGap + tol
+				: Math.Abs(y1 - outline.MaxY) <= maxGap + tol;
+			if (!touchesOpposite)
+			{
+				continue;
+			}
+			// Prefer not to kill short real tips (&lt; 25% overall).
+			if (span + tol < outline.Height * 0.25)
+			{
+				continue;
+			}
+				plan.MarkSuppressed(
+				cand,
+				SuppressReason.TopClosedChainRedundantPositioning,
+				"TopClosedChainRedundantPositioning",
+				cand.SourceGeometryIds,
+				"StructureClosedChain:" + side + ":NearAbutBodyBesideInsetNotch");
+			plan.Dimensions.RemoveAt(num);
+		}
+	}
+
+	private static bool VerticalNearAbutIntervals(
+		PlannedDimension a,
+		PlannedDimension b,
+		double maxGap,
+		double tol)
+	{
+		if (a == null || b == null)
+		{
+			return false;
+		}
+		double a0 = Math.Min(a.FirstPoint.Y, a.SecondPoint.Y);
+		double a1 = Math.Max(a.FirstPoint.Y, a.SecondPoint.Y);
+		double b0 = Math.Min(b.FirstPoint.Y, b.SecondPoint.Y);
+		double b1 = Math.Max(b.FirstPoint.Y, b.SecondPoint.Y);
+		if (a1 + tol >= b0 && b1 + tol >= a0)
+		{
+			return true;
+		}
+		double gap = a1 <= b0 ? b0 - a1 : a0 - b1;
+		return gap <= maxGap + tol;
+	}
+
+	/// <summary>
+	/// Same side + orientation: if the longest structure is a major piece (≥45% of overall),
+	/// suppress smaller structure pieces that do not share an arrow endpoint with it and are
+	/// not collinear abutting neighbors (feature chains like 50+75 share endpoints and stay).
+	/// </summary>
+	internal void SuppressDisconnectedSecondaryStructure(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		if (plan == null)
+		{
+			return;
+		}
+		foreach (bool horizontal in new[] { true, false })
+		{
+			SuppressDisconnectedSecondaryStructureOnAxis(plan, outline, horizontal);
+		}
+	}
+
+	private void SuppressDisconnectedSecondaryStructureOnAxis(DimensionPlan plan, OutlineFeature2D outline, bool horizontal)
+	{
+		DimensionKind overallKind = horizontal ? DimensionKind.OverallWidth : DimensionKind.OverallHeight;
+		DimensionOrientation expected = horizontal
+			? DimensionOrientation.Horizontal
+			: DimensionOrientation.Vertical;
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) =>
+			d.Kind == overallKind && d.Orientation == expected);
+		if (overall == null)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		double overallSpan = GetDimensionSpan(overall, horizontal);
+		if (overallSpan <= tol)
+		{
+			return;
+		}
+		double majorFloor = overallSpan * 0.45;
+		foreach (DimensionSide side in horizontal
+			? new[] { DimensionSide.Top, DimensionSide.Bottom }
+			: new[] { DimensionSide.Left, DimensionSide.Right })
+		{
+			List<PlannedDimension> members = plan.Dimensions
+				.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+					&& d.Orientation == expected
+					&& d.Side == side
+					&& d.Role == DimensionCandidateRole.Structure)
+				.ToList();
+			if (members.Count < 2)
+			{
+				continue;
+			}
+			PlannedDimension primary = members
+				.OrderByDescending((PlannedDimension d) => GetDimensionSpan(d, horizontal))
+				.First();
+			double primarySpan = GetDimensionSpan(primary, horizontal);
+			if (primarySpan + tol < majorFloor)
+			{
+				continue;
+			}
+			for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
+			{
+				PlannedDimension candidate = plan.Dimensions[num];
+				if (!members.Contains(candidate) || candidate == primary)
+				{
+					continue;
+				}
+				double span = GetDimensionSpan(candidate, horizontal);
+				if (span + tol >= primarySpan)
+				{
+					continue;
+				}
+				// Feature chain members share endpoints with neighbors (50 touches 75).
+				if (members.Any((PlannedDimension other) => other != candidate
+					&& SharesArrowEndpoint(candidate, other, horizontal)))
+				{
+					continue;
+				}
+				// Also keep if it shares endpoint with the primary major piece.
+				if (SharesArrowEndpoint(candidate, primary, horizontal))
+				{
+					continue;
+				}
+				plan.MarkSuppressed(
+					candidate,
+					SuppressReason.DisconnectedSecondaryStructure,
+					SuppressReason.DisconnectedSecondaryStructure,
+					candidate.SourceGeometryIds,
+					side + ":DisconnectedFromMajorStructure");
+				plan.Dimensions.RemoveAt(num);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Lone residual side height when the opposite side already has a major structure height
+	/// (≥50% overall). Targets right 72 with left 120 on rotated 215; keeps short real tips
+	/// like 42 (under 25% overall) and multi-piece feature chains (count ≥ 2).
+	/// </summary>
+	internal void SuppressOppositeMajorResidualSideHeights(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		if (plan == null)
+		{
+			return;
+		}
+		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) =>
+			d.Kind == DimensionKind.OverallHeight);
+		if (overall == null)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		double overallSpan = GetDimensionSpan(overall, horizontal: false);
+		if (overallSpan <= tol)
+		{
+			return;
+		}
+		double majorFloor = overallSpan * 0.5;
+		double residualMin = overallSpan * 0.25;
+		double residualMax = overallSpan * 0.40;
+		foreach (DimensionSide side in new[] { DimensionSide.Left, DimensionSide.Right })
+		{
+			DimensionSide opposite = side == DimensionSide.Left ? DimensionSide.Right : DimensionSide.Left;
+			List<PlannedDimension> oppositeHeights = plan.Dimensions
+				.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+					&& d.Orientation == DimensionOrientation.Vertical
+					&& d.Side == opposite
+					&& d.Role == DimensionCandidateRole.Structure)
+				.ToList();
+			if (!oppositeHeights.Any((PlannedDimension d) =>
+				GetDimensionSpan(d, horizontal: false) + tol >= majorFloor))
+			{
+				continue;
+			}
+			List<PlannedDimension> sideHeights = plan.Dimensions
+				.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
+					&& d.Orientation == DimensionOrientation.Vertical
+					&& d.Side == side
+					&& d.Role == DimensionCandidateRole.Structure)
+				.ToList();
+			// Only lone residuals; multi-piece feature chains (50+75) stay.
+			if (sideHeights.Count != 1)
+			{
+				continue;
+			}
+			PlannedDimension residual = sideHeights[0];
+			double span = GetDimensionSpan(residual, horizontal: false);
+			// 42/215≈19.5% stays (below residualMin); 72/215≈33% is suppressed.
+			if (span + tol < residualMin || span > residualMax + tol)
+			{
+				continue;
+			}
+			plan.MarkSuppressed(
+				residual,
+				SuppressReason.OppositeMajorResidualSideHeight,
+				SuppressReason.OppositeMajorResidualSideHeight,
+				residual.SourceGeometryIds,
+				side + ":ResidualWithOppositeMajor");
+			plan.Dimensions.Remove(residual);
+		}
+	}
+
+	private bool SharesArrowEndpoint(PlannedDimension first, PlannedDimension second, bool horizontal)
+	{
+		if (first == null || second == null)
+		{
+			return false;
+		}
+		Tuple<double, double> a = ComputeArrowInterval(first, horizontal);
+		Tuple<double, double> b = ComputeArrowInterval(second, horizontal);
+		return Math.Abs(a.Item1 - b.Item1) <= _config.GeometryTolerance
+			|| Math.Abs(a.Item1 - b.Item2) <= _config.GeometryTolerance
+			|| Math.Abs(a.Item2 - b.Item1) <= _config.GeometryTolerance
+			|| Math.Abs(a.Item2 - b.Item2) <= _config.GeometryTolerance;
+	}
+
+	/// <summary>
+	/// True when vertical structure pieces share an endpoint or sit across a small chamfer gap
+	/// (≤ max(5, 2.5% overall-ish absolute 5)) so multi-piece notch chains stay linked.
+	/// </summary>
+	private bool SharesOrNearlyAbutsVertical(PlannedDimension first, PlannedDimension second)
+	{
+		if (SharesArrowEndpoint(first, second, horizontal: false))
+		{
+			return true;
+		}
+		if (first == null || second == null)
+		{
+			return false;
+		}
+		Tuple<double, double> a = ComputeArrowInterval(first, horizontal: false);
+		Tuple<double, double> b = ComputeArrowInterval(second, horizontal: false);
+		double gap;
+		if (a.Item2 <= b.Item1)
+		{
+			gap = b.Item1 - a.Item2;
+		}
+		else if (b.Item2 <= a.Item1)
+		{
+			gap = a.Item1 - b.Item2;
+		}
+		else
+		{
+			return true;
+		}
+		double maxGap = Math.Max(5.0, _config.GeometryTolerance * 50.0);
+		return gap > _config.GeometryTolerance && gap <= maxGap + _config.GeometryTolerance;
 	}
 
 	private static bool IsStructureClosedChainMemberRole(string debugRole, DimensionSide side)
@@ -2375,17 +3047,194 @@ public sealed partial class DimensionPlanner
 		}
 	}
 
-	private void SuppressLeftStructureHeightsCoveredByRight(DimensionPlan plan)
+	/// <summary>
+	/// Drop structure dims whose span is ≥80% of overall on the same axis AND whose
+	/// supporting edge is inset (not on the outer envelope). Catches CAD filleted
+	/// interior walls (171.5 vs H=201.5) without removing outer long arms (305).
+	/// Axis-independent: works for Left/Right heights and Top/Bottom widths after rotation.
+	/// </summary>
+	private void SuppressNearOverallInsetStructureBodies(DimensionPlan plan, OutlineFeature2D outline)
 	{
-		List<PlannedDimension> list = plan.Dimensions.Where(IsRightStructureHeight).ToList();
-		if (list.Count == 0)
+		if (plan == null || outline == null)
 		{
 			return;
+		}
+		double tol = _config.GeometryTolerance;
+		double envelopeBand = OuterEnvelopeBand(outline, tol);
+		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
+		{
+			PlannedDimension cand = plan.Dimensions[num];
+			if (cand == null
+				|| cand.Kind != DimensionKind.Normal
+				|| cand.Role != DimensionCandidateRole.Structure)
+			{
+				continue;
+			}
+			bool horizontal = cand.Orientation == DimensionOrientation.Horizontal;
+			double overallOnAxis = horizontal ? outline.Width : outline.Height;
+			if (overallOnAxis <= tol)
+			{
+				continue;
+			}
+			double span = GetDimensionSpan(cand, horizontal);
+			if (span + tol < overallOnAxis * 0.80)
+			{
+				continue;
+			}
+			// Envelope-backed long arm (305 on outer top/bottom/left/right) is kept.
+			// Filleted edges sit a few mm inside MaxY/MinX — still outer (G3).
+			if (IsStructureOnOuterEnvelope(cand, outline, envelopeBand))
+			{
+				continue;
+			}
+			plan.MarkSuppressed(cand, SuppressReason.NearOverallInsetStructureBody);
+			plan.Dimensions.RemoveAt(num);
+		}
+	}
+
+	/// <summary>
+	/// Fillet/chamfer band: outer edges may sit a few mm inside the AABB.
+	/// </summary>
+	private static double OuterEnvelopeBand(OutlineFeature2D outline, double tol)
+	{
+		double shortSide = Math.Min(outline.Width, outline.Height);
+		return Math.Max(Math.Max(tol * 20.0, 6.0), shortSide * 0.04);
+	}
+
+	private static bool IsStructureOnOuterEnvelope(PlannedDimension dim, OutlineFeature2D outline, double band)
+	{
+		if (dim == null || outline == null)
+		{
+			return false;
+		}
+		if (dim.Orientation == DimensionOrientation.Horizontal)
+		{
+			double y = (dim.FirstPoint.Y + dim.SecondPoint.Y) * 0.5;
+			return Math.Abs(y - outline.MinY) <= band || Math.Abs(y - outline.MaxY) <= band;
+		}
+		double x = (dim.FirstPoint.X + dim.SecondPoint.X) * 0.5;
+		return Math.Abs(x - outline.MinX) <= band || Math.Abs(x - outline.MaxX) <= band;
+	}
+
+	/// <summary>
+	/// Geometry-first (four-way): if an inset structure face and an outer-envelope structure
+	/// arm nearly partition overall on the same measurement axis (within fillet band), drop
+	/// only the inset face. Example: step shoulder 91.5 + left arm 100 ≈ height 201.5.
+	/// Does not touch multi-level treads that sum far below overall (73+87.55 ≠ 338).
+	/// </summary>
+	private void SuppressInsetStructureComplementaryToEnvelopeArm(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		if (plan == null || outline == null)
+		{
+			return;
+		}
+		double tol = _config.GeometryTolerance;
+		double envelopeBand = OuterEnvelopeBand(outline, tol);
+		// Allow fillet/chamfer remainder between arm + shoulder and overall (≈10 on 201.5).
+		double filletSlack = Math.Max(envelopeBand * 2.0, Math.Min(outline.Width, outline.Height) * 0.08);
+		// Vertical only: targets side shoulders (91.5). Horizontal bottom/top step arbitration
+		// (20+70, 120+95) stays with OuterContourStep rules so diagnostics/RuleId stay intact.
+		// After 90° the same physical shoulder is still a structure height on L/R in local frame
+		// once InferFromOutline re-orients — for AABB 338×201.5 both product views are this case.
+		double overallOnAxis = outline.Height;
+		if (overallOnAxis <= tol)
+		{
+			return;
+		}
+		List<PlannedDimension> structures = plan.Dimensions
+			.Where(d => d != null
+				&& d.Kind == DimensionKind.Normal
+				&& d.Role == DimensionCandidateRole.Structure
+				&& d.Orientation == DimensionOrientation.Vertical)
+			.ToList();
+		if (structures.Count < 2)
+		{
+			return;
+		}
+		List<PlannedDimension> envelopeArms = structures
+			.Where(d => IsStructureOnOuterEnvelope(d, outline, envelopeBand))
+			.ToList();
+		List<PlannedDimension> insetFaces = structures
+			.Where(d => !IsStructureOnOuterEnvelope(d, outline, envelopeBand))
+			.ToList();
+		if (envelopeArms.Count == 0 || insetFaces.Count == 0)
+		{
+			return;
+		}
+		HashSet<PlannedDimension> drop = new HashSet<PlannedDimension>();
+		foreach (PlannedDimension inset in insetFaces)
+		{
+			// Never drop 槽宽 / outer tip recovered by FeatureFirst.
+			if (inset.SourceKey != null
+				&& (inset.SourceKey.StartsWith("StepGroove", StringComparison.Ordinal)
+					|| inset.SourceKey.StartsWith("OuterTip", StringComparison.Ordinal)))
+			{
+				continue;
+			}
+			double insetSpan = GetDimensionSpan(inset, horizontal: false);
+			// Substantial shoulders only (CAD 91.5 ≈ 45% of H). Tiny projected residuals
+			// (OC01 8.26) stay for OuterContourStep arbitration / RuleId.
+			if (insetSpan + tol < overallOnAxis * 0.35 || insetSpan + tol >= overallOnAxis * 0.75)
+			{
+				continue;
+			}
+			foreach (PlannedDimension arm in envelopeArms)
+			{
+				double armSpan = GetDimensionSpan(arm, horizontal: false);
+				double sum = insetSpan + armSpan;
+				if (sum + tol >= overallOnAxis - filletSlack
+					&& sum <= overallOnAxis + filletSlack
+					&& armSpan + tol >= overallOnAxis * 0.30)
+				{
+					drop.Add(inset);
+					break;
+				}
+			}
+		}
+		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
+		{
+			PlannedDimension d = plan.Dimensions[num];
+			if (d != null && drop.Contains(d))
+			{
+				plan.MarkSuppressed(d, "InsetStructureComplementaryToEnvelopeArm");
+				plan.Dimensions.RemoveAt(num);
+			}
+		}
+	}
+
+	private void SuppressLeftStructureHeightsCoveredByRight(DimensionPlan plan)
+	{
+		List<PlannedDimension> rights = plan.Dimensions.Where(IsRightStructureHeight).ToList();
+		if (rights.Count == 0)
+		{
+			return;
+		}
+		List<PlannedDimension> lefts = plan.Dimensions.Where(IsLeftStructureHeight).ToList();
+		// Rotated top notch 50+75 (and longer closed chains 90+50+75) become multi-piece left
+		// heights. Never cover-kill a left that abuts another left structure, or any member of
+		// a multi-piece abutting left chain of length ≥ 2. Near-abut (small chamfer gap)
+		// counts so 50@90-140 + 72@143-215 still protect each other before gap bridge.
+		HashSet<PlannedDimension> multiPieceLeft = new HashSet<PlannedDimension>();
+		foreach (PlannedDimension left in lefts)
+		{
+			if (lefts.Any((PlannedDimension other) => other != left
+				&& SharesOrNearlyAbutsVertical(left, other)))
+			{
+				multiPieceLeft.Add(left);
+			}
 		}
 		for (int num = plan.Dimensions.Count - 1; num >= 0; num--)
 		{
 			PlannedDimension left = plan.Dimensions[num];
-			if (IsLeftStructureHeight(left) && list.Any((PlannedDimension right) =>
+			if (!IsLeftStructureHeight(left))
+			{
+				continue;
+			}
+			if (multiPieceLeft.Contains(left))
+			{
+				continue;
+			}
+			if (rights.Any((PlannedDimension right) =>
 				_dimensionDeduplicationRules.IsLeftStructureHeightCoveredByRight(
 					ToDeduplicationItem(left), ToDeduplicationItem(right))))
 			{
@@ -2407,6 +3256,8 @@ public sealed partial class DimensionPlanner
 	/// Suppress same-side abutting structure-height chains that are only tip noise:
 	/// no piece spans &gt;= 30% of OverallHeight and the chain covers &lt; 50% of overall.
 	/// Keeps real steps (L-arm ~40% of height, left-step 50+30 chain).
+	/// Also keeps multi-piece real step chains (e.g. 73+87.55 on rotated 338-high part) where
+	/// every piece is a substantial step (≥15% overall) even when chain span is just under 50%.
 	/// </summary>
 	internal void SuppressOrphanOuterVerticalStructureHeightTips(DimensionPlan plan, OutlineFeature2D outline = null)
 	{
@@ -2437,6 +3288,7 @@ public sealed partial class DimensionPlanner
 			}
 			List<List<PlannedDimension>> chains = BuildAbuttingVerticalStructureChains(heights, tol);
 			HashSet<PlannedDimension> toSuppress = new HashSet<PlannedDimension>();
+			Tuple<double, double> overallIv = ComputeArrowInterval(overall, horizontal: false);
 			foreach (List<PlannedDimension> chain in chains)
 			{
 				double maxPiece = chain.Max((PlannedDimension d) => GetDimensionSpan(d, horizontal: false));
@@ -2445,7 +3297,37 @@ public sealed partial class DimensionPlanner
 					.ToList();
 				List<Tuple<double, double>> merged = MergeVerticalIntervals(ivs, tol);
 				double chainSpan = merged.Sum((Tuple<double, double> m) => m.Item2 - m.Item1);
-				if (maxPiece + tol >= minPieceToKeep || chainSpan + tol >= minChainToKeep)
+				double chainMin = merged.Count == 0 ? 0.0 : merged.Min(m => m.Item1);
+				double chainMax = merged.Count == 0 ? 0.0 : merged.Max(m => m.Item2);
+				bool touchesBothOverallEnds = Math.Abs(chainMin - overallIv.Item1) <= tol
+					&& Math.Abs(chainMax - overallIv.Item2) <= tol;
+				// Single substantial piece: keep if ≥30% overall.
+				// Multi-piece: only count chainSpan keep when the chain actually spans overall
+				// ends (otherwise 56+72=128 > 50% of 215 would survive as fake "chain").
+				double pieceFloor = chain.Count >= 2 ? overallSpan * 0.34 : minPieceToKeep;
+				if (maxPiece + tol >= pieceFloor)
+				{
+					continue;
+				}
+				if (touchesBothOverallEnds && chainSpan + tol >= minChainToKeep)
+				{
+					continue;
+				}
+				// Keep multi-piece chain only when every member is a real partial-envelope face.
+				bool allRealEnvelopeSteps = chain.Count >= 2
+					&& chain.All((PlannedDimension d) => IsRealPartialEnvelopeStructureHeight(d, outline, tol));
+				if (allRealEnvelopeSteps)
+				{
+					continue;
+				}
+				// Tall-overall near-miss only (e.g. 338-high: 73+92.55≈165.5 vs 50%=169).
+				// Do not apply on ~215-high parts — that preserves bogus 56+72 splits.
+				bool nearMissRealChain = overallSpan >= 300.0
+					&& chain.Count >= 2
+					&& chainSpan + tol >= minChainToKeep * 0.97
+					&& chain.All((PlannedDimension d) =>
+						GetDimensionSpan(d, horizontal: false) + tol >= overallSpan * 0.2);
+				if (nearMissRealChain)
 				{
 					continue;
 				}
@@ -2623,7 +3505,9 @@ public sealed partial class DimensionPlanner
 		return chains;
 	}
 
-	internal void SuppressSecondaryVerticalOutlineSegmentsRedundantWithPrimaryStructureStack(DimensionPlan plan)
+	internal void SuppressSecondaryVerticalOutlineSegmentsRedundantWithPrimaryStructureStack(
+		DimensionPlan plan,
+		OutlineFeature2D outline = null)
 	{
 		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallHeight);
 		if (overall == null)
@@ -2637,6 +3521,7 @@ public sealed partial class DimensionPlanner
 			return;
 		}
 		double tol = _config.GeometryTolerance;
+		double envelopeBand = outline != null ? OuterEnvelopeBand(outline, tol) : Math.Max(tol * 20.0, 6.0);
 		double leftSpan = leftHeights.Sum((PlannedDimension d) => GetDimensionSpan(d, horizontal: false));
 		double rightSpan = rightHeights.Sum((PlannedDimension d) => GetDimensionSpan(d, horizontal: false));
 		bool primaryIsLeft;
@@ -2730,6 +3615,22 @@ public sealed partial class DimensionPlanner
 			bool onPartitionChain = osOnCompleteChain.Contains(cand);
 			if (!sameAsPrimary && !inResidual && !onPartitionChain)
 			{
+				continue;
+			}
+			// G1 geometry-first: real outer-envelope short tip (foot 20) must survive rotation
+			// whether it lands as OS on Right or Structure on Bottom — never residual-kill it.
+			double osSpan = GetDimensionSpan(cand, horizontal: false);
+			double overallSpan = GetDimensionSpan(overall, horizontal: false);
+			bool outerEnvelopeTip = outline != null
+				&& IsStructureOnOuterEnvelope(cand, outline, envelopeBand)
+				&& osSpan + tol < overallSpan * 0.20
+				&& osSpan + tol >= Math.Max(tol * 4.0, _config.TextHeight * 2.0);
+			if (outerEnvelopeTip && !sameAsPrimary)
+			{
+				// Promote residual OS tip to structure so Signature keeps the span four-way.
+				cand.Role = DimensionCandidateRole.Structure;
+				cand.DebugRole = cand.Side == DimensionSide.Right ? "RightStructHeight" : "LeftStructHeight";
+				cand.ReadingLevel = DimensionReadingLevel.LocalSpacing;
 				continue;
 			}
 			string why;

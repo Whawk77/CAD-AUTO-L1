@@ -325,24 +325,85 @@ public sealed class StructureEndpointRules
 
 	public bool IsBottomSideHorizontalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IEnumerable<Point2D> ignoredPoints)
 	{
+		// Classic bottom-side rule: reject cross-axis projections; both ends must be the
+		// bottom-most points of their vertical columns. Multi-level ledge recovery is done by
+		// DimensionPlanner.SnapCrossLevelBottomCandidatesOntoBottomFacingEdges before this check
+		// (snapped dims become collinear; planner keeps them via an explicit snapped set).
 		return !IsCrossAxisStructureSpanTooLarge(dim.FirstPoint, dim.SecondPoint, horizontal: true)
 			&& IsCurrentBottomSideStructurePoint(dim.FirstPoint, outline, ignoredPoints)
 			&& IsCurrentBottomSideStructurePoint(dim.SecondPoint, outline, ignoredPoints);
 	}
 
+	/// <summary>
+	/// Bottom-facing: MinY outer edge, or solid above and free space below (local step ledge).
+	/// Mirrors DimensionPlanner.ResolveHorizontalOutlineSegmentSide for Bottom.
+	/// </summary>
+	public bool IsBottomFacingHorizontalSegment(Segment2D segment, OutlineFeature2D outline)
+	{
+		if (segment == null || outline == null)
+		{
+			return false;
+		}
+		double tol = _config.GeometryTolerance;
+		double y = (segment.Start.Y + segment.End.Y) * 0.5;
+		if (Math.Abs(y - outline.MinY) <= tol)
+		{
+			return true;
+		}
+		if (Math.Abs(y - outline.MaxY) <= tol)
+		{
+			return false;
+		}
+		double midX = (segment.MinX + segment.MaxX) * 0.5;
+		double probe = Math.Max(tol * 4.0, Math.Min(outline.Height * 0.05, 1.0));
+		bool aboveInside = _structureRules.IsPointInsideOutlineByRayCast(midX, y + probe, outline);
+		bool belowInside = _structureRules.IsPointInsideOutlineByRayCast(midX, y - probe, outline);
+		return aboveInside && !belowInside;
+	}
+
 	public bool IsTopSideHorizontalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IEnumerable<Point2D> ignoredPoints)
 	{
-		return IsCurrentTopSideStructurePoint(dim.FirstPoint, outline, ignoredPoints) && IsCurrentTopSideStructurePoint(dim.SecondPoint, outline, ignoredPoints);
+		// Reject pure cross-axis only when vertical span is large vs width (tip 8 with ΔY=100).
+		// Mild Y differences between top-most column points must still pass (projected chain 134.79).
+		if (IsSevereCrossAxisHorizontalStructure(dim.FirstPoint, dim.SecondPoint, outline))
+		{
+			return false;
+		}
+		return IsCurrentTopSideStructurePoint(dim.FirstPoint, outline, ignoredPoints)
+			&& IsCurrentTopSideStructurePoint(dim.SecondPoint, outline, ignoredPoints);
+	}
+
+	/// <summary>
+	/// Severe horizontal cross-axis tip: ΔY > ΔX and the width is only a micro fraction of
+	/// outline width (e.g. last-run top 8 on width 215). Real multi-level top steps often have
+	/// ΔY > ΔX between adjacent columns (134.79 with large riser) and must not be rejected.
+	/// </summary>
+	public bool IsSevereCrossAxisHorizontalStructure(Point2D first, Point2D second, OutlineFeature2D outline)
+	{
+		double dx = Math.Abs(second.X - first.X);
+		double dy = Math.Abs(second.Y - first.Y);
+		double tol = _config.GeometryTolerance;
+		if (dy <= dx + tol)
+		{
+			return false;
+		}
+		if (outline != null && outline.Width > tol)
+		{
+			return dx < outline.Width * 0.05 - tol;
+		}
+		return dy > dx + tol;
 	}
 
 	public bool IsRightSideVerticalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IEnumerable<Point2D> ignoredPoints)
 	{
-		return IsCurrentRightSideStructurePoint(dim.FirstPoint, outline, ignoredPoints) && IsCurrentRightSideStructurePoint(dim.SecondPoint, outline, ignoredPoints);
+		return IsCurrentRightSideStructurePoint(dim.FirstPoint, outline, ignoredPoints)
+			&& IsCurrentRightSideStructurePoint(dim.SecondPoint, outline, ignoredPoints);
 	}
 
 	public bool IsLeftSideVerticalStructureCandidate(PlannedDimension dim, OutlineFeature2D outline, IEnumerable<Point2D> ignoredPoints)
 	{
-		return IsCurrentLeftSideStructurePoint(dim.FirstPoint, outline, ignoredPoints) && IsCurrentLeftSideStructurePoint(dim.SecondPoint, outline, ignoredPoints);
+		return IsCurrentLeftSideStructurePoint(dim.FirstPoint, outline, ignoredPoints)
+			&& IsCurrentLeftSideStructurePoint(dim.SecondPoint, outline, ignoredPoints);
 	}
 
 	public bool IsCurrentBottomSideStructurePoint(Point2D point, OutlineFeature2D outline, IEnumerable<Point2D> ignoredPoints)

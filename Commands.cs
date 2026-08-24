@@ -160,7 +160,13 @@ public sealed class Commands
 			"case-" + DateTime.Now.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture));
 		store.Add(captured);
 		store.Save(path);
-		editor.WriteMessage("\nASDCASE: saved {0} with {1} decisions to {2}", captured.Id, captured.Decisions.Count, path);
+		editor.WriteMessage(
+			"\nASDCASE: saved {0} strategies=[{1}] schemas=[{2}] archiveTokens={3} to {4}",
+			captured.Id,
+			string.Join(",", captured.Strategies ?? new List<string>()),
+			string.Join(",", captured.Schemas ?? new List<string>()),
+			captured.Decisions.Count,
+			path);
 	}
 
 	[CommandMethod("AUTOFIXDIM")]

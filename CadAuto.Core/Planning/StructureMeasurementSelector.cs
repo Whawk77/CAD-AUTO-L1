@@ -1062,7 +1062,100 @@ public sealed class StructureMeasurementSelector
 		double microGap,
 		double tol)
 	{
-		if (list == null || outline == null)
+		ForEachAxisChain(list, outline, microGap, tol, includeDropped: false,
+			(chain, overallMin, overallMax, overall) =>
+				OpenOneCoveringChain(chain, overallMin, overallMax, overall, outline, tol));
+	}
+
+	/// <summary>
+	/// Overlay executor for <see cref="AnnotationStrategyIds.OpenCoveringDropResidualMax"/>.
+	/// Same grouping as Select; only drops the Max-end residual on a covering chain.
+	/// </summary>
+	public static void ApplyOpenCoveringDropResidualMax(
+		IList<StructureFeature> features,
+		OutlineFeature2D outline,
+		double microGap,
+		double tol)
+	{
+		if (features == null || outline == null)
+		{
+			return;
+		}
+		ForEachAxisChain(features.ToList(), outline, microGap, tol, includeDropped: false,
+			(chain, overallMin, overallMax, overall) =>
+				DropCoveringMaxEndResiduals(chain, overallMin, overallMax, tol, "ClosedChainMaxEndResidual"));
+	}
+
+	/// <summary>
+	/// Qualitative covering-chain schema: ResidualMin + real step + ResidualMax on one
+	/// axis/half, union covering overall. Includes already-dropped members so Capture
+	/// still sees the chain after Select opened it. No millimetre / decile fields.
+	/// </summary>
+	public static IList<string> DetectCoveringChainSchemas(
+		IList<StructureFeature> features,
+		OutlineFeature2D outline,
+		double microGap,
+		double tol)
+	{
+		List<string> schemas = new List<string>();
+		if (features == null || outline == null)
+		{
+			return schemas;
+		}
+		HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
+		ForEachAxisChain(features.ToList(), outline, microGap, tol, includeDropped: true,
+			(chain, overallMin, overallMax, overall) =>
+			{
+				if (chain == null || chain.Count < 2)
+				{
+					return;
+				}
+				if (!CoversOverallInterval(chain, overallMin, overallMax, tol))
+				{
+					return;
+				}
+				bool hasMin = false;
+				bool hasMax = false;
+				bool hasReal = false;
+				foreach (StructureFeature f in chain)
+				{
+					string role = StructureSchemaEncoder.Role(f);
+					if (role == "ResidualMin")
+					{
+						hasMin = true;
+					}
+					else if (role == "ResidualMax")
+					{
+						hasMax = true;
+					}
+					else if (role != "Residual")
+					{
+						hasReal = true;
+					}
+				}
+				if (!hasMin || !hasMax || !hasReal)
+				{
+					return;
+				}
+				string axisTag = chain[0].Axis == StructureFeatureAxis.Horizontal ? "H" : "V";
+				string schema = "CoveringChain|" + axisTag + "|ResidualMin|RealStep|ResidualMax";
+				if (seen.Add(schema))
+				{
+					schemas.Add(schema);
+				}
+			});
+		return schemas;
+	}
+
+	private static void ForEachAxisChain(
+		List<StructureFeature> list,
+		OutlineFeature2D outline,
+		double microGap,
+		double tol,
+		bool includeDropped,
+		Action<List<StructureFeature>, double, double, double> visit)
+	{
+		if (list == null || outline == null || visit == null)
 		{
 			return;
 		}
@@ -1076,14 +1169,17 @@ public sealed class StructureMeasurementSelector
 				continue;
 			}
 			IEnumerable<IGrouping<string, StructureFeature>> groups = list
-				.Where(f => f.Keep && f.Axis == axis && f.Kind != StructureFeatureKind.Overall)
+				.Where(f => f != null
+					&& f.Axis == axis
+					&& f.Kind != StructureFeatureKind.Overall
+					&& (includeDropped || f.Keep))
 				.GroupBy(f => ChainGroupKey(f, outline, axis, microGap, tol));
 			foreach (IGrouping<string, StructureFeature> group in groups)
 			{
 				List<StructureFeature> ordered = group.OrderBy(f => Math.Min(f.T0, f.T1)).ToList();
 				foreach (List<StructureFeature> chain in BuildChains(ordered, microGap, tol))
 				{
-					OpenOneCoveringChain(chain, overallMin, overallMax, overall, outline, tol);
+					visit(chain, overallMin, overallMax, overall);
 				}
 			}
 		}
@@ -1101,24 +1197,8 @@ public sealed class StructureMeasurementSelector
 		{
 			return;
 		}
+		DropCoveringMaxEndResiduals(chain, overallMin, overallMax, tol, "ClosedChainMaxEndResidual");
 		List<StructureFeature> live = chain.Where(f => f.Keep).OrderBy(f => Math.Min(f.T0, f.T1)).ToList();
-		if (!CoversOverallInterval(live, overallMin, overallMax, tol))
-		{
-			return;
-		}
-		List<StructureFeature> residuals = live.Where(IsLedgeResidual).ToList();
-		List<StructureFeature> maxEndResiduals = residuals.Where(r => r.TouchesOverallMax).ToList();
-		List<StructureFeature> otherResiduals = residuals.Where(r => !r.TouchesOverallMax).ToList();
-		if (maxEndResiduals.Count > 0 && otherResiduals.Count > 0)
-		{
-			foreach (StructureFeature r in maxEndResiduals)
-			{
-				r.Keep = false;
-				r.SuppressReason = "ClosedChainMaxEndResidual";
-				r.Kind = StructureFeatureKind.BodyRemainder;
-			}
-		}
-		live = chain.Where(f => f.Keep).OrderBy(f => Math.Min(f.T0, f.T1)).ToList();
 		if (!CoversOverallInterval(live, overallMin, overallMax, tol) || live.Count < 2)
 		{
 			return;
@@ -1134,6 +1214,33 @@ public sealed class StructureMeasurementSelector
 		drop.Keep = false;
 		drop.SuppressReason = "ClosedChainLongestUnprotected";
 		drop.Kind = StructureFeatureKind.BodyRemainder;
+	}
+
+	private static void DropCoveringMaxEndResiduals(
+		List<StructureFeature> chain,
+		double overallMin,
+		double overallMax,
+		double tol,
+		string reason)
+	{
+		List<StructureFeature> live = chain.Where(f => f.Keep).OrderBy(f => Math.Min(f.T0, f.T1)).ToList();
+		if (!CoversOverallInterval(live, overallMin, overallMax, tol))
+		{
+			return;
+		}
+		List<StructureFeature> residuals = live.Where(IsLedgeResidual).ToList();
+		List<StructureFeature> maxEndResiduals = residuals.Where(r => r.TouchesOverallMax).ToList();
+		List<StructureFeature> otherResiduals = residuals.Where(r => !r.TouchesOverallMax).ToList();
+		if (maxEndResiduals.Count == 0 || otherResiduals.Count == 0)
+		{
+			return;
+		}
+		foreach (StructureFeature r in maxEndResiduals)
+		{
+			r.Keep = false;
+			r.SuppressReason = reason;
+			r.Kind = StructureFeatureKind.BodyRemainder;
+		}
 	}
 
 	private static bool CoversOverallInterval(

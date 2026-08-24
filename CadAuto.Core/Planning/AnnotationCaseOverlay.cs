@@ -6,8 +6,9 @@ using CadAuto.Core.Model;
 namespace CadAuto.Core.Planning;
 
 /// <summary>
-/// After FeatureFirst Select, overlay keep/drop from the nearest confirmed case.
-/// No match or a token conflict → leave Select unchanged.
+/// After FeatureFirst Select, apply confirmed annotation <em>strategies</em> when the
+/// live covering-chain schema matches a stored case. Empty store / no schema match
+/// leaves Select unchanged. Token decisions are archive-only.
 /// </summary>
 public sealed class AnnotationCaseOverlay
 {
@@ -25,56 +26,37 @@ public sealed class AnnotationCaseOverlay
 		{
 			return string.Empty;
 		}
-		HashSet<string> present = new HashSet<string>(StringComparer.Ordinal);
-		foreach (StructureFeature feature in features)
-		{
-			string token = StructureSchemaEncoder.Encode(feature, outline);
-			if (!string.IsNullOrEmpty(token))
-			{
-				present.Add(token);
-			}
-		}
+		double tol = 0.001;
+		double microGap = Math.Max(5.0, Math.Max(outline.Width, outline.Height) * 0.025);
+		HashSet<string> liveSchemas = new HashSet<string>(
+			StructureMeasurementSelector.DetectCoveringChainSchemas(features, outline, microGap, tol),
+			StringComparer.Ordinal);
 		AnnotationCase best = null;
-		int bestHits = 0;
+		List<string> bestStrategies = null;
 		foreach (AnnotationCase annotationCase in _store.Cases)
 		{
-			if (annotationCase.Decisions == null || annotationCase.Decisions.Count == 0)
+			List<string> strategies = EffectiveStrategies(annotationCase);
+			if (strategies.Count == 0)
 			{
 				continue;
 			}
-			int hits = annotationCase.Decisions.Count(d => present.Contains(d.Token));
-			if (hits > bestHits)
+			if (!SchemaMatches(annotationCase, liveSchemas, strategies))
 			{
-				bestHits = hits;
-				best = annotationCase;
+				continue;
 			}
+			best = annotationCase;
+			bestStrategies = strategies;
+			break;
 		}
-		if (best == null || bestHits * 2 < best.Decisions.Count)
+		if (best == null || bestStrategies == null)
 		{
 			return string.Empty;
 		}
-		if (HasConflictingDecisions(best))
+		foreach (string strategy in bestStrategies.Distinct(StringComparer.Ordinal))
 		{
-			return string.Empty;
-		}
-		foreach (AnnotationCaseDecision decision in best.Decisions)
-		{
-			foreach (StructureFeature feature in features)
+			if (string.Equals(strategy, AnnotationStrategyIds.OpenCoveringDropResidualMax, StringComparison.Ordinal))
 			{
-				if (!string.Equals(StructureSchemaEncoder.Encode(feature, outline), decision.Token, StringComparison.Ordinal))
-				{
-					continue;
-				}
-				feature.Keep = decision.Keep;
-				if (!decision.Keep)
-				{
-					feature.SuppressReason = "AnnotationCase:" + best.Id;
-				}
-				else if (string.Equals(feature.SuppressReason, "AnnotationCase:" + best.Id, StringComparison.Ordinal)
-					|| feature.SuppressReason == null)
-				{
-					feature.SuppressReason = null;
-				}
+				StructureMeasurementSelector.ApplyOpenCoveringDropResidualMax(features, outline, microGap, tol);
 			}
 		}
 		AnnotationCaseRuntime.LastMatchedCaseId = best.Id;
@@ -90,6 +72,16 @@ public sealed class AnnotationCaseOverlay
 		if (features == null || outline == null)
 		{
 			return annotationCase;
+		}
+		double tol = 0.001;
+		double microGap = Math.Max(5.0, Math.Max(outline.Width, outline.Height) * 0.025);
+		foreach (string schema in StructureMeasurementSelector.DetectCoveringChainSchemas(features, outline, microGap, tol))
+		{
+			annotationCase.Schemas.Add(schema);
+		}
+		if (annotationCase.Schemas.Count > 0)
+		{
+			annotationCase.Strategies.Add(AnnotationStrategyIds.OpenCoveringDropResidualMax);
 		}
 		HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
 		foreach (StructureFeature feature in features)
@@ -108,21 +100,49 @@ public sealed class AnnotationCaseOverlay
 		return annotationCase;
 	}
 
-	private static bool HasConflictingDecisions(AnnotationCase annotationCase)
+	private static List<string> EffectiveStrategies(AnnotationCase annotationCase)
 	{
-		Dictionary<string, bool> keepByToken = new Dictionary<string, bool>(StringComparer.Ordinal);
-		foreach (AnnotationCaseDecision decision in annotationCase.Decisions)
+		List<string> strategies = new List<string>();
+		if (annotationCase.Strategies != null)
 		{
-			if (string.IsNullOrEmpty(decision.Token))
+			foreach (string strategy in annotationCase.Strategies)
 			{
-				continue;
+				if (!string.IsNullOrEmpty(strategy))
+				{
+					strategies.Add(strategy);
+				}
 			}
-			if (keepByToken.TryGetValue(decision.Token, out bool keep) && keep != decision.Keep)
-			{
-				return true;
-			}
-			keepByToken[decision.Token] = decision.Keep;
 		}
-		return false;
+		if (strategies.Count > 0)
+		{
+			return strategies;
+		}
+		if (annotationCase.Decisions == null)
+		{
+			return strategies;
+		}
+		bool dropMax = annotationCase.Decisions.Any(d =>
+			d != null && !d.Keep && d.Token != null && d.Token.IndexOf("ResidualMax", StringComparison.Ordinal) >= 0);
+		bool keepMin = annotationCase.Decisions.Any(d =>
+			d != null && d.Keep && d.Token != null && d.Token.IndexOf("ResidualMin", StringComparison.Ordinal) >= 0);
+		if (dropMax && keepMin)
+		{
+			strategies.Add(AnnotationStrategyIds.OpenCoveringDropResidualMax);
+		}
+		return strategies;
+	}
+
+	private static bool SchemaMatches(AnnotationCase annotationCase, HashSet<string> liveSchemas, List<string> strategies)
+	{
+		if (liveSchemas.Count == 0)
+		{
+			return false;
+		}
+		if (annotationCase.Schemas != null && annotationCase.Schemas.Count > 0)
+		{
+			return annotationCase.Schemas.Any(liveSchemas.Contains);
+		}
+		return strategies.Contains(AnnotationStrategyIds.OpenCoveringDropResidualMax)
+			&& liveSchemas.Any(s => s.StartsWith("CoveringChain|", StringComparison.Ordinal));
 	}
 }

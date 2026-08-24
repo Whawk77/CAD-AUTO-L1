@@ -40,7 +40,7 @@ public static class StructureSchemaEncoder
 		});
 	}
 
-	private static string Role(StructureFeature feature)
+	public static string Role(StructureFeature feature)
 	{
 		string key = feature.SourceKey ?? string.Empty;
 		if (key.StartsWith("LedgeResidual", StringComparison.Ordinal))

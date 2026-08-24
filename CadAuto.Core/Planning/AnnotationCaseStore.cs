@@ -60,7 +60,12 @@ public sealed class AnnotationCaseStore
 				builder.Append(',');
 			}
 			AnnotationCase c = _cases[i];
-			builder.Append("{\"id\":\"").Append(Escape(c.Id)).Append("\",\"decisions\":[");
+			builder.Append("{\"id\":\"").Append(Escape(c.Id)).Append("\"");
+			builder.Append(",\"strategies\":");
+			WriteStringArray(builder, c.Strategies);
+			builder.Append(",\"schemas\":");
+			WriteStringArray(builder, c.Schemas);
+			builder.Append(",\"decisions\":[");
 			if (c.Decisions != null)
 			{
 				for (int j = 0; j < c.Decisions.Count; j++)
@@ -78,6 +83,29 @@ public sealed class AnnotationCaseStore
 		}
 		builder.Append("]}");
 		return builder.ToString();
+	}
+
+	private static void WriteStringArray(StringBuilder builder, List<string> values)
+	{
+		builder.Append('[');
+		if (values != null)
+		{
+			bool first = true;
+			foreach (string value in values)
+			{
+				if (string.IsNullOrEmpty(value))
+				{
+					continue;
+				}
+				if (!first)
+				{
+					builder.Append(',');
+				}
+				first = false;
+				builder.Append('"').Append(Escape(value)).Append('"');
+			}
+		}
+		builder.Append(']');
 	}
 
 	private static string Escape(string value)
@@ -99,6 +127,8 @@ public sealed class AnnotationCaseStore
 			int decisionsAt = json.IndexOf("\"decisions\"", index, StringComparison.Ordinal);
 			int nextId = json.IndexOf("\"id\"", index + 4, StringComparison.Ordinal);
 			int blockEnd = nextId < 0 ? json.Length : nextId;
+			ReadStringArrayField(json, index, blockEnd, "\"strategies\"", annotationCase.Strategies);
+			ReadStringArrayField(json, index, blockEnd, "\"schemas\"", annotationCase.Schemas);
 			if (decisionsAt >= 0 && decisionsAt < blockEnd)
 			{
 				int cursor = decisionsAt;
@@ -120,6 +150,41 @@ public sealed class AnnotationCaseStore
 			}
 			store.Add(annotationCase);
 			index += 4;
+		}
+	}
+
+	private static void ReadStringArrayField(string json, int index, int blockEnd, string field, List<string> target)
+	{
+		int at = json.IndexOf(field, index, StringComparison.Ordinal);
+		if (at < 0 || at >= blockEnd || target == null)
+		{
+			return;
+		}
+		int open = json.IndexOf('[', at);
+		int close = json.IndexOf(']', at);
+		if (open < 0 || close < 0 || open >= blockEnd || close >= blockEnd || close <= open)
+		{
+			return;
+		}
+		int cursor = open + 1;
+		while (cursor < close)
+		{
+			int q1 = json.IndexOf('"', cursor);
+			if (q1 < 0 || q1 >= close)
+			{
+				break;
+			}
+			int q2 = json.IndexOf('"', q1 + 1);
+			if (q2 < 0 || q2 > close)
+			{
+				break;
+			}
+			string value = json.Substring(q1 + 1, q2 - q1 - 1);
+			if (!string.IsNullOrEmpty(value))
+			{
+				target.Add(value);
+			}
+			cursor = q2 + 1;
 		}
 	}
 

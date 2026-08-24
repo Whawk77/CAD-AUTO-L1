@@ -4,14 +4,27 @@ using CadAuto.Core.Model;
 namespace CadAuto.Core.Planning;
 
 /// <summary>
-/// One confirmed drawing: qualitative structure tokens and keep/drop decisions.
-/// Tokens are rotation-stable (axis + envelope ends), not millimetre values.
+/// Confirmed drawing: annotation <em>logic</em> (strategy ids + covering-chain schemas),
+/// not millimetre values. Token decisions are an archive only.
 /// </summary>
 public sealed class AnnotationCase
 {
 	public string Id { get; set; }
 
+	public List<string> Strategies { get; set; } = new List<string>();
+
+	public List<string> Schemas { get; set; } = new List<string>();
+
 	public List<AnnotationCaseDecision> Decisions { get; set; } = new List<AnnotationCaseDecision>();
+}
+
+public static class AnnotationStrategyIds
+{
+	/// <summary>
+	/// Same-side ResidualMin + real step + ResidualMax cover overall → drop the
+	/// Max-end residual (no process meaning) and keep the locating residual.
+	/// </summary>
+	public const string OpenCoveringDropResidualMax = "OpenCoveringDropResidualMax";
 }
 
 public sealed class AnnotationCaseDecision

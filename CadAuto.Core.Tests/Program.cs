@@ -72,6 +72,8 @@ namespace CadAuto.Core.Tests
 			nameof(SteppedPlateReplacesThinStepRisersWithComplement53),
 			nameof(CNotchPlateKeepsTopEnvelopeBodyWidth120),
 			nameof(AnnotationCaseOverlayDropsMaxEndResidual),
+			nameof(AnnotationCaseStrategyMatchesSquareAndFilletCoveringChains),
+			nameof(AnnotationCaseStrategyDoesNotDropLoneResidual),
 			nameof(StepGroovePlacesOnSameSideAsOuterStepFourWay),
 			nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed),
             nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide),
@@ -268,6 +270,8 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(SteppedPlateReplacesThinStepRisersWithComplement53), SteppedPlateReplacesThinStepRisersWithComplement53);
 				RunTest(nameof(CNotchPlateKeepsTopEnvelopeBodyWidth120), CNotchPlateKeepsTopEnvelopeBodyWidth120);
 				RunTest(nameof(AnnotationCaseOverlayDropsMaxEndResidual), AnnotationCaseOverlayDropsMaxEndResidual);
+				RunTest(nameof(AnnotationCaseStrategyMatchesSquareAndFilletCoveringChains), AnnotationCaseStrategyMatchesSquareAndFilletCoveringChains);
+				RunTest(nameof(AnnotationCaseStrategyDoesNotDropLoneResidual), AnnotationCaseStrategyDoesNotDropLoneResidual);
 				RunTest(nameof(StepGroovePlacesOnSameSideAsOuterStepFourWay), StepGroovePlacesOnSameSideAsOuterStepFourWay);
 				RunTest(nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed), CrossSideStructureWidthsThatCloseOverallChainAreSuppressed);
                 RunTest(nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide), InteriorHorizontalOutlineSegmentPrefersNonCrossingSide);
@@ -5146,40 +5150,9 @@ namespace CadAuto.Core.Tests
 		private static void AnnotationCaseOverlayDropsMaxEndResidual()
 		{
 			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 180.0, MaxY = 100.0 };
-			var minResidual = new StructureFeature
-			{
-				Axis = StructureFeatureAxis.Vertical,
-				Kind = StructureFeatureKind.RealStep,
-				T0 = 0.0,
-				T1 = 15.0,
-				CrossPosition = 0.0,
-				TouchesOverallMin = true,
-				SourceKey = "LedgeResidualDown:c-bot",
-				Keep = true
-			};
-			var wall = new StructureFeature
-			{
-				Axis = StructureFeatureAxis.Vertical,
-				Kind = StructureFeatureKind.RealStep,
-				T0 = 15.0,
-				T1 = 65.0,
-				CrossPosition = 0.0,
-				SourceKey = "left-50",
-				Keep = true
-			};
-			var maxResidual = new StructureFeature
-			{
-				Axis = StructureFeatureAxis.Vertical,
-				Kind = StructureFeatureKind.RealStep,
-				T0 = 65.0,
-				T1 = 100.0,
-				CrossPosition = 0.0,
-				TouchesOverallMax = true,
-				SourceKey = "LedgeResidualUp:c-top",
-				Keep = true
-			};
-			string minToken = StructureSchemaEncoder.Encode(minResidual, outline);
-			string maxToken = StructureSchemaEncoder.Encode(maxResidual, outline);
+			List<StructureFeature> features = CreateCoveringVerticalChain(outline, 15.0, 50.0, 35.0);
+			string minToken = StructureSchemaEncoder.Encode(features[0], outline);
+			string maxToken = StructureSchemaEncoder.Encode(features[2], outline);
 			Assert(minToken.Contains("ResidualMin") && maxToken.Contains("ResidualMax") && minToken != maxToken,
 				"encoder must distinguish min/max residuals without millimetre values; min="
 				+ minToken + " max=" + maxToken);
@@ -5190,6 +5163,8 @@ namespace CadAuto.Core.Tests
 			store.Add(new AnnotationCase
 			{
 				Id = "cnotch-open-top",
+				Strategies = { AnnotationStrategyIds.OpenCoveringDropResidualMax },
+				Schemas = { "CoveringChain|V|ResidualMin|RealStep|ResidualMax" },
 				Decisions =
 				{
 					new AnnotationCaseDecision { Token = minToken, Keep = true },
@@ -5199,20 +5174,130 @@ namespace CadAuto.Core.Tests
 			string temp = Path.Combine(Path.GetTempPath(), "annotation-case-overlay-test.json");
 			store.Save(temp);
 			AnnotationCaseStore loaded = AnnotationCaseStore.Load(temp);
-			Assert(loaded.Cases.Count == 1 && loaded.Cases[0].Decisions.Count == 2,
-				"store must round-trip decisions");
+			Assert(loaded.Cases.Count == 1
+					&& loaded.Cases[0].Strategies.Contains(AnnotationStrategyIds.OpenCoveringDropResidualMax)
+					&& loaded.Cases[0].Schemas.Count == 1,
+				"store must round-trip strategy and schema");
 
-			var features = new List<StructureFeature> { minResidual, wall, maxResidual };
 			string matched = new AnnotationCaseOverlay(loaded).Apply(features, outline);
-			Assert(matched == "cnotch-open-top", "overlay must hit the confirmed case");
-			Assert(minResidual.Keep && wall.Keep && !maxResidual.Keep,
+			Assert(matched == "cnotch-open-top", "overlay must hit the confirmed strategy case");
+			Assert(features[0].Keep && features[1].Keep && !features[2].Keep,
 				"overlay must drop ResidualMax and keep ResidualMin plus the real wall");
 
-			maxResidual.Keep = true;
-			string emptyHit = new AnnotationCaseOverlay(new AnnotationCaseStore()).Apply(
-				new List<StructureFeature> { minResidual, wall, maxResidual }, outline);
-			Assert(string.IsNullOrEmpty(emptyHit) && maxResidual.Keep,
+			features[2].Keep = true;
+			features[2].Kind = StructureFeatureKind.RealStep;
+			features[2].SuppressReason = null;
+			string emptyHit = new AnnotationCaseOverlay(new AnnotationCaseStore()).Apply(features, outline);
+			Assert(string.IsNullOrEmpty(emptyHit) && features[2].Keep,
 				"empty store must leave Select decisions unchanged");
+		}
+
+		/// <summary>
+		/// Square vs fillet (different spans / deciles): capture logic from one covering
+		/// chain and apply it to the other. Token overlay would miss; strategy must hit.
+		/// </summary>
+		private static void AnnotationCaseStrategyMatchesSquareAndFilletCoveringChains()
+		{
+			var squareOutline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 180.0, MaxY = 100.0 };
+			var filletOutline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 200.0, MaxY = 120.0 };
+			List<StructureFeature> square = CreateCoveringVerticalChain(squareOutline, 15.0, 50.0, 35.0);
+			List<StructureFeature> fillet = CreateCoveringVerticalChain(filletOutline, 10.0, 70.0, 40.0);
+			string squareMin = StructureSchemaEncoder.Encode(square[0], squareOutline);
+			string filletMin = StructureSchemaEncoder.Encode(fillet[0], filletOutline);
+			Assert(squareMin != filletMin,
+				"square and fillet ResidualMin tokens must differ (deciles); square="
+				+ squareMin + " fillet=" + filletMin);
+
+			AnnotationCase captured = AnnotationCaseOverlay.Capture(square, squareOutline, "square-cnotch");
+			Assert(captured.Strategies.Contains(AnnotationStrategyIds.OpenCoveringDropResidualMax),
+				"capture must record OpenCoveringDropResidualMax, not only tokens");
+			Assert(captured.Schemas.Contains("CoveringChain|V|ResidualMin|RealStep|ResidualMax"),
+				"capture schema must be qualitative covering-chain, got ["
+				+ string.Join(",", captured.Schemas) + "]");
+
+			var store = new AnnotationCaseStore();
+			store.Add(captured);
+			string matched = new AnnotationCaseOverlay(store).Apply(fillet, filletOutline);
+			Assert(matched == "square-cnotch", "fillet covering chain must inherit square strategy");
+			Assert(fillet[0].Keep && fillet[1].Keep && !fillet[2].Keep,
+				"inherited strategy must drop fillet ResidualMax and keep locating residual + wall");
+		}
+
+		/// <summary>
+		/// F215-class lone ResidualMin (42) does not cover overall with ResidualMax;
+		/// a covering-chain case must not drop it.
+		/// </summary>
+		private static void AnnotationCaseStrategyDoesNotDropLoneResidual()
+		{
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 215.0, MaxY = 215.0 };
+			var lone = new StructureFeature
+			{
+				Axis = StructureFeatureAxis.Vertical,
+				Kind = StructureFeatureKind.RealStep,
+				T0 = 0.0,
+				T1 = 42.0,
+				CrossPosition = 0.0,
+				TouchesOverallMin = true,
+				SourceKey = "LedgeResidualUp:f215",
+				Keep = true
+			};
+			var store = new AnnotationCaseStore();
+			store.Add(new AnnotationCase
+			{
+				Id = "cnotch-open-top",
+				Strategies = { AnnotationStrategyIds.OpenCoveringDropResidualMax },
+				Schemas = { "CoveringChain|V|ResidualMin|RealStep|ResidualMax" }
+			});
+			string matched = new AnnotationCaseOverlay(store).Apply(
+				new List<StructureFeature> { lone }, outline);
+			Assert(string.IsNullOrEmpty(matched) && lone.Keep,
+				"lone ResidualMin that does not cover overall must not inherit covering-chain drop");
+		}
+
+		private static List<StructureFeature> CreateCoveringVerticalChain(
+			OutlineFeature2D outline,
+			double minSpan,
+			double wallSpan,
+			double maxSpan)
+		{
+			double h = outline.MaxY - outline.MinY;
+			Assert(Math.Abs(minSpan + wallSpan + maxSpan - h) <= 0.001,
+				"covering chain spans must sum to overall height");
+			return new List<StructureFeature>
+			{
+				new StructureFeature
+				{
+					Axis = StructureFeatureAxis.Vertical,
+					Kind = StructureFeatureKind.RealStep,
+					T0 = outline.MinY,
+					T1 = outline.MinY + minSpan,
+					CrossPosition = outline.MinX,
+					TouchesOverallMin = true,
+					SourceKey = "LedgeResidualDown:c-bot",
+					Keep = true
+				},
+				new StructureFeature
+				{
+					Axis = StructureFeatureAxis.Vertical,
+					Kind = StructureFeatureKind.RealStep,
+					T0 = outline.MinY + minSpan,
+					T1 = outline.MinY + minSpan + wallSpan,
+					CrossPosition = outline.MinX,
+					SourceKey = "left-wall",
+					Keep = true
+				},
+				new StructureFeature
+				{
+					Axis = StructureFeatureAxis.Vertical,
+					Kind = StructureFeatureKind.RealStep,
+					T0 = outline.MinY + minSpan + wallSpan,
+					T1 = outline.MaxY,
+					CrossPosition = outline.MinX,
+					TouchesOverallMax = true,
+					SourceKey = "LedgeResidualUp:c-top",
+					Keep = true
+				}
+			};
 		}
 
 		private static OutlineFeature2D CreateSteppedPlate102Outline()

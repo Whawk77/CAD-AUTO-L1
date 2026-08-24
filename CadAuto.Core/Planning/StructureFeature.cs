@@ -65,5 +65,8 @@ public sealed class StructureFeature
 
 	public string SuppressReason { get; set; }
 
+	/// <summary>Place beside the supporting edge (inner boss), not on the AABB outer side.</summary>
+	public bool PreferLocalPlacement { get; set; }
+
 	public List<string> SupportSourceKeys { get; private set; } = new List<string>();
 }

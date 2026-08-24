@@ -70,6 +70,7 @@ public sealed partial class DimensionPlanner
 			SuppressMirroredDuplicates(plan, DimensionSide.Bottom, DimensionSide.Top, horizontal: true, outline: outline);
 			SuppressMirroredDuplicates(plan, DimensionSide.Left, DimensionSide.Right, horizontal: false, outline: outline);
 			SuppressOutlineSegmentsOnOverallEnvelope(plan, outline);
+			SuppressInteriorOutlineSegments(plan, outline);
 			SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Bottom, horizontal: true);
 			SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Top, horizontal: true);
 			SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Left, horizontal: false);
@@ -399,6 +400,13 @@ public sealed partial class DimensionPlanner
 		foreach (PlannedDimension dimension in plan.Dimensions)
 		{
 			if (!IsEnvelopeLocalGeometryRole(dimension.DebugRole))
+			{
+				continue;
+			}
+			if (dimension.SourceKey != null
+				&& (dimension.SourceKey.StartsWith("OuterTip", StringComparison.Ordinal)
+					|| dimension.SourceKey.StartsWith("InnerBoss", StringComparison.Ordinal)
+					|| dimension.SourceKey.StartsWith("FootLedge", StringComparison.Ordinal)))
 			{
 				continue;
 			}
@@ -856,6 +864,13 @@ public sealed partial class DimensionPlanner
 	{
 		if (dimension == null || outline == null
 			|| dimension.Orientation != DimensionOrientation.Horizontal)
+		{
+			return false;
+		}
+		if (dimension.SourceKey != null
+			&& (dimension.SourceKey.StartsWith("OuterTip", StringComparison.Ordinal)
+				|| dimension.SourceKey.StartsWith("FootLedge", StringComparison.Ordinal)
+				|| dimension.SourceKey.StartsWith("InnerBoss", StringComparison.Ordinal)))
 		{
 			return false;
 		}
@@ -2787,6 +2802,46 @@ public sealed partial class DimensionPlanner
 		SuppressOutlineSegmentsOnOverallEnvelope(plan, null);
 	}
 
+	/// <summary>
+	/// FeatureFirst: leftover interior OutlineSegments (pocket walls) must not reappear
+	/// beside structure. Envelope OS are handled separately.
+	/// </summary>
+	private void SuppressInteriorOutlineSegments(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		if (plan == null || outline == null)
+		{
+			return;
+		}
+		double band = OuterEnvelopeBand(outline, _config.GeometryTolerance);
+		for (int i = plan.Dimensions.Count - 1; i >= 0; i--)
+		{
+			PlannedDimension d = plan.Dimensions[i];
+			if (d == null
+				|| d.Kind != DimensionKind.Normal
+				|| !string.Equals(d.DebugRole, "OutlineSegment", StringComparison.Ordinal))
+			{
+				continue;
+			}
+			bool interior;
+			if (d.Orientation == DimensionOrientation.Horizontal)
+			{
+				double y = (d.FirstPoint.Y + d.SecondPoint.Y) * 0.5;
+				interior = Math.Abs(y - outline.MinY) > band && Math.Abs(y - outline.MaxY) > band;
+			}
+			else
+			{
+				double x = (d.FirstPoint.X + d.SecondPoint.X) * 0.5;
+				interior = Math.Abs(x - outline.MinX) > band && Math.Abs(x - outline.MaxX) > band;
+			}
+			if (!interior)
+			{
+				continue;
+			}
+			plan.MarkSuppressed(d, "InteriorOutlineSegment");
+			plan.Dimensions.RemoveAt(i);
+		}
+	}
+
 	private void SuppressOutlineSegmentsOnOverallEnvelope(DimensionPlan plan, OutlineFeature2D outline)
 	{
 		PlannedDimension overallWidth = plan.Dimensions.FirstOrDefault((PlannedDimension d) => d.Kind == DimensionKind.OverallWidth);
@@ -2826,6 +2881,13 @@ public sealed partial class DimensionPlanner
 			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
 				&& IsHorizontalStructureWidthRole(d.DebugRole)))
 		{
+			if (structure.SourceKey != null
+				&& (structure.SourceKey.StartsWith("OuterTip", StringComparison.Ordinal)
+					|| structure.SourceKey.StartsWith("FootLedge", StringComparison.Ordinal)
+					|| structure.SourceKey.StartsWith("InnerBoss", StringComparison.Ordinal)))
+			{
+				continue;
+			}
 			bool matchesEnvelopeOutline = envelopeOutlineSegments.Any((PlannedDimension os) =>
 				os.Orientation == DimensionOrientation.Horizontal
 				&& structure.Side == os.Side
@@ -3761,6 +3823,22 @@ public sealed partial class DimensionPlanner
 		if (firstContourBacked != secondContourBacked)
 		{
 			return firstContourBacked ? 1 : -1;
+		}
+		// Opposite faces of the same span (C-plate top/bottom 120): keep the partial
+		// max-envelope member (Top / Right). Do not apply when MaxY/MaxX is a full
+		// collinear envelope (mirrored 15+52+23 partition).
+		double tol = _config.GeometryTolerance;
+		bool firstMaxPartial = horizontal
+			? IsRealPartialEnvelopeStructureWidth(first, outline, tol)
+			: (first.Side == DimensionSide.Right
+				&& !IsFullLengthEnvelopeEdge(outline, horizontal: false, outline.MaxX, tol));
+		bool secondMaxPartial = horizontal
+			? IsRealPartialEnvelopeStructureWidth(second, outline, tol)
+			: (second.Side == DimensionSide.Right
+				&& !IsFullLengthEnvelopeEdge(outline, horizontal: false, outline.MaxX, tol));
+		if (firstMaxPartial != secondMaxPartial)
+		{
+			return firstMaxPartial ? 1 : -1;
 		}
 		return 0;
 	}

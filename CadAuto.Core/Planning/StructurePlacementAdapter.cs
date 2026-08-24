@@ -92,6 +92,9 @@ public sealed class StructurePlacementAdapter
 			side = DimensionSide.Left;
 			role = "LeftStructHeight";
 		}
+		string align = f.PreferLocalPlacement
+			? "Structure:" + (horizontal ? "H" : "V") + ":Local:" + side
+			: "Structure:" + (horizontal ? "H" : "V") + ":" + side;
 		return new PlannedDimension
 		{
 			Kind = DimensionKind.Normal,
@@ -103,8 +106,11 @@ public sealed class StructurePlacementAdapter
 			SourceKey = f.SourceKey,
 			Role = DimensionCandidateRole.Structure,
 			ReadingLevel = DimensionReadingLevel.LocalSpacing,
-			AlignmentKey = "Structure:" + (horizontal ? "H" : "V") + ":" + side,
-			AlignmentPriority = 70
+			AlignmentKey = align,
+			AlignmentPriority = f.PreferLocalPlacement ? 40 : 70,
+			PreferLocalBoundary = f.PreferLocalPlacement,
+			PreferFeatureLocalPlacement = f.PreferLocalPlacement,
+			PreservePreferredSide = f.PreferLocalPlacement
 		};
 	}
 }

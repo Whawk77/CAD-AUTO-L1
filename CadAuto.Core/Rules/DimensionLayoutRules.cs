@@ -495,11 +495,14 @@ public sealed class DimensionLayoutRules
 		bool secondChain = IsRootedDatumOrPinChainBlock(second);
 		if (firstFunc && secondChain && SharesPinGroupSource(first, second))
 		{
-			return FunctionalHoleOrdersBeyondChain(first, second) ? 1 : -1;
+			// Force the hole OUTER only when it continues past an unshared chain end
+			// (45 outside 41+30). Otherwise span decides: a tiny pin-group gap (1.28)
+			// stays innermost even when a local 15 shares one endpoint and is not "beyond".
+			return FunctionalHoleOrdersBeyondChain(first, second) ? 1 : 0;
 		}
 		if (secondFunc && firstChain && SharesPinGroupSource(first, second))
 		{
-			return FunctionalHoleOrdersBeyondChain(second, first) ? -1 : 1;
+			return FunctionalHoleOrdersBeyondChain(second, first) ? -1 : 0;
 		}
 		return 0;
 	}
@@ -644,25 +647,77 @@ public sealed class DimensionLayoutRules
 			&& Math.Abs(member.Dimension.FirstPoint.X - member.Dimension.SecondPoint.X) <= _config.GeometryTolerance);
 		if (horizontal || !vertical)
 		{
-			double funcMin = functionalHole.Members.Min(member => Math.Min(member.Dimension.FirstPoint.X, member.Dimension.SecondPoint.X));
-			double funcMax = functionalHole.Members.Max(member => Math.Max(member.Dimension.FirstPoint.X, member.Dimension.SecondPoint.X));
-			double chainMin = chain.Members.Min(member => Math.Min(member.Dimension.FirstPoint.X, member.Dimension.SecondPoint.X));
-			double chainMax = chain.Members.Max(member => Math.Max(member.Dimension.FirstPoint.X, member.Dimension.SecondPoint.X));
-			if (funcMax > chainMax + _config.GeometryTolerance || funcMin < chainMin - _config.GeometryTolerance)
+			if (FunctionalIntervalExtendsPastUnsharedChainEnd(
+				functionalHole, chain, horizontalAxis: true))
 			{
 				return true;
 			}
 		}
 		if (vertical)
 		{
-			double funcMin = functionalHole.Members.Min(member => Math.Min(member.Dimension.FirstPoint.Y, member.Dimension.SecondPoint.Y));
-			double funcMax = functionalHole.Members.Max(member => Math.Max(member.Dimension.FirstPoint.Y, member.Dimension.SecondPoint.Y));
-			double chainMin = chain.Members.Min(member => Math.Min(member.Dimension.FirstPoint.Y, member.Dimension.SecondPoint.Y));
-			double chainMax = chain.Members.Max(member => Math.Max(member.Dimension.FirstPoint.Y, member.Dimension.SecondPoint.Y));
-			if (funcMax > chainMax + _config.GeometryTolerance || funcMin < chainMin - _config.GeometryTolerance)
+			if (FunctionalIntervalExtendsPastUnsharedChainEnd(
+				functionalHole, chain, horizontalAxis: false))
 			{
 				return true;
 			}
+		}
+		return false;
+	}
+
+	/// <summary>
+	/// True when functional holes continue past a chain end that they do not share
+	/// (extra hole beyond the last pin, e.g. 45 past 41-30). A local pair that only
+	/// straddles the shared datum/pin endpoint (16 above and 16 below a 28 datum)
+	/// is not beyond — it must stay inside the datum location.
+	/// </summary>
+	private bool FunctionalIntervalExtendsPastUnsharedChainEnd(
+		LayoutBlock functionalHole,
+		LayoutBlock chain,
+		bool horizontalAxis)
+	{
+		double tol = _config.GeometryTolerance;
+		Func<DimensionLayoutItem, double> minCoord = item => horizontalAxis
+			? Math.Min(item.FirstPoint.X, item.SecondPoint.X)
+			: Math.Min(item.FirstPoint.Y, item.SecondPoint.Y);
+		Func<DimensionLayoutItem, double> maxCoord = item => horizontalAxis
+			? Math.Max(item.FirstPoint.X, item.SecondPoint.X)
+			: Math.Max(item.FirstPoint.Y, item.SecondPoint.Y);
+		double funcMin = functionalHole.Members.Min(member => minCoord(member.Dimension));
+		double funcMax = functionalHole.Members.Max(member => maxCoord(member.Dimension));
+		double chainMin = chain.Members.Min(member => minCoord(member.Dimension));
+		double chainMax = chain.Members.Max(member => maxCoord(member.Dimension));
+		bool pastMax = funcMax > chainMax + tol;
+		bool pastMin = funcMin < chainMin - tol;
+		if (!pastMax && !pastMin)
+		{
+			return false;
+		}
+		List<double> shared = new List<double>();
+		foreach (var funcMember in functionalHole.Members)
+		{
+			double[] funcEnds = { minCoord(funcMember.Dimension), maxCoord(funcMember.Dimension) };
+			foreach (var chainMember in chain.Members)
+			{
+				double[] chainEnds = { minCoord(chainMember.Dimension), maxCoord(chainMember.Dimension) };
+				foreach (double fe in funcEnds)
+				{
+					foreach (double ce in chainEnds)
+					{
+						if (Math.Abs(fe - ce) <= tol && !shared.Any(s => Math.Abs(s - fe) <= tol))
+						{
+							shared.Add(fe);
+						}
+					}
+				}
+			}
+		}
+		if (pastMax && !shared.Any(s => Math.Abs(s - chainMax) <= tol))
+		{
+			return true;
+		}
+		if (pastMin && !shared.Any(s => Math.Abs(s - chainMin) <= tol))
+		{
+			return true;
 		}
 		return false;
 	}
@@ -1478,7 +1533,9 @@ public sealed class DimensionLayoutRules
 			var anon = (from s in outline.Segments
 				where s.IsVertical(tolerance)
 				where s.LengthY > tolerance
-				where (side == DimensionSide.Left) ? (s.MinX <= minX + tolerance) : (s.MinX >= maxX - tolerance)
+				where (side == DimensionSide.Left)
+					? (s.MaxX < minX - Math.Max(tolerance * 20.0, 0.5))
+					: (s.MinX > maxX + Math.Max(tolerance * 20.0, 0.5))
 				select new
 				{
 					Segment = s,
@@ -1487,6 +1544,7 @@ public sealed class DimensionLayoutRules
 					CoversMid = (midY >= s.MinY - tolerance && midY <= s.MaxY + tolerance)
 				} into c
 				where c.Overlap > tolerance || c.CoversMid
+				where Math.Abs(c.Coordinate - midX) > Math.Max(tolerance * 20.0, 0.5)
 				orderby Math.Abs(c.Coordinate - midX), c.Overlap descending, c.Segment.LengthY descending
 				select c).FirstOrDefault();
 			if (anon == null)
@@ -1501,7 +1559,9 @@ public sealed class DimensionLayoutRules
 			var anon2 = (from s in outline.Segments
 				where s.IsHorizontal(tolerance)
 				where s.LengthX > tolerance
-				where (side == DimensionSide.Bottom) ? (s.MinY <= minY + tolerance) : (s.MinY >= maxY - tolerance)
+				where (side == DimensionSide.Bottom)
+					? (s.MaxY < minY - Math.Max(tolerance * 20.0, 0.5))
+					: (s.MinY > maxY + Math.Max(tolerance * 20.0, 0.5))
 				select new
 				{
 					Segment = s,
@@ -1510,6 +1570,7 @@ public sealed class DimensionLayoutRules
 					CoversMid = (midX >= s.MinX - tolerance && midX <= s.MaxX + tolerance)
 				} into c
 				where c.Overlap > tolerance || c.CoversMid
+				where Math.Abs(c.Coordinate - midY) > Math.Max(tolerance * 20.0, 0.5)
 				orderby Math.Abs(c.Coordinate - midY), c.Overlap descending, c.Segment.LengthX descending
 				select c).FirstOrDefault();
 			if (anon2 == null)

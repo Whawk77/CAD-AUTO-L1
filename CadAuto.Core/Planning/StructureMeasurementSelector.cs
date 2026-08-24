@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using CadAuto.Core.Geometry;
 using CadAuto.Core.Model;
 using CadAuto.Core.Rules;
 
@@ -66,7 +67,7 @@ public sealed class StructureMeasurementSelector
 			double overallOnAxis = f.Axis == StructureFeatureAxis.Horizontal ? outline.Width : outline.Height;
 			bool largeBody = f.Span + tol >= Math.Max(outline.Width, outline.Height) * 0.5
 				|| f.Span + tol >= overallOnAxis * 0.55;
-			if (largeBody)
+			if (largeBody && !IsThinStepRiserComplement(f, list, outline, tol))
 			{
 				f.Keep = false;
 				f.SuppressReason = "LedgeResidualBody";
@@ -105,7 +106,9 @@ public sealed class StructureMeasurementSelector
 			&& f.Kind != StructureFeatureKind.NotchOpening
 			&& f.IsInset).ToList())
 		{
-			if (IsStepGroove(f) || balancedSteps.Contains(f))
+			if (IsStepGroove(f) || IsInnerBoss(f) || IsFootLedge(f) || IsStepRiser(f)
+				|| f.PreferLocalPlacement
+				|| balancedSteps.Contains(f))
 			{
 				continue;
 			}
@@ -124,7 +127,16 @@ public sealed class StructureMeasurementSelector
 			// Fully interior connectors (riser-body ~50): drop only clearly short risers.
 			// Multi-level treads / 槽宽 floors must NOT be over-suppressed.
 			bool partialFromEnd = f.TouchesOverallMin || f.TouchesOverallMax;
-			bool multiLevelTread = !partialFromEnd
+			double filletGap = Math.Max(microGap, Math.Max(12.0, shortSide * 0.08));
+			if (!partialFromEnd
+				&& IsDistantAbutToOuterTip(f, list, outline, filletGap, tol))
+			{
+				f.Keep = false;
+				f.SuppressReason = "InteriorRiser";
+				continue;
+			}
+			bool multiLevelTread = f.Axis == StructureFeatureAxis.Horizontal
+				&& !partialFromEnd
 				&& f.Span + tol >= Math.Max(overallOnAxis * 0.18, shortSide * 0.30)
 				&& f.Span + tol < overallOnAxis * 0.50;
 			if (multiLevelTread)
@@ -164,7 +176,13 @@ public sealed class StructureMeasurementSelector
 		}
 
 		// Force-keep 槽宽 (StepGroove / multi-level floor) and outer tips on every orientation.
-		foreach (StructureFeature f in list.Where(f => IsStepGrooveOrMidShelf(f) || IsOuterTip(f) || balancedSteps.Contains(f)))
+		foreach (StructureFeature f in list.Where(f =>
+			IsStepGrooveOrMidShelf(f) || IsOuterTip(f) || IsInnerBoss(f) || IsFootLedge(f)
+			|| IsStepRiser(f)
+			|| IsThinStepRiserComplement(f, list, outline, tol)
+			|| IsMaxEnvelopePartialStep(f, outline, tol)
+			|| f.PreferLocalPlacement
+			|| balancedSteps.Contains(f)))
 		{
 			f.Keep = true;
 			f.SuppressReason = null;
@@ -181,8 +199,8 @@ public sealed class StructureMeasurementSelector
 
 		// Nested residual: if two vertical features share PreferredSide and one interval
 		// strictly contains the other, keep the outer residual (F215 42 over 32).
-		ApplyNestedIntervalPreference(list, StructureFeatureAxis.Vertical, tol, balancedSteps);
-		ApplyNestedIntervalPreference(list, StructureFeatureAxis.Horizontal, tol, balancedSteps);
+		ApplyNestedIntervalPreference(list, StructureFeatureAxis.Vertical, outline, tol, balancedSteps);
+		ApplyNestedIntervalPreference(list, StructureFeatureAxis.Horizontal, outline, tol, balancedSteps);
 
 		// R7 same interval
 		foreach (var g in list.Where(f => f.Keep && f.Kind != StructureFeatureKind.Overall)
@@ -191,6 +209,11 @@ public sealed class StructureMeasurementSelector
 			List<StructureFeature> members = g.OrderByDescending(f => f.Confidence).ThenByDescending(f => f.Span).ToList();
 			for (int i = 1; i < members.Count; i++)
 			{
+				if (IsMaxEnvelopePartialStep(members[i], outline, tol)
+					&& Math.Abs(members[i].CrossPosition - members[0].CrossPosition) > Math.Max(tol * 8.0, 1.0))
+				{
+					continue;
+				}
 				members[i].Keep = false;
 				members[i].SuppressReason = "SameIntervalDuplicate";
 			}
@@ -218,7 +241,10 @@ public sealed class StructureMeasurementSelector
 					{
 						continue;
 					}
-					if (balancedSteps.Contains(kept[i]) && balancedSteps.Contains(kept[j]))
+					if ((balancedSteps.Contains(kept[i]) && balancedSteps.Contains(kept[j]))
+						|| IsInnerBoss(kept[i]) || IsInnerBoss(kept[j])
+						|| kept[i].PreferLocalPlacement || kept[j].PreferLocalPlacement
+						|| IsMaxEnvelopePartialStep(kept[j], outline, tol))
 					{
 						continue;
 					}
@@ -271,6 +297,14 @@ public sealed class StructureMeasurementSelector
 			f.SuppressReason = "StairClosedChainOpenRing";
 		}
 
+		// RF110: keep 53 (overall min → inner top ledge) and drop thin overall-end
+		// risers 2/3. 50 stays; 50+53+55 must not eat each other.
+		ReplaceOverallEndStepRisersWithComplement(list, outline, tol);
+
+		// n≥2 same-half abutting structure intervals that cover overall: drop the
+		// max-end LedgeResidual first (keep at least one residual as location).
+		OpenCoveringLedgeResidualChains(list, outline, microGap, tol);
+
 		return list.Where(f => f.Keep).ToList();
 	}
 
@@ -286,6 +320,62 @@ public sealed class StructureMeasurementSelector
 		return f != null
 			&& f.SourceKey != null
 			&& f.SourceKey.StartsWith("OuterTip", StringComparison.Ordinal);
+	}
+
+	private static bool IsInnerBoss(StructureFeature f)
+	{
+		return f != null
+			&& f.SourceKey != null
+			&& f.SourceKey.StartsWith("InnerBoss", StringComparison.Ordinal);
+	}
+
+	private static bool IsFootLedge(StructureFeature f)
+	{
+		return f != null
+			&& f.SourceKey != null
+			&& f.SourceKey.StartsWith("FootLedge", StringComparison.Ordinal);
+	}
+
+	private static bool IsStepRiser(StructureFeature f)
+	{
+		return f != null
+			&& f.SourceKey != null
+			&& f.SourceKey.StartsWith("StepRiser", StringComparison.Ordinal);
+	}
+
+	private static bool IsDistantAbutToOuterTip(
+		StructureFeature f,
+		List<StructureFeature> list,
+		OutlineFeature2D outline,
+		double microGap,
+		double tol)
+	{
+		if (f == null || list == null || outline == null)
+		{
+			return false;
+		}
+		double perp = f.Axis == StructureFeatureAxis.Horizontal ? outline.Height : outline.Width;
+		double a0 = Math.Min(f.T0, f.T1);
+		double a1 = Math.Max(f.T0, f.T1);
+		foreach (StructureFeature tip in list)
+		{
+			if (!IsOuterTip(tip) || tip.Axis != f.Axis)
+			{
+				continue;
+			}
+			double b0 = Math.Min(tip.T0, tip.T1);
+			double b1 = Math.Max(tip.T0, tip.T1);
+			bool abut = Math.Abs(a0 - b1) <= microGap + tol || Math.Abs(b0 - a1) <= microGap + tol;
+			if (!abut)
+			{
+				continue;
+			}
+			if (Math.Abs(f.CrossPosition - tip.CrossPosition) > perp * 0.50)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/// <summary>
@@ -358,6 +448,152 @@ public sealed class StructureMeasurementSelector
 		return f != null
 			&& f.SourceKey != null
 			&& f.SourceKey.StartsWith("LedgeResidual", StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// Partial outer-envelope edge on the max cross (horizontal → MaxY / Top,
+	/// vertical → MaxX / Right). RF110 top pad 50 and C-plate top body 120.
+	/// Not inset, not overall. Does not require an inner complement pair.
+	/// </summary>
+	private static bool IsMaxEnvelopePartialStep(
+		StructureFeature f,
+		OutlineFeature2D outline,
+		double tol)
+	{
+		if (f == null || outline == null || f.Kind == StructureFeatureKind.Overall || f.IsInset
+			|| IsLedgeResidual(f) || IsOuterTip(f))
+		{
+			return false;
+		}
+		double overall = f.Axis == StructureFeatureAxis.Horizontal ? outline.Width : outline.Height;
+		if (overall <= tol || f.Span + tol >= overall * 0.80 || f.Span + tol < overall * 0.45)
+		{
+			return false;
+		}
+		if (!f.TouchesOverallMax || f.TouchesOverallMin)
+		{
+			return false;
+		}
+		double band = Math.Max(tol * 8.0, 1.0);
+		if (f.Axis == StructureFeatureAxis.Horizontal)
+		{
+			if (Math.Abs(f.CrossPosition - outline.MaxY) > band)
+			{
+				return false;
+			}
+			return !MaxEnvelopeEdgeIsFullLength(outline, horizontal: true, outline.MaxY, overall, band, tol);
+		}
+		if (Math.Abs(f.CrossPosition - outline.MaxX) > band)
+		{
+			return false;
+		}
+		return !MaxEnvelopeEdgeIsFullLength(outline, horizontal: false, outline.MaxX, overall, band, tol);
+	}
+
+	private static bool MaxEnvelopeEdgeIsFullLength(
+		OutlineFeature2D outline,
+		bool horizontal,
+		double edge,
+		double overall,
+		double band,
+		double tol)
+	{
+		if (outline?.Segments == null || overall <= tol)
+		{
+			return false;
+		}
+		double t0 = double.PositiveInfinity;
+		double t1 = double.NegativeInfinity;
+		foreach (Segment2D s in outline.Segments)
+		{
+			if (s == null || s.IsArcChord)
+			{
+				continue;
+			}
+			if (horizontal)
+			{
+				if (!s.IsHorizontal(tol))
+				{
+					continue;
+				}
+				double y = (s.Start.Y + s.End.Y) * 0.5;
+				if (Math.Abs(y - edge) > band)
+				{
+					continue;
+				}
+				t0 = Math.Min(t0, Math.Min(s.Start.X, s.End.X));
+				t1 = Math.Max(t1, Math.Max(s.Start.X, s.End.X));
+			}
+			else
+			{
+				if (!s.IsVertical(tol))
+				{
+					continue;
+				}
+				double x = (s.Start.X + s.End.X) * 0.5;
+				if (Math.Abs(x - edge) > band)
+				{
+					continue;
+				}
+				t0 = Math.Min(t0, Math.Min(s.Start.Y, s.End.Y));
+				t1 = Math.Max(t1, Math.Max(s.Start.Y, s.End.Y));
+			}
+		}
+		return t1 - t0 + tol >= overall;
+	}
+
+	/// <summary>
+	/// Ledge residual whose leftover to overall is a thin StepRiser (RF110 53 = 55−2).
+	/// Keep it instead of treating it as overall-complement body noise.
+	/// </summary>
+	private static bool IsThinStepRiserComplement(
+		StructureFeature f,
+		IList<StructureFeature> list,
+		OutlineFeature2D outline,
+		double tol)
+	{
+		if (!IsLedgeResidual(f) || list == null || outline == null)
+		{
+			return false;
+		}
+		double overall = f.Axis == StructureFeatureAxis.Horizontal ? outline.Width : outline.Height;
+		double leftover = overall - f.Span;
+		double maxRiser = Math.Min(outline.Width, outline.Height) * 0.12;
+		if (leftover + tol < 1.0 || leftover > maxRiser + tol)
+		{
+			return false;
+		}
+		double spanTol = Math.Max(tol * 10, 0.05);
+		return list.Any(r => IsStepRiser(r)
+			&& r.Axis == f.Axis
+			&& Math.Abs(r.Span - leftover) <= spanTol);
+	}
+
+	private static void ReplaceOverallEndStepRisersWithComplement(
+		List<StructureFeature> list,
+		OutlineFeature2D outline,
+		double tol)
+	{
+		if (list == null || outline == null)
+		{
+			return;
+		}
+		foreach (StructureFeatureAxis axis in new[] { StructureFeatureAxis.Horizontal, StructureFeatureAxis.Vertical })
+		{
+			if (!list.Any(f => f.Keep && f.Axis == axis && IsThinStepRiserComplement(f, list, outline, tol)))
+			{
+				continue;
+			}
+			foreach (StructureFeature riser in list.Where(f =>
+				f.Keep
+				&& f.Axis == axis
+				&& IsStepRiser(f)
+				&& (f.TouchesOverallMin || f.TouchesOverallMax)))
+			{
+				riser.Keep = false;
+				riser.SuppressReason = "ReplacedByStepRiserComplement";
+			}
+		}
 	}
 
 	/// <summary>
@@ -498,17 +734,7 @@ public sealed class StructureMeasurementSelector
 		{
 			return false;
 		}
-		if (IsStepGroove(f))
-		{
-			return true;
-		}
-		if (!f.IsInset || f.TouchesOverallMin || f.TouchesOverallMax)
-		{
-			return false;
-		}
-		// Span band filled at call site via outline — use absolute heuristic here;
-		// callers only force-keep after InteriorRiser; mid shelves typically 70–120 on 338 parts.
-		return f.Span >= 60.0 && f.Span <= 120.0;
+		return IsStepGroove(f);
 	}
 
 	/// <summary>
@@ -545,13 +771,21 @@ public sealed class StructureMeasurementSelector
 					{
 						continue;
 					}
-					if (shorter.Span + tol < overall * 0.12)
+					if (IsThinStepRiserComplement(a, list, outline, tol)
+						|| IsThinStepRiserComplement(b, list, outline, tol))
 					{
 						continue;
 					}
-					// Long arm + tip (305+33): keep long arm
+					bool shortTip = IsOuterTip(shorter);
+					if (!shortTip && shorter.Span + tol < overall * 0.12)
+					{
+						continue;
+					}
+					// Long arm + leftover ear (305+33): keep long arm.
+					// OuterTip + opposite complement that equals overall (25+232=257) drops the arm.
 					double residual = overall - longer.Span;
-					if (longer.Span + tol >= overall * 0.85
+					if (!shortTip
+						&& longer.Span + tol >= overall * 0.85
 						&& residual + tol >= 12.0
 						&& residual <= overall * 0.12 + tol)
 					{
@@ -658,6 +892,13 @@ public sealed class StructureMeasurementSelector
 				}
 				else if (minEnd != null && maxEnd != null && minEnd != maxEnd)
 				{
+					// Non-collinear pair (RF110 top 50 @ MaxY vs inner 52.5 @ MaxY-2):
+					// not a split of one edge. Keep the outer-envelope end, drop the inner.
+					if (!AreCollinearFeatures(minEnd, maxEnd, tol)
+						&& TryKeepMaxEnvelopeStepDropInner(minEnds, maxEnds, axis, outline, tol))
+					{
+						continue;
+					}
 					// Two-end only (no interior): keep longer foot, drop ALL shorter-end pieces
 					// (F215 bottom 120 over 95 / platform 95). Never drop envelope tip 20.
 					if (minEnd.Span > maxEnd.Span + tol)
@@ -753,6 +994,173 @@ public sealed class StructureMeasurementSelector
 		}
 	}
 
+	/// <summary>
+	/// Collinear = same supporting line. A 2mm step (RF110 MaxY vs MaxY-2) is not collinear;
+	/// band is tighter than envelopeBand so a real riser is not glued into one edge.
+	/// </summary>
+	private static bool AreCollinearFeatures(StructureFeature a, StructureFeature b, double tol)
+	{
+		if (a == null || b == null)
+		{
+			return false;
+		}
+		double band = Math.Max(tol * 8.0, 1.0);
+		return Math.Abs(a.CrossPosition - b.CrossPosition) <= band;
+	}
+
+	/// <summary>
+	/// When two overall-end pieces cover overall but sit on different levels, keep the
+	/// member on the max envelope of the cross axis (horizontal → MaxY / Top; vertical
+	/// → MaxX / Right). Drops the inner shelf. Returns false when neither end is on
+	/// that envelope, so the caller can fall back to keep-longer.
+	/// </summary>
+	private static bool TryKeepMaxEnvelopeStepDropInner(
+		List<StructureFeature> minEnds,
+		List<StructureFeature> maxEnds,
+		StructureFeatureAxis axis,
+		OutlineFeature2D outline,
+		double tol)
+	{
+		if (minEnds == null || maxEnds == null || outline == null)
+		{
+			return false;
+		}
+		double outerCross = axis == StructureFeatureAxis.Horizontal ? outline.MaxY : outline.MaxX;
+		double band = Math.Max(tol * 8.0, 1.0);
+		List<StructureFeature> allEnds = minEnds.Concat(maxEnds).Distinct().ToList();
+		List<StructureFeature> outerEnds = allEnds
+			.Where(e => Math.Abs(e.CrossPosition - outerCross) <= band)
+			.ToList();
+		if (outerEnds.Count == 0)
+		{
+			return false;
+		}
+		foreach (StructureFeature e in allEnds)
+		{
+			if (outerEnds.Contains(e) || IsOuterTip(e))
+			{
+				e.Keep = true;
+				e.SuppressReason = null;
+				continue;
+			}
+			e.Keep = false;
+			e.SuppressReason = "InnerLevelComplementEnd";
+			e.Kind = StructureFeatureKind.BodyRemainder;
+		}
+		return true;
+	}
+
+	/// <summary>
+	/// Same-half, same-axis abutting structure intervals that cover overall (n≥2)
+	/// plus overall is a closed chain. Drop max-end LedgeResidual first, keeping at
+	/// least one residual as location of the real step (C-notch: drop 35, keep 15+50).
+	/// A lone residual that does not cover overall (F215 42) is left alone.
+	/// </summary>
+	private static void OpenCoveringLedgeResidualChains(
+		List<StructureFeature> list,
+		OutlineFeature2D outline,
+		double microGap,
+		double tol)
+	{
+		if (list == null || outline == null)
+		{
+			return;
+		}
+		foreach (StructureFeatureAxis axis in new[] { StructureFeatureAxis.Horizontal, StructureFeatureAxis.Vertical })
+		{
+			double overallMin = axis == StructureFeatureAxis.Horizontal ? outline.MinX : outline.MinY;
+			double overallMax = axis == StructureFeatureAxis.Horizontal ? outline.MaxX : outline.MaxY;
+			double overall = overallMax - overallMin;
+			if (overall <= tol)
+			{
+				continue;
+			}
+			IEnumerable<IGrouping<string, StructureFeature>> groups = list
+				.Where(f => f.Keep && f.Axis == axis && f.Kind != StructureFeatureKind.Overall)
+				.GroupBy(f => ChainGroupKey(f, outline, axis, microGap, tol));
+			foreach (IGrouping<string, StructureFeature> group in groups)
+			{
+				List<StructureFeature> ordered = group.OrderBy(f => Math.Min(f.T0, f.T1)).ToList();
+				foreach (List<StructureFeature> chain in BuildChains(ordered, microGap, tol))
+				{
+					OpenOneCoveringChain(chain, overallMin, overallMax, overall, outline, tol);
+				}
+			}
+		}
+	}
+
+	private static void OpenOneCoveringChain(
+		List<StructureFeature> chain,
+		double overallMin,
+		double overallMax,
+		double overall,
+		OutlineFeature2D outline,
+		double tol)
+	{
+		if (chain == null || chain.Count < 2)
+		{
+			return;
+		}
+		List<StructureFeature> live = chain.Where(f => f.Keep).OrderBy(f => Math.Min(f.T0, f.T1)).ToList();
+		if (!CoversOverallInterval(live, overallMin, overallMax, tol))
+		{
+			return;
+		}
+		List<StructureFeature> residuals = live.Where(IsLedgeResidual).ToList();
+		List<StructureFeature> maxEndResiduals = residuals.Where(r => r.TouchesOverallMax).ToList();
+		List<StructureFeature> otherResiduals = residuals.Where(r => !r.TouchesOverallMax).ToList();
+		if (maxEndResiduals.Count > 0 && otherResiduals.Count > 0)
+		{
+			foreach (StructureFeature r in maxEndResiduals)
+			{
+				r.Keep = false;
+				r.SuppressReason = "ClosedChainMaxEndResidual";
+				r.Kind = StructureFeatureKind.BodyRemainder;
+			}
+		}
+		live = chain.Where(f => f.Keep).OrderBy(f => Math.Min(f.T0, f.T1)).ToList();
+		if (!CoversOverallInterval(live, overallMin, overallMax, tol) || live.Count < 2)
+		{
+			return;
+		}
+		StructureFeature drop = live
+			.Where(f => !IsProtectedClosedChainMember(f, outline, tol))
+			.OrderByDescending(f => f.Span)
+			.FirstOrDefault();
+		if (drop == null)
+		{
+			return;
+		}
+		drop.Keep = false;
+		drop.SuppressReason = "ClosedChainLongestUnprotected";
+		drop.Kind = StructureFeatureKind.BodyRemainder;
+	}
+
+	private static bool CoversOverallInterval(
+		List<StructureFeature> members,
+		double overallMin,
+		double overallMax,
+		double tol)
+	{
+		if (members == null || members.Count < 2)
+		{
+			return false;
+		}
+		double c0 = members.Min(f => Math.Min(f.T0, f.T1));
+		double c1 = members.Max(f => Math.Max(f.T0, f.T1));
+		return Math.Abs(c0 - overallMin) <= tol
+			&& Math.Abs(c1 - overallMax) <= tol;
+	}
+
+	private static bool IsProtectedClosedChainMember(
+		StructureFeature f,
+		OutlineFeature2D outline,
+		double tol)
+	{
+		return IsOuterTip(f) || IsStepGroove(f) || IsInnerBoss(f) || IsFootLedge(f)
+			|| IsMaxEnvelopePartialStep(f, outline, tol);
+	}
+
 	private static List<List<StructureFeature>> BuildChains(
 		List<StructureFeature> ordered,
 		double microGap,
@@ -810,6 +1218,7 @@ public sealed class StructureMeasurementSelector
 	private static void ApplyNestedIntervalPreference(
 		List<StructureFeature> list,
 		StructureFeatureAxis axis,
+		OutlineFeature2D outline,
 		double tol,
 		HashSet<StructureFeature> balancedSteps)
 	{
@@ -825,7 +1234,9 @@ public sealed class StructureMeasurementSelector
 			// Outer envelope short tips (foot 20) must survive even when nested in a taller foot residual.
 			// Keep threshold tight so F215 lu=32 still loses to residual 42.
 			// 槽宽 is an interior clear width and must not lose to a merged body that contains it.
-			if (IsStepGroove(inner) || IsOuterTip(inner)
+			if (IsStepGroove(inner) || IsOuterTip(inner) || IsInnerBoss(inner) || IsFootLedge(inner)
+				|| IsStepRiser(inner)
+				|| inner.PreferLocalPlacement
 				|| (balancedSteps != null && balancedSteps.Contains(inner)))
 			{
 				continue;
@@ -851,6 +1262,11 @@ public sealed class StructureMeasurementSelector
 				// outer strictly contains inner
 				if (o0 <= i0 + tol && o1 >= i1 - tol && outer.Span > inner.Span + tol)
 				{
+					if (IsInnerBoss(outer)
+						|| IsThinStepRiserComplement(outer, list, outline, tol))
+					{
+						continue;
+					}
 					// Prefer outer residual when both on envelope band
 					if (Math.Abs(outer.CrossPosition - inner.CrossPosition) <= Math.Max(tol * 20, outer.Span * 0.01)
 						|| outer.PreferredSide == inner.PreferredSide)

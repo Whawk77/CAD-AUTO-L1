@@ -67,6 +67,9 @@ namespace CadAuto.Core.Tests
 			nameof(RotationSignature_F338CadGoldenMultisetFourWayEqual),
 			nameof(CadLastRunGrooveSnapsToWallClearWidthFourWay),
 			nameof(RotationSignature_Stair3GoldenMultisetFourWayEqual),
+			nameof(RotationSignature_LBoss257GoldenMultisetFourWayEqual),
+			nameof(SteppedPlateReplacesThinStepRisersWithComplement53),
+			nameof(CNotchPlateKeepsTopEnvelopeBodyWidth120),
 			nameof(StepGroovePlacesOnSameSideAsOuterStepFourWay),
 			nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed),
             nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide),
@@ -135,7 +138,10 @@ namespace CadAuto.Core.Tests
             nameof(FunctionalHoleAlignmentPreservesV198Stacking),
             nameof(FunctionalHoleAlignmentLaneSurvivesOutwardPromotion),
             nameof(FunctionalHoleBeyondPinChainStacksOutsideDatumChain),
+			nameof(LocalFunctionalHolesStraddlingDatumStayInsideDatumLocation),
+			nameof(TinyPinGroupGapStaysInsideAlignedFunctionalHolesOnLeft),
             nameof(PreferredSideLockedHoleLocationUsesLocalBoundary),
+			nameof(LeftHoleLocalBoundaryDoesNotUseInnerHoleColumn),
             nameof(ExplicitLocalLooseChainUsesNearbyConcaveBoundary),
             nameof(HoleLocationDimensionsUseSegmentedExtensionLines),
             nameof(HoleCalloutsUsePinClustersAndFitText)
@@ -256,6 +262,9 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(RotationSignature_F338CadGoldenMultisetFourWayEqual), RotationSignature_F338CadGoldenMultisetFourWayEqual);
 				RunTest(nameof(CadLastRunGrooveSnapsToWallClearWidthFourWay), CadLastRunGrooveSnapsToWallClearWidthFourWay);
 				RunTest(nameof(RotationSignature_Stair3GoldenMultisetFourWayEqual), RotationSignature_Stair3GoldenMultisetFourWayEqual);
+				RunTest(nameof(RotationSignature_LBoss257GoldenMultisetFourWayEqual), RotationSignature_LBoss257GoldenMultisetFourWayEqual);
+				RunTest(nameof(SteppedPlateReplacesThinStepRisersWithComplement53), SteppedPlateReplacesThinStepRisersWithComplement53);
+				RunTest(nameof(CNotchPlateKeepsTopEnvelopeBodyWidth120), CNotchPlateKeepsTopEnvelopeBodyWidth120);
 				RunTest(nameof(StepGroovePlacesOnSameSideAsOuterStepFourWay), StepGroovePlacesOnSameSideAsOuterStepFourWay);
 				RunTest(nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed), CrossSideStructureWidthsThatCloseOverallChainAreSuppressed);
                 RunTest(nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide), InteriorHorizontalOutlineSegmentPrefersNonCrossingSide);
@@ -309,8 +318,11 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(FunctionalHoleAlignmentPreservesV198Stacking), FunctionalHoleAlignmentPreservesV198Stacking);
 				RunTest(nameof(FunctionalHoleAlignmentLaneSurvivesOutwardPromotion), FunctionalHoleAlignmentLaneSurvivesOutwardPromotion);
 				RunTest(nameof(FunctionalHoleBeyondPinChainStacksOutsideDatumChain), FunctionalHoleBeyondPinChainStacksOutsideDatumChain);
+				RunTest(nameof(LocalFunctionalHolesStraddlingDatumStayInsideDatumLocation), LocalFunctionalHolesStraddlingDatumStayInsideDatumLocation);
+				RunTest(nameof(TinyPinGroupGapStaysInsideAlignedFunctionalHolesOnLeft), TinyPinGroupGapStaysInsideAlignedFunctionalHolesOnLeft);
 				RunTest(nameof(Dl01TopStructureFunctionalHoleDatumChainOrder), Dl01TopStructureFunctionalHoleDatumChainOrder);
                 RunTest(nameof(PreferredSideLockedHoleLocationUsesLocalBoundary), PreferredSideLockedHoleLocationUsesLocalBoundary);
+				RunTest(nameof(LeftHoleLocalBoundaryDoesNotUseInnerHoleColumn), LeftHoleLocalBoundaryDoesNotUseInnerHoleColumn);
                 RunTest(nameof(ExplicitLocalLooseChainUsesNearbyConcaveBoundary), ExplicitLocalLooseChainUsesNearbyConcaveBoundary);
                 RunTest(nameof(LooseHolesUseChainDimensions), LooseHolesUseChainDimensions);
                 RunTest(nameof(ConcentricLooseHolesShareOneLocationDimension), ConcentricLooseHolesShareOneLocationDimension);
@@ -4887,6 +4899,279 @@ namespace CadAuto.Core.Tests
 			AssertFourWaySignatureEqualsGolden(planner, baseline, golden, 0.05, "Stair3");
 		}
 
+		/// <summary>
+		/// L-plate 257×134: foot 25 + fillet-trimmed boss 30 + locate 58,
+		/// arm 25, boss stack 10⊂25⊂40. No 33/232/59.
+		/// </summary>
+		private static void RotationSignature_LBoss257GoldenMultisetFourWayEqual()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var planner = new DimensionPlanner(config);
+			double[] golden = { 10.0, 25.0, 25.0, 25.0, 30.0, 40.0, 58.0, 134.0, 257.0 };
+			var baseline = CreateLBoss257Outline();
+			AssertFourWaySignatureEqualsGolden(planner, baseline, golden, 0.05, "LBoss257");
+		}
+
+		/// <summary>
+		/// last-run RF110: 2mm top / 3mm bottom step risers at X=52.5 must survive.
+		/// </summary>
+		private static void SteppedPlateReplacesThinStepRisersWithComplement53()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var planner = new DimensionPlanner(config);
+			var outline = CreateSteppedPlate102Outline();
+			var plan = planner.CreateOutlinePlan(outline);
+			double[] signature = GetOverallStructureValueSignature(plan, config.GeometryTolerance);
+			Assert(SignatureContains(signature, 53.0, 0.05),
+				"53 (overall min to inner top ledge) must be kept; sig=[" + string.Join(",", signature) + "]");
+			Assert(SignatureContains(signature, 50.0, 0.05),
+				"left wall 50 must stay; sig=[" + string.Join(",", signature) + "]");
+			Assert(SignatureContains(signature, 55.0, 0.05),
+				"overall height 55 must be kept; sig=[" + string.Join(",", signature) + "]");
+			Assert(!SignatureContains(signature, 2.0, 0.05),
+				"top step riser 2 must be replaced by 53; sig=[" + string.Join(",", signature) + "]");
+			Assert(!SignatureContains(signature, 3.0, 0.05),
+				"bottom step riser 3 must be replaced by 53; sig=[" + string.Join(",", signature) + "]");
+			Assert(plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Structure
+					&& d.Side == DimensionSide.Left
+					&& Math.Abs(GetSpan(d) - 53.0) <= 0.05),
+				"53 must sit on the left with 50/55");
+			Assert(plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Structure
+					&& d.Side == DimensionSide.Left
+					&& Math.Abs(GetSpan(d) - 50.0) <= 0.05),
+				"50 must remain a left structure height");
+			Assert(plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Structure
+					&& d.Side == DimensionSide.Top
+					&& Math.Abs(GetSpan(d) - 50.0) <= 0.05),
+				"top-right pad 50 on MaxY must be kept as TopStructWidth; sig=["
+				+ string.Join(",", signature) + "]");
+			Assert(!plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Structure
+					&& d.Side == DimensionSide.Top
+					&& Math.Abs(GetSpan(d) - 52.5) <= 0.05),
+				"inner top outline 52.5 must stay dropped; pin 52.5 locates that half");
+			Assert(!plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Structure
+					&& d.Side == DimensionSide.Bottom
+					&& Math.Abs(GetSpan(d) - 50.0) <= 0.05),
+				"bottom-right pad 50 must stay dropped");
+
+			var leftVertical = plan.Dimensions
+				.Where(d => d.Orientation == DimensionOrientation.Vertical && d.Side == DimensionSide.Left)
+				.Select((d, index) => new { Dim = d, Item = new DimensionLayoutItem
+				{
+					Kind = d.Kind,
+					FirstPoint = d.FirstPoint,
+					SecondPoint = d.SecondPoint,
+					Span = GetSpan(d),
+					ForceOuterLevel = d.ForceOuterLevel,
+					AlignmentKey = d.AlignmentKey,
+					AlignmentPriority = d.AlignmentPriority,
+					ReadingLevel = d.ReadingLevel,
+					SourceFeatureId = d.SourceKey
+				}})
+				.ToList();
+			var placements = new DimensionLayoutRules(config)
+				.CreateStackingPlan(
+					leftVertical.Select(x => x.Item).ToList(),
+					DimensionSide.Left,
+					outline,
+					2.5,
+					1.25,
+					10.0,
+					6.5,
+					isHorizontal: false)
+				.ToDictionary(p => p.Index);
+			int i50 = leftVertical.FindIndex(x => Math.Abs(x.Item.Span - 50.0) <= 0.05 && x.Dim.Kind != DimensionKind.OverallHeight);
+			int i53 = leftVertical.FindIndex(x => Math.Abs(x.Item.Span - 53.0) <= 0.05);
+			int i55 = leftVertical.FindIndex(x => x.Dim.Kind == DimensionKind.OverallHeight
+				|| Math.Abs(x.Item.Span - 55.0) <= 0.05 && x.Dim.ForceOuterLevel);
+			Assert(i50 >= 0 && i53 >= 0 && i55 >= 0,
+				"left stack must include 50, 53, and 55");
+			Assert(placements[i50].Level < placements[i53].Level
+				&& placements[i53].Level < placements[i55].Level,
+				"left stack must be 50 inside 53 inside 55; levels 50="
+				+ placements[i50].Level + " 53=" + placements[i53].Level
+				+ " 55=" + placements[i55].Level);
+
+			var top50 = plan.Dimensions.First(d => d.Role == DimensionCandidateRole.Structure
+				&& d.Side == DimensionSide.Top
+				&& Math.Abs(GetSpan(d) - 50.0) <= 0.05);
+			var topStack = new[]
+			{
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.Normal,
+					FirstPoint = top50.FirstPoint,
+					SecondPoint = top50.SecondPoint,
+					Span = 50.0,
+					AlignmentKey = top50.AlignmentKey,
+					AlignmentPriority = top50.AlignmentPriority,
+					ReadingLevel = DimensionReadingLevel.LocalSpacing
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.PinGroupDistance,
+					FirstPoint = new Point2D(40.0, 55.0),
+					SecondPoint = new Point2D(92.5, 55.0),
+					Span = 52.5,
+					AlignmentKey = "PG1:DatumChain:H",
+					AlignmentPriority = 110,
+					ReadingLevel = DimensionReadingLevel.DatumTransfer,
+					SourceFeatureId = "PG2"
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.OverallWidth,
+					FirstPoint = new Point2D(0.0, 0.0),
+					SecondPoint = new Point2D(102.5, 0.0),
+					Span = 102.5,
+					ForceOuterLevel = true,
+					ReadingLevel = DimensionReadingLevel.Overall
+				}
+			};
+			var topPlacements = new DimensionLayoutRules(config)
+				.CreateStackingPlan(topStack, DimensionSide.Top, outline, 2.5, 1.25, 10.0, 6.5, isHorizontal: true)
+				.ToDictionary(p => p.Index);
+			Assert(topPlacements[0].Level < topPlacements[1].Level
+				&& topPlacements[1].Level < topPlacements[2].Level,
+				"top 50 must sit inside pin 52.5, overall 102.5 outermost; levels 50="
+				+ topPlacements[0].Level + " 52.5=" + topPlacements[1].Level
+				+ " 102.5=" + topPlacements[2].Level);
+		}
+
+		/// <summary>
+		/// C-notch 180×100: top main-body width 120 on MaxY must stay (same class as RF110
+		/// top pad 50). Bottom 120 and C-inner 50 stay dropped. Not a fixed 50/52.5 rule.
+		/// </summary>
+		private static void CNotchPlateKeepsTopEnvelopeBodyWidth120()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var planner = new DimensionPlanner(config);
+			var outline = CreateCNotch180Outline();
+			var plan = planner.CreateOutlinePlan(outline);
+			double[] signature = GetOverallStructureValueSignature(plan, config.GeometryTolerance);
+			Assert(plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Structure
+					&& d.Side == DimensionSide.Top
+					&& Math.Abs(GetSpan(d) - 120.0) <= 0.05),
+				"top MaxY body 120 must be kept as TopStructWidth; sig=["
+				+ string.Join(",", signature) + "]");
+			Assert(!plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Structure
+					&& d.Side == DimensionSide.Bottom
+					&& Math.Abs(GetSpan(d) - 120.0) <= 0.05),
+				"bottom 120 must stay dropped");
+			Assert(!plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Structure
+					&& d.Side == DimensionSide.Top
+					&& Math.Abs(GetSpan(d) - 50.0) <= 0.05),
+				"C-inner top shelf 50 must stay dropped");
+			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
+					&& Math.Abs(GetSpan(d) - 180.0) <= 0.05),
+				"overall width 180 must remain");
+			Assert(plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Structure
+					&& d.Side == DimensionSide.Left
+					&& Math.Abs(GetSpan(d) - 50.0) <= 0.05),
+				"C opening height 50 must stay; sig=[" + string.Join(",", signature) + "]");
+			Assert(plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Structure
+					&& d.Side == DimensionSide.Left
+					&& Math.Abs(GetSpan(d) - 15.0) <= 0.05),
+				"bottom residual 15 must stay as location of 50; sig=["
+				+ string.Join(",", signature) + "]");
+			Assert(!plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Structure
+					&& d.Side == DimensionSide.Left
+					&& Math.Abs(GetSpan(d) - 35.0) <= 0.05),
+				"top-end residual 35 must be dropped to open 15+50+35=100; sig=["
+				+ string.Join(",", signature) + "]");
+
+			var top120 = plan.Dimensions.First(d => d.Role == DimensionCandidateRole.Structure
+				&& d.Side == DimensionSide.Top
+				&& Math.Abs(GetSpan(d) - 120.0) <= 0.05);
+			var topStack = new[]
+			{
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.HoleLocation,
+					FirstPoint = new Point2D(120.0, 100.0),
+					SecondPoint = new Point2D(165.0, 100.0),
+					Span = 45.0,
+					PreserveAlignmentLevel = true,
+					AlignmentKey = "PG1:FunctionalHoles:H",
+					AlignmentPriority = 90,
+					ReadingLevel = DimensionReadingLevel.LocalSpacing
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.DatumHoleLocationX,
+					FirstPoint = new Point2D(180.0, 85.0),
+					SecondPoint = new Point2D(120.0, 85.0),
+					Span = 60.0,
+					AlignmentKey = "PG1:DatumChain:H",
+					AlignmentPriority = 120,
+					ReadingLevel = DimensionReadingLevel.DatumTransfer
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.Normal,
+					FirstPoint = top120.FirstPoint,
+					SecondPoint = top120.SecondPoint,
+					Span = 120.0,
+					AlignmentKey = top120.AlignmentKey,
+					AlignmentPriority = top120.AlignmentPriority,
+					ReadingLevel = DimensionReadingLevel.LocalSpacing
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.OverallWidth,
+					FirstPoint = new Point2D(0.0, 0.0),
+					SecondPoint = new Point2D(180.0, 0.0),
+					Span = 180.0,
+					ForceOuterLevel = true,
+					ReadingLevel = DimensionReadingLevel.Overall
+				}
+			};
+			var topPlacements = new DimensionLayoutRules(config)
+				.CreateStackingPlan(topStack, DimensionSide.Top, outline, 2.5, 1.25, 10.0, 6.5, isHorizontal: true)
+				.ToDictionary(p => p.Index);
+			Assert(topPlacements[0].Level < topPlacements[1].Level
+				&& topPlacements[1].Level < topPlacements[2].Level
+				&& topPlacements[2].Level < topPlacements[3].Level,
+				"top stack must be 45 inside 60 inside 120 inside 180; levels "
+				+ topPlacements[0].Level + "/" + topPlacements[1].Level + "/"
+				+ topPlacements[2].Level + "/" + topPlacements[3].Level);
+		}
+
+		private static OutlineFeature2D CreateSteppedPlate102Outline()
+		{
+			var o = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 102.5, MaxY = 55.0 };
+			AddSegment(o, new Point2D(0.0, 3.0), new Point2D(52.5, 3.0), "bot-52.5");
+			AddSegment(o, new Point2D(52.5, 3.0), new Point2D(52.5, 0.0), "riser-3");
+			AddSegment(o, new Point2D(52.5, 0.0), new Point2D(102.5, 0.0), "bot-50");
+			AddSegment(o, new Point2D(102.5, 0.0), new Point2D(102.5, 55.0), "right");
+			AddSegment(o, new Point2D(52.5, 55.0), new Point2D(102.5, 55.0), "top-50");
+			AddSegment(o, new Point2D(52.5, 53.0), new Point2D(52.5, 55.0), "riser-2");
+			AddSegment(o, new Point2D(0.0, 53.0), new Point2D(52.5, 53.0), "top-52.5");
+			AddSegment(o, new Point2D(0.0, 3.0), new Point2D(0.0, 53.0), "left-50");
+			return o;
+		}
+
+		/// <summary>
+		/// Sharp stand-in for last-run C-notch 180×100 (fillets collapsed to diagonals).
+		/// Top/bottom body 120 at X=60–180; C opening 50×50 at the left.
+		/// </summary>
+		private static OutlineFeature2D CreateCNotch180Outline()
+		{
+			var o = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 180.0, MaxY = 100.0 };
+			AddSegment(o, new Point2D(0.0, 15.0), new Point2D(50.0, 15.0), "c-bot-50");
+			AddSegment(o, new Point2D(50.0, 15.0), new Point2D(60.0, 0.0), "fillet-bl");
+			AddSegment(o, new Point2D(60.0, 0.0), new Point2D(180.0, 0.0), "bot-120");
+			AddSegment(o, new Point2D(180.0, 0.0), new Point2D(180.0, 100.0), "right");
+			AddSegment(o, new Point2D(180.0, 100.0), new Point2D(60.0, 100.0), "top-120");
+			AddSegment(o, new Point2D(60.0, 100.0), new Point2D(50.0, 65.0), "fillet-tl");
+			AddSegment(o, new Point2D(50.0, 65.0), new Point2D(0.0, 65.0), "c-top-50");
+			AddSegment(o, new Point2D(0.0, 65.0), new Point2D(0.0, 15.0), "left-50");
+			return o;
+		}
+
 		private static void AssertFourWaySignatureEqualsGolden(
 			DimensionPlanner planner,
 			OutlineFeature2D baseline,
@@ -5014,6 +5299,29 @@ namespace CadAuto.Core.Tests
 			AddSegment(o, new Point2D(169.20909149, 163.36576549), new Point2D(169.20909149, 289.47267220), "rise-126");
 			AddSegment(o, new Point2D(0.0, 163.36576549), new Point2D(169.20909149, 163.36576549), "ledge-169");
 			AddSegment(o, new Point2D(0.0, 0.0), new Point2D(0.0, 163.36576549), "left-163");
+			return o;
+		}
+
+		/// <summary>
+		/// last-run L 257×134: foot 25, 3mm fillet, boss clear 30, locate 58, arm 25.
+		/// </summary>
+		private static OutlineFeature2D CreateLBoss257Outline()
+		{
+			var o = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 257.0, MaxY = 134.0 };
+			AddSegment(o, new Point2D(0.0, 0.0), new Point2D(25.0, 0.0), "foot-25");
+			AddSegment(o, new Point2D(25.0, 0.0), new Point2D(25.0, 18.0), "boss-left-low");
+			AddSegment(o, new Point2D(25.0, 18.0), new Point2D(28.0, 15.0), "chamfer-shelf");
+			AddSegment(o, new Point2D(28.0, 15.0), new Point2D(58.0, 15.0), "shelf-30");
+			AddSegment(o, new Point2D(58.0, 15.0), new Point2D(58.0, 25.0), "step-10");
+			AddSegment(o, new Point2D(58.0, 25.0), new Point2D(58.0, 40.0), "step-15");
+			AddSegment(o, new Point2D(28.0, 40.0), new Point2D(58.0, 40.0), "ledge-30");
+			AddSegment(o, new Point2D(25.0, 43.0), new Point2D(28.0, 40.0), "chamfer-ledge");
+			AddSegment(o, new Point2D(25.0, 43.0), new Point2D(25.0, 109.0), "waist");
+			AddSegment(o, new Point2D(25.0, 109.0), new Point2D(257.0, 109.0), "arm-bot");
+			AddSegment(o, new Point2D(257.0, 109.0), new Point2D(257.0, 134.0), "arm-25");
+			AddSegment(o, new Point2D(25.0, 134.0), new Point2D(257.0, 134.0), "top-232");
+			AddSegment(o, new Point2D(0.0, 134.0), new Point2D(25.0, 134.0), "left-top");
+			AddSegment(o, new Point2D(0.0, 0.0), new Point2D(0.0, 134.0), "left");
 			return o;
 		}
 
@@ -6848,6 +7156,77 @@ namespace CadAuto.Core.Tests
 				"overall 96 must remain outermost");
 		}
 
+		/// <summary>
+		/// last-run: 16 above and 16 below datum hole must not ride outside DatumY 28±0.05
+		/// just because their union (11–43) sticks past the 28 interval (27–55).
+		/// </summary>
+		private static void LocalFunctionalHolesStraddlingDatumStayInsideDatumLocation()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(92.5, 27.0), SecondPoint = new Point2D(92.5, 43.0), Span = 16.0, AlignmentKey = "PG1:FunctionalHoles:V", AlignmentPriority = 90, PreserveAlignmentLevel = true, PreferLocalBoundary = true, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "PG1" },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(92.5, 27.0), SecondPoint = new Point2D(92.5, 11.0), Span = 16.0, AlignmentKey = "PG1:FunctionalHoles:V", AlignmentPriority = 90, PreserveAlignmentLevel = true, PreferLocalBoundary = true, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "PG1" },
+				new DimensionLayoutItem { Kind = DimensionKind.DatumHoleLocationY, FirstPoint = new Point2D(92.5, 55.0), SecondPoint = new Point2D(92.5, 27.0), Span = 28.0, OverrideText = @"28\H0.8x;±0.05\H1x;", AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 120, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG1" }
+			};
+			var placements = new DimensionLayoutRules(config).CreateStackingPlan(dimensions, DimensionSide.Right, null, 2.5, 1.25, 5.0, 5.0, isHorizontal: false);
+			var byIndex = placements.ToDictionary(item => item.Index);
+			Assert(byIndex[0].Level == byIndex[1].Level,
+				"the two 16s must stay on one functional-hole lane");
+			Assert(byIndex[0].Level < byIndex[2].Level,
+				"16/16 must stack inside DatumY 28; levels 16=" + byIndex[0].Level + "/" + byIndex[1].Level + " 28=" + byIndex[2].Level);
+		}
+
+		/// <summary>
+		/// RF110 left stack: tiny pin-group gap 1.28 must occupy lvl 0 (~FirstDimOffset from
+		/// the left outline). A local 15 that only continues past 1.28's shared max, and a
+		/// second 15 that extends past the unshared min, share the next outer lane. Then 50,
+		/// then overall 55. The upper 15 must not steal innermost just because it is "not beyond".
+		/// </summary>
+		private static void TinyPinGroupGapStaysInsideAlignedFunctionalHolesOnLeft()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(110.0, 55.0);
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.PinGroupDistance, FirstPoint = new Point2D(22.0, 27.0), SecondPoint = new Point2D(22.0, 28.28), Span = 1.28, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 110, ReadingLevel = DimensionReadingLevel.DatumTransfer, SourceFeatureId = "PG2" },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(22.0, 28.28), SecondPoint = new Point2D(22.0, 43.28), Span = 15.0, AlignmentKey = "PG1:FunctionalHoles:V", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "PG2" },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(22.0, 28.0), SecondPoint = new Point2D(22.0, 13.0), Span = 15.0, AlignmentKey = "PG1:FunctionalHoles:V", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "PG2" },
+				new DimensionLayoutItem { Kind = DimensionKind.PinDistance, FirstPoint = new Point2D(22.0, 5.0), SecondPoint = new Point2D(22.0, 55.0), Span = 50.0, AlignmentKey = "PG1:DatumChain:V", AlignmentPriority = 100, ReadingLevel = DimensionReadingLevel.IntraGroup, SourceFeatureId = "PG2" },
+				new DimensionLayoutItem { Kind = DimensionKind.OverallHeight, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(0.0, 55.0), Span = 55.0, ForceOuterLevel = true, ReadingLevel = DimensionReadingLevel.Overall }
+			};
+			const double firstOffset = 10.0;
+			const double perLevel = 6.5;
+			var placements = new DimensionLayoutRules(config)
+				.CreateStackingPlan(dimensions, DimensionSide.Left, outline, 2.5, 1.25, firstOffset, perLevel, isHorizontal: false)
+				.ToDictionary(item => item.Index);
+
+			Assert(placements[0].Level == 0,
+				"tiny pin-group gap 1.28 must occupy leftmost lvl 0; got level=" + placements[0].Level
+				+ " 15s=" + placements[1].Level + "/" + placements[2].Level
+				+ " 50=" + placements[3].Level + " 55=" + placements[4].Level);
+			Assert(placements[1].Level == placements[2].Level && placements[1].Level == 1,
+				"the two 15s must share the next outer lane; got " + placements[1].Level + "/" + placements[2].Level);
+			Assert(placements[3].Level > placements[1].Level,
+				"50 must sit outside the aligned 15s; 50=" + placements[3].Level + " 15=" + placements[1].Level);
+			Assert(placements[4].Level > placements[3].Level,
+				"overall 55 must remain outermost");
+			Assert(Math.Abs(placements[0].PhysicalOutwardDistance - firstOffset) <= config.GeometryTolerance,
+				"1.28 must sit ~FirstDimOffset from the left outline; got " + placements[0].PhysicalOutwardDistance);
+			Assert(!string.IsNullOrEmpty(placements[1].AlignmentLaneKey)
+				&& string.Equals(placements[1].AlignmentLaneKey, placements[2].AlignmentLaneKey, StringComparison.Ordinal),
+				"the two 15s must keep one functional-hole alignment lane");
+			double fifteenCoordinate = placements[1].DimLineCoordinateOverride
+				?? new DimensionLayoutRules(config).GetDimLineCoordinate(dimensions[1], DimensionSide.Left, outline, placements[1].Offset);
+			double otherFifteenCoordinate = placements[2].DimLineCoordinateOverride
+				?? new DimensionLayoutRules(config).GetDimLineCoordinate(dimensions[2], DimensionSide.Left, outline, placements[2].Offset);
+			Assert(Math.Abs(fifteenCoordinate - otherFifteenCoordinate) <= config.GeometryTolerance,
+				"both 15s must share one physical dimension line");
+			Assert(placements[1].PhysicalOutwardDistance > placements[0].PhysicalOutwardDistance + config.GeometryTolerance,
+				"aligned 15s must sit outside 1.28; 15=" + placements[1].PhysicalOutwardDistance
+				+ " 1.28=" + placements[0].PhysicalOutwardDistance);
+		}
+
 		private static void Dl01TopStructureFunctionalHoleDatumChainOrder()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -7212,6 +7591,29 @@ namespace CadAuto.Core.Tests
 			Assert(Math.Abs(functionalCoordinate - 65.0) <= config.GeometryTolerance
 				&& Math.Abs(datumCoordinate - 205.0) <= config.GeometryTolerance,
 				"local functional-hole dimensions must use the nearby notch while global datum dimensions remain outside the full outline");
+		}
+
+		/// <summary>
+		/// last-run left stack sat 36mm off the outline because hole-column ticks at X=40
+		/// were used as the Left local boundary. Fall back to the outer wall.
+		/// </summary>
+		private static void LeftHoleLocalBoundaryDoesNotUseInnerHoleColumn()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			var outline = CreateSteppedPlate102Outline();
+			outline.Segments.Add(new Segment2D(new Point2D(40.0, 10.0), new Point2D(40.0, 45.0)) { SourceKey = "hole-tick" });
+			var hole = new DimensionLayoutItem
+			{
+				Kind = DimensionKind.HoleLocation,
+				FirstPoint = new Point2D(40.0, 13.0),
+				SecondPoint = new Point2D(40.0, 43.0),
+				Span = 15.0,
+				PreferLocalBoundary = true
+			};
+			double coordinate = rules.GetDimLineCoordinate(hole, DimensionSide.Left, outline, 10.0);
+			Assert(Math.Abs(coordinate - (outline.MinX - 10.0)) <= config.GeometryTolerance,
+				"left functional-hole dim line must sit 10 outside MinX, not beside the hole column; got " + coordinate);
 		}
 
 		private static void ExplicitLocalLooseChainUsesNearbyConcaveBoundary()

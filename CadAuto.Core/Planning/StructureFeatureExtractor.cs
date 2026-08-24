@@ -166,6 +166,8 @@ public sealed class StructureFeatureExtractor
 		// Outer envelope short tips (CAD foot tip ~20): promote to Structure even when OS
 		// would only see OutlineSegmentOnOverallEnvelope.
 		AddOuterEnvelopeTips(features, outline, envelopeBand, minSpan, tol);
+		RecoverInnerBossStack(features, outline, microGap, minSpan, envelopeBand, tol);
+		RecoverThinStepRisers(features, outline, envelopeBand, tol);
 
 		AssignChainsAndClassify(features, outline, microGap, tol);
 		return features;
@@ -270,6 +272,605 @@ public sealed class StructureFeatureExtractor
 				});
 			}
 		}
+	}
+
+	/// <summary>
+	/// L-boss next to an envelope foot: keep the abutting inset ledge on the foot's
+	/// side, and emit full boss height (envelope→ledge) plus clear height (inner
+	/// shelf→ledge). Example: foot 25 + ledge 33, full 40, clear 25, step 10.
+	/// </summary>
+	private void RecoverInnerBossStack(
+		List<StructureFeature> features,
+		OutlineFeature2D outline,
+		double microGap,
+		double minSpan,
+		double envelopeBand,
+		double tol)
+	{
+		if (features == null || outline == null)
+		{
+			return;
+		}
+		foreach (StructureFeatureAxis axis in new[] { StructureFeatureAxis.Horizontal, StructureFeatureAxis.Vertical })
+		{
+			bool tipIsHorizontal = axis == StructureFeatureAxis.Horizontal;
+			double axisOverall = tipIsHorizontal ? outline.Width : outline.Height;
+			double perpOverall = tipIsHorizontal ? outline.Height : outline.Width;
+			List<StructureFeature> tips = features
+				.Where(f => f.Axis == axis
+					&& f.SourceKey != null
+					&& f.SourceKey.StartsWith("OuterTip", StringComparison.Ordinal))
+				.ToList();
+			List<StructureFeature> ledges = features
+				.Where(f => f.Axis == axis
+					&& f.IsInset
+					&& f.Kind != StructureFeatureKind.Overall
+					&& f.Span + tol < axisOverall * 0.45
+					&& (f.SourceKey == null || !f.SourceKey.StartsWith("OuterTip", StringComparison.Ordinal))
+					&& (f.SourceKey == null || !f.SourceKey.StartsWith("InnerBoss", StringComparison.Ordinal))
+					&& (f.SourceKey == null || !f.SourceKey.StartsWith("StepGroove", StringComparison.Ordinal)))
+				.ToList();
+			AddBossLedgesFromSegments(ledges, features, outline, axis, tipIsHorizontal, axisOverall, envelopeBand, minSpan, tol);
+			foreach (StructureFeature tip in tips)
+			{
+				double t0 = Math.Min(tip.T0, tip.T1);
+				double t1 = Math.Max(tip.T0, tip.T1);
+				StructureFeature bestLedge = null;
+				bool bestAbutMax = false;
+				double bestDelta = 0.0;
+				foreach (StructureFeature cand in ledges)
+				{
+					double l0 = Math.Min(cand.T0, cand.T1);
+					double l1 = Math.Max(cand.T0, cand.T1);
+					bool abutMax = Math.Abs(l0 - t1) <= microGap + tol;
+					bool abutMin = Math.Abs(l1 - t0) <= microGap + tol;
+					if (!abutMax && !abutMin)
+					{
+						continue;
+					}
+					double delta = Math.Abs(cand.CrossPosition - tip.CrossPosition);
+					if (delta + tol < Math.Max(minSpan, 12.0) || delta + tol >= perpOverall * 0.50)
+					{
+						continue;
+					}
+					if (bestLedge == null || delta > bestDelta + tol)
+					{
+						bestLedge = cand;
+						bestAbutMax = abutMax;
+						bestDelta = delta;
+					}
+				}
+				if (bestLedge == null)
+				{
+					continue;
+				}
+				bestLedge.PreferredSide = tip.PreferredSide;
+				StructureFeature widthLedge = ledges
+					.Where(f => f != null
+						&& Math.Abs(f.CrossPosition - tip.CrossPosition) + tol >= Math.Max(minSpan, 12.0)
+						&& Math.Abs(f.CrossPosition - tip.CrossPosition) <= bestDelta + tol)
+					.OrderBy(f => Math.Abs(f.CrossPosition - tip.CrossPosition))
+					.FirstOrDefault() ?? bestLedge;
+				widthLedge.PreferredSide = tip.PreferredSide;
+				if (widthLedge.SourceKey == null || !widthLedge.SourceKey.StartsWith("FootLedge", StringComparison.Ordinal))
+				{
+					widthLedge.SourceKey = "FootLedge:" + (widthLedge.SourceKey ?? string.Empty);
+				}
+				double axisMin = tipIsHorizontal ? outline.MinX : outline.MinY;
+				double loc0 = bestAbutMax ? Math.Min(tip.T0, tip.T1) : Math.Min(bestLedge.T0, bestLedge.T1);
+				double loc1 = bestAbutMax ? Math.Max(bestLedge.T0, bestLedge.T1) : Math.Max(tip.T0, tip.T1);
+				if (Math.Abs(loc0 - axisMin) <= envelopeBand)
+				{
+					loc0 = axisMin;
+				}
+				double locate = Math.Abs(loc1 - loc0);
+				if (locate + tol >= Math.Max(minSpan, 12.0)
+					&& locate + tol < axisOverall * 0.45
+					&& !features.Any(f => f.Axis == axis
+						&& f.SourceKey != null
+						&& f.SourceKey.StartsWith("InnerBossLocate", StringComparison.Ordinal)
+						&& Math.Abs(f.Span - locate) <= tol * 10))
+				{
+					foreach (StructureFeature groove in features.Where(f =>
+						f.Axis == axis
+						&& f.SourceKey != null
+						&& f.SourceKey.StartsWith("StepGroove", StringComparison.Ordinal)).ToList())
+					{
+						double g0 = Math.Min(groove.T0, groove.T1);
+						double g1 = Math.Max(groove.T0, groove.T1);
+						if (g0 + tol >= loc0 && g1 - tol <= loc1)
+						{
+							groove.SourceKey = "BossFalseGroove:" + groove.SourceKey;
+							groove.Kind = StructureFeatureKind.BodyRemainder;
+							groove.Keep = false;
+						}
+					}
+					features.Add(new StructureFeature
+					{
+						Axis = axis,
+						Kind = StructureFeatureKind.RealStep,
+						T0 = loc0,
+						T1 = loc1,
+						CrossPosition = tip.CrossPosition,
+						PreferredSide = tip.PreferredSide,
+						IsInset = false,
+						TouchesOverallMin = Math.Abs(loc0 - axisMin) <= envelopeBand,
+						TouchesOverallMax = false,
+						FirstPoint = tipIsHorizontal
+							? new Point2D(loc0, tip.CrossPosition)
+							: new Point2D(tip.CrossPosition, loc0),
+						SecondPoint = tipIsHorizontal
+							? new Point2D(loc1, tip.CrossPosition)
+							: new Point2D(tip.CrossPosition, loc1),
+						Confidence = 0.91,
+						SourceKey = "InnerBossLocate:" + Math.Round(locate, 2).ToString(System.Globalization.CultureInfo.InvariantCulture)
+					});
+				}
+				double env = tip.CrossPosition;
+				double ledgeCross = bestLedge.CrossPosition;
+				double full = Math.Abs(ledgeCross - env);
+				double wall = bestAbutMax
+					? Math.Max(bestLedge.T0, bestLedge.T1)
+					: Math.Min(bestLedge.T0, bestLedge.T1);
+				TrimFootLedgeAfterFillet(widthLedge, outline, tip, bestAbutMax, wall, envelopeBand, tol);
+				StructureFeatureAxis heightAxis = tipIsHorizontal
+					? StructureFeatureAxis.Vertical
+					: StructureFeatureAxis.Horizontal;
+				double h0 = Math.Min(env, ledgeCross);
+				double h1 = Math.Max(env, ledgeCross);
+				DimensionSide heightSide = ResolveBossHeightSide(tipIsHorizontal, bestAbutMax);
+				if (!features.Any(f => f.Axis == heightAxis
+					&& f.SourceKey != null
+					&& f.SourceKey.StartsWith("InnerBossFull", StringComparison.Ordinal)
+					&& Math.Abs(f.Span - full) <= tol * 10))
+				{
+					features.Add(new StructureFeature
+					{
+						Axis = heightAxis,
+						Kind = StructureFeatureKind.RealStep,
+						T0 = h0,
+						T1 = h1,
+						CrossPosition = wall,
+						PreferredSide = heightSide,
+						IsInset = true,
+						TouchesOverallMin = Math.Abs(h0 - (tipIsHorizontal ? outline.MinY : outline.MinX)) <= envelopeBand,
+						TouchesOverallMax = Math.Abs(h1 - (tipIsHorizontal ? outline.MaxY : outline.MaxX)) <= envelopeBand,
+						FirstPoint = tipIsHorizontal ? new Point2D(wall, h0) : new Point2D(h0, wall),
+						SecondPoint = tipIsHorizontal ? new Point2D(wall, h1) : new Point2D(h1, wall),
+						Confidence = 0.9,
+						SourceKey = "InnerBossFull:" + Math.Round(full, 2).ToString(System.Globalization.CultureInfo.InvariantCulture),
+						PreferLocalPlacement = true
+					});
+				}
+				RecoverBossSmallStep(
+					features, outline, tipIsHorizontal, wall, h0, h1, heightSide, envelopeBand, minSpan, tol);
+				double shelf = double.NaN;
+				if (outline.Segments != null)
+				{
+					foreach (Segment2D s in outline.Segments)
+					{
+						if (s == null || s.IsArcChord)
+						{
+							continue;
+						}
+						bool isWall = tipIsHorizontal ? s.IsVertical(tol) : s.IsHorizontal(tol);
+						if (!isWall)
+						{
+							continue;
+						}
+						double cross = tipIsHorizontal
+							? (s.Start.X + s.End.X) * 0.5
+							: (s.Start.Y + s.End.Y) * 0.5;
+						if (Math.Abs(cross - wall) > envelopeBand)
+						{
+							continue;
+						}
+						double a0 = tipIsHorizontal
+							? Math.Min(s.Start.Y, s.End.Y)
+							: Math.Min(s.Start.X, s.End.X);
+						if (a0 > h0 + tol && a0 + tol < h1)
+						{
+							shelf = double.IsNaN(shelf) ? a0 : Math.Min(shelf, a0);
+						}
+					}
+				}
+				if (double.IsNaN(shelf))
+				{
+					continue;
+				}
+				double clear = h1 - shelf;
+				if (clear + tol < Math.Max(minSpan, 12.0) || clear + tol >= full)
+				{
+					continue;
+				}
+				if (features.Any(f => f.Axis == heightAxis
+					&& f.SourceKey != null
+					&& f.SourceKey.StartsWith("InnerBossClear", StringComparison.Ordinal)
+					&& Math.Abs(f.Span - clear) <= tol * 10))
+				{
+					continue;
+				}
+				features.Add(new StructureFeature
+				{
+					Axis = heightAxis,
+					Kind = StructureFeatureKind.RealStep,
+					T0 = shelf,
+					T1 = h1,
+					CrossPosition = wall,
+					PreferredSide = heightSide,
+					IsInset = true,
+					TouchesOverallMin = false,
+					TouchesOverallMax = Math.Abs(h1 - (tipIsHorizontal ? outline.MaxY : outline.MaxX)) <= envelopeBand,
+					FirstPoint = tipIsHorizontal ? new Point2D(wall, shelf) : new Point2D(shelf, wall),
+					SecondPoint = tipIsHorizontal ? new Point2D(wall, h1) : new Point2D(h1, wall),
+					Confidence = 0.88,
+					SourceKey = "InnerBossClear:" + Math.Round(clear, 2).ToString(System.Globalization.CultureInfo.InvariantCulture),
+					PreferLocalPlacement = true
+				});
+			}
+		}
+	}
+
+	private static void RecoverBossSmallStep(
+		List<StructureFeature> features,
+		OutlineFeature2D outline,
+		bool tipIsHorizontal,
+		double wall,
+		double h0,
+		double h1,
+		DimensionSide heightSide,
+		double envelopeBand,
+		double minSpan,
+		double tol)
+	{
+		if (outline?.Segments == null)
+		{
+			return;
+		}
+		StructureFeatureAxis heightAxis = tipIsHorizontal
+			? StructureFeatureAxis.Vertical
+			: StructureFeatureAxis.Horizontal;
+		foreach (Segment2D s in outline.Segments)
+		{
+			if (s == null || s.IsArcChord)
+			{
+				continue;
+			}
+			bool isWall = tipIsHorizontal ? s.IsVertical(tol) : s.IsHorizontal(tol);
+			if (!isWall)
+			{
+				continue;
+			}
+			double cross = tipIsHorizontal
+				? (s.Start.X + s.End.X) * 0.5
+				: (s.Start.Y + s.End.Y) * 0.5;
+			if (Math.Abs(cross - wall) > envelopeBand)
+			{
+				continue;
+			}
+			double a0 = tipIsHorizontal
+				? Math.Min(s.Start.Y, s.End.Y)
+				: Math.Min(s.Start.X, s.End.X);
+			double a1 = tipIsHorizontal
+				? Math.Max(s.Start.Y, s.End.Y)
+				: Math.Max(s.Start.X, s.End.X);
+			double span = a1 - a0;
+			if (span + tol < Math.Max(5.0, minSpan * 0.5) || span + tol >= (h1 - h0) * 0.55)
+			{
+				continue;
+			}
+			if (Math.Abs(a0 - h0) <= envelopeBand || Math.Abs(a1 - h1) <= envelopeBand)
+			{
+				continue;
+			}
+			if (a0 + tol < h0 || a1 - tol > h1)
+			{
+				continue;
+			}
+			if (features.Any(f => f.Axis == heightAxis
+				&& Math.Abs(f.Span - span) <= tol * 10
+				&& Math.Abs(f.CrossPosition - wall) <= envelopeBand
+				&& Math.Abs(Math.Min(f.T0, f.T1) - a0) <= envelopeBand))
+			{
+				continue;
+			}
+			features.Add(new StructureFeature
+			{
+				Axis = heightAxis,
+				Kind = StructureFeatureKind.RealStep,
+				T0 = a0,
+				T1 = a1,
+				CrossPosition = wall,
+				PreferredSide = heightSide,
+				IsInset = true,
+				TouchesOverallMin = false,
+				TouchesOverallMax = false,
+				FirstPoint = tipIsHorizontal ? new Point2D(wall, a0) : new Point2D(a0, wall),
+				SecondPoint = tipIsHorizontal ? new Point2D(wall, a1) : new Point2D(a1, wall),
+				Confidence = 0.92,
+				SourceKey = "InnerBossStep:" + Math.Round(span, 2).ToString(System.Globalization.CultureInfo.InvariantCulture),
+				PreferLocalPlacement = true
+			});
+		}
+	}
+
+	private static void TrimFootLedgeAfterFillet(
+		StructureFeature ledge,
+		OutlineFeature2D outline,
+		StructureFeature tip,
+		bool ledgeBeyondTipMax,
+		double wall,
+		double envelopeBand,
+		double tol)
+	{
+		if (ledge == null || outline?.Segments == null || tip == null)
+		{
+			return;
+		}
+		double stem = ledgeBeyondTipMax ? Math.Max(tip.T0, tip.T1) : Math.Min(tip.T0, tip.T1);
+		bool horizontal = ledge.Axis == StructureFeatureAxis.Horizontal;
+		double inner = wall;
+		bool found = false;
+		foreach (Segment2D s in outline.Segments)
+		{
+			if (s == null || s.IsArcChord)
+			{
+				continue;
+			}
+			if (horizontal ? !s.IsHorizontal(tol) : !s.IsVertical(tol))
+			{
+				continue;
+			}
+			double a0 = horizontal ? Math.Min(s.Start.X, s.End.X) : Math.Min(s.Start.Y, s.End.Y);
+			double a1 = horizontal ? Math.Max(s.Start.X, s.End.X) : Math.Max(s.Start.Y, s.End.Y);
+			double start = ledgeBeyondTipMax ? a0 : a1;
+			if (ledgeBeyondTipMax)
+			{
+				if (start <= stem + tol || a1 < wall - envelopeBand)
+				{
+					continue;
+				}
+			}
+			else if (start >= stem - tol || a0 > wall + envelopeBand)
+			{
+				continue;
+			}
+			if (!found)
+			{
+				inner = start;
+				found = true;
+			}
+			else if (ledgeBeyondTipMax ? start < inner : start > inner)
+			{
+				inner = start;
+			}
+		}
+		if (!found || Math.Abs(inner - stem) <= tol)
+		{
+			return;
+		}
+		if (ledgeBeyondTipMax)
+		{
+			ledge.T0 = inner;
+			ledge.T1 = wall;
+			ledge.FirstPoint = horizontal ? new Point2D(inner, ledge.CrossPosition) : new Point2D(ledge.CrossPosition, inner);
+			ledge.SecondPoint = horizontal ? new Point2D(wall, ledge.CrossPosition) : new Point2D(ledge.CrossPosition, wall);
+		}
+		else
+		{
+			ledge.T0 = wall;
+			ledge.T1 = inner;
+			ledge.FirstPoint = horizontal ? new Point2D(wall, ledge.CrossPosition) : new Point2D(ledge.CrossPosition, wall);
+			ledge.SecondPoint = horizontal ? new Point2D(inner, ledge.CrossPosition) : new Point2D(ledge.CrossPosition, inner);
+		}
+	}
+
+	private static void AddBossLedgesFromSegments(
+		List<StructureFeature> ledges,
+		List<StructureFeature> features,
+		OutlineFeature2D outline,
+		StructureFeatureAxis axis,
+		bool tipIsHorizontal,
+		double axisOverall,
+		double envelopeBand,
+		double minSpan,
+		double tol)
+	{
+		if (outline?.Segments == null || ledges == null)
+		{
+			return;
+		}
+		foreach (Segment2D s in outline.Segments)
+		{
+			if (s == null || s.IsArcChord)
+			{
+				continue;
+			}
+			bool match = tipIsHorizontal ? s.IsHorizontal(tol) : s.IsVertical(tol);
+			if (!match)
+			{
+				continue;
+			}
+			double span = tipIsHorizontal ? s.LengthX : s.LengthY;
+			if (span + tol < Math.Max(minSpan, 12.0) || span + tol >= axisOverall * 0.45)
+			{
+				continue;
+			}
+			double cross = tipIsHorizontal
+				? (s.Start.Y + s.End.Y) * 0.5
+				: (s.Start.X + s.End.X) * 0.5;
+			double envMin = tipIsHorizontal ? outline.MinY : outline.MinX;
+			double envMax = tipIsHorizontal ? outline.MaxY : outline.MaxX;
+			if (Math.Abs(cross - envMin) <= envelopeBand || Math.Abs(cross - envMax) <= envelopeBand)
+			{
+				continue;
+			}
+			double a0 = tipIsHorizontal
+				? Math.Min(s.Start.X, s.End.X)
+				: Math.Min(s.Start.Y, s.End.Y);
+			double a1 = tipIsHorizontal
+				? Math.Max(s.Start.X, s.End.X)
+				: Math.Max(s.Start.Y, s.End.Y);
+			if (ledges.Any(f => Math.Abs(f.Span - span) <= tol * 10
+				&& Math.Abs(f.CrossPosition - cross) <= envelopeBand))
+			{
+				continue;
+			}
+			var ledge = new StructureFeature
+			{
+				Axis = axis,
+				Kind = StructureFeatureKind.RealStep,
+				T0 = a0,
+				T1 = a1,
+				CrossPosition = cross,
+				PreferredSide = tipIsHorizontal ? DimensionSide.Bottom : DimensionSide.Left,
+				IsInset = true,
+				TouchesOverallMin = false,
+				TouchesOverallMax = false,
+				FirstPoint = tipIsHorizontal ? new Point2D(a0, cross) : new Point2D(cross, a0),
+				SecondPoint = tipIsHorizontal ? new Point2D(a1, cross) : new Point2D(cross, a1),
+				Confidence = 0.93,
+				SourceKey = s.SourceKey
+			};
+			ledges.Add(ledge);
+			features.Add(ledge);
+		}
+	}
+
+	private static DimensionSide ResolveBossHeightSide(bool tipIsHorizontal, bool ledgeBeyondTipMax)
+	{
+		if (tipIsHorizontal)
+		{
+			return ledgeBeyondTipMax ? DimensionSide.Right : DimensionSide.Left;
+		}
+		return ledgeBeyondTipMax ? DimensionSide.Top : DimensionSide.Bottom;
+	}
+
+	/// <summary>
+	/// Thin inset risers at a step (CAD 2mm top / 3mm bottom at X=52.5) are below
+	/// minSpan and get eaten by overall-partition OS. Keep them as structure.
+	/// </summary>
+	private void RecoverThinStepRisers(
+		List<StructureFeature> features,
+		OutlineFeature2D outline,
+		double envelopeBand,
+		double tol)
+	{
+		if (outline?.Segments == null)
+		{
+			return;
+		}
+		double maxRiser = Math.Min(outline.Width, outline.Height) * 0.12;
+		foreach (Segment2D s in outline.Segments)
+		{
+			if (s == null || s.IsArcChord)
+			{
+				continue;
+			}
+			bool vertical = s.IsVertical(tol);
+			bool horizontal = s.IsHorizontal(tol);
+			if (!vertical && !horizontal)
+			{
+				continue;
+			}
+			double span = vertical ? s.LengthY : s.LengthX;
+			if (span + tol < 1.0 || span > maxRiser + tol)
+			{
+				continue;
+			}
+			double cross = vertical
+				? (s.Start.X + s.End.X) * 0.5
+				: (s.Start.Y + s.End.Y) * 0.5;
+			bool onEnvelope = vertical
+				? (Math.Abs(cross - outline.MinX) <= envelopeBand || Math.Abs(cross - outline.MaxX) <= envelopeBand)
+				: (Math.Abs(cross - outline.MinY) <= envelopeBand || Math.Abs(cross - outline.MaxY) <= envelopeBand);
+			if (onEnvelope)
+			{
+				continue;
+			}
+			double a0 = vertical ? Math.Min(s.Start.Y, s.End.Y) : Math.Min(s.Start.X, s.End.X);
+			double a1 = vertical ? Math.Max(s.Start.Y, s.End.Y) : Math.Max(s.Start.X, s.End.X);
+			if (features.Any(f => f.Axis == (vertical ? StructureFeatureAxis.Vertical : StructureFeatureAxis.Horizontal)
+				&& Math.Abs(f.Span - span) <= Math.Max(tol * 10, 0.05)
+				&& Math.Abs(f.CrossPosition - cross) <= envelopeBand))
+			{
+				continue;
+			}
+			if (!StepRiserHasOrthogonalNeighbors(outline, s, vertical, tol, envelopeBand))
+			{
+				continue;
+			}
+			DimensionSide side;
+			if (vertical)
+			{
+				side = cross < (outline.MinX + outline.MaxX) * 0.5 ? DimensionSide.Left : DimensionSide.Right;
+			}
+			else
+			{
+				side = cross < (outline.MinY + outline.MaxY) * 0.5 ? DimensionSide.Bottom : DimensionSide.Top;
+			}
+			features.Add(new StructureFeature
+			{
+				Axis = vertical ? StructureFeatureAxis.Vertical : StructureFeatureAxis.Horizontal,
+				Kind = StructureFeatureKind.RealStep,
+				T0 = a0,
+				T1 = a1,
+				CrossPosition = cross,
+				PreferredSide = side,
+				IsInset = true,
+				TouchesOverallMin = vertical
+					? Math.Abs(a0 - outline.MinY) <= envelopeBand
+					: Math.Abs(a0 - outline.MinX) <= envelopeBand,
+				TouchesOverallMax = vertical
+					? Math.Abs(a1 - outline.MaxY) <= envelopeBand
+					: Math.Abs(a1 - outline.MaxX) <= envelopeBand,
+				FirstPoint = vertical ? new Point2D(cross, a0) : new Point2D(a0, cross),
+				SecondPoint = vertical ? new Point2D(cross, a1) : new Point2D(a1, cross),
+				Confidence = 0.94,
+				SourceKey = "StepRiser:" + (s.SourceKey ?? Math.Round(span, 2).ToString(System.Globalization.CultureInfo.InvariantCulture))
+			});
+		}
+	}
+
+	private static bool StepRiserHasOrthogonalNeighbors(
+		OutlineFeature2D outline,
+		Segment2D riser,
+		bool vertical,
+		double tol,
+		double envelopeBand)
+	{
+		double r0a = vertical ? Math.Min(riser.Start.Y, riser.End.Y) : Math.Min(riser.Start.X, riser.End.X);
+		double r1a = vertical ? Math.Max(riser.Start.Y, riser.End.Y) : Math.Max(riser.Start.X, riser.End.X);
+		double rc = vertical ? (riser.Start.X + riser.End.X) * 0.5 : (riser.Start.Y + riser.End.Y) * 0.5;
+		bool foundMin = false;
+		bool foundMax = false;
+		foreach (Segment2D n in outline.Segments)
+		{
+			if (n == null || n.IsArcChord || n == riser)
+			{
+				continue;
+			}
+			if (vertical ? !n.IsHorizontal(tol) : !n.IsVertical(tol))
+			{
+				continue;
+			}
+			double nCross = vertical ? (n.Start.Y + n.End.Y) * 0.5 : (n.Start.X + n.End.X) * 0.5;
+			double n0 = vertical ? Math.Min(n.Start.X, n.End.X) : Math.Min(n.Start.Y, n.End.Y);
+			double n1 = vertical ? Math.Max(n.Start.X, n.End.X) : Math.Max(n.Start.Y, n.End.Y);
+			if (rc < n0 - envelopeBand || rc > n1 + envelopeBand)
+			{
+				continue;
+			}
+			if (Math.Abs(nCross - r0a) <= envelopeBand)
+			{
+				foundMin = true;
+			}
+			if (Math.Abs(nCross - r1a) <= envelopeBand)
+			{
+				foundMax = true;
+			}
+		}
+		return foundMin && foundMax;
 	}
 
 	private void AddEnvelopeLedgeResiduals(

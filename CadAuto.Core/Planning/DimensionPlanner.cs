@@ -229,8 +229,16 @@ public sealed partial class DimensionPlanner
 		var selector = new StructureMeasurementSelector(_config);
 		var adapter = new StructurePlacementAdapter(_config);
 		IList<StructureFeature> features = extractor.Extract(outline);
-		IList<StructureFeature> kept = selector.Select(features, outline)
-			.Where(f => f != null && f.Kind != StructureFeatureKind.Overall)
+		selector.Select(features, outline);
+		AnnotationCaseRuntime.LastFeatures = features;
+		AnnotationCaseRuntime.LastOutline = outline;
+		if (!string.IsNullOrEmpty(_config.AnnotationCaseStorePath))
+		{
+			AnnotationCaseStore store = AnnotationCaseStore.Load(_config.AnnotationCaseStorePath);
+			new AnnotationCaseOverlay(store).Apply(features, outline);
+		}
+		IList<StructureFeature> kept = features
+			.Where(f => f != null && f.Keep && f.Kind != StructureFeatureKind.Overall)
 			.ToList();
 		foreach (PlannedDimension dim in adapter.Place(kept, outline))
 		{

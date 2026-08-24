@@ -138,6 +138,31 @@ public sealed class Commands
 		RunAutoFixDim(clearExistingBeforeGenerate: false, commandName: "ASD");
 	}
 
+	[CommandMethod("ASDCASE")]
+	public void AsdCase()
+	{
+		Editor editor = Application.DocumentManager.MdiActiveDocument?.Editor;
+		if (editor == null)
+		{
+			return;
+		}
+		if (AnnotationCaseRuntime.LastFeatures == null || AnnotationCaseRuntime.LastOutline == null)
+		{
+			editor.WriteMessage("\nASDCASE: run ASD on a drawing first, then ASDCASE to save it as a confirmed case.");
+			return;
+		}
+		string pluginDir = Path.GetDirectoryName(typeof(Commands).Assembly.Location) ?? ".";
+		string path = Path.Combine(pluginDir, "annotation-cases.json");
+		AnnotationCaseStore store = AnnotationCaseStore.Load(path);
+		AnnotationCase captured = AnnotationCaseOverlay.Capture(
+			AnnotationCaseRuntime.LastFeatures,
+			AnnotationCaseRuntime.LastOutline,
+			"case-" + DateTime.Now.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture));
+		store.Add(captured);
+		store.Save(path);
+		editor.WriteMessage("\nASDCASE: saved {0} with {1} decisions to {2}", captured.Id, captured.Decisions.Count, path);
+	}
+
 	[CommandMethod("AUTOFIXDIM")]
 	public void AutoFixDim()
 	{
@@ -679,6 +704,11 @@ public sealed class Commands
 		// grill-me: CreateDefault stays false. CAD opens FeatureFirst after
 		// RotationSignature_F338CadGoldenMultisetFourWayEqual is green (166/166).
 		config.UseFeatureFirstStructurePipeline = true;
+		string pluginDir = Path.GetDirectoryName(typeof(Commands).Assembly.Location);
+		if (!string.IsNullOrEmpty(pluginDir))
+		{
+			config.AnnotationCaseStorePath = Path.Combine(pluginDir, "annotation-cases.json");
+		}
 		string groupId = DateTime.Now.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
 		DiagnosticDimensionSide diagnosticSide = (diagnosticsEnabled ? PromptForDiagnosticSide(editor) : DiagnosticDimensionSide.All);
 		bool flag = outputScope != AutoFixDimOutputScope.CornerOnly;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using CadAuto.Core.Geometry;
 using CadAuto.Core.Model;
@@ -70,6 +71,7 @@ namespace CadAuto.Core.Tests
 			nameof(RotationSignature_LBoss257GoldenMultisetFourWayEqual),
 			nameof(SteppedPlateReplacesThinStepRisersWithComplement53),
 			nameof(CNotchPlateKeepsTopEnvelopeBodyWidth120),
+			nameof(AnnotationCaseOverlayDropsMaxEndResidual),
 			nameof(StepGroovePlacesOnSameSideAsOuterStepFourWay),
 			nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed),
             nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide),
@@ -265,6 +267,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(RotationSignature_LBoss257GoldenMultisetFourWayEqual), RotationSignature_LBoss257GoldenMultisetFourWayEqual);
 				RunTest(nameof(SteppedPlateReplacesThinStepRisersWithComplement53), SteppedPlateReplacesThinStepRisersWithComplement53);
 				RunTest(nameof(CNotchPlateKeepsTopEnvelopeBodyWidth120), CNotchPlateKeepsTopEnvelopeBodyWidth120);
+				RunTest(nameof(AnnotationCaseOverlayDropsMaxEndResidual), AnnotationCaseOverlayDropsMaxEndResidual);
 				RunTest(nameof(StepGroovePlacesOnSameSideAsOuterStepFourWay), StepGroovePlacesOnSameSideAsOuterStepFourWay);
 				RunTest(nameof(CrossSideStructureWidthsThatCloseOverallChainAreSuppressed), CrossSideStructureWidthsThatCloseOverallChainAreSuppressed);
                 RunTest(nameof(InteriorHorizontalOutlineSegmentPrefersNonCrossingSide), InteriorHorizontalOutlineSegmentPrefersNonCrossingSide);
@@ -5138,6 +5141,78 @@ namespace CadAuto.Core.Tests
 				"top stack must be 45 inside 60 inside 120 inside 180; levels "
 				+ topPlacements[0].Level + "/" + topPlacements[1].Level + "/"
 				+ topPlacements[2].Level + "/" + topPlacements[3].Level);
+		}
+
+		private static void AnnotationCaseOverlayDropsMaxEndResidual()
+		{
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 180.0, MaxY = 100.0 };
+			var minResidual = new StructureFeature
+			{
+				Axis = StructureFeatureAxis.Vertical,
+				Kind = StructureFeatureKind.RealStep,
+				T0 = 0.0,
+				T1 = 15.0,
+				CrossPosition = 0.0,
+				TouchesOverallMin = true,
+				SourceKey = "LedgeResidualDown:c-bot",
+				Keep = true
+			};
+			var wall = new StructureFeature
+			{
+				Axis = StructureFeatureAxis.Vertical,
+				Kind = StructureFeatureKind.RealStep,
+				T0 = 15.0,
+				T1 = 65.0,
+				CrossPosition = 0.0,
+				SourceKey = "left-50",
+				Keep = true
+			};
+			var maxResidual = new StructureFeature
+			{
+				Axis = StructureFeatureAxis.Vertical,
+				Kind = StructureFeatureKind.RealStep,
+				T0 = 65.0,
+				T1 = 100.0,
+				CrossPosition = 0.0,
+				TouchesOverallMax = true,
+				SourceKey = "LedgeResidualUp:c-top",
+				Keep = true
+			};
+			string minToken = StructureSchemaEncoder.Encode(minResidual, outline);
+			string maxToken = StructureSchemaEncoder.Encode(maxResidual, outline);
+			Assert(minToken.Contains("ResidualMin") && maxToken.Contains("ResidualMax") && minToken != maxToken,
+				"encoder must distinguish min/max residuals without millimetre values; min="
+				+ minToken + " max=" + maxToken);
+			Assert(!minToken.Contains("15") && !maxToken.Contains("35"),
+				"tokens must not embed absolute spans");
+
+			var store = new AnnotationCaseStore();
+			store.Add(new AnnotationCase
+			{
+				Id = "cnotch-open-top",
+				Decisions =
+				{
+					new AnnotationCaseDecision { Token = minToken, Keep = true },
+					new AnnotationCaseDecision { Token = maxToken, Keep = false }
+				}
+			});
+			string temp = Path.Combine(Path.GetTempPath(), "annotation-case-overlay-test.json");
+			store.Save(temp);
+			AnnotationCaseStore loaded = AnnotationCaseStore.Load(temp);
+			Assert(loaded.Cases.Count == 1 && loaded.Cases[0].Decisions.Count == 2,
+				"store must round-trip decisions");
+
+			var features = new List<StructureFeature> { minResidual, wall, maxResidual };
+			string matched = new AnnotationCaseOverlay(loaded).Apply(features, outline);
+			Assert(matched == "cnotch-open-top", "overlay must hit the confirmed case");
+			Assert(minResidual.Keep && wall.Keep && !maxResidual.Keep,
+				"overlay must drop ResidualMax and keep ResidualMin plus the real wall");
+
+			maxResidual.Keep = true;
+			string emptyHit = new AnnotationCaseOverlay(new AnnotationCaseStore()).Apply(
+				new List<StructureFeature> { minResidual, wall, maxResidual }, outline);
+			Assert(string.IsNullOrEmpty(emptyHit) && maxResidual.Keep,
+				"empty store must leave Select decisions unchanged");
 		}
 
 		private static OutlineFeature2D CreateSteppedPlate102Outline()

@@ -48,6 +48,11 @@ public sealed class DimensionRuleConfig
 	/// </summary>
 	public bool UseFeatureFirstStructurePipeline { get; set; }
 
+	/// <summary>
+	/// JSON file of confirmed annotation cases. Empty disables the Select overlay.
+	/// </summary>
+	public string AnnotationCaseStorePath { get; set; }
+
 	public DimensionRuleConfig()
 	{
 		HoleFitTolerance = new Dictionary<double, string>();

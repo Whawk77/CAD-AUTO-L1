@@ -58,4 +58,10 @@ public sealed class PlannedDimension
 	public string TopologyEvidence { get; set; }
 
 	public string RuleId { get; set; }
+
+	/// <summary>
+	/// Optional real-geometry attachment result. Null keeps legacy callers that
+	/// do not have a scoped validator.
+	/// </summary>
+	public bool? AttachmentValidity { get; set; }
 }

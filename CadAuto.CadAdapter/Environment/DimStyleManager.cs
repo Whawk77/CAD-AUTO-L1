@@ -1,4 +1,5 @@
 using System;
+using Autodesk.AutoCAD.Colors;
 using Autodesk.AutoCAD.DatabaseServices;
 
 namespace CadAuto.CadAdapter.Environment;
@@ -6,6 +7,23 @@ namespace CadAuto.CadAdapter.Environment;
 public static class DimStyleManager
 {
 	private static readonly string[] PreferredStyleNames = new string[7] { "SCALE-1-01", "SCALE-1-02", "SCALE-1-03", "SCALE-1-04", "SCALE-1-06", "SCALE-1-08", "SCALE-1-10" };
+
+	public static Color ByLayerColor => Color.FromColorIndex(ColorMethod.ByLayer, 256);
+
+	public static Color DefaultTextColor => Color.FromColorIndex(ColorMethod.ByAci, 3);
+
+	public static void ApplyGeneratedDimensionColors(Dimension dimension)
+	{
+		if (dimension == null)
+		{
+			return;
+		}
+		Color byLayerColor = ByLayerColor;
+		dimension.Color = byLayerColor;
+		dimension.Dimclrd = byLayerColor;
+		dimension.Dimclre = byLayerColor;
+		dimension.Dimclrt = DefaultTextColor;
+	}
 
 	public static ObjectId ResolveDimStyle(Database db, Transaction tr)
 	{

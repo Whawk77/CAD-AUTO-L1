@@ -5,6 +5,7 @@ using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
 using CadAuto.CadAdapter.Model;
+using CadAuto.CadAdapter.Recognition;
 using CadAuto.Core.Rules;
 
 namespace CadAuto.CadAdapter.Collection;
@@ -270,11 +271,29 @@ public sealed class GeometryCollector
 			return holeFeature;
 		}
 		PromptEntityOptions promptEntityOptions = new PromptEntityOptions("\n请选择一个销孔作为基准孔: ");
-		promptEntityOptions.SetRejectMessage("\n所选对象不是 Circle，请重新选择销孔。");
+		promptEntityOptions.SetRejectMessage("\n所选对象不是 Circle 或 CadAider_销孔标记块，请重新选择销孔。");
 		promptEntityOptions.AddAllowedClass(typeof(Circle), exactMatch: true);
+		promptEntityOptions.AddAllowedClass(typeof(BlockReference), exactMatch: true);
 		PromptEntityResult entity = _editor.GetEntity(promptEntityOptions);
 		if (entity.Status != PromptStatus.OK)
 		{
+			return null;
+		}
+		BlockReference blockReference = tr.GetObject(entity.ObjectId, OpenMode.ForRead) as BlockReference;
+		if (blockReference != null)
+		{
+			if (!FeatureRecognizer.IsPinMarkerBlock(blockReference, tr))
+			{
+				_editor.WriteMessage("\n所选块不是 CadAider_销孔标记块，将使用轮廓边线基准。");
+				return null;
+			}
+			HoleFeature markerHole = FindPinHoleByMarkerPosition(pinHoles, blockReference.Position);
+			if (markerHole != null)
+			{
+				_editor.WriteMessage("\n已匹配到 CadAider_销孔标记块对应的销孔，直径={0:0.###}", markerHole.Diameter);
+				return markerHole;
+			}
+			_editor.WriteMessage("\n所选 CadAider_销孔标记块未匹配到已识别销孔，将使用轮廓边线基准。");
 			return null;
 		}
 		foreach (HoleFeature pinHole in pinHoles)
@@ -321,6 +340,27 @@ public sealed class GeometryCollector
 			CircleId = entity.ObjectId,
 			HoleKind = HoleKind.Pin
 		};
+	}
+
+	private static HoleFeature FindPinHoleByMarkerPosition(IEnumerable<HoleFeature> pinHoles, Point3d markerPosition)
+	{
+		HoleFeature result = null;
+		double bestDistance = double.MaxValue;
+		foreach (HoleFeature pinHole in pinHoles ?? Enumerable.Empty<HoleFeature>())
+		{
+			if (pinHole == null)
+			{
+				continue;
+			}
+			double distance = pinHole.Center.DistanceTo(markerPosition);
+			double matchDistance = Math.Max(pinHole.Diameter / 2.0 + 0.01, 1.0);
+			if (distance <= matchDistance && distance < bestDistance)
+			{
+				result = pinHole;
+				bestDistance = distance;
+			}
+		}
+		return result;
 	}
 
 	public bool PromptForDatumHoleLocationPoints(DimensionRuleConfig config, out double? xBase, out double? yBase, out bool useToleranceX, out bool useToleranceY)

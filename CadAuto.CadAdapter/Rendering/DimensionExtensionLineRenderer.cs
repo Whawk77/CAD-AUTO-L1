@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
+using CadAuto.CadAdapter.Environment;
 
 namespace CadAuto.CadAdapter.Rendering;
 
@@ -55,6 +56,7 @@ public sealed class DimensionExtensionLineRenderer
 			Line line = new Line(pointer, pointer2);
 			line.SetDatabaseDefaults(_database);
 			line.Layer = _annotationLayer;
+			line.Color = DimStyleManager.ByLayerColor;
 			_writer.Append(line);
 		}
 	}

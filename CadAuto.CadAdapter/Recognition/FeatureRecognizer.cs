@@ -1698,13 +1698,13 @@ public sealed class FeatureRecognizer
 		return string.Equals((layerName ?? string.Empty).Trim(), "DRAWING", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static bool IsPinMarkerBlock(BlockReference blockReference, Transaction tr)
+	internal static bool IsPinMarkerBlock(BlockReference blockReference, Transaction tr)
 	{
 		string blockName = GetBlockName(blockReference, tr);
 		return string.Equals(blockName, "CadAider_销孔标记", StringComparison.OrdinalIgnoreCase) || string.Equals(blockName, "CadAider_销孔标记背面", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static string GetBlockName(BlockReference blockReference, Transaction tr)
+	internal static string GetBlockName(BlockReference blockReference, Transaction tr)
 	{
 		ObjectId id = (blockReference.IsDynamicBlock ? blockReference.DynamicBlockTableRecord : blockReference.BlockTableRecord);
 		BlockTableRecord blockTableRecord = tr.GetObject(id, OpenMode.ForRead) as BlockTableRecord;

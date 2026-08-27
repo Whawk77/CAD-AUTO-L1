@@ -3,6 +3,7 @@ using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.GraphicsInterface;
+using CadAuto.CadAdapter.Environment;
 using CadAuto.Core.Rules;
 
 namespace CadAuto.CadAdapter.Rendering;
@@ -131,19 +132,19 @@ public sealed class CornerCalloutRenderer
 		bool flag = textPoint.X < landingPoint.X - _config.GeometryTolerance || (Math.Abs(textPoint.X - landingPoint.X) <= _config.GeometryTolerance && textPoint.X < arrowPoint.X);
 		mText.Attachment = (flag ? AttachmentPoint.MiddleRight : AttachmentPoint.MiddleLeft);
 		mText.Layer = _annotationLayer;
-		mText.Color = _writer.GetDimStyleTextColor(_diameterCalloutDimStyleId);
+		mText.Color = DimStyleManager.DefaultTextColor;
 		_writer.Append(mText);
 		Leader leader = new Leader();
 		leader.SetDatabaseDefaults(_database);
 		leader.Layer = _writer.GetCurrentLayerName();
 		leader.DimensionStyle = _diameterCalloutDimStyleId;
-		leader.Color = _writer.GetCurrentEntityColor();
+		leader.Color = DimStyleManager.ByLayerColor;
 		leader.AppendVertex(arrowPoint);
 		leader.AppendVertex(landingPoint);
 		_writer.Append(leader);
 		leader.Annotation = mText.ObjectId;
 		leader.EvaluateLeader();
-		leader.Color = _writer.GetCurrentEntityColor();
+		leader.Color = DimStyleManager.ByLayerColor;
 	}
 
 	public void AddRadialDimension(Point3d centerPoint, Point3d chordPoint, Point3d textPoint, double minimumLeaderLength, string text, bool useCustomTextPosition)
@@ -153,6 +154,7 @@ public sealed class CornerCalloutRenderer
 		radialDimension.SetDatabaseDefaults(_database);
 		radialDimension.Layer = _annotationLayer;
 		radialDimension.DimensionStyle = _diameterCalloutDimStyleId;
+		DimStyleManager.ApplyGeneratedDimensionColors(radialDimension);
 		radialDimension.DimensionText = text;
 		if (useCustomTextPosition)
 		{

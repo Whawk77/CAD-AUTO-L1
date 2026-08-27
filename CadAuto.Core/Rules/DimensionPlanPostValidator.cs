@@ -107,7 +107,18 @@ public sealed class DimensionPlanPostValidator
 		PlannedDimension dimension2 = list[0];
 		double actualMinimum = (orientation == DimensionOrientation.Horizontal) ? Math.Min(dimension2.FirstPoint.X, dimension2.SecondPoint.X) : Math.Min(dimension2.FirstPoint.Y, dimension2.SecondPoint.Y);
 		double actualMaximum = (orientation == DimensionOrientation.Horizontal) ? Math.Max(dimension2.FirstPoint.X, dimension2.SecondPoint.X) : Math.Max(dimension2.FirstPoint.Y, dimension2.SecondPoint.Y);
-		if (dimension2.Orientation != orientation || dimension2.Side != requiredSide || !dimension2.ForceOuterLevel || dimension2.UseSegmentedExtensionLines || !NearlyEqual(actualMinimum, expectedMinimum) || !NearlyEqual(actualMaximum, expectedMaximum) || !OutlineGeometryQuery.IsPointOnBoundary(dimension2.FirstPoint, outline, _config.GeometryTolerance) || !OutlineGeometryQuery.IsPointOnBoundary(dimension2.SecondPoint, outline, _config.GeometryTolerance))
+		bool validSide = dimension2.Side == requiredSide;
+		if (kind == DimensionKind.OverallWidth
+			&& string.Equals(dimension2.RuleId, "LProfile.OverallWidth", StringComparison.Ordinal))
+		{
+			validSide = dimension2.Side == DimensionSide.Top || dimension2.Side == DimensionSide.Bottom;
+		}
+		else if (kind == DimensionKind.OverallHeight
+			&& string.Equals(dimension2.RuleId, "LProfile.OverallHeight", StringComparison.Ordinal))
+		{
+			validSide = dimension2.Side == DimensionSide.Left || dimension2.Side == DimensionSide.Right;
+		}
+		if (dimension2.Orientation != orientation || !validSide || !dimension2.ForceOuterLevel || dimension2.UseSegmentedExtensionLines || !NearlyEqual(actualMinimum, expectedMinimum) || !NearlyEqual(actualMaximum, expectedMaximum) || !OutlineGeometryQuery.IsPointOnBoundary(dimension2.FirstPoint, outline, _config.GeometryTolerance) || !OutlineGeometryQuery.IsPointOnBoundary(dimension2.SecondPoint, outline, _config.GeometryTolerance))
 		{
 			throw new InvalidOperationException(kind + " does not preserve the real outline envelope and attachment rules.");
 		}

@@ -3,6 +3,7 @@ using Autodesk.AutoCAD.ApplicationServices.Core;
 using Autodesk.AutoCAD.Colors;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
+using CadAuto.CadAdapter.Environment;
 using CadAuto.Core.Rules;
 
 namespace CadAuto.CadAdapter.Rendering;
@@ -47,6 +48,7 @@ public sealed class CadEntityWriter
 		rotatedDimension.SetDatabaseDefaults(_database);
 		rotatedDimension.Layer = _annotationLayer;
 		rotatedDimension.DimensionStyle = _dimStyleId;
+		DimStyleManager.ApplyGeneratedDimensionColors(rotatedDimension);
 		if (useSegmentedExtensionLines)
 		{
 			rotatedDimension.Dimse1 = true;

@@ -89,6 +89,10 @@ namespace CadAuto.Core.Tests
             nameof(ThreeStructureWidthsThatPartitionOverallAreSuppressed),
             nameof(LocalTopStructureWidthIsKeptWhenNotPartitioningOverall),
             nameof(RightArmHeightOnOverallMaxXIsSuppressed),
+            nameof(LProfileAnnotationRulesUseTopology),
+            nameof(LProfileFarEndCornerUsesAdjacentVerticalChain),
+            nameof(LProfileOuterContourAnnotationRulesUseTopology),
+            nameof(LProfileTopologyRejectionIsDiagnostic),
             nameof(LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment),
             nameof(BottomStepWidthOnOverallEnvelopeIsSuppressed),
             nameof(BottomProtrusionSuppressesOuterWidthAndInnerLedge),
@@ -289,6 +293,10 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(ThreeStructureWidthsThatPartitionOverallAreSuppressed), ThreeStructureWidthsThatPartitionOverallAreSuppressed);
                 RunTest(nameof(LocalTopStructureWidthIsKeptWhenNotPartitioningOverall), LocalTopStructureWidthIsKeptWhenNotPartitioningOverall);
                 RunTest(nameof(RightArmHeightOnOverallMaxXIsSuppressed), RightArmHeightOnOverallMaxXIsSuppressed);
+                RunTest(nameof(LProfileAnnotationRulesUseTopology), LProfileAnnotationRulesUseTopology);
+                RunTest(nameof(LProfileFarEndCornerUsesAdjacentVerticalChain), LProfileFarEndCornerUsesAdjacentVerticalChain);
+                RunTest(nameof(LProfileOuterContourAnnotationRulesUseTopology), LProfileOuterContourAnnotationRulesUseTopology);
+                RunTest(nameof(LProfileTopologyRejectionIsDiagnostic), LProfileTopologyRejectionIsDiagnostic);
                 RunTest(nameof(LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment), LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment);
                 RunTest(nameof(BottomStepWidthOnOverallEnvelopeIsSuppressed), BottomStepWidthOnOverallEnvelopeIsSuppressed);
 				RunTest(nameof(BottomProtrusionSuppressesOuterWidthAndInnerLedge), BottomProtrusionSuppressesOuterWidthAndInnerLedge);
@@ -6010,6 +6018,363 @@ namespace CadAuto.Core.Tests
 					&& Math.Abs(c.Value - 68.0) <= config.GeometryTolerance
 					&& c.SuppressedReason == "StructureDuplicateOfEnvelopeOutlineSegment"),
 				"arc-connected arm residual 68 must record the envelope-duplicate reason");
+		}
+
+		/// <summary>
+		/// L profile regression: topology derives the two 25 dimensions, removes 22/15,
+		/// and suppresses the redundant inner edge 52 under rotations and mirror.
+		/// </summary>
+		private static void LProfileAnnotationRulesUseTopology()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var cases = new[]
+			{
+				CreateLProfileAnnotationFixture(),
+				TransformLProfileFixture(CreateLProfileAnnotationFixture(), 90.0, mirrorX: false),
+				TransformLProfileFixture(CreateLProfileAnnotationFixture(), 180.0, mirrorX: false),
+				TransformLProfileFixture(CreateLProfileAnnotationFixture(), 270.0, mirrorX: false),
+				TransformLProfileFixture(CreateLProfileAnnotationFixture(), 0.0, mirrorX: true)
+			};
+			int caseIndex = 0;
+			foreach (OutlineFeature2D outline in cases)
+			{
+				new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+
+				var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			var selected = plan.Dimensions
+				.Where(d => d.Kind == DimensionKind.OverallWidth
+					|| d.Kind == DimensionKind.OverallHeight
+					|| d.Kind == DimensionKind.Normal)
+				.ToList();
+			Assert(selected.Any(d => (d.Kind == DimensionKind.OverallWidth || d.Kind == DimensionKind.OverallHeight)
+				&& Math.Abs(GetSpan(d) - 170.0) <= config.GeometryTolerance),
+				"L profile must keep overall span 170");
+			Assert(selected.Any(d => (d.Kind == DimensionKind.OverallWidth || d.Kind == DimensionKind.OverallHeight)
+				&& Math.Abs(GetSpan(d) - 85.0) <= config.GeometryTolerance),
+				"L profile must keep overall span 85");
+			Assert(selected.Count(d => d.Kind == DimensionKind.Normal && Math.Abs(GetSpan(d) - 25.0) <= config.GeometryTolerance) == 2,
+				"L profile must keep exactly two orthogonal 25 dimensions");
+			Assert(!selected.Any(d => d.Kind == DimensionKind.Normal
+				&& (Math.Abs(GetSpan(d) - 15.0) <= config.GeometryTolerance
+					|| Math.Abs(GetSpan(d) - 22.0) <= config.GeometryTolerance
+					|| Math.Abs(GetSpan(d) - 52.0) <= config.GeometryTolerance)),
+				"L profile must remove 15, 22 and derived 52, case=" + caseIndex
+				+ " selected=" + string.Join(",", selected.Select(d => d.DebugRole + ":" + GetSpan(d) + ":" + d.RuleId)));
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.RuleId == "LProfile.VerticalArmWidth"
+				&& c.IsSelected && Math.Abs(c.Value - 25.0) <= config.GeometryTolerance && c.IsAttachmentValid),
+				"top 25 replacement must retain an attachment-valid rule diagnostic");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.RuleId == "LProfile.HorizontalArmHeight"
+				&& c.IsSelected && Math.Abs(c.Value - 25.0) <= config.GeometryTolerance),
+				"horizontal-arm height 25 must be retained by topology");
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.RuleId == "LProfile.DerivedInnerEdge"
+				&& c.IsSuppressed && Math.Abs(c.Value - 52.0) <= config.GeometryTolerance),
+				"derived inner edge 52 must be suppressed by the closure formula, case=" + caseIndex
+				+ " rules=" + string.Join(",", plan.Diagnostics.DimensionCandidates.Select(c => c.RuleId + ":" + c.Value + ":" + c.Orientation + ":" + c.FirstPointX + "," + c.FirstPointY + "-" + c.SecondPointX + "," + c.SecondPointY + ":" + c.SuppressedReason + ":" + c.TopologyEvidence)));
+			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.RuleId == "LProfile.InternalChordEndpoint"
+				&& c.IsSuppressed && Math.Abs(c.Value - 15.0) <= config.GeometryTolerance),
+				"bottom 15 must be suppressed by the internal-chord endpoint rule");
+			List<DimensionCandidateDiagnostic> stepGrooves = plan.Diagnostics.DimensionCandidates
+				.Where(c => c.SourceFeatureId != null
+					&& c.SourceFeatureId.StartsWith("StepGroove:", StringComparison.Ordinal))
+				.ToList();
+			Assert(!stepGrooves.Any(c => c.IsSelected),
+				"an L-profile StepGroove candidate must not remain selected after open-interior-chord suppression, case=" + caseIndex);
+			AssertLProfileRuleEndpointsOnBoundary(plan, outline, config.GeometryTolerance, "case=" + caseIndex);
+			caseIndex++;
+			}
+		}
+
+		private static void LProfileTopologyRejectionIsDiagnostic()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(CreateRectangle(95.0, 95.0));
+
+			Assert(plan.Diagnostics.Warnings.Any(w => w.StartsWith("LProfile.NotApplied|", StringComparison.Ordinal)
+				&& w.IndexOf("ConnectedCornerPairCount=0", StringComparison.Ordinal) >= 0),
+				"a non-L outline must explain why the L profile rule was not applied");
+		}
+
+		private static void LProfileFarEndCornerUsesAdjacentVerticalChain()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var cases = new[]
+			{
+				CreateLProfileWithFarEndCornerFixture(),
+				TransformLProfileFixture(CreateLProfileWithFarEndCornerFixture(), 90.0, mirrorX: false),
+				TransformLProfileFixture(CreateLProfileWithFarEndCornerFixture(), 180.0, mirrorX: false),
+				TransformLProfileFixture(CreateLProfileWithFarEndCornerFixture(), 270.0, mirrorX: false),
+				TransformLProfileFixture(CreateLProfileWithFarEndCornerFixture(), 0.0, mirrorX: true)
+			};
+			int caseIndex = 0;
+			foreach (OutlineFeature2D outline in cases)
+			{
+				new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+				var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+				var selected = plan.Dimensions
+					.Where(d => d.Kind == DimensionKind.OverallWidth
+						|| d.Kind == DimensionKind.OverallHeight
+						|| d.Kind == DimensionKind.Normal)
+					.ToList();
+				Assert(!plan.Diagnostics.Warnings.Any(w => w.StartsWith("LProfile.NotApplied|", StringComparison.Ordinal)),
+					"L profile with a far-end corner must resolve its adjacent vertical chain, case=" + caseIndex
+					+ ": " + string.Join(";", plan.Diagnostics.Warnings));
+				Assert(selected.Count(d => d.Kind == DimensionKind.Normal
+					&& Math.Abs(GetSpan(d) - 20.0) <= config.GeometryTolerance) == 2,
+					"far-end corner L profile must keep exactly two 20 dimensions, case=" + caseIndex);
+				Assert(!selected.Any(d => d.Kind == DimensionKind.Normal
+					&& Math.Abs(GetSpan(d) - 69.0) <= config.GeometryTolerance),
+					"far-end corner L profile must suppress the derived 69 inner edge, case=" + caseIndex);
+				Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.RuleId == "LProfile.HorizontalArmHeight"
+					&& c.IsSelected && Math.Abs(c.Value - 20.0) <= config.GeometryTolerance),
+					"far-end corner must retain the topology-derived horizontal-arm height, case=" + caseIndex);
+				Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.RuleId == "LProfile.DerivedInnerEdge"
+					&& c.IsSuppressed && Math.Abs(c.Value - 69.0) <= config.GeometryTolerance),
+					"far-end corner must mark the derived inner edge diagnostic, case=" + caseIndex);
+				AssertLProfileRuleEndpointsOnBoundary(plan, outline, config.GeometryTolerance, "case=" + caseIndex);
+				caseIndex++;
+			}
+		}
+
+		private static void LProfileOuterContourAnnotationRulesUseTopology()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var cases = new[]
+			{
+				CreateLProfileOuterContourFixture(),
+				TransformLProfileFixture(CreateLProfileOuterContourFixture(), 90.0, mirrorX: false),
+				TransformLProfileFixture(CreateLProfileOuterContourFixture(), 180.0, mirrorX: false),
+				TransformLProfileFixture(CreateLProfileOuterContourFixture(), 270.0, mirrorX: false),
+				TransformLProfileFixture(CreateLProfileOuterContourFixture(), 0.0, mirrorX: true)
+			};
+			int caseIndex = 0;
+			foreach (OutlineFeature2D outline in cases)
+			{
+				new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+				DimensionPlan plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+				List<PlannedDimension> selected = plan.Dimensions
+					.Where(d => d.Kind == DimensionKind.OverallWidth
+						|| d.Kind == DimensionKind.OverallHeight
+						|| d.Kind == DimensionKind.Normal)
+					.ToList();
+				Assert(plan.Diagnostics.Warnings.Any(w => w.StartsWith("LProfile.Recognized|", StringComparison.Ordinal)),
+					"outer-contour L must be recognized, case=" + caseIndex);
+				Assert(plan.Diagnostics.Warnings.Any(w => w.StartsWith("LProfile.Applied|Strategy=ConcaveCornerInnerChains", StringComparison.Ordinal)),
+					"outer-contour L must use the connected inner-chain strategy, case=" + caseIndex
+					+ " warnings=" + string.Join(";", plan.Diagnostics.Warnings));
+				Assert(!plan.Diagnostics.Warnings.Any(w => w.StartsWith("LProfile.NotApplied|", StringComparison.Ordinal)),
+					"outer-contour L must not be reported as unapplied, case=" + caseIndex);
+				Assert(selected.Count(d => d.Kind == DimensionKind.Normal && Math.Abs(GetSpan(d) - 20.0) <= config.GeometryTolerance) == 2,
+					"outer-contour L must keep exactly two 20 dimensions, case=" + caseIndex);
+				Assert(!selected.Any(d => d.Kind == DimensionKind.Normal && Math.Abs(GetSpan(d) - 52.0) <= config.GeometryTolerance),
+					"outer-contour L must suppress derived inner 52, case=" + caseIndex);
+				Assert(!selected.Any(d => d.Kind == DimensionKind.Normal
+					&& (Math.Abs(GetSpan(d) - 70.0) <= config.GeometryTolerance
+						|| Math.Abs(GetSpan(d) - 17.0) <= config.GeometryTolerance)),
+					"outer-contour L must suppress redundant inner-horizontal/outer-vertical segments, case=" + caseIndex);
+				Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.RuleId == "LProfile.VerticalArmWidth"
+					&& c.IsSelected && Math.Abs(c.Value - 20.0) <= config.GeometryTolerance),
+					"outer-contour L must keep vertical-arm width, case=" + caseIndex);
+				Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.RuleId == "LProfile.HorizontalArmHeight"
+					&& c.IsSelected && Math.Abs(c.Value - 20.0) <= config.GeometryTolerance),
+					"outer-contour L must keep horizontal-arm height, case=" + caseIndex);
+				Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.RuleId == "LProfile.DerivedInnerEdge"
+					&& c.IsSuppressed && Math.Abs(c.Value - 52.0) <= config.GeometryTolerance),
+					"outer-contour L must diagnose derived inner 52 suppression, case=" + caseIndex);
+				AssertLProfileRuleEndpointsOnBoundary(plan, outline, config.GeometryTolerance, "outer-contour case=" + caseIndex);
+				caseIndex++;
+			}
+		}
+
+		private static void AssertLProfileRuleEndpointsOnBoundary(
+			DimensionPlan plan,
+			OutlineFeature2D outline,
+			double tolerance,
+			string context)
+		{
+			foreach (string ruleId in new[] { "LProfile.VerticalArmWidth", "LProfile.HorizontalArmHeight" })
+			{
+				DimensionCandidateDiagnostic candidate = plan.Diagnostics.DimensionCandidates
+					.Single(d => d.RuleId == ruleId && d.IsSelected);
+				Point2D first = new Point2D(candidate.FirstPointX, candidate.FirstPointY);
+				Point2D second = new Point2D(candidate.SecondPointX, candidate.SecondPointY);
+				Assert(OutlineGeometryQuery.IsPointOnBoundary(first, outline, tolerance)
+					&& OutlineGeometryQuery.IsPointOnBoundary(second, outline, tolerance),
+					ruleId + " must keep both defining points on the outer contour, " + context
+					+ " first=" + candidate.FirstPointX + "," + candidate.FirstPointY
+					+ " second=" + candidate.SecondPointX + "," + candidate.SecondPointY);
+			}
+		}
+
+		private static OutlineFeature2D CreateLProfileAnnotationFixture()
+		{
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 170.0,
+				MaxY = 85.0
+			};
+			AddSegment(outline, new Point2D(0.0, 5.0), new Point2D(0.0, 85.0), "left");
+			AddSegment(outline, new Point2D(0.0, 85.0), new Point2D(22.0, 85.0), "top");
+			outline.Arcs.Add(new Arc2D
+			{
+				Start = new Point2D(22.0, 85.0),
+				End = new Point2D(25.0, 82.0),
+				Center = new Point2D(22.0, 82.0),
+				Radius = 3.0,
+				Bulge = -Math.Tan(Math.PI / 8.0),
+				SourceKey = "R3"
+			});
+			AddSegment(outline, new Point2D(25.0, 30.0), new Point2D(25.0, 82.0), "inner-vertical");
+			outline.Arcs.Add(new Arc2D
+			{
+				Start = new Point2D(25.0, 30.0),
+				End = new Point2D(30.0, 25.0),
+				Center = new Point2D(30.0, 30.0),
+				Radius = 5.0,
+				Bulge = Math.Tan(Math.PI / 8.0),
+				SourceKey = "R5"
+			});
+			AddSegment(outline, new Point2D(30.0, 25.0), new Point2D(155.0, 25.0), "arm-top-left");
+			AddSegment(outline, new Point2D(155.0, 25.0), new Point2D(170.0, 25.0), "arm-top-right");
+			AddSegment(outline, new Point2D(170.0, 25.0), new Point2D(170.0, 0.0), "right-arm");
+			AddSegment(outline, new Point2D(170.0, 0.0), new Point2D(155.0, 0.0), "bottom-right");
+			AddSegment(outline, new Point2D(155.0, 0.0), new Point2D(155.0, 25.0), "internal-chord");
+			AddSegment(outline, new Point2D(155.0, 0.0), new Point2D(5.0, 0.0), "bottom-left");
+			AddSegment(outline, new Point2D(5.0, 0.0), new Point2D(0.0, 5.0), "C5");
+			return outline;
+		}
+
+		private static OutlineFeature2D CreateLProfileWithFarEndCornerFixture()
+		{
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 95.0,
+				MaxY = 95.0
+			};
+			AddSegment(outline, new Point2D(0.0, 3.0), new Point2D(0.0, 95.0), "left");
+			AddSegment(outline, new Point2D(0.0, 95.0), new Point2D(17.0, 95.0), "top");
+			outline.Arcs.Add(new Arc2D
+			{
+				Start = new Point2D(17.0, 95.0),
+				End = new Point2D(20.0, 92.0),
+				Center = new Point2D(17.0, 92.0),
+				Radius = 3.0,
+				Bulge = -Math.Tan(Math.PI / 8.0),
+				SourceKey = "R3-top"
+			});
+			AddSegment(outline, new Point2D(20.0, 23.0), new Point2D(20.0, 92.0), "inner-vertical");
+			outline.Arcs.Add(new Arc2D
+			{
+				Start = new Point2D(20.0, 23.0),
+				End = new Point2D(23.0, 20.0),
+				Center = new Point2D(23.0, 23.0),
+				Radius = 3.0,
+				Bulge = Math.Tan(Math.PI / 8.0),
+				SourceKey = "R3-inner"
+			});
+			AddSegment(outline, new Point2D(23.0, 20.0), new Point2D(92.0, 20.0), "arm-top");
+			outline.Arcs.Add(new Arc2D
+			{
+				Start = new Point2D(92.0, 20.0),
+				End = new Point2D(95.0, 17.0),
+				Center = new Point2D(92.0, 17.0),
+				Radius = 3.0,
+				Bulge = -Math.Tan(Math.PI / 8.0),
+				SourceKey = "R3-right"
+			});
+			AddSegment(outline, new Point2D(95.0, 17.0), new Point2D(95.0, 0.0), "right-arm");
+			AddSegment(outline, new Point2D(95.0, 0.0), new Point2D(5.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(5.0, 0.0), new Point2D(0.0, 3.0), "C5");
+			return outline;
+		}
+
+		private static OutlineFeature2D CreateLProfileOuterContourFixture()
+		{
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 90.0,
+				MaxY = 75.0
+			};
+			AddSegment(outline, new Point2D(0.0, 55.0), new Point2D(0.0, 72.0), "left-arm");
+			outline.Arcs.Add(new Arc2D
+			{
+				Start = new Point2D(0.0, 72.0),
+				End = new Point2D(3.0, 75.0),
+				Center = new Point2D(3.0, 72.0),
+				Radius = 3.0,
+				Bulge = -Math.Tan(Math.PI / 8.0),
+				SourceKey = "R3-top-left"
+			});
+			AddSegment(outline, new Point2D(3.0, 75.0), new Point2D(85.0, 75.0), "top-arm");
+			AddSegment(outline, new Point2D(85.0, 75.0), new Point2D(90.0, 70.0), "C5-top-right");
+			AddSegment(outline, new Point2D(90.0, 70.0), new Point2D(90.0, 0.0), "right-arm");
+			AddSegment(outline, new Point2D(90.0, 0.0), new Point2D(73.0, 0.0), "bottom-right");
+			outline.Arcs.Add(new Arc2D
+			{
+				Start = new Point2D(73.0, 0.0),
+				End = new Point2D(70.0, 3.0),
+				Center = new Point2D(73.0, 3.0),
+				Radius = 3.0,
+				Bulge = -Math.Tan(Math.PI / 8.0),
+				SourceKey = "R3-bottom-inner"
+			});
+			AddSegment(outline, new Point2D(70.0, 3.0), new Point2D(70.0, 55.0), "inner-vertical");
+			AddSegment(outline, new Point2D(70.0, 55.0), new Point2D(0.0, 55.0), "inner-horizontal");
+			return outline;
+		}
+
+		private static OutlineFeature2D TransformLProfileFixture(OutlineFeature2D source, double degrees, bool mirrorX)
+		{
+			var transformed = new OutlineFeature2D();
+			Func<Point2D, Point2D> transform = point =>
+			{
+				double x = mirrorX ? source.MaxX - point.X : point.X;
+				double y = point.Y;
+				double radians = degrees * Math.PI / 180.0;
+				if (Math.Abs(degrees) > 1E-9)
+				{
+					double cosine = Math.Cos(radians);
+					double sine = Math.Sin(radians);
+					double rotatedX = cosine * x - sine * y;
+					double rotatedY = sine * x + cosine * y;
+					x = rotatedX;
+					y = rotatedY;
+				}
+				return new Point2D(x, y);
+			};
+			foreach (Segment2D segment in source.Segments)
+			{
+				AddSegment(transformed, transform(segment.Start), transform(segment.End), segment.SourceKey);
+			}
+			foreach (Arc2D arc in source.Arcs)
+			{
+				transformed.Arcs.Add(new Arc2D
+				{
+					Start = transform(arc.Start),
+					End = transform(arc.End),
+					Center = transform(arc.Center),
+					Radius = arc.Radius,
+					Bulge = mirrorX ? -arc.Bulge : arc.Bulge,
+					SourceKey = arc.SourceKey
+				});
+			}
+			var points = transformed.Segments.SelectMany(segment => new[] { segment.Start, segment.End })
+				.Concat(transformed.Arcs.SelectMany(arc => new[] { arc.Start, arc.End }))
+				.ToList();
+			transformed.MinX = points.Min(point => point.X);
+			transformed.MaxX = points.Max(point => point.X);
+			transformed.MinY = points.Min(point => point.Y);
+			transformed.MaxY = points.Max(point => point.Y);
+			return transformed;
 		}
 
 		/// <summary>

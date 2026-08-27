@@ -203,6 +203,12 @@ public sealed partial class DimensionPlanner
 	{
 		_nextLooseChainId = 1;
 		DimensionPlan dimensionPlan = new DimensionPlan();
+		LProfileOuterContour lProfileOuterContour = null;
+		string lProfileOuterContourFailure = string.Empty;
+		lProfileOuterContour = LProfileOuterContour.TryCreate(
+			outline,
+			_config.GeometryTolerance,
+			out lProfileOuterContourFailure);
 		AddOverallWidth(dimensionPlan, outline);
 		AddOverallHeight(dimensionPlan, outline);
 		if (_config.UseFeatureFirstStructurePipeline)
@@ -214,6 +220,16 @@ public sealed partial class DimensionPlanner
 			AddStepOutlineDimensions(dimensionPlan, outline);
 		}
 		AddLinearSegmentDimensions(dimensionPlan, outline);
+		if (_config.UseFeatureFirstStructurePipeline)
+		{
+			ApplyLProfileAnnotationRule(
+				dimensionPlan,
+				outline,
+				lProfileOuterContour,
+				lProfileOuterContourFailure);
+		}
+		ApplyLProfileOverallDimensionRules(dimensionPlan, outline, lProfileOuterContour);
+		ApplyLProfileOverallSplitByFilletRule(dimensionPlan, outline, lProfileOuterContour);
 		SuppressDuplicateDimensions(dimensionPlan, outline);
 		_postValidator.Validate(dimensionPlan, outline);
 		dimensionPlan.CaptureFinalDimensions();

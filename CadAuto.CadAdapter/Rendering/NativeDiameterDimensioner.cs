@@ -6,6 +6,7 @@ using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.GraphicsInterface;
+using CadAuto.CadAdapter.Environment;
 using CadAuto.CadAdapter.Model;
 using CadAuto.Core.Model;
 using CadAuto.Core.Planning;
@@ -293,6 +294,7 @@ public static class NativeDiameterDimensioner
 		diametricDimension.SetDatabaseDefaults(db);
 		diametricDimension.Layer = annotationLayer;
 		diametricDimension.DimensionStyle = dimStyleId;
+		DimStyleManager.ApplyGeneratedDimensionColors(diametricDimension);
 		diametricDimension.DimensionText = calloutText;
 		return diametricDimension;
 	}

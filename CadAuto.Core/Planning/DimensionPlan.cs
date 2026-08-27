@@ -47,6 +47,40 @@ public sealed class DimensionPlan
 		MarkSuppressed(dimension, reason, null, null, null);
 	}
 
+	public void MarkRejected(PlannedDimension dimension, string reason, string ruleId, IEnumerable<string> sourceGeometryIds, string topologyEvidence)
+	{
+		if (dimension == null)
+		{
+			return;
+		}
+		dimension.AttachmentValidity = false;
+		if (!_diagnosticByDimension.TryGetValue(dimension, out var value))
+		{
+			value = AddDiagnosticCandidate(dimension);
+		}
+		RecordRuleEvidence(dimension, value, ruleId, sourceGeometryIds, topologyEvidence);
+		value.IsSuppressed = false;
+		value.IsSelected = false;
+		value.IsAttachmentValid = false;
+		value.DecisionStatus = "Skipped";
+		value.DecisionReason = reason ?? string.Empty;
+		value.SuppressedReason = string.Empty;
+		value.Decision = DimensionCandidateDecision.Skipped;
+	}
+
+	public void SetAttachmentValidity(PlannedDimension dimension, bool isValid)
+	{
+		if (dimension == null)
+		{
+			return;
+		}
+		dimension.AttachmentValidity = isValid;
+		if (_diagnosticByDimension.TryGetValue(dimension, out var diagnostic))
+		{
+			diagnostic.IsAttachmentValid = isValid;
+		}
+	}
+
 	public void MarkSuppressed(PlannedDimension dimension, string reason, string ruleId, IEnumerable<string> sourceGeometryIds, string topologyEvidence)
 	{
 		if (dimension != null)
@@ -235,7 +269,7 @@ public sealed class DimensionPlan
 			PromotedByConflictWith = string.Empty,
 			IsSuppressed = false,
 			IsSelected = false,
-			IsAttachmentValid = true,
+			IsAttachmentValid = dimension.AttachmentValidity ?? true,
 			DecisionStatus = "Candidate",
 			DecisionReason = "Generated",
 			SuppressedReason = string.Empty,

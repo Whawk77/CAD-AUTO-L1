@@ -1218,8 +1218,533 @@ public sealed partial class DimensionPlanner
 			UpdateExistingLProfileDimensionGeometry(plan, dimension, match, canonicalFirst, canonicalSecond);
 		}
 
-		plan.RecordRuleEvidence(dimension, ruleId, match.SourceGeometryIds, match.TopologyEvidence);
+		string topologyEvidence = match.TopologyEvidence ?? string.Empty;
+		string localPlacementReason;
+		LProfileLocalAnchorPair localPlacement = TryFindLProfileLocalAnchorPair(
+			match,
+			dimension,
+			canonicalOrientation,
+			canonicalSide,
+			out localPlacementReason);
+		if (localPlacement != null)
+		{
+			UpdateExistingLProfileDimensionGeometry(
+				plan,
+				dimension,
+				match,
+				localPlacement.FirstPoint,
+				localPlacement.SecondPoint);
+			dimension.PreferFeatureLocalPlacement = true;
+			dimension.PreservePreferredSide = true;
+			topologyEvidence += BuildLProfileLocalPlacementEvidence(
+				ruleId,
+				canonicalOrientation,
+				canonicalSide,
+				localPlacement.OriginalFirstPoint,
+				localPlacement.OriginalSecondPoint,
+				localPlacement,
+				"Replaced");
+		}
+		else
+		{
+			topologyEvidence += BuildLProfileLocalPlacementFallbackEvidence(
+				ruleId,
+				canonicalOrientation,
+				canonicalSide,
+				canonicalFirst,
+				canonicalSecond,
+				localPlacementReason);
+		}
+		dimension.TopologyEvidence = topologyEvidence;
+		plan.RecordRuleEvidence(dimension, ruleId, match.SourceGeometryIds, topologyEvidence);
 		return dimension;
+	}
+
+	private LProfileLocalAnchorPair TryFindLProfileLocalAnchorPair(
+		LProfileMatch match,
+		PlannedDimension dimension,
+		DimensionOrientation canonicalOrientation,
+		DimensionSide canonicalSide,
+		out string failureReason)
+	{
+		failureReason = string.Empty;
+		if (match?.Graph?.BoundaryOutline == null || dimension == null)
+		{
+			failureReason = "OuterContourUnavailable";
+			return null;
+		}
+
+		bool horizontal = canonicalOrientation == DimensionOrientation.Horizontal;
+		Point2D originalFirst = ToCanonicalPoint(dimension.FirstPoint, match);
+		Point2D originalSecond = ToCanonicalPoint(dimension.SecondPoint, match);
+		double tolerance = Math.Max(match.Tolerance, _config.GeometryTolerance);
+		Tuple<double, double> interval = GetCanonicalInterval(originalFirst, originalSecond, canonicalOrientation);
+		if (interval.Item2 - interval.Item1 <= tolerance)
+		{
+			failureReason = "NoPositiveProjection";
+			return null;
+		}
+		if (!OutlineGeometryQuery.TryGetEnvelope(match.Graph.BoundaryOutline, tolerance, out OutlineEnvelope2D envelope))
+		{
+			failureReason = "OuterEnvelopeUnavailable";
+			return null;
+		}
+
+		double originalSideDistance = GetLProfileSideDistance(
+			originalFirst,
+			originalSecond,
+			canonicalSide,
+			envelope,
+			horizontal);
+		List<LProfileAxisChain> axisChains = LProfileAxisChain.Build(
+			match.Graph.BoundaryEdges,
+			horizontal,
+			tolerance)
+			.Where(chain => chain != null && IsContinuousAxisChain(chain, tolerance))
+			.ToList();
+		List<LProfileAxisChain> oppositeChains = LProfileAxisChain.Build(
+			match.Graph.BoundaryEdges,
+			!horizontal,
+			tolerance)
+			.Where(chain => chain != null && IsContinuousAxisChain(chain, tolerance))
+			.ToList();
+
+		List<LProfileLocalAnchorPair> parallelPairs = axisChains
+			.Where(chain => chain.MinT <= interval.Item1 + tolerance && chain.MaxT >= interval.Item2 - tolerance)
+			.Select(chain => CreateLProfileParallelAnchorPair(
+				chain,
+				interval,
+				canonicalSide,
+				envelope,
+				horizontal,
+				match.Graph.BoundaryOutline,
+				tolerance))
+			.Where(pair => pair != null && IsLProfileLocalDimensionLineSafe(
+				pair.FirstPoint,
+				pair.SecondPoint,
+				canonicalSide,
+				match.Graph.BoundaryOutline,
+				horizontal,
+				tolerance))
+			.OrderBy(pair => pair.SideDistance)
+			.ThenByDescending(pair => pair.SupportSpan)
+			.ToList();
+		LProfileLocalAnchorPair selected = parallelPairs.FirstOrDefault(pair =>
+			pair.SideDistance + tolerance < originalSideDistance);
+		if (selected != null)
+		{
+			selected.OriginalFirstPoint = originalFirst;
+			selected.OriginalSecondPoint = originalSecond;
+			selected.OriginalSideDistance = originalSideDistance;
+			return selected;
+		}
+
+		List<LProfileLocalAnchorCandidate> minimumCandidates = GetLProfileLocalAnchorCandidates(
+			match.Graph,
+			axisChains,
+			oppositeChains,
+			interval.Item1,
+			horizontal,
+			tolerance);
+		List<LProfileLocalAnchorCandidate> maximumCandidates = GetLProfileLocalAnchorCandidates(
+			match.Graph,
+			axisChains,
+			oppositeChains,
+			interval.Item2,
+			horizontal,
+			tolerance);
+		List<LProfileLocalAnchorPair> mixedPairs = new List<LProfileLocalAnchorPair>();
+		foreach (LProfileLocalAnchorCandidate minimum in minimumCandidates)
+		{
+			foreach (LProfileLocalAnchorCandidate maximum in maximumCandidates)
+			{
+				if (minimum.IsParallel == maximum.IsParallel)
+				{
+					continue;
+				}
+				LProfileLocalAnchorPair pair = CreateLProfileMixedAnchorPair(
+					minimum,
+					maximum,
+					canonicalSide,
+					envelope,
+					horizontal,
+					interval,
+					match.Graph.BoundaryOutline,
+					tolerance);
+				if (pair != null && IsLProfileLocalDimensionLineSafe(
+					pair.FirstPoint,
+					pair.SecondPoint,
+					canonicalSide,
+					match.Graph.BoundaryOutline,
+					horizontal,
+					tolerance))
+				{
+					mixedPairs.Add(pair);
+				}
+			}
+		}
+		selected = mixedPairs
+			.OrderBy(pair => pair.SideDistance)
+			.ThenByDescending(pair => pair.SupportSpan)
+			.FirstOrDefault(pair => pair.SideDistance + tolerance < originalSideDistance);
+		if (selected != null)
+		{
+			selected.OriginalFirstPoint = originalFirst;
+			selected.OriginalSecondPoint = originalSecond;
+			selected.OriginalSideDistance = originalSideDistance;
+			return selected;
+		}
+
+		failureReason = parallelPairs.Count != 0
+			? "NoCloserEquivalentContour"
+			: (minimumCandidates.Count == 0 || maximumCandidates.Count == 0
+				? "NoEquivalentRealParallelContour"
+				: "NoEquivalentLineAndCornerPair");
+		return null;
+	}
+
+	private LProfileLocalAnchorPair CreateLProfileParallelAnchorPair(
+		LProfileAxisChain chain,
+		Tuple<double, double> interval,
+		DimensionSide side,
+		OutlineEnvelope2D envelope,
+		bool horizontal,
+		OutlineFeature2D boundary,
+		double tolerance)
+	{
+		Point2D first = chain.GetPointAt(interval.Item1);
+		Point2D second = chain.GetPointAt(interval.Item2);
+		if (!OutlineGeometryQuery.IsPointOnBoundary(first, boundary, tolerance)
+			|| !OutlineGeometryQuery.IsPointOnBoundary(second, boundary, tolerance))
+		{
+			return null;
+		}
+		return new LProfileLocalAnchorPair
+		{
+			FirstPoint = first,
+			SecondPoint = second,
+			FirstKind = "ParallelLine",
+			SecondKind = "ParallelLine",
+			Mode = "ParallelContour",
+			SideDistance = GetLProfileSideDistance(first, second, side, envelope, horizontal),
+			SupportSpan = chain.Span
+		};
+	}
+
+	private LProfileLocalAnchorPair CreateLProfileMixedAnchorPair(
+		LProfileLocalAnchorCandidate first,
+		LProfileLocalAnchorCandidate second,
+		DimensionSide side,
+		OutlineEnvelope2D envelope,
+		bool horizontal,
+		Tuple<double, double> interval,
+		OutlineFeature2D boundary,
+		double tolerance)
+	{
+		if (first == null || second == null
+			|| !OutlineGeometryQuery.IsPointOnBoundary(first.Point, boundary, tolerance)
+			|| !OutlineGeometryQuery.IsPointOnBoundary(second.Point, boundary, tolerance))
+		{
+			return null;
+		}
+		double minimum = horizontal
+			? Math.Min(first.Point.X, second.Point.X)
+			: Math.Min(first.Point.Y, second.Point.Y);
+		double maximum = horizontal
+			? Math.Max(first.Point.X, second.Point.X)
+			: Math.Max(first.Point.Y, second.Point.Y);
+		if (Math.Abs(minimum - interval.Item1) > tolerance
+			|| Math.Abs(maximum - interval.Item2) > tolerance)
+		{
+			return null;
+		}
+		return new LProfileLocalAnchorPair
+		{
+			FirstPoint = first.Point,
+			SecondPoint = second.Point,
+			FirstKind = first.Kind,
+			SecondKind = second.Kind,
+			Mode = "LineAndCorner",
+			SideDistance = GetLProfileSideDistance(first.Point, second.Point, side, envelope, horizontal),
+			SupportSpan = maximum - minimum
+		};
+	}
+
+	private static List<LProfileLocalAnchorCandidate> GetLProfileLocalAnchorCandidates(
+		LProfileBoundaryGraph graph,
+		IList<LProfileAxisChain> axisChains,
+		IList<LProfileAxisChain> oppositeChains,
+		double axis,
+		bool horizontal,
+		double tolerance)
+	{
+		List<LProfileLocalAnchorCandidate> candidates = new List<LProfileLocalAnchorCandidate>();
+		foreach (LProfileAxisChain chain in axisChains ?? new LProfileAxisChain[0])
+		{
+			if (chain == null || axis < chain.MinT - tolerance || axis > chain.MaxT + tolerance)
+			{
+				continue;
+			}
+			Point2D point = chain.GetPointAt(axis);
+			if (OutlineGeometryQuery.IsPointOnBoundary(point, graph.BoundaryOutline, tolerance))
+			{
+				AddLProfileLocalAnchorCandidate(candidates, point, true, "ParallelLine", tolerance);
+			}
+		}
+
+		foreach (LProfileEdge edge in graph.BoundaryEdges)
+		{
+			if (edge?.Arc != null
+				&& IsLProfileTangentArc(
+					edge,
+					graph,
+					horizontal ? axisChains : oppositeChains,
+					horizontal ? oppositeChains : axisChains,
+					tolerance)
+				&& IsInsideBoundary(edge.Arc.Center, graph.BoundaryOutline, tolerance))
+			{
+				foreach (Point2D point in GetLProfileArcAnchorPoints(edge.Arc, tolerance))
+				{
+					if (Math.Abs((horizontal ? point.X : point.Y) - axis) <= tolerance
+						&& !IsPointOnAnyLProfileAxisChain(point, axisChains, tolerance))
+					{
+						AddLProfileLocalAnchorCandidate(candidates, point, false, "ArcPoint", tolerance);
+					}
+				}
+			}
+			if (edge?.Segment != null
+				&& IsLProfileChamferEdge(edge, graph, horizontal, tolerance))
+			{
+				foreach (Point2D point in new[] { edge.Segment.Start, edge.Segment.End })
+				{
+					if (Math.Abs((horizontal ? point.X : point.Y) - axis) <= tolerance
+						&& !IsPointOnAnyLProfileAxisChain(point, axisChains, tolerance))
+					{
+						AddLProfileLocalAnchorCandidate(candidates, point, false, "ChamferEndpoint", tolerance);
+					}
+				}
+			}
+		}
+		return candidates;
+	}
+
+	private static void AddLProfileLocalAnchorCandidate(
+		IList<LProfileLocalAnchorCandidate> candidates,
+		Point2D point,
+		bool isParallel,
+		string kind,
+		double tolerance)
+	{
+		if (candidates.Any(candidate => candidate.IsParallel == isParallel && candidate.Point.DistanceTo(point) <= tolerance))
+		{
+			return;
+		}
+		candidates.Add(new LProfileLocalAnchorCandidate
+		{
+			Point = point,
+			IsParallel = isParallel,
+			Kind = kind
+		});
+	}
+
+	private static bool IsPointOnAnyLProfileAxisChain(
+		Point2D point,
+		IEnumerable<LProfileAxisChain> chains,
+		double tolerance)
+	{
+		return (chains ?? new LProfileAxisChain[0]).Any(chain => chain != null && IsPointOnAxisChain(point, chain, tolerance));
+	}
+
+	private static List<Point2D> GetLProfileArcAnchorPoints(Arc2D arc, double tolerance)
+	{
+		List<Point2D> points = new List<Point2D> { arc.Start, arc.End };
+		foreach (double angle in new[] { 0.0, Math.PI / 2.0, Math.PI, Math.PI * 1.5 })
+		{
+			if (IsArcAngleOnArc(angle, arc, tolerance))
+			{
+				Point2D point = new Point2D(
+					arc.Center.X + Math.Cos(angle) * arc.Radius,
+					arc.Center.Y + Math.Sin(angle) * arc.Radius);
+				if (!points.Any(existing => existing.DistanceTo(point) <= tolerance))
+				{
+					points.Add(point);
+				}
+			}
+		}
+		return points;
+	}
+
+	private static bool IsLProfileChamferEdge(
+		LProfileEdge edge,
+		LProfileBoundaryGraph graph,
+		bool horizontal,
+		double tolerance)
+	{
+		if (edge?.Segment == null || edge.Segment.IsArcChord
+			|| edge.Segment.IsHorizontal(tolerance) || edge.Segment.IsVertical(tolerance))
+		{
+			return false;
+		}
+		bool firstTarget = HasAdjacentLProfileAxisEdge(graph, edge.Segment.Start, horizontal, tolerance);
+		bool secondTarget = HasAdjacentLProfileAxisEdge(graph, edge.Segment.End, horizontal, tolerance);
+		bool firstOther = HasAdjacentLProfileAxisEdge(graph, edge.Segment.Start, !horizontal, tolerance);
+		bool secondOther = HasAdjacentLProfileAxisEdge(graph, edge.Segment.End, !horizontal, tolerance);
+		return ((firstTarget && secondOther) || (secondTarget && firstOther))
+			&& IsConvexLProfileChamferEdge(edge, graph, tolerance);
+	}
+
+	private static bool IsConvexLProfileChamferEdge(
+		LProfileEdge edge,
+		LProfileBoundaryGraph graph,
+		double tolerance)
+	{
+		LProfileHalfEdge current = graph?.BoundaryPath
+			?.SingleOrDefault(halfEdge => halfEdge?.Edge == edge);
+		if (current == null || graph.BoundaryPath.Count < 3)
+		{
+			return false;
+		}
+		int index = graph.BoundaryPath.IndexOf(current);
+		LProfileHalfEdge previous = graph.BoundaryPath[(index + graph.BoundaryPath.Count - 1) % graph.BoundaryPath.Count];
+		LProfileHalfEdge next = graph.BoundaryPath[(index + 1) % graph.BoundaryPath.Count];
+		if (!IsAxisBoundaryHalfEdge(previous, tolerance) || !IsAxisBoundaryHalfEdge(next, tolerance))
+		{
+			return false;
+		}
+		Point2D incoming = new Point2D(
+			current.FromPoint.X - previous.FromPoint.X,
+			current.FromPoint.Y - previous.FromPoint.Y);
+		Point2D chamfer = new Point2D(
+			current.ToPoint.X - current.FromPoint.X,
+			current.ToPoint.Y - current.FromPoint.Y);
+		Point2D outgoing = new Point2D(
+			next.ToPoint.X - current.ToPoint.X,
+			next.ToPoint.Y - current.ToPoint.Y);
+		double firstTurn = incoming.X * chamfer.Y - incoming.Y * chamfer.X;
+		double secondTurn = chamfer.X * outgoing.Y - chamfer.Y * outgoing.X;
+		double turnTolerance = Math.Max(tolerance * tolerance, 1E-12);
+		return firstTurn < -turnTolerance && secondTurn < -turnTolerance;
+	}
+
+	private static bool IsAxisBoundaryHalfEdge(LProfileHalfEdge halfEdge, double tolerance)
+	{
+		return halfEdge?.Edge?.Segment != null
+			&& !halfEdge.Edge.Segment.IsArcChord
+			&& (halfEdge.Edge.Segment.IsHorizontal(tolerance)
+				|| halfEdge.Edge.Segment.IsVertical(tolerance));
+	}
+
+	private static bool HasAdjacentLProfileAxisEdge(
+		LProfileBoundaryGraph graph,
+		Point2D point,
+		bool horizontal,
+		double tolerance)
+	{
+		return graph.BoundaryEdges.Any(edge => edge?.Segment != null
+			&& (horizontal ? edge.Segment.IsHorizontal(tolerance) : edge.Segment.IsVertical(tolerance))
+			&& edge.Touches(point, tolerance));
+	}
+
+	private bool IsLProfileLocalDimensionLineSafe(
+		Point2D first,
+		Point2D second,
+		DimensionSide side,
+		OutlineFeature2D boundary,
+		bool horizontal,
+		double tolerance)
+	{
+		if (boundary == null)
+		{
+			return false;
+		}
+		double offset = Math.Max(_config.FirstDimOffset, tolerance * 10.0);
+		double coordinate = side == DimensionSide.Bottom
+			? Math.Min(first.Y, second.Y) - offset
+			: side == DimensionSide.Top
+				? Math.Max(first.Y, second.Y) + offset
+				: side == DimensionSide.Left
+					? Math.Min(first.X, second.X) - offset
+					: Math.Max(first.X, second.X) + offset;
+		double minimum = horizontal
+			? Math.Min(first.X, second.X)
+			: Math.Min(first.Y, second.Y);
+		double maximum = horizontal
+			? Math.Max(first.X, second.X)
+			: Math.Max(first.Y, second.Y);
+		foreach (double fraction in new[] { 0.2, 0.5, 0.8 })
+		{
+			double axis = minimum + (maximum - minimum) * fraction;
+			Point2D sample = horizontal
+				? new Point2D(axis, coordinate)
+				: new Point2D(coordinate, axis);
+			if (IsInsideBoundary(sample, boundary, tolerance))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static double GetLProfileSideDistance(
+		Point2D first,
+		Point2D second,
+		DimensionSide side,
+		OutlineEnvelope2D envelope,
+		bool horizontal)
+	{
+		double support = horizontal
+			? (side == DimensionSide.Bottom ? Math.Min(first.Y, second.Y) : Math.Max(first.Y, second.Y))
+			: (side == DimensionSide.Left ? Math.Min(first.X, second.X) : Math.Max(first.X, second.X));
+		double sideCoordinate = side switch
+		{
+			DimensionSide.Bottom => envelope.MinY,
+			DimensionSide.Top => envelope.MaxY,
+			DimensionSide.Left => envelope.MinX,
+			_ => envelope.MaxX
+		};
+		return Math.Abs(support - sideCoordinate);
+	}
+
+	private static string BuildLProfileLocalPlacementEvidence(
+		string ruleId,
+		DimensionOrientation orientation,
+		DimensionSide side,
+		Point2D originalFirst,
+		Point2D originalSecond,
+		LProfileLocalAnchorPair placement,
+		string decision)
+	{
+		return "|LProfile.LocalPlacement|RuleId=" + ruleId
+			+ "|Stage=LocalPlacement|Decision=" + decision
+			+ "|Axis=" + orientation
+			+ "|Side=" + side
+			+ "|Mode=" + placement.Mode
+			+ "|OriginalFirst=" + FormatLProfilePoint(originalFirst)
+			+ "|OriginalSecond=" + FormatLProfilePoint(originalSecond)
+			+ "|SelectedFirst=" + FormatLProfilePoint(placement.FirstPoint)
+			+ "|SelectedSecond=" + FormatLProfilePoint(placement.SecondPoint)
+			+ "|AnchorKinds=" + placement.FirstKind + "," + placement.SecondKind
+			+ "|OriginalSideDistance=" + placement.OriginalSideDistance.ToString("0.########", CultureInfo.InvariantCulture)
+			+ "|SelectedSideDistance=" + placement.SideDistance.ToString("0.########", CultureInfo.InvariantCulture)
+			+ "|Projection=" + placement.SupportSpan.ToString("0.########", CultureInfo.InvariantCulture)
+			+ "|RealBoundary=True";
+	}
+
+	private static string BuildLProfileLocalPlacementFallbackEvidence(
+		string ruleId,
+		DimensionOrientation orientation,
+		DimensionSide side,
+		Point2D originalFirst,
+		Point2D originalSecond,
+		string reason)
+	{
+		return "|LProfile.LocalPlacement|RuleId=" + ruleId
+			+ "|Stage=LocalPlacement|Decision=Fallback"
+			+ "|Axis=" + orientation
+			+ "|Side=" + side
+			+ "|OriginalFirst=" + FormatLProfilePoint(originalFirst)
+			+ "|OriginalSecond=" + FormatLProfilePoint(originalSecond)
+			+ "|Reason=" + (reason ?? "Unavailable");
 	}
 
 	private static void UpdateExistingLProfileDimensionGeometry(
@@ -2453,6 +2978,38 @@ public sealed partial class DimensionPlanner
 		public double ClosureResidual { get; set; }
 
 		public string TopologyEvidence { get; set; }
+	}
+
+	private sealed class LProfileLocalAnchorPair
+	{
+		public Point2D FirstPoint { get; set; }
+
+		public Point2D SecondPoint { get; set; }
+
+		public Point2D OriginalFirstPoint { get; set; }
+
+		public Point2D OriginalSecondPoint { get; set; }
+
+		public string FirstKind { get; set; }
+
+		public string SecondKind { get; set; }
+
+		public string Mode { get; set; }
+
+		public double SideDistance { get; set; }
+
+		public double OriginalSideDistance { get; set; }
+
+		public double SupportSpan { get; set; }
+	}
+
+	private sealed class LProfileLocalAnchorCandidate
+	{
+		public Point2D Point { get; set; }
+
+		public bool IsParallel { get; set; }
+
+		public string Kind { get; set; }
 	}
 
 	private sealed class LProfileFilletProjection

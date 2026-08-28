@@ -1,16 +1,16 @@
-# Graph Report - 8.25  (2026-08-27)
+# Graph Report - 8.25  (2026-08-28)
 
 ## Corpus Check
-- 145 files · ~192,783 words
+- 145 files · ~194,173 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2313 nodes · 8160 edges · 110 communities (101 shown, 9 thin omitted)
-- Extraction: 92% EXTRACTED · 8% INFERRED · 0% AMBIGUOUS · INFERRED: 620 edges (avg confidence: 0.8)
+- 2330 nodes · 8257 edges · 111 communities (100 shown, 11 thin omitted)
+- Extraction: 92% EXTRACTED · 8% INFERRED · 0% AMBIGUOUS · INFERRED: 623 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `813b3419`
+- Built from commit: `7cd74d9b`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -32,6 +32,7 @@
 - OutlineFeature Module
 - CadAuto Core Geometry
 - OutlineSegment Module
+- .CreateDefault
 - HoleFeature Module
 - HoleCalloutPlan Module
 - .RecognizeOutlineSlotFeatures
@@ -55,13 +56,12 @@
 - DimensionDrawer Module
 - SlotFeature2D
 - FeatureRecognizer
-- .IsVertical
 - .AppendDimensionDiagnostics
 - .AddLooseHoleCenterDistances
 - AnnotationCaseStore
-- .PointsEqual
 - AUTOFIXDIM Agent Rules
 - 规则债务：死 API / 双实现对照表
+- .DrawSlotRadiusLeadersWithJig
 - 重构验证手册（分支 `refactor/v2-roadmap`）
 - DimensionRuleConfig
 - DimensionPlanner.cs
@@ -73,10 +73,12 @@
 - .ArbitrateOuterContourStepOverallRemainders
 - .PromptForDatumHole
 - DimensionExtensionLineRenderer
+- .AssertLProfileRuleEndpointsOnBoundary
 - write-cad-visual-report.ps1
 - PluginEntry
 - .ResolveAnnotationLayer
 - 旋转不变量（四向标注一致）v3
+- FeatureRecognizer.cs
 - run-hole-slot-cad-regression.ps1
 - FeatureRecognizer2D.cs
 - M4 Round 2 calibration matrix
@@ -86,7 +88,10 @@
 - M5 正式定义（2026-07-31）
 - M4-positive-collisions 视觉真值
 - run-core-cad-regression.ps1
+- DimensionExtensionLineRenderer
+- .SuppressStructureClosedChainRedundantPositioningOnSide
 - 3. 根因
+- .CreatePartitionItem
 - 阶段 0：冻结行为与建立三态真值矩阵
 - 阶段 1：加固候选级测试门禁
 - 阶段 2：类型化候选语义
@@ -103,13 +108,13 @@
 - Test Has Property
 
 ## God Nodes (most connected - your core abstractions)
-1. `OutlineFeature2D` - 418 edges
-2. `Point2D` - 244 edges
+1. `OutlineFeature2D` - 421 edges
+2. `Point2D` - 254 edges
 3. `Program` - 238 edges
-4. `PlannedDimension` - 172 edges
+4. `PlannedDimension` - 173 edges
 5. `DimensionPlan` - 151 edges
-6. `DimensionPlanner` - 124 edges
-7. `DimensionSide` - 120 edges
+6. `DimensionSide` - 127 edges
+7. `DimensionPlanner` - 124 edges
 8. `DimensionLayoutRules` - 105 edges
 9. `DimensionDrawer` - 102 edges
 10. `Segment2D` - 101 edges
@@ -133,71 +138,75 @@
 - **AUTOFIXDIM Annotation Rule System** — docs_recognitionrules_recognition_rules, docs_dimensionrules_dimension_rules, agents_annotation_product_invariants, docs_environment_source_map [INFERRED 0.85]
 - **Four-Direction Regression Evidence Chain** — docs_dimensionlayoutregression_dl01_fixture, docs_dimensionlayoutregression_trace_and_report_archiving, docs_dimensionlayoutregression_structured_report_validation, docs_dimensionlayoutregression_visual_image_review, docs_dimensionlayoutregression_completion_gate [EXTRACTED 1.00]
 
-## Communities (110 total, 9 thin omitted)
+## Communities (111 total, 11 thin omitted)
 
 ### Community 0 - "Point2D Module"
-Cohesion: 0.05
-Nodes (33): Datum2D, HoleFeature2D, SlotFeature2D, DimensionPlanner, FunctionalHoleGroupPlan, LooseHoleLineGroup, LooseHoleLocationPlan, LooseHoleMacroGroup (+25 more)
+Cohesion: 0.12
+Nodes (9): HoleFeature2D, DimensionPlanner, IEnumerable, IList, List, Tuple, FunctionalHoleGroupPlan, LooseHoleLocationPlan (+1 more)
+
+### Community 1 - "OutlineFeature2D Module"
+Cohesion: 0.10
+Nodes (3): Segment2D, ChamferFeature2D, StructureSuppressionRules
 
 ### Community 2 - "HoleFeature2D Module"
 Cohesion: 0.11
-Nodes (19): BlockReference, SlotFeature, ObjectId, Point2d, SlotArcCandidate, SlotLineCandidate, ThreadArcInfo, ThreadMinorCircleInfo (+11 more)
+Nodes (18): BlockReference, SlotFeature, ObjectId, Point2d, SlotArcCandidate, SlotLineCandidate, ThreadArcInfo, ThreadMinorCircleInfo (+10 more)
 
 ### Community 3 - "GeometryCollector Module"
-Cohesion: 0.19
-Nodes (4): DimensionRuleConfig, Dictionary, ThreadArcRules, double
+Cohesion: 0.12
+Nodes (6): DimensionRuleConfig, Dictionary, ThreadArcRules, double, Document, IList
 
 ### Community 4 - "DimensionPlan Module"
-Cohesion: 0.14
-Nodes (10): BlockTableRecord, Database, Entity, Line, ObjectId, Point3d, Polyline, Polyline2d (+2 more)
+Cohesion: 0.10
+Nodes (15): DiagnosticRunContext, BlockTableRecord, Database, Entity, Line, List, ObjectId, Point3d (+7 more)
 
 ### Community 5 - "FeatureRecognizer2D Module"
-Cohesion: 0.11
-Nodes (17): LProfileArcAttachment, LProfileAxisChain, LProfileConcaveTurn, LProfileEdge, LProfileFilletProjection, LProfileHalfEdge, LProfileMatch, LProfileOuterContour (+9 more)
+Cohesion: 0.14
+Nodes (7): LProfileAxisChain, LProfileMatch, LProfileOuterContour, IEnumerable, LProfileArcAttachment, LProfileAxisChain, LProfileConcaveTurn
 
 ### Community 6 - "OutlineSegment"
-Cohesion: 0.11
-Nodes (4): StructureFeatureAxis, StructureFeatureExtractor, IList, List
+Cohesion: 0.12
+Nodes (4): Point2D, FilletFeature2D, StructureEndpointSpan, IEquatable
 
 ### Community 7 - "Assert Module"
-Cohesion: 0.18
-Nodes (5): LProfileOverallSideSelection, OutlineEnvelope2D, LProfileOuterContour, LProfileOverallSideScore, LProfileOverallSideSelection
+Cohesion: 0.19
+Nodes (6): LProfileOverallSideSelection, Tuple, OutlineEnvelope2D, LProfileLocalAnchorPair, LProfileOverallSideScore, LProfileOverallSideSelection
 
 ### Community 8 - "Commands Module"
 Cohesion: 0.23
 Nodes (9): AnnotationMetadata, Database, Entity, IEnumerable, List, string, Transaction, DateTime (+1 more)
 
 ### Community 9 - "Segment2D"
-Cohesion: 0.11
-Nodes (13): StructureFeature, List, StructureMeasurementSelector, Action, HashSet, IList, List, StructureMeasurementSelector (+5 more)
+Cohesion: 0.07
+Nodes (16): StructureFeature, StructureFeatureAxis, StructureFeatureKind, List, StructureFeatureExtractor, IList, List, StructureMeasurementSelector (+8 more)
 
 ### Community 10 - "DimensionDrawer Module"
-Cohesion: 0.10
-Nodes (6): Point2D, StructureEndpointRules, IEnumerable, IList, StructureEndpointSpan, IEquatable
+Cohesion: 0.16
+Nodes (3): StructureEndpointRules, IEnumerable, IList
 
 ### Community 11 - "DimensionPlanner"
 Cohesion: 0.19
 Nodes (4): DimensionOrientation, DimensionPlanner, string, LProfileMatch
 
 ### Community 12 - "DimensionDrawer Module"
-Cohesion: 0.08
-Nodes (18): CadEntityWriter, BlockTableRecord, Color, Database, double, ObjectId, Point3d, string (+10 more)
-
-### Community 13 - "FeatureRecognizer2D"
-Cohesion: 0.14
-Nodes (3): Segment2D, FeatureRecognizer2D, IEnumerable
+Cohesion: 0.13
+Nodes (9): CadEntityWriter, BlockTableRecord, Color, Database, double, ObjectId, string, Transaction (+1 more)
 
 ### Community 14 - "OutlineFeature Module"
 Cohesion: 0.11
 Nodes (18): 10. 一句话总结, 1. 问题陈述, 2. 现状代码（缺陷点）, 3. 目标行为, 4.1 共删谓词（新）, 4.2 伪代码, 4.3 不改动的部分, 4.4 注释同步 (+10 more)
 
 ### Community 16 - "CadAuto Core Geometry"
-Cohesion: 0.10
-Nodes (4): CadAuto.Core.Geometry, CadAuto.Core.Model, CadAuto.Core.Rules, CadAuto.Core.Planning
+Cohesion: 0.08
+Nodes (11): CoordinateFrameModelTransform, HoleCalloutCluster, List, SlotArcCandidate, SlotLineCandidate, CadAuto.Core.Recognition, CadAuto.Core.Geometry, CadAuto.Core.Model (+3 more)
 
 ### Community 17 - "OutlineSegment Module"
-Cohesion: 0.13
+Cohesion: 0.14
 Nodes (7): DimensionDrawer, BlockTableRecord, List, Transaction, DeferredDim, DimSide, RotatedDimension
+
+### Community 18 - ".CreateDefault"
+Cohesion: 0.05
+Nodes (4): Program, Action, HashSet, int
 
 ### Community 19 - "HoleFeature Module"
 Cohesion: 0.18
@@ -208,20 +217,16 @@ Cohesion: 0.12
 Nodes (10): DimensionDeduplicationItem, DimensionDeduplicationRules, PartitionCandidate, double, HashSet, IList, int, List (+2 more)
 
 ### Community 22 - ".RecognizeOutlineSlotFeatures"
-Cohesion: 0.11
-Nodes (8): DimensionType, DimSide, DimensionPlanCadItem, Point3d, DimensionPlanCadMapper, IEnumerable, CadAuto.CadAdapter.Mapping, CadAuto.CadAdapter.Model
+Cohesion: 0.09
+Nodes (13): GeneratedAnnotation, ObjectId, DiameterJigResult, AutoFixDimOutputScope, DiagnosticBounds, DiagnosticFileIdentity, CadAuto.CadAdapter.Recognition, CadAuto.CadAdapter.Mapping (+5 more)
 
 ### Community 23 - "OutlineGeometryQuery"
-Cohesion: 0.24
-Nodes (8): DeferredDim, PlacedDim, TextBounds, bool, double, int, string, TextBounds
-
-### Community 24 - "FeatureRecognizer2D.cs"
-Cohesion: 0.25
-Nodes (4): IDictionary, IEnumerable, ISet, Tuple
+Cohesion: 0.36
+Nodes (8): DeferredDim, DimSide, PlacedDim, TextBounds, bool, double, int, string
 
 ### Community 25 - "StackingLayerItem Module"
-Cohesion: 0.07
-Nodes (19): DimensionSide, DimensionLayoutItem, DimensionLayoutRules, LayoutBlock, HashSet, IDictionary, IEnumerable, IList (+11 more)
+Cohesion: 0.06
+Nodes (22): DimensionSide, DimensionLayoutItem, DimensionLayoutRules, IndexedLayoutItem, LayoutBlock, StackingLayerItem, TextSlideCandidate, HashSet (+14 more)
 
 ### Community 26 - ".VerticalExtensionOverlapsOutlineSegment"
 Cohesion: 0.23
@@ -236,32 +241,32 @@ Cohesion: 0.18
 Nodes (7): FilletFeature, Point2d, Editor, IEnumerable, IList, Point2d, Point3d
 
 ### Community 29 - ".HorizontalProbeCrossesInterior"
-Cohesion: 0.19
-Nodes (4): IList, ISet, SlotArcCandidate, SlotLineCandidate
+Cohesion: 0.20
+Nodes (5): ISet, IList, ISet, SlotArcCandidate, SlotLineCandidate
 
 ### Community 30 - "DimensionDrawer Module"
-Cohesion: 0.16
-Nodes (9): AnnotationCase, AnnotationCaseDecision, AnnotationStrategyIds, List, string, AnnotationCaseStore, IList, List (+1 more)
+Cohesion: 0.27
+Nodes (4): AnnotationCaseStore, IList, List, StringBuilder
 
 ### Community 31 - "DatumDefinition Module"
 Cohesion: 0.14
 Nodes (13): 1. 销对之间的孔 → 功能孔, 2. 同侧结构段对齐（方案 1）, 3. OutlineSegment 复述 overall, 4. 结构宽/高 vs overall — 规则过大已修正, 5. 文档与测试, Handoff — 尺寸规则改进（2026-07-20）, 仓库与分支, 工作约定 (+5 more)
 
 ### Community 32 - "DimensionLayoutRules.cs"
-Cohesion: 0.20
-Nodes (6): Arc2D, FilletFeature2D, OutlineGeometryQuery, double, IList, List
+Cohesion: 0.19
+Nodes (5): Arc2D, OutlineGeometryQuery, double, IList, List
 
 ### Community 33 - "HoleFeature2D"
-Cohesion: 0.20
-Nodes (8): LProfileBoundaryGraph, Dictionary, HashSet, IEnumerable, List, Tuple, LProfileConcaveTurn, LProfileHalfEdge
+Cohesion: 0.13
+Nodes (15): LProfileArcAttachment, LProfileBoundaryGraph, LProfileConcaveTurn, LProfileEdge, LProfileFilletProjection, LProfileHalfEdge, LProfileLocalAnchorCandidate, LProfileLocalAnchorPair (+7 more)
 
 ### Community 34 - ".VerticalExtensionOverlapsOutlineSegment"
-Cohesion: 0.11
+Cohesion: 0.12
 Nodes (9): DimensionPlanner, Func, IEnumerable, IgnoredPoint, IList, ISet, List, StructurePoint (+1 more)
 
 ### Community 35 - "DimensionRuleConfig"
-Cohesion: 0.33
-Nodes (3): DimensionDiagnosticReport, IEnumerable, List
+Cohesion: 0.25
+Nodes (4): DimensionDiagnosticReport, IEnumerable, List, FeatureDiagnosticCounts
 
 ### Community 36 - "SlotArcCandidate Module"
 Cohesion: 0.19
@@ -272,36 +277,32 @@ Cohesion: 0.11
 Nodes (18): GeometryCollector, OutlineEntityCandidate, Arc, Editor, Entity, IEnumerable, IList, Line (+10 more)
 
 ### Community 38 - "HoleCalloutPlanner"
-Cohesion: 0.39
-Nodes (4): AnnotationCaseOverlay, HashSet, IList, List
+Cohesion: 0.17
+Nodes (11): AnnotationCase, AnnotationCaseDecision, AnnotationCaseRuntime, AnnotationStrategyIds, IList, List, string, AnnotationCaseOverlay (+3 more)
 
 ### Community 39 - "CadAuto Core Planning"
 Cohesion: 0.11
 Nodes (18): A. Overall partition 误删 / 漏删, B. 外框碎段 OutlineSegment + 结构双开, C. StructureOverallPartition 过宽（修“其它图崩了”）, D. U 槽链对齐, E. Phase 2 — `default(Point2D)==(0,0)` 哨兵, F. Phase 3 — Complementary Snap 收紧, graphify, HANDOFF 2026-07-21 — Overall partition / envelope / slot chain / Point2D snap / complementary snap (+10 more)
 
 ### Community 41 - "SlotFeature2D"
-Cohesion: 0.33
-Nodes (4): SlotArcCandidate, SlotLineCandidate, CadAuto.Core.Recognition, CadAuto.Core.Tests
+Cohesion: 0.16
+Nodes (6): DimensionPlanner, IList, int, DimensionReadingLevel, PinGroupPlan, List
 
 ### Community 43 - "FeatureRecognizer"
-Cohesion: 0.14
+Cohesion: 0.13
 Nodes (7): AutoFixDimOutputScope, CadToCoreModelMapper, IEnumerable, List, DatumDefinition, HoleKind, HoleKind2D
 
-### Community 44 - ".IsVertical"
-Cohesion: 0.08
-Nodes (5): Program, Action, HashSet, int, List
-
 ### Community 45 - ".AppendDimensionDiagnostics"
-Cohesion: 0.29
-Nodes (6): DiagnosticDimensionSide, IEnumerable, StringBuilder, DiagnosticRunContext, Exception, KeyValuePair
+Cohesion: 0.23
+Nodes (9): DiagnosticDimensionSide, Commands, IEnumerable, int, string, StringBuilder, DiagnosticRunContext, Exception (+1 more)
 
 ### Community 46 - ".AddLooseHoleCenterDistances"
-Cohesion: 0.40
-Nodes (4): IgnoredPoint, StructurePoint, SuppressReason, string
+Cohesion: 0.22
+Nodes (10): FunctionalHoleGroupPlan, IgnoredPoint, LooseHoleLineGroup, LooseHoleLocationPlan, LooseHoleMacroGroup, StructurePoint, SuppressReason, List (+2 more)
 
 ### Community 48 - "AnnotationCaseStore"
-Cohesion: 0.50
-Nodes (3): IndexedLayoutItem, StackingLayerItem, TextSlideCandidate
+Cohesion: 0.20
+Nodes (3): Datum2D, SlotFeature2D, Func
 
 ### Community 50 - "AUTOFIXDIM Agent Rules"
 Cohesion: 0.06
@@ -311,17 +312,21 @@ Nodes (42): AUTOFIXDIM Agent Rules, Annotation Product Invariants, Explicit Vali
 Cohesion: 0.08
 Nodes (25): 1. 目的, 2. 状态标签, 3.1 `StructureSuppressionRules` — 台阶有用性 / 冗余簇, 3.2 `StructureSuppressionRules` — 四向延伸线 public 版（死）, 3.3 `DimensionDeduplicationRules` — 对称半边, 3.4 文档幽灵符号, 3.5 明确不是死 API（对照，防误删）, 3. 死 API 对照表 (+17 more)
 
+### Community 52 - ".DrawSlotRadiusLeadersWithJig"
+Cohesion: 0.28
+Nodes (7): HoleCalloutKind, HoleCalloutPlan, List, HoleCalloutPlanner, IEnumerable, IList, HoleCalloutCluster
+
 ### Community 53 - "重构验证手册（分支 `refactor/v2-roadmap`）"
 Cohesion: 0.09
 Nodes (21): 3.1 采基线（如已在上一轮采过可复用）, 3.2 用新 DLL 重跑同一张图同一命令, 4.1 诊断与报告（零出图变化）, 4.2 XData 与清理（**有行为变化**）, 4.3 识别（**有行为变化**）, 4.4 包络与失败回退（**有行为变化，风险最高**）, 4.5 部署与加载, 5.1 布局回归报告新鲜度 (+13 more)
 
 ### Community 54 - "DimensionRuleConfig"
-Cohesion: 0.09
-Nodes (12): CommandMethod, Commands, DiagnosticRunContext, Document, Editor, IList, int, List (+4 more)
+Cohesion: 0.12
+Nodes (8): DimStyleManager, Color, Database, ObjectId, string, Transaction, CommandMethod, Editor
 
 ### Community 55 - "DimensionPlanner.cs"
-Cohesion: 0.29
-Nodes (6): DimStyleManager, Color, Database, ObjectId, string, Transaction
+Cohesion: 0.27
+Nodes (5): IList, LProfileBoundaryGraph, LProfileFilletProjection, LProfileLocalAnchorCandidate, LProfileOverallSplitEvidence
 
 ### Community 56 - ".SuppressOutlineSegmentsOnOverallEnvelope"
 Cohesion: 0.40
@@ -332,32 +337,40 @@ Cohesion: 0.14
 Nodes (5): OutlineArc, ObjectId, Point2d, Arc, SlotArcRules
 
 ### Community 58 - ".ResolveDimStyle"
-Cohesion: 0.12
-Nodes (11): GeneratedAnnotation, ObjectId, AutoFixDimOutputScope, DiagnosticBounds, DiagnosticFileIdentity, CadAuto.CadAdapter.Recognition, CadAuto.CadAdapter, AutoFixtureDim (+3 more)
+Cohesion: 0.29
+Nodes (3): AutoFixtureDim, IExtensionApplication, PluginEntry
 
 ### Community 59 - "CoordinateFrame2D"
-Cohesion: 0.22
-Nodes (7): CornerFeatureLeaderJig, double, JigPrompts, SamplerStatus, string, WorldDraw, DrawJig
+Cohesion: 0.12
+Nodes (14): CornerCalloutJigResult, CornerCalloutRenderer, CornerFeatureLeaderJig, Database, double, Editor, JigPrompts, ObjectId (+6 more)
 
 ### Community 60 - "run-cad-regression-suite.ps1"
 Cohesion: 0.22
 Nodes (11): ConvertTo-LispString(), Get-DllEvidence(), Get-NormalizedReportHash(), Get-NormalizedVisualReportHash(), Get-Sha256(), Get-VisualGateStatus(), Invoke-CoreCadCase(), Invoke-CoreConsole() (+3 more)
 
 ### Community 61 - ".ArbitrateOuterContourStepOverallRemainders"
-Cohesion: 0.14
-Nodes (10): OutlineFeature2D, List, AnnotationCaseRuntime, IList, IEnumerable, DimensionPlanner, IgnoredPoint, IList (+2 more)
+Cohesion: 0.15
+Nodes (8): OutlineFeature2D, List, IEnumerable, DimensionPlanner, IgnoredPoint, IList, List, StructurePoint
 
 ### Community 63 - "DimensionExtensionLineRenderer"
-Cohesion: 0.12
-Nodes (11): CoordinateFrame2D, double, CoordinateFrameModelTransform, IEnumerable, List, DimensionPlan, Dictionary, int (+3 more)
+Cohesion: 0.21
+Nodes (4): CoordinateFrame2D, double, IEnumerable, List
+
+### Community 64 - ".AssertLProfileRuleEndpointsOnBoundary"
+Cohesion: 0.22
+Nodes (4): IEnumerable, IList, ISet, List
 
 ### Community 65 - "write-cad-visual-report.ps1"
 Cohesion: 0.21
 Nodes (6): Get-Number(), Get-Orientation(), Get-Point(), Test-PointInRect(), Test-SegmentRect(), Test-SegmentsIntersect()
 
+### Community 66 - "PluginEntry"
+Cohesion: 0.27
+Nodes (5): DimensionType, DimensionPlanCadItem, Point3d, DimensionPlanCadMapper, IEnumerable
+
 ### Community 67 - ".ResolveAnnotationLayer"
-Cohesion: 0.18
-Nodes (7): LayerManager, Database, string, Transaction, DiameterJigResult, CadAuto.CadAdapter.Environment, CadAuto.CadAdapter.Rendering
+Cohesion: 0.33
+Nodes (4): LayerManager, Database, string, Transaction
 
 ### Community 68 - "旋转不变量（四向标注一致）v3"
 Cohesion: 0.18
@@ -372,8 +385,8 @@ Cohesion: 0.22
 Nodes (8): Confirmed synthetic defects, Final calibrated evidence, Independent M4 Round 2 verification / WarningOnly evidence passed, Legal-contact counterexamples, M4 Round 2 calibration matrix, Real saved final DWG positive evidence, Round 1 archived false-positive modes, Round 2 results
 
 ### Community 73 - "DebugAnnotationRenderer Module"
-Cohesion: 0.14
-Nodes (13): Entity, DebugAnnotationRenderer, Color, Database, ObjectId, Point2d, Point3d, string (+5 more)
+Cohesion: 0.16
+Nodes (10): Entity, Point3d, DebugAnnotationRenderer, Color, Database, ObjectId, Point2d, Point3d (+2 more)
 
 ### Community 74 - "Core Test ↔ Minimal DWG Regression"
 Cohesion: 0.25
@@ -394,6 +407,10 @@ Nodes (6): Debug-v3 DLL, M4-positive-collisions 视觉真值, 已确认真值, �
 ### Community 79 - "run-core-cad-regression.ps1"
 Cohesion: 0.38
 Nodes (4): Build-NewPluginVersion(), Get-LatestDebugDirectory(), Get-NormalizedVisualReportHash(), Invoke-VisualInspection()
+
+### Community 80 - "DimensionExtensionLineRenderer"
+Cohesion: 0.29
+Nodes (5): DimensionExtensionLineRenderer, Database, IList, string, Tuple
 
 ### Community 82 - "3. 根因"
 Cohesion: 0.33
@@ -436,8 +453,8 @@ Cohesion: 0.50
 Nodes (4): 5.1 每次规则修改的最低证据, 5.2 分级门禁, 5.3 基线变更规则, 5. 测试门禁
 
 ### Community 101 - ".Place"
-Cohesion: 0.16
-Nodes (10): DimensionCandidateDiagnostic, List, DimensionCandidateDecision, DimensionCandidateOwnerKind, DimensionCandidateRole, DimensionCandidateSemantics, IEnumerable, List (+2 more)
+Cohesion: 0.11
+Nodes (15): DimensionCandidateDiagnostic, List, DimensionCandidateDecision, DimensionCandidateOwnerKind, DimensionCandidateRole, DimensionCandidateSemantics, IEnumerable, List (+7 more)
 
 ### Community 105 - "Test Has Property"
 Cohesion: 0.60
@@ -446,22 +463,22 @@ Nodes (3): Get-PhysicalRank(), Test-DimensionSelector(), Test-HasProperty()
 ## Knowledge Gaps
 - **177 isolated node(s):** `DimSide`, `DiameterJigResult`, `CadAuto.Core.Tests`, `AutoFixDimOutputScope`, `DiagnosticBounds` (+172 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **9 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **11 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `OutlineFeature2D` connect `.ArbitrateOuterContourStepOverallRemainders` to `Point2D Module`, `OutlineFeature2D Module`, `FeatureRecognizer2D Module`, `OutlineSegment`, `Assert Module`, `Segment2D`, `DimensionDrawer Module`, `DimensionPlanner`, `FeatureRecognizer2D`, `FeatureRecognizer Module`, `CadAuto Core Geometry`, `OutlineSegment Module`, `.CreateDefault`, `DimensionPlanner`, `FeatureRecognizer2D.cs`, `StackingLayerItem Module`, `.HorizontalProbeCrossesInterior`, `DimensionLayoutRules.cs`, `HoleFeature2D`, `.VerticalExtensionOverlapsOutlineSegment`, `HoleCalloutPlanner`, `DimensionDrawer Module`, `FeatureRecognizer`, `.IsVertical`, `DimSide Module`, `.PointsEqual`, `.DrawSlotRadiusLeadersWithJig`, `.SuppressOutlineSegmentsOnOverallEnvelope`, `.PromptForDatumHole`, `DimensionExtensionLineRenderer`, `.AssertLProfileRuleEndpointsOnBoundary`, `FeatureRecognizer.cs`, `.SuppressStructureClosedChainRedundantPositioningOnSide`, `.AssertTest2BottomContourPlan`, `.OrthogonalRotatedVerticalChainKeepsRealWidths`?**
-  _High betweenness centrality (0.222) - this node is a cross-community bridge._
-- **Why does `DimensionDrawer` connect `OutlineSegment Module` to `DimensionRuleConfig`, `SlotArcCandidate Module`, `GeometryCollector Module`, `DebugAnnotationRenderer Module`, `FeatureRecognizer`, `DimensionDrawer Module`, `.AppendDimensionDiagnostics`, `HoleCalloutPlan Module`, `.RecognizeOutlineSlotFeatures`, `OutlineGeometryQuery`, `DimensionRuleConfig`, `StackingLayerItem Module`, `.VerticalExtensionOverlapsOutlineSegment`, `NativeDiameterDimensioner Module`, `.ArbitrateOuterContourStepOverallRemainders`, `DimensionExtensionLineRenderer`?**
-  _High betweenness centrality (0.121) - this node is a cross-community bridge._
-- **Why does `Point2D` connect `DimensionDrawer Module` to `Point2D Module`, `OutlineFeature2D Module`, `FeatureRecognizer2D Module`, `OutlineSegment`, `Assert Module`, `Segment2D`, `DimensionPlanner`, `FeatureRecognizer2D`, `CadAuto Core Geometry`, `.CreateDefault`, `HoleCalloutPlan Module`, `FeatureRecognizer2D.cs`, `StackingLayerItem Module`, `.HorizontalProbeCrossesInterior`, `DimensionLayoutRules.cs`, `HoleFeature2D`, `.VerticalExtensionOverlapsOutlineSegment`, `DimensionDrawer Module`, `SlotFeature2D`, `.IsVertical`, `.AddLooseHoleCenterDistances`, `DimSide Module`, `AnnotationCaseStore`, `.SuppressOutlineSegmentsOnOverallEnvelope`, `.ArbitrateOuterContourStepOverallRemainders`, `.PromptForDatumHole`, `DimensionExtensionLineRenderer`, `FeatureRecognizer.cs`, `.Place`, `.OrthogonalRotatedVerticalChainKeepsRealWidths`?**
-  _High betweenness centrality (0.108) - this node is a cross-community bridge._
+- **Why does `OutlineFeature2D` connect `.ArbitrateOuterContourStepOverallRemainders` to `Point2D Module`, `OutlineFeature2D Module`, `FeatureRecognizer2D Module`, `OutlineSegment`, `Assert Module`, `Segment2D`, `DimensionDrawer Module`, `DimensionPlanner`, `FeatureRecognizer2D`, `FeatureRecognizer Module`, `CadAuto Core Geometry`, `OutlineSegment Module`, `.CreateDefault`, `DimensionPlanner`, `FeatureRecognizer2D.cs`, `StackingLayerItem Module`, `.HorizontalProbeCrossesInterior`, `DimensionLayoutRules.cs`, `HoleFeature2D`, `.VerticalExtensionOverlapsOutlineSegment`, `HoleCalloutPlanner`, `DimensionDrawer Module`, `SlotFeature2D`, `FeatureRecognizer`, `.IsVertical`, `AnnotationCaseStore`, `.PointsEqual`, `.SuppressOutlineSegmentsOnOverallEnvelope`, `.PromptForDatumHole`, `DimensionExtensionLineRenderer`, `.AssertLProfileRuleEndpointsOnBoundary`, `FeatureRecognizer.cs`, `.SuppressStructureClosedChainRedundantPositioningOnSide`, `.CreatePartitionItem`, `.Place`, `.AssertTest2BottomContourPlan`, `.OrthogonalRotatedVerticalChainKeepsRealWidths`?**
+  _High betweenness centrality (0.244) - this node is a cross-community bridge._
+- **Why does `DimensionDrawer` connect `OutlineSegment Module` to `GeometryCollector Module`, `DimensionDrawer Module`, `HoleCalloutPlan Module`, `OutlineGeometryQuery`, `StackingLayerItem Module`, `.VerticalExtensionOverlapsOutlineSegment`, `NativeDiameterDimensioner Module`, `DimensionRuleConfig`, `SlotArcCandidate Module`, `FeatureRecognizer`, `.AppendDimensionDiagnostics`, `DimensionRuleConfig`, `CoordinateFrame2D`, `.ArbitrateOuterContourStepOverallRemainders`, `DimensionExtensionLineRenderer`, `PluginEntry`, `FeatureRecognizer2D.cs`, `DebugAnnotationRenderer Module`, `DimensionExtensionLineRenderer`?**
+  _High betweenness centrality (0.125) - this node is a cross-community bridge._
+- **Why does `Point2D` connect `OutlineSegment` to `Point2D Module`, `OutlineFeature2D Module`, `FeatureRecognizer2D Module`, `Assert Module`, `Segment2D`, `DimensionDrawer Module`, `DimensionPlanner`, `FeatureRecognizer2D`, `CadAuto Core Geometry`, `.CreateDefault`, `HoleCalloutPlan Module`, `FeatureRecognizer2D.cs`, `StackingLayerItem Module`, `.HorizontalProbeCrossesInterior`, `DimensionLayoutRules.cs`, `HoleFeature2D`, `.VerticalExtensionOverlapsOutlineSegment`, `DimensionDrawer Module`, `SlotFeature2D`, `.IsVertical`, `.AddLooseHoleCenterDistances`, `DimSide Module`, `AnnotationCaseStore`, `.DrawSlotRadiusLeadersWithJig`, `DimensionPlanner.cs`, `.SuppressOutlineSegmentsOnOverallEnvelope`, `.ArbitrateOuterContourStepOverallRemainders`, `.PromptForDatumHole`, `DimensionExtensionLineRenderer`, `.Place`, `.OrthogonalRotatedVerticalChainKeepsRealWidths`?**
+  _High betweenness centrality (0.099) - this node is a cross-community bridge._
 - **What connects `DimSide`, `DiameterJigResult`, `CadAuto.Core.Tests` to the rest of the system?**
   _177 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Point2D Module` be split into smaller, more focused modules?**
-  _Cohesion score 0.052342423334332235 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.12220205686630368 - nodes in this community are weakly interconnected._
 - **Should `OutlineFeature2D Module` be split into smaller, more focused modules?**
-  _Cohesion score 0.14112903225806453 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09783368273934312 - nodes in this community are weakly interconnected._
 - **Should `HoleFeature2D Module` be split into smaller, more focused modules?**
-  _Cohesion score 0.10707070707070707 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.10782241014799154 - nodes in this community are weakly interconnected._

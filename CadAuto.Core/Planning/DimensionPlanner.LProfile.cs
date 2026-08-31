@@ -26,6 +26,18 @@ public sealed partial class DimensionPlanner
 
 	private const string LProfileOverallSplitByFilletRuleId = "LProfile.OverallSplitByFillet";
 
+	private const string LProfileChamferComplementRuleId = "LProfile.ChamferComplement";
+
+	private const string LProfileSecondaryStepRiserRuleId = "LProfile.SecondaryStepRiser";
+
+	private const string LProfileLocalAnchorRepairRuleId = "LProfile.LocalAnchorRepair";
+
+	private const string LProfileCoveredStepWidthRuleId = "LProfile.CoveredStepWidth";
+
+	private const string LProfileCoveredStepHeightRuleId = "LProfile.CoveredStepHeight";
+
+	private const string LProfileHorizontalArmTotalHeightRuleId = "LProfile.HorizontalArmTotalHeight";
+
 	private void ApplyLProfileAnnotationRule(
 		DimensionPlan plan,
 		OutlineFeature2D outline,
@@ -60,19 +72,29 @@ public sealed partial class DimensionPlanner
 		plan.Diagnostics.Warnings.Add("LProfile.Recognized|" + outerContour.TopologyEvidence);
 
 		List<LProfileMatch> matches = new List<LProfileMatch>();
-		string directFailure;
-		LProfileMatch direct = LProfileMatch.TryCreate(outline, _config.GeometryTolerance, out directFailure);
-		if (direct != null)
+		string directFailure = outerContour.HasSecondaryTurns
+			? "SkippedForMultiTurnPrimarySelection"
+			: string.Empty;
+		if (!outerContour.HasSecondaryTurns)
 		{
-			direct.Transposed = false;
-			matches.Add(direct);
+			LProfileMatch direct = LProfileMatch.TryCreate(outline, _config.GeometryTolerance, out directFailure);
+			if (direct != null)
+			{
+				direct.Transposed = false;
+				matches.Add(direct);
+			}
 		}
-		string transposedFailure;
-		LProfileMatch transposed = LProfileMatch.TryCreate(TransposeLProfileOutline(outline), _config.GeometryTolerance, out transposedFailure);
-		if (transposed != null)
+		string transposedFailure = outerContour.HasSecondaryTurns
+			? "SkippedForMultiTurnPrimarySelection"
+			: string.Empty;
+		if (!outerContour.HasSecondaryTurns)
 		{
-			transposed.Transposed = true;
-			matches.Add(transposed);
+			LProfileMatch transposed = LProfileMatch.TryCreate(TransposeLProfileOutline(outline), _config.GeometryTolerance, out transposedFailure);
+			if (transposed != null)
+			{
+				transposed.Transposed = true;
+				matches.Add(transposed);
+			}
 		}
 		string newFailure = string.Empty;
 		if (matches.Count == 0)
@@ -137,9 +159,6 @@ public sealed partial class DimensionPlanner
 			plan.Diagnostics.Warnings.Add("LProfile.NotApplied|Reason=HorizontalArmHeightCandidateAmbiguous");
 			return;
 		}
-		plan.Diagnostics.Warnings.Add("LProfile.Applied|Strategy=" + match.AnnotationTopology
-			+ "|" + match.TopologyEvidence);
-
 		if (match.FormulaClosed && horizontalArmHeight != null)
 		{
 			SuppressDerivedInnerEdge(plan, match);
@@ -147,6 +166,1168 @@ public sealed partial class DimensionPlanner
 		}
 		SuppressInternalChordEndpointCandidates(plan, match);
 		SuppressDerivedOuterContourSegments(plan, match);
+		ApplyLProfileStepCoverageRules(plan, match, outerContour, verticalArmWidth, horizontalArmHeight);
+		ApplyLProfileSpecificCandidateCleanup(plan, match, outerContour);
+		plan.Diagnostics.Warnings.Add("LProfile.Applied|Strategy=" + match.AnnotationTopology
+			+ "|" + match.TopologyEvidence);
+	}
+
+	private void ApplyLProfileStepCoverageRules(
+		DimensionPlan plan,
+		LProfileMatch match,
+		LProfileOuterContour outerContour,
+		PlannedDimension verticalArmWidth,
+		PlannedDimension horizontalArmHeight)
+	{
+		if (plan == null || match == null || outerContour?.Graph?.BoundaryOutline == null)
+		{
+			return;
+		}
+
+		LProfileStepCoverageEvidence widthCoverage = TryBuildLProfileHorizontalStepCoverage(
+			plan,
+			match,
+			outerContour,
+			verticalArmWidth);
+		if (widthCoverage != null)
+		{
+			string suppressionEvidence = widthCoverage.TopologyEvidence
+				+ "|Stage=PostGeneration|Decision=Suppressed|Reason=CoveredByVerticalArmWidth";
+			SuppressLProfileDimension(
+				plan,
+				widthCoverage.Residual,
+				LProfileCoveredStepWidthRuleId,
+				match,
+				extraEdges: widthCoverage.EvidenceEdges,
+					topologyEvidence: suppressionEvidence);
+			plan.Diagnostics.Warnings.Add(suppressionEvidence);
+		}
+		else
+		{
+			plan.Diagnostics.Warnings.Add(
+				(match.TopologyEvidence ?? string.Empty)
+				+ "|LProfile.StepCoverage.NotApplied|Axis=Horizontal"
+				+ "|Stage=PostGeneration|Decision=Retained|Reason=NoClosedTopologyProof"
+				+ "|Total=" + (verticalArmWidth?.RuleId ?? string.Empty));
+		}
+
+		LProfileStepCoverageEvidence heightCoverage = TryBuildLProfileVerticalStepCoverage(
+			plan,
+			match,
+			horizontalArmHeight);
+		if (heightCoverage == null)
+		{
+			return;
+		}
+
+		PlannedDimension totalHeight = EnsureLProfileAggregateDimension(
+			plan,
+			match,
+			heightCoverage.FirstPoint,
+			heightCoverage.SecondPoint,
+			DimensionOrientation.Vertical,
+			match.ArmVerticalSide,
+			LProfileHorizontalArmTotalHeightRuleId,
+			heightCoverage.TopologyEvidence + "|Stage=Generation|Decision=Retained",
+			heightCoverage.SourceGeometryIds);
+		if (totalHeight == null)
+		{
+			plan.Diagnostics.Warnings.Add(
+				"LProfile.StepCoverage.NotApplied|Axis=Vertical|Reason=TotalHeightCandidateAmbiguous");
+			return;
+		}
+
+		string heightSuppressionEvidence = heightCoverage.TopologyEvidence
+			+ "|Stage=PostGeneration|Decision=Suppressed|Reason=CoveredByTotalArmHeight";
+		SuppressLProfileDimension(
+			plan,
+			heightCoverage.Residual,
+			LProfileCoveredStepHeightRuleId,
+			match,
+			extraEdges: heightCoverage.EvidenceEdges,
+			topologyEvidence: heightSuppressionEvidence);
+		plan.Diagnostics.Warnings.Add(heightSuppressionEvidence);
+	}
+
+	private LProfileStepCoverageEvidence TryBuildLProfileHorizontalStepCoverage(
+		DimensionPlan plan,
+		LProfileMatch match,
+		LProfileOuterContour outerContour,
+		PlannedDimension verticalArmWidth)
+	{
+		if (plan == null || match == null || verticalArmWidth == null
+			|| match.CommonVertical == null || match.InnerHorizontal == null
+			|| CanonicalOrientation(verticalArmWidth, match) != DimensionOrientation.Horizontal
+			|| CanonicalSide(verticalArmWidth, match) != match.OuterHorizontalSide
+			|| !IsContinuousAxisChain(match.CommonVertical, match.Tolerance)
+			|| !IsContinuousAxisChain(match.InnerHorizontal, match.Tolerance))
+		{
+			return null;
+		}
+
+		OutlineFeature2D boundary = match.Graph?.BoundaryOutline;
+		double tolerance = Math.Max(match.Tolerance, _config.GeometryTolerance);
+		Point2D widthFirst = ToCanonicalPoint(verticalArmWidth.FirstPoint, match);
+		Point2D widthSecond = ToCanonicalPoint(verticalArmWidth.SecondPoint, match);
+		if (!OutlineGeometryQuery.IsPointOnBoundary(widthFirst, boundary, tolerance)
+			|| !OutlineGeometryQuery.IsPointOnBoundary(widthSecond, boundary, tolerance))
+		{
+			return null;
+		}
+		Tuple<double, double> widthInterval = GetCanonicalInterval(
+			widthFirst,
+			widthSecond,
+			DimensionOrientation.Horizontal);
+		if (widthInterval.Item2 - widthInterval.Item1 <= tolerance)
+		{
+			return null;
+		}
+
+		List<PlannedDimension> residuals = plan.Dimensions
+			.Where(d => IsLProfileStepRiserCandidate(d, match, DimensionOrientation.Horizontal))
+			.ToList();
+		foreach (PlannedDimension residual in residuals)
+		{
+			Point2D residualFirst = ToCanonicalPoint(residual.FirstPoint, match);
+			Point2D residualSecond = ToCanonicalPoint(residual.SecondPoint, match);
+			if (!OutlineGeometryQuery.IsPointOnBoundary(residualFirst, boundary, tolerance)
+				|| !OutlineGeometryQuery.IsPointOnBoundary(residualSecond, boundary, tolerance))
+			{
+				continue;
+			}
+
+			Point2D attachedToCommon;
+			if (!TryGetLProfileCommonEndpoint(
+				residual,
+				match,
+				match.CommonVertical,
+				boundary,
+				tolerance,
+				out attachedToCommon))
+			{
+				continue;
+			}
+			bool stepAtMaximum = Math.Abs(attachedToCommon.X - widthInterval.Item2) <= tolerance;
+			bool stepAtMinimum = Math.Abs(attachedToCommon.X - widthInterval.Item1) <= tolerance;
+			if (stepAtMaximum == stepAtMinimum)
+			{
+				continue;
+			}
+			Tuple<double, double> residualInterval = GetCanonicalInterval(
+				residualFirst,
+				residualSecond,
+				DimensionOrientation.Horizontal);
+			if (residualInterval.Item2 - residualInterval.Item1 <= tolerance
+				|| (stepAtMaximum
+					? Math.Abs(residualInterval.Item2 - widthInterval.Item2) > tolerance
+					: Math.Abs(residualInterval.Item1 - widthInterval.Item1) > tolerance))
+			{
+				continue;
+			}
+
+			List<PlannedDimension> partials = plan.Dimensions
+				.Where(d => IsStructureDimension(d)
+					&& !ReferenceEquals(d, verticalArmWidth)
+					&& !ReferenceEquals(d, residual)
+					&& !IsLProfileOwnedDimension(d)
+					&& CanonicalOrientation(d, match) == DimensionOrientation.Horizontal
+					&& CanonicalSide(d, match) == match.OuterHorizontalSide)
+				.Select(d => new { Dimension = d, Interval = GetCanonicalInterval(
+						ToCanonicalPoint(d.FirstPoint, match),
+						ToCanonicalPoint(d.SecondPoint, match),
+						DimensionOrientation.Horizontal) })
+				.Where(item => item.Interval.Item2 - item.Interval.Item1 > tolerance
+					&& (stepAtMaximum
+						? Math.Abs(item.Interval.Item1 - widthInterval.Item1) <= tolerance
+							&& item.Interval.Item2 < residualInterval.Item1 - tolerance
+						: Math.Abs(item.Interval.Item2 - widthInterval.Item2) <= tolerance
+							&& item.Interval.Item1 > residualInterval.Item2 + tolerance))
+				.Select(item => item.Dimension)
+				.ToList();
+			if (partials.Count != 1)
+			{
+				continue;
+			}
+
+			PlannedDimension partial = partials[0];
+			Point2D partialFirst = ToCanonicalPoint(partial.FirstPoint, match);
+			Point2D partialSecond = ToCanonicalPoint(partial.SecondPoint, match);
+			Point2D partialTowardStep = GetLProfileEndpointAtAxis(
+				partialFirst,
+				partialSecond,
+				DimensionOrientation.Horizontal,
+				stepAtMaximum);
+			Point2D stepTowardPartial = GetLProfileEndpointAtAxis(
+				residualFirst,
+				residualSecond,
+				DimensionOrientation.Horizontal,
+				!stepAtMaximum);
+			List<LProfileEdge> transitionPath;
+			bool transitionFound = TryGetLProfileTransitionPath(
+				match.Graph,
+				partialTowardStep,
+				stepTowardPartial,
+				DimensionOrientation.Horizontal,
+				tolerance,
+				out transitionPath);
+			if (!transitionFound)
+			{
+				continue;
+			}
+
+			double partialSpan = GetCanonicalInterval(
+				partialFirst,
+				partialSecond,
+				DimensionOrientation.Horizontal).Item2
+				- GetCanonicalInterval(partialFirst, partialSecond, DimensionOrientation.Horizontal).Item1;
+			double residualSpan = residualInterval.Item2 - residualInterval.Item1;
+			double transitionProjection = Math.Abs(stepTowardPartial.X - partialTowardStep.X);
+			double closureActual = partialSpan + transitionProjection + residualSpan;
+			if (Math.Abs(closureActual - (widthInterval.Item2 - widthInterval.Item1)) > tolerance)
+			{
+				continue;
+			}
+
+			List<LProfileEdge> evidenceEdges = match.CommonVertical.Edges
+				.Concat(match.InnerHorizontal.Edges)
+				.Concat(transitionPath)
+				.Distinct()
+				.ToList();
+			return new LProfileStepCoverageEvidence
+			{
+				Residual = residual,
+				EvidenceEdges = evidenceEdges,
+				SourceGeometryIds = GetLProfileStepCoverageSourceIds(
+					match,
+					new[] { verticalArmWidth, partial, residual },
+					evidenceEdges),
+				TopologyEvidence = BuildLProfileHorizontalStepCoverageEvidence(
+					match,
+					verticalArmWidth,
+					partial,
+					residual,
+					widthInterval,
+					partialTowardStep,
+					stepTowardPartial,
+					transitionProjection,
+					closureActual,
+					boundary,
+					tolerance)
+			};
+		}
+		return null;
+	}
+
+	private static bool TryGetLProfileSecondaryTurnTransitionPath(
+		LProfileOuterContour outerContour,
+		Point2D start,
+		Point2D end,
+		DimensionOrientation orientation,
+		double tolerance,
+		out List<LProfileEdge> path)
+	{
+		path = null;
+		if (outerContour?.Graph?.BoundaryOutline == null
+			|| outerContour.SecondaryTurns == null)
+		{
+			return false;
+		}
+
+		foreach (LProfileConcaveTurn turn in outerContour.SecondaryTurns)
+		{
+			if (turn?.HorizontalChain == null || turn.VerticalChain == null
+				|| turn.TransitionEdges == null
+				|| !IsPointOnAxisChain(end, turn.HorizontalChain, tolerance)
+				|| !IsSamePoint(end, turn.HorizontalPoint, tolerance)
+				|| !IsPointOnAxisChain(start, turn.VerticalChain, tolerance))
+			{
+				continue;
+			}
+
+			Point2D verticalTurnPoint;
+			if (!turn.VerticalChain.TryGetOppositeEndpoint(start, tolerance, out verticalTurnPoint)
+				|| !IsSamePoint(verticalTurnPoint, turn.VerticalPoint, tolerance))
+			{
+				continue;
+			}
+
+			List<LProfileEdge> verticalPath;
+			List<LProfileEdge> featurePath;
+			if (!TryOrderLProfileEdges(
+				turn.VerticalChain.Edges,
+				start,
+				turn.VerticalPoint,
+				tolerance,
+				out verticalPath)
+				|| !TryOrderLProfileEdges(
+					turn.TransitionEdges,
+					turn.VerticalPoint,
+					turn.HorizontalPoint,
+					tolerance,
+					out featurePath)
+				|| !IsValidLProfileSecondaryTurnPath(
+					outerContour.Graph,
+					turn,
+					verticalPath,
+					featurePath,
+					orientation,
+					tolerance))
+			{
+				continue;
+			}
+
+			path = verticalPath.Concat(featurePath).ToList();
+			return true;
+		}
+		return false;
+	}
+
+	private static bool TryOrderLProfileEdges(
+		IEnumerable<LProfileEdge> edges,
+		Point2D start,
+		Point2D end,
+		double tolerance,
+		out List<LProfileEdge> ordered)
+	{
+		ordered = new List<LProfileEdge>();
+		List<LProfileEdge> remaining = (edges ?? new LProfileEdge[0])
+			.Where(edge => edge != null)
+			.Distinct()
+			.ToList();
+		if (remaining.Count == 0 || IsSamePoint(start, end, tolerance))
+		{
+			return false;
+		}
+
+		Point2D current = start;
+		while (!IsSamePoint(current, end, tolerance))
+		{
+			List<LProfileEdge> candidates = remaining
+				.Where(edge => TryGetLProfileOtherEndpoint(edge, current, tolerance, out _))
+				.ToList();
+			if (candidates.Count != 1)
+			{
+				return false;
+			}
+
+			LProfileEdge edge = candidates[0];
+			Point2D next;
+			if (!TryGetLProfileOtherEndpoint(edge, current, tolerance, out next))
+			{
+				return false;
+			}
+			ordered.Add(edge);
+			remaining.Remove(edge);
+			current = next;
+		}
+		return remaining.Count == 0 && ordered.Count != 0;
+	}
+
+	private static bool TryGetLProfileOtherEndpoint(
+		LProfileEdge edge,
+		Point2D point,
+		double tolerance,
+		out Point2D other)
+	{
+		other = default(Point2D);
+		if (edge == null)
+		{
+			return false;
+		}
+		Point2D first = edge.Segment != null ? edge.Segment.Start : edge.Arc != null ? edge.Arc.Start : default(Point2D);
+		Point2D second = edge.Segment != null ? edge.Segment.End : edge.Arc != null ? edge.Arc.End : default(Point2D);
+		bool atFirst = edge.Segment != null || edge.Arc != null
+			? first.DistanceTo(point) <= tolerance
+			: false;
+		bool atSecond = edge.Segment != null || edge.Arc != null
+			? second.DistanceTo(point) <= tolerance
+			: false;
+		if (atFirst == atSecond)
+		{
+			return false;
+		}
+		other = atFirst ? second : first;
+		return true;
+	}
+
+	private static bool IsValidLProfileSecondaryTurnPath(
+		LProfileBoundaryGraph graph,
+		LProfileConcaveTurn turn,
+		IEnumerable<LProfileEdge> verticalPath,
+		IEnumerable<LProfileEdge> featurePath,
+		DimensionOrientation orientation,
+		double tolerance)
+	{
+		List<LProfileEdge> verticalEdges = (verticalPath ?? new LProfileEdge[0]).ToList();
+		List<LProfileEdge> featureEdges = (featurePath ?? new LProfileEdge[0]).ToList();
+		if (graph == null || turn == null || verticalEdges.Count == 0 || featureEdges.Count != 1)
+		{
+			return false;
+		}
+
+		foreach (LProfileEdge edge in verticalEdges)
+		{
+			if (!IsLProfileRealBoundaryEdge(graph, edge, tolerance)
+				|| edge.Segment == null
+				|| edge.Segment.IsArcChord
+				|| (orientation == DimensionOrientation.Horizontal
+					? !edge.Segment.IsVertical(tolerance)
+					: !edge.Segment.IsHorizontal(tolerance)))
+			{
+				return false;
+			}
+		}
+
+		LProfileEdge feature = featureEdges[0];
+		if (!IsLProfileRealBoundaryEdge(graph, feature, tolerance)
+			|| !turn.TransitionEdges.Contains(feature))
+		{
+			return false;
+		}
+		if (feature.Arc != null)
+		{
+			return IsLProfileSecondaryTurnArc(feature, turn, tolerance);
+		}
+		return feature.Segment != null
+			&& IsLProfileChamferEdge(feature, graph, orientation == DimensionOrientation.Horizontal, tolerance);
+	}
+
+	private static bool IsLProfileRealBoundaryEdge(
+		LProfileBoundaryGraph graph,
+		LProfileEdge edge,
+		double tolerance)
+	{
+		if (graph == null || edge == null || !graph.IsBoundaryEdge(edge))
+		{
+			return false;
+		}
+		Point2D first = edge.Segment != null ? edge.Segment.Start : edge.Arc != null ? edge.Arc.Start : default(Point2D);
+		Point2D second = edge.Segment != null ? edge.Segment.End : edge.Arc != null ? edge.Arc.End : default(Point2D);
+		return (edge.Segment != null || edge.Arc != null)
+			&& OutlineGeometryQuery.IsPointOnBoundary(first, graph.BoundaryOutline, tolerance)
+			&& OutlineGeometryQuery.IsPointOnBoundary(second, graph.BoundaryOutline, tolerance);
+	}
+
+	private static bool IsLProfileSecondaryTurnArc(
+		LProfileEdge edge,
+		LProfileConcaveTurn turn,
+		double tolerance)
+	{
+		if (edge?.Arc == null || turn?.HorizontalChain == null || turn.VerticalChain == null
+			|| !turn.TransitionEdges.Contains(edge))
+		{
+			return false;
+		}
+		Point2D horizontalPoint = turn.HorizontalPoint;
+		Point2D verticalPoint = turn.VerticalPoint;
+		if ((!IsSamePoint(edge.Arc.Start, horizontalPoint, tolerance)
+				&& !IsSamePoint(edge.Arc.End, horizontalPoint, tolerance))
+			|| (!IsSamePoint(edge.Arc.Start, verticalPoint, tolerance)
+				&& !IsSamePoint(edge.Arc.End, verticalPoint, tolerance)))
+		{
+			return false;
+		}
+
+		Segment2D horizontal = turn.HorizontalChain.Edges
+			.Where(item => item?.Segment != null && item.Touches(horizontalPoint, tolerance))
+			.Select(item => item.Segment)
+			.SingleOrDefault();
+		Segment2D vertical = turn.VerticalChain.Edges
+			.Where(item => item?.Segment != null && item.Touches(verticalPoint, tolerance))
+			.Select(item => item.Segment)
+			.SingleOrDefault();
+		return horizontal != null
+			&& vertical != null
+			&& IsArcTangentToSegment(edge.Arc, horizontal, horizontalPoint, tolerance)
+			&& IsArcTangentToSegment(edge.Arc, vertical, verticalPoint, tolerance);
+	}
+
+	private LProfileStepCoverageEvidence TryBuildLProfileVerticalStepCoverage(
+		DimensionPlan plan,
+		LProfileMatch match,
+		PlannedDimension horizontalArmHeight)
+	{
+		if (plan == null || match == null || horizontalArmHeight == null
+			|| match.CommonVertical == null || match.InnerHorizontal == null
+			|| CanonicalOrientation(horizontalArmHeight, match) != DimensionOrientation.Vertical
+			|| !IsContinuousAxisChain(match.CommonVertical, match.Tolerance)
+			|| !IsContinuousAxisChain(match.InnerHorizontal, match.Tolerance))
+		{
+			return null;
+		}
+
+		OutlineFeature2D boundary = match.Graph?.BoundaryOutline;
+		double tolerance = Math.Max(match.Tolerance, _config.GeometryTolerance);
+		List<PlannedDimension> residuals = plan.Dimensions
+			.Where(d => IsLProfileStepRiserCandidate(d, match, DimensionOrientation.Vertical))
+			.Where(d => IsCanonicalChainSpan(d, match, match.CommonVertical))
+			.ToList();
+		if (residuals.Count != 1)
+		{
+			return null;
+		}
+
+		PlannedDimension residual = residuals[0];
+		Point2D residualFirst = ToCanonicalPoint(residual.FirstPoint, match);
+		Point2D residualSecond = ToCanonicalPoint(residual.SecondPoint, match);
+		Point2D heightFirst = ToCanonicalPoint(horizontalArmHeight.FirstPoint, match);
+		Point2D heightSecond = ToCanonicalPoint(horizontalArmHeight.SecondPoint, match);
+		if (!OutlineGeometryQuery.IsPointOnBoundary(residualFirst, boundary, tolerance)
+			|| !OutlineGeometryQuery.IsPointOnBoundary(residualSecond, boundary, tolerance)
+			|| !OutlineGeometryQuery.IsPointOnBoundary(heightFirst, boundary, tolerance)
+			|| !OutlineGeometryQuery.IsPointOnBoundary(heightSecond, boundary, tolerance))
+		{
+			return null;
+		}
+
+		List<Point2D> residualShared = new[] { residualFirst, residualSecond }
+			.Where(point => Math.Abs(point.Y - match.InnerHorizontal.Cross) <= tolerance
+				&& IsPointOnAxisChain(point, match.InnerHorizontal, tolerance))
+			.ToList();
+		List<Point2D> heightShared = new[] { heightFirst, heightSecond }
+			.Where(point => Math.Abs(point.Y - match.InnerHorizontal.Cross) <= tolerance
+				&& IsPointOnAxisChain(point, match.InnerHorizontal, tolerance))
+			.ToList();
+		if (residualShared.Count != 1 || heightShared.Count != 1)
+		{
+			return null;
+		}
+
+		Point2D residualFar = residualFirst.DistanceTo(residualShared[0]) <= tolerance
+			? residualSecond
+			: residualFirst;
+		Point2D heightFar = heightFirst.DistanceTo(heightShared[0]) <= tolerance
+			? heightSecond
+			: heightFirst;
+		Tuple<double, double> residualInterval = GetCanonicalInterval(
+			residualFirst,
+			residualSecond,
+			DimensionOrientation.Vertical);
+		Tuple<double, double> heightInterval = GetCanonicalInterval(
+			heightFirst,
+			heightSecond,
+			DimensionOrientation.Vertical);
+		bool intervalsTouch = Math.Abs(residualInterval.Item2 - heightInterval.Item1) <= tolerance
+			|| Math.Abs(heightInterval.Item2 - residualInterval.Item1) <= tolerance;
+		if (Math.Abs(residualShared[0].Y - heightShared[0].Y) > tolerance
+			|| !intervalsTouch)
+		{
+			return null;
+		}
+
+		bool residualIsFirst = residualFar.Y <= heightFar.Y;
+		Point2D totalFirst = residualIsFirst ? residualFar : heightFar;
+		Point2D totalSecond = residualIsFirst ? heightFar : residualFar;
+		if (!IsLProfileLocalDimensionLineSafe(
+			totalFirst,
+			totalSecond,
+			match.ArmVerticalSide,
+			boundary,
+			horizontal: false,
+			tolerance)
+			|| totalSecond.Y - totalFirst.Y <= tolerance)
+		{
+			return null;
+		}
+
+		double closureActual = Math.Abs(residualFar.Y - residualShared[0].Y)
+			+ Math.Abs(heightFar.Y - heightShared[0].Y);
+		double closureExpected = Math.Abs(totalSecond.Y - totalFirst.Y);
+		if (Math.Abs(closureActual - closureExpected) > tolerance)
+		{
+			return null;
+		}
+
+		List<LProfileEdge> evidenceEdges = match.CommonVertical.Edges
+			.Concat(match.InnerHorizontal.Edges)
+			.ToList();
+		return new LProfileStepCoverageEvidence
+		{
+			Residual = residual,
+			FirstPoint = totalFirst,
+			SecondPoint = totalSecond,
+			EvidenceEdges = evidenceEdges,
+			SourceGeometryIds = GetLProfileStepCoverageSourceIds(
+				match,
+				new[] { horizontalArmHeight, residual },
+				evidenceEdges),
+			TopologyEvidence = BuildLProfileVerticalStepCoverageEvidence(
+				match,
+				LProfileHorizontalArmTotalHeightRuleId,
+				residual,
+				residualShared[0],
+				heightShared[0],
+				totalFirst,
+				totalSecond,
+				closureExpected,
+				closureActual,
+				boundary,
+				tolerance)
+		};
+	}
+
+	private PlannedDimension EnsureLProfileAggregateDimension(
+		DimensionPlan plan,
+		LProfileMatch match,
+		Point2D canonicalFirst,
+		Point2D canonicalSecond,
+		DimensionOrientation canonicalOrientation,
+		DimensionSide canonicalSide,
+		string ruleId,
+		string topologyEvidence,
+		IEnumerable<string> sourceGeometryIds)
+	{
+		if (plan == null || match == null || string.IsNullOrEmpty(ruleId))
+		{
+			return null;
+		}
+		Tuple<double, double> interval = GetCanonicalInterval(
+			canonicalFirst,
+			canonicalSecond,
+			canonicalOrientation);
+		List<PlannedDimension> existing = plan.Dimensions
+			.Where(IsStructureDimension)
+			.Where(d => CanonicalOrientation(d, match) == canonicalOrientation)
+			.Where(d => CanonicalSide(d, match) == canonicalSide)
+			.Where(d => IsCanonicalInterval(
+				d,
+				match,
+				canonicalOrientation,
+				interval.Item1,
+				interval.Item2))
+			.ToList();
+		if (existing.Count > 1)
+		{
+			return null;
+		}
+
+		PlannedDimension dimension = existing.SingleOrDefault();
+		if (dimension == null)
+		{
+			PlannedDimension canonical = new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Orientation = canonicalOrientation,
+				Side = canonicalSide,
+				FirstPoint = canonicalFirst,
+				SecondPoint = canonicalSecond,
+				SourceKey = "LProfile:" + ruleId + ":" + string.Join(",", sourceGeometryIds ?? new string[0]),
+				DebugOwner = "LProfile",
+				DebugRole = GetDebugRole(canonicalOrientation, canonicalSide, match),
+				Role = DimensionCandidateRole.Structure,
+				OwnerKind = DimensionCandidateOwnerKind.Outline,
+				ReadingLevel = DimensionReadingLevel.LocalSpacing,
+				AlignmentKey = GetAlignmentKey(canonicalOrientation, canonicalSide, match),
+				AlignmentPriority = 80,
+				UseSegmentedExtensionLines = true,
+				FirstPointMustLieOnOutline = true,
+				PreferFeatureLocalPlacement = true,
+				PreservePreferredSide = true,
+				SourceGeometryIds = (sourceGeometryIds ?? new string[0]).Distinct(StringComparer.Ordinal).ToList(),
+				TopologyEvidence = topologyEvidence,
+				RuleId = ruleId
+			};
+			dimension = ToWorldLProfileDimension(canonical, match);
+			plan.Add(dimension);
+		}
+		else
+		{
+			UpdateExistingLProfileDimensionGeometry(
+				plan,
+				dimension,
+				match,
+				canonicalFirst,
+				canonicalSecond);
+			dimension.PreferFeatureLocalPlacement = true;
+			dimension.PreservePreferredSide = true;
+			dimension.FirstPointMustLieOnOutline = true;
+			dimension.UseSegmentedExtensionLines = true;
+		}
+
+		plan.SetAttachmentValidity(dimension, true);
+		string effectiveRuleId = string.IsNullOrEmpty(dimension.RuleId)
+			? ruleId
+			: dimension.RuleId;
+		plan.RecordRuleEvidence(
+			dimension,
+			effectiveRuleId,
+			sourceGeometryIds,
+			topologyEvidence);
+		return dimension;
+	}
+
+	private static bool IsLProfileStepRiserCandidate(
+		PlannedDimension dimension,
+		LProfileMatch match,
+		DimensionOrientation orientation)
+	{
+		return IsStructureDimension(dimension)
+			&& match != null
+			&& CanonicalOrientation(dimension, match) == orientation
+			&& (dimension.SourceKey ?? string.Empty).StartsWith("StepRiser:", StringComparison.Ordinal);
+	}
+
+	private static bool TryGetLProfileCommonEndpoint(
+		PlannedDimension dimension,
+		LProfileMatch match,
+		LProfileAxisChain chain,
+		OutlineFeature2D boundary,
+		double tolerance,
+		out Point2D attached)
+	{
+		attached = default(Point2D);
+		if (dimension == null || match == null || chain == null || boundary == null)
+		{
+			return false;
+		}
+		Point2D first = ToCanonicalPoint(dimension.FirstPoint, match);
+		Point2D second = ToCanonicalPoint(dimension.SecondPoint, match);
+		List<Point2D> matches = new[] { first, second }
+			.Where(point => OutlineGeometryQuery.IsPointOnBoundary(point, boundary, tolerance))
+			.Where(point => IsSamePoint(point, chain.GetEndpoint(minimum: true), tolerance)
+				|| IsSamePoint(point, chain.GetEndpoint(minimum: false), tolerance))
+			.ToList();
+		if (matches.Count != 1)
+		{
+			return false;
+		}
+		attached = matches[0];
+		return true;
+	}
+
+	private static Point2D GetLProfileEndpointAtAxis(
+		Point2D first,
+		Point2D second,
+		DimensionOrientation orientation,
+		bool maximum)
+	{
+		double firstAxis = orientation == DimensionOrientation.Horizontal ? first.X : first.Y;
+		double secondAxis = orientation == DimensionOrientation.Horizontal ? second.X : second.Y;
+		return maximum
+			? (firstAxis >= secondAxis ? first : second)
+			: (firstAxis <= secondAxis ? first : second);
+	}
+
+	private static bool TryGetLProfileTransitionPath(
+		LProfileBoundaryGraph graph,
+		Point2D start,
+		Point2D end,
+		DimensionOrientation orientation,
+		double tolerance,
+		out List<LProfileEdge> path)
+	{
+		path = null;
+		if (graph?.BoundaryPath == null || graph.BoundaryPath.Count == 0
+			|| IsSamePoint(start, end, tolerance)
+			|| !OutlineGeometryQuery.IsPointOnBoundary(start, graph.BoundaryOutline, tolerance)
+			|| !OutlineGeometryQuery.IsPointOnBoundary(end, graph.BoundaryOutline, tolerance))
+		{
+			return false;
+		}
+
+		int count = graph.BoundaryPath.Count;
+		List<List<LProfileEdge>> validPaths = new List<List<LProfileEdge>>();
+		HashSet<string> validPathKeys = new HashSet<string>(StringComparer.Ordinal);
+		foreach (int direction in new[] { 1, -1 })
+		{
+			for (int startIndex = 0; startIndex < count; startIndex++)
+			{
+				LProfileHalfEdge startHalfEdge = graph.BoundaryPath[startIndex];
+				Point2D entry = direction > 0 ? startHalfEdge.FromPoint : startHalfEdge.ToPoint;
+				if (!IsSamePoint(entry, start, tolerance))
+				{
+					continue;
+				}
+
+				List<LProfileEdge> candidate = new List<LProfileEdge>();
+				Point2D current = start;
+				int index = startIndex;
+				for (int step = 0; step < count; step++)
+				{
+					LProfileHalfEdge halfEdge = graph.BoundaryPath[index];
+					Point2D halfStart = direction > 0 ? halfEdge.FromPoint : halfEdge.ToPoint;
+					if (!IsSamePoint(halfStart, current, tolerance))
+					{
+						break;
+					}
+					candidate.Add(halfEdge.Edge);
+					current = direction > 0 ? halfEdge.ToPoint : halfEdge.FromPoint;
+					if (IsSamePoint(current, end, tolerance))
+					{
+						if (IsValidLProfileTransitionPath(
+							graph,
+							candidate,
+							orientation,
+							tolerance))
+						{
+							string pathKey = string.Join(",", candidate
+								.Select(edge => edge.Id.ToString(CultureInfo.InvariantCulture)));
+							if (validPathKeys.Add(pathKey))
+							{
+								validPaths.Add(candidate);
+							}
+						}
+						break;
+					}
+					if (IsSamePoint(current, start, tolerance))
+					{
+						break;
+					}
+					index = (index + direction + count) % count;
+				}
+			}
+		}
+		if (validPaths.Count != 1)
+		{
+			return false;
+		}
+		path = validPaths[0];
+		return true;
+	}
+
+	private static bool IsValidLProfileTransitionPath(
+		LProfileBoundaryGraph graph,
+		IEnumerable<LProfileEdge> path,
+		DimensionOrientation orientation,
+		double tolerance)
+	{
+		if (graph == null || path == null)
+		{
+			return false;
+		}
+
+		List<LProfileAxisChain> horizontalChains = LProfileAxisChain.Build(
+			graph.BoundaryEdges,
+			horizontal: true,
+			tolerance);
+		List<LProfileAxisChain> verticalChains = LProfileAxisChain.Build(
+			graph.BoundaryEdges,
+			horizontal: false,
+			tolerance);
+		bool hasTransition = false;
+		foreach (LProfileEdge edge in path)
+		{
+			if (!IsLProfileRealBoundaryEdge(graph, edge, tolerance))
+			{
+				return false;
+			}
+			if (edge?.Segment != null)
+			{
+				if (orientation == DimensionOrientation.Horizontal
+					? edge.Segment.IsHorizontal(tolerance)
+					: edge.Segment.IsVertical(tolerance))
+				{
+					return false;
+				}
+				if (edge.Segment.IsHorizontal(tolerance) || edge.Segment.IsVertical(tolerance))
+				{
+					continue;
+				}
+				if (!IsLProfileChamferEdge(edge, graph, orientation == DimensionOrientation.Horizontal, tolerance))
+				{
+					return false;
+				}
+				hasTransition = true;
+				continue;
+			}
+			if (edge?.Arc == null
+				|| !IsLProfileTangentArc(
+					edge,
+					graph,
+					horizontalChains,
+					verticalChains,
+					tolerance))
+			{
+				return false;
+			}
+			hasTransition = true;
+		}
+		return hasTransition;
+	}
+
+	private static bool IsLProfileBoundaryTransitionArc(
+		LProfileEdge edge,
+		LProfileBoundaryGraph graph,
+		IList<LProfileAxisChain> horizontalChains,
+		IList<LProfileAxisChain> verticalChains,
+		double tolerance)
+	{
+		if (edge?.Arc == null || graph?.BoundaryPath == null
+			|| !graph.IsBoundaryEdge(edge)
+			|| !OutlineGeometryQuery.IsPointOnBoundary(edge.Arc.Start, graph.BoundaryOutline, tolerance)
+			|| !OutlineGeometryQuery.IsPointOnBoundary(edge.Arc.End, graph.BoundaryOutline, tolerance))
+		{
+			return false;
+		}
+
+		LProfileHalfEdge current = graph.BoundaryPath
+			.SingleOrDefault(halfEdge => halfEdge?.Edge == edge);
+		if (current == null)
+		{
+			return false;
+		}
+
+		int index = graph.BoundaryPath.IndexOf(current);
+		LProfileHalfEdge previous = graph.BoundaryPath[
+			(index + graph.BoundaryPath.Count - 1) % graph.BoundaryPath.Count];
+		LProfileHalfEdge next = graph.BoundaryPath[
+			(index + 1) % graph.BoundaryPath.Count];
+		if (!IsAxisBoundaryHalfEdge(previous, tolerance)
+			|| !IsAxisBoundaryHalfEdge(next, tolerance))
+		{
+			return false;
+		}
+
+		bool previousHorizontal = previous.Edge.Segment.IsHorizontal(tolerance);
+		bool nextHorizontal = next.Edge.Segment.IsHorizontal(tolerance);
+		if (previousHorizontal == nextHorizontal)
+		{
+			return false;
+		}
+
+		double sweep = 4.0 * Math.Atan(edge.Arc.Bulge);
+		if (!current.Forward)
+		{
+			sweep = -sweep;
+		}
+		return Math.Abs(sweep) > 1E-12
+			&& edge.Arc.Start.DistanceTo(edge.Arc.End) > tolerance;
+	}
+
+	private static List<string> GetLProfileStepCoverageSourceIds(
+		LProfileMatch match,
+		IEnumerable<PlannedDimension> dimensions,
+		IEnumerable<LProfileEdge> edges)
+	{
+		return (match?.SourceGeometryIds ?? new List<string>())
+			.Concat((dimensions ?? new PlannedDimension[0])
+				.SelectMany(d => d?.SourceGeometryIds ?? new List<string>()))
+			.Concat((edges ?? new LProfileEdge[0]).Select(edge => edge?.SourceKey))
+			.Where(source => !string.IsNullOrEmpty(source))
+			.Distinct(StringComparer.Ordinal)
+			.ToList();
+	}
+
+	private static string BuildLProfileHorizontalStepCoverageEvidence(
+		LProfileMatch match,
+		PlannedDimension total,
+		PlannedDimension partial,
+		PlannedDimension residual,
+		Tuple<double, double> totalInterval,
+		Point2D partialPoint,
+		Point2D residualPoint,
+		double transitionProjection,
+		double closureActual,
+		OutlineFeature2D boundary,
+		double tolerance)
+	{
+		Point2D partialFirst = ToCanonicalPoint(partial.FirstPoint, match);
+		Point2D partialSecond = ToCanonicalPoint(partial.SecondPoint, match);
+		Point2D residualFirst = ToCanonicalPoint(residual.FirstPoint, match);
+		Point2D residualSecond = ToCanonicalPoint(residual.SecondPoint, match);
+		Tuple<double, double> partialInterval = GetCanonicalInterval(
+			partialFirst,
+			partialSecond,
+			DimensionOrientation.Horizontal);
+		Tuple<double, double> residualInterval = GetCanonicalInterval(
+			residualFirst,
+			residualSecond,
+			DimensionOrientation.Horizontal);
+		return (match.TopologyEvidence ?? string.Empty)
+			+ "|LProfile.StepCoverage|Axis=Horizontal|Relation=PartialTransitionResidual"
+			+ "|Total=" + total.RuleId
+			+ "|TotalInterval=" + totalInterval.Item1.ToString("0.########", CultureInfo.InvariantCulture)
+			+ "," + totalInterval.Item2.ToString("0.########", CultureInfo.InvariantCulture)
+			+ "|Partial=" + partial.SourceKey
+			+ "|PartialInterval=" + partialInterval.Item1.ToString("0.########", CultureInfo.InvariantCulture)
+			+ "," + partialInterval.Item2.ToString("0.########", CultureInfo.InvariantCulture)
+			+ "|Residual=" + residual.SourceKey
+			+ "|ResidualInterval=" + residualInterval.Item1.ToString("0.########", CultureInfo.InvariantCulture)
+			+ "," + residualInterval.Item2.ToString("0.########", CultureInfo.InvariantCulture)
+			+ "|PartialEndpoint=" + FormatLProfilePoint(partialPoint)
+			+ "|ResidualEndpoint=" + FormatLProfilePoint(residualPoint)
+			+ "|TransitionProjection=" + transitionProjection.ToString("0.########", CultureInfo.InvariantCulture)
+			+ "|ClosureExpected=" + (totalInterval.Item2 - totalInterval.Item1).ToString("0.########", CultureInfo.InvariantCulture)
+			+ "|ClosureActual=" + closureActual.ToString("0.########", CultureInfo.InvariantCulture)
+			+ "|RealEndpoints=" + (OutlineGeometryQuery.IsPointOnBoundary(partialPoint, boundary, tolerance)
+				&& OutlineGeometryQuery.IsPointOnBoundary(residualPoint, boundary, tolerance))
+			+ "|TopologyClosed=True";
+	}
+
+	private static string BuildLProfileVerticalStepCoverageEvidence(
+		LProfileMatch match,
+		string totalRuleId,
+		PlannedDimension residual,
+		Point2D residualShared,
+		Point2D heightShared,
+		Point2D totalFirst,
+		Point2D totalSecond,
+		double closureExpected,
+		double closureActual,
+		OutlineFeature2D boundary,
+		double tolerance)
+	{
+		Tuple<double, double> residualInterval = GetCanonicalInterval(
+			residual.FirstPoint,
+			residual.SecondPoint,
+			DimensionOrientation.Vertical);
+		return (match.TopologyEvidence ?? string.Empty)
+			+ "|LProfile.StepCoverage|Axis=Vertical|Relation=ResidualPlusLocalArm"
+			+ "|Total=" + totalRuleId
+			+ "|Residual=" + residual.SourceKey
+			+ "|ResidualInterval=" + residualInterval.Item1.ToString("0.########", CultureInfo.InvariantCulture)
+			+ "," + residualInterval.Item2.ToString("0.########", CultureInfo.InvariantCulture)
+			+ "|ResidualShared=" + FormatLProfilePoint(residualShared)
+			+ "|LocalArmShared=" + FormatLProfilePoint(heightShared)
+			+ "|TotalFirst=" + FormatLProfilePoint(totalFirst)
+			+ "|TotalSecond=" + FormatLProfilePoint(totalSecond)
+			+ "|ClosureExpected=" + closureExpected.ToString("0.########", CultureInfo.InvariantCulture)
+			+ "|ClosureActual=" + closureActual.ToString("0.########", CultureInfo.InvariantCulture)
+			+ "|RealEndpoints=" + (OutlineGeometryQuery.IsPointOnBoundary(totalFirst, boundary, tolerance)
+				&& OutlineGeometryQuery.IsPointOnBoundary(totalSecond, boundary, tolerance))
+			+ "|SharedBoundary=True|TopologyClosed=True";
+	}
+
+	private void ApplyLProfileSpecificCandidateCleanup(
+		DimensionPlan plan,
+		LProfileMatch match,
+		LProfileOuterContour outerContour)
+	{
+		if (plan == null || match == null)
+		{
+			return;
+		}
+		foreach (PlannedDimension dimension in plan.Dimensions.ToList())
+		{
+			if (!IsStructureDimension(dimension) || IsLProfileOwnedDimension(dimension))
+			{
+				continue;
+			}
+			if (IsLProfileChamferComplementCandidate(dimension))
+			{
+				SuppressLProfileDimension(
+					plan,
+					dimension,
+					LProfileChamferComplementRuleId,
+					match,
+					extraEdges: null,
+					topologyEvidence: (match.TopologyEvidence ?? string.Empty)
+						+ "|Stage=PostGeneration|Decision=Suppressed|Reason=ChamferComplement");
+				continue;
+			}
+			if (IsLProfileSecondaryStepRiserCandidate(dimension, match, outerContour))
+			{
+				SuppressLProfileDimension(
+					plan,
+					dimension,
+					LProfileSecondaryStepRiserRuleId,
+					match,
+					extraEdges: null,
+					topologyEvidence: (match.TopologyEvidence ?? string.Empty)
+						+ "|Stage=PostGeneration|Decision=Suppressed|Reason=SecondaryStepRiser");
+				continue;
+			}
+			if (IsLProfileExpandedCandidate(dimension))
+			{
+				RepairLProfileExpandedCandidateAnchors(plan, dimension, match);
+			}
+		}
+	}
+
+	private static bool IsLProfileChamferComplementCandidate(PlannedDimension dimension)
+	{
+		return dimension != null
+			&& (dimension.SourceKey ?? string.Empty).StartsWith("ChamferComplement:", StringComparison.Ordinal);
+	}
+
+	private static bool IsLProfileExpandedCandidate(PlannedDimension dimension)
+	{
+		return dimension != null
+			&& (dimension.SourceKey ?? string.Empty).EndsWith("+Expanded", StringComparison.Ordinal);
+	}
+
+	private static bool IsLProfileSecondaryStepRiserCandidate(
+		PlannedDimension dimension,
+		LProfileMatch match,
+		LProfileOuterContour outerContour)
+	{
+		if (dimension == null || match == null || outerContour?.SecondaryTurns == null)
+		{
+			return false;
+		}
+		if (CanonicalOrientation(dimension, match) != DimensionOrientation.Vertical)
+		{
+			return false;
+		}
+		Point2D first = ToCanonicalPoint(dimension.FirstPoint, match);
+		Point2D second = ToCanonicalPoint(dimension.SecondPoint, match);
+		double tolerance = Math.Max(match.Tolerance, 1E-9);
+		Tuple<double, double> interval = GetCanonicalInterval(first, second, DimensionOrientation.Vertical);
+		foreach (LProfileConcaveTurn turn in outerContour.SecondaryTurns)
+		{
+			LProfileAxisChain riser = turn?.VerticalChain;
+			if (riser == null || riser.Span <= tolerance
+				|| !IsPointOnAxisChain(first, riser, tolerance)
+				|| !IsPointOnAxisChain(second, riser, tolerance))
+			{
+				continue;
+			}
+			if (Math.Abs(interval.Item1 - riser.MinT) <= tolerance
+				&& Math.Abs(interval.Item2 - riser.MaxT) <= tolerance)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private void RepairLProfileExpandedCandidateAnchors(
+		DimensionPlan plan,
+		PlannedDimension dimension,
+		LProfileMatch match)
+	{
+		DimensionOrientation canonicalOrientation = CanonicalOrientation(dimension, match);
+		DimensionSide canonicalSide = CanonicalSide(dimension, match);
+		Point2D originalFirst = ToCanonicalPoint(dimension.FirstPoint, match);
+		Point2D originalSecond = ToCanonicalPoint(dimension.SecondPoint, match);
+		LProfileLocalAnchorPair placement = TryFindLProfileLocalAnchorPair(
+			match,
+			dimension,
+			canonicalOrientation,
+			canonicalSide,
+			out _,
+			requireCloser: false);
+		if (placement == null
+			|| (placement.FirstPoint.DistanceTo(originalFirst) <= match.Tolerance
+				&& placement.SecondPoint.DistanceTo(originalSecond) <= match.Tolerance))
+		{
+			return;
+		}
+		UpdateExistingLProfileDimensionGeometry(
+			plan,
+			dimension,
+			match,
+			placement.FirstPoint,
+			placement.SecondPoint);
+		dimension.PreferFeatureLocalPlacement = true;
+		dimension.PreservePreferredSide = true;
+		plan.SetAttachmentValidity(dimension, true);
+		string topologyEvidence = (dimension.TopologyEvidence ?? "FeatureFirstStructure")
+			+ BuildLProfileLocalPlacementEvidence(
+				LProfileLocalAnchorRepairRuleId,
+				canonicalOrientation,
+				canonicalSide,
+				originalFirst,
+				originalSecond,
+				placement,
+				"Replaced",
+				"PostGeneration");
+		dimension.TopologyEvidence = topologyEvidence;
+		plan.RecordRuleEvidence(
+			dimension,
+			LProfileLocalAnchorRepairRuleId,
+			match.SourceGeometryIds,
+			topologyEvidence);
 	}
 
 	private void ApplyLProfileOverallDimensionRules(
@@ -1265,7 +2446,8 @@ public sealed partial class DimensionPlanner
 		PlannedDimension dimension,
 		DimensionOrientation canonicalOrientation,
 		DimensionSide canonicalSide,
-		out string failureReason)
+		out string failureReason,
+		bool requireCloser = true)
 	{
 		failureReason = string.Empty;
 		if (match?.Graph?.BoundaryOutline == null || dimension == null)
@@ -1327,10 +2509,11 @@ public sealed partial class DimensionPlanner
 				horizontal,
 				tolerance))
 			.OrderBy(pair => pair.SideDistance)
-			.ThenByDescending(pair => pair.SupportSpan)
-			.ToList();
-		LProfileLocalAnchorPair selected = parallelPairs.FirstOrDefault(pair =>
-			pair.SideDistance + tolerance < originalSideDistance);
+				.ThenByDescending(pair => pair.SupportSpan)
+				.ToList();
+		LProfileLocalAnchorPair selected = parallelPairs.FirstOrDefault(pair => requireCloser
+				? pair.SideDistance + tolerance < originalSideDistance
+				: pair.SideDistance <= originalSideDistance + tolerance);
 		if (selected != null)
 		{
 			selected.OriginalFirstPoint = originalFirst;
@@ -1386,7 +2569,9 @@ public sealed partial class DimensionPlanner
 		selected = mixedPairs
 			.OrderBy(pair => pair.SideDistance)
 			.ThenByDescending(pair => pair.SupportSpan)
-			.FirstOrDefault(pair => pair.SideDistance + tolerance < originalSideDistance);
+			.FirstOrDefault(pair => requireCloser
+				? pair.SideDistance + tolerance < originalSideDistance
+				: pair.SideDistance <= originalSideDistance + tolerance);
 		if (selected != null)
 		{
 			selected.OriginalFirstPoint = originalFirst;
@@ -1712,10 +2897,11 @@ public sealed partial class DimensionPlanner
 		Point2D originalFirst,
 		Point2D originalSecond,
 		LProfileLocalAnchorPair placement,
-		string decision)
+		string decision,
+		string stage = "LocalPlacement")
 	{
 		return "|LProfile.LocalPlacement|RuleId=" + ruleId
-			+ "|Stage=LocalPlacement|Decision=" + decision
+			+ "|Stage=" + stage + "|Decision=" + decision
 			+ "|Axis=" + orientation
 			+ "|Side=" + side
 			+ "|Mode=" + placement.Mode
@@ -1990,7 +3176,8 @@ public sealed partial class DimensionPlanner
 	{
 		return dimension != null
 			&& (string.Equals(dimension.RuleId, LProfileVerticalArmWidthRuleId, StringComparison.Ordinal)
-				|| string.Equals(dimension.RuleId, LProfileHorizontalArmHeightRuleId, StringComparison.Ordinal));
+				|| string.Equals(dimension.RuleId, LProfileHorizontalArmHeightRuleId, StringComparison.Ordinal)
+				|| string.Equals(dimension.RuleId, LProfileHorizontalArmTotalHeightRuleId, StringComparison.Ordinal));
 	}
 
 	private static bool IsCanonicalChainSpan(
@@ -2021,13 +3208,14 @@ public sealed partial class DimensionPlanner
 		PlannedDimension dimension,
 		string ruleId,
 		LProfileMatch match,
-		IEnumerable<LProfileEdge> extraEdges = null)
+		IEnumerable<LProfileEdge> extraEdges = null,
+		string topologyEvidence = null)
 	{
 		IEnumerable<string> sourceIds = match.SourceGeometryIds
 			.Concat((extraEdges ?? new LProfileEdge[0]).Select(edge => edge.SourceKey))
 			.Where(source => !string.IsNullOrEmpty(source))
 			.Distinct(StringComparer.Ordinal);
-		plan.MarkSuppressed(dimension, ruleId, ruleId, sourceIds, match.TopologyEvidence);
+		plan.MarkSuppressed(dimension, ruleId, ruleId, sourceIds, topologyEvidence ?? match.TopologyEvidence);
 		plan.Dimensions.Remove(dimension);
 	}
 
@@ -2278,6 +3466,10 @@ public sealed partial class DimensionPlanner
 
 		public LProfileConcaveTurn Turn { get; private set; }
 
+		public List<LProfileConcaveTurn> SecondaryTurns { get; private set; }
+
+		public bool HasSecondaryTurns => SecondaryTurns != null && SecondaryTurns.Count != 0;
+
 		public string TopologyEvidence { get; private set; }
 
 		private LProfileOuterContour()
@@ -2301,21 +3493,279 @@ public sealed partial class DimensionPlanner
 			List<LProfileAxisChain> horizontalChains = LProfileAxisChain.Build(graph.BoundaryEdges, horizontal: true, tolerance);
 			List<LProfileAxisChain> verticalChains = LProfileAxisChain.Build(graph.BoundaryEdges, horizontal: false, tolerance);
 			List<LProfileConcaveTurn> turns = graph.FindConcaveTurns(horizontalChains, verticalChains, tolerance);
-			if (turns.Count != 1)
+			if (turns.Count == 0)
 			{
-				failureReason = "EffectiveConcaveTurnCount=" + turns.Count;
+				failureReason = "EffectiveConcaveTurnCount=0";
 				return null;
+			}
+			LProfileConcaveTurn primaryTurn = turns[0];
+			List<LProfileConcaveTurn> secondaryTurns = new List<LProfileConcaveTurn>();
+			string topologyEvidence = "OuterContour|EffectiveConcaveTurnCount=" + turns.Count;
+			if (turns.Count > 1)
+			{
+				List<LProfileConcaveTurn> envelopeBackedTurns;
+				List<string> turnFailures;
+				primaryTurn = SelectPrimaryTurn(
+					outline,
+					graph,
+					horizontalChains,
+					verticalChains,
+					turns,
+					tolerance,
+					out envelopeBackedTurns,
+					out turnFailures);
+				if (primaryTurn == null)
+				{
+					failureReason = topologyEvidence
+						+ "|PrimaryTurnCandidates=" + envelopeBackedTurns.Count
+						+ "|ProbeFailures=" + string.Join(",", turnFailures);
+					return null;
+				}
+				secondaryTurns = turns
+					.Where(turn => !ReferenceEquals(turn, primaryTurn))
+					.ToList();
+				if (secondaryTurns.Any(turn => GetLocalSecondaryTurnRelation(
+					primaryTurn,
+					turn,
+					graph,
+					horizontalChains,
+					verticalChains,
+					outline,
+					tolerance) == null))
+				{
+					failureReason = topologyEvidence
+						+ "|PrimaryTurnCandidates=1|SecondaryTurnNotLocal";
+					return null;
+				}
+				topologyEvidence += "|PrimaryTurnSelection=UniqueEnvelopeBacked"
+					+ "|PrimaryHorizontalChain=" + FormatLProfileChain(primaryTurn.HorizontalChain)
+					+ "|PrimaryVerticalChain=" + FormatLProfileChain(primaryTurn.VerticalChain)
+					+ "|SecondaryTurnCount=" + secondaryTurns.Count;
+				for (int i = 0; i < secondaryTurns.Count; i++)
+				{
+					topologyEvidence += "|SecondaryTurn=" + i
+						+ "|Classification=StepRiser/CornerTransition"
+						+ "|Relation=" + GetLocalSecondaryTurnRelation(
+							primaryTurn,
+							secondaryTurns[i],
+							graph,
+							horizontalChains,
+							verticalChains,
+							outline,
+							tolerance)
+						+ "|HorizontalChain=" + FormatLProfileChain(secondaryTurns[i].HorizontalChain)
+						+ "|VerticalChain=" + FormatLProfileChain(secondaryTurns[i].VerticalChain);
+				}
+			}
+			else
+			{
+				topologyEvidence += "|HorizontalChain=" + primaryTurn.HorizontalChain.Cross.ToString("0.########")
+					+ "|VerticalChain=" + primaryTurn.VerticalChain.Cross.ToString("0.########");
 			}
 			return new LProfileOuterContour
 			{
 				Graph = graph,
 				HorizontalChains = horizontalChains,
 				VerticalChains = verticalChains,
-				Turn = turns[0],
-				TopologyEvidence = "OuterContour|EffectiveConcaveTurnCount=1|HorizontalChain="
-					+ turns[0].HorizontalChain.Cross.ToString("0.########")
-					+ "|VerticalChain=" + turns[0].VerticalChain.Cross.ToString("0.########")
+				Turn = primaryTurn,
+				SecondaryTurns = secondaryTurns,
+				TopologyEvidence = topologyEvidence
 			};
+		}
+
+		private static LProfileConcaveTurn SelectPrimaryTurn(
+			OutlineFeature2D outline,
+			LProfileBoundaryGraph graph,
+			IList<LProfileAxisChain> horizontalChains,
+			IList<LProfileAxisChain> verticalChains,
+			IList<LProfileConcaveTurn> turns,
+			double tolerance,
+			out List<LProfileConcaveTurn> envelopeBackedTurns,
+			out List<string> turnFailures)
+		{
+			envelopeBackedTurns = new List<LProfileConcaveTurn>();
+			turnFailures = new List<string>();
+			foreach (LProfileConcaveTurn turn in turns ?? new LProfileConcaveTurn[0])
+			{
+				LProfileOuterContour candidate = new LProfileOuterContour
+				{
+					Graph = graph,
+					HorizontalChains = horizontalChains.ToList(),
+					VerticalChains = verticalChains.ToList(),
+					Turn = turn,
+					SecondaryTurns = new List<LProfileConcaveTurn>(),
+					TopologyEvidence = "OuterContour|PrimaryTurnProbe"
+				};
+				string probeFailure;
+				LProfileMatch match = LProfileMatch.TryCreateOrthogonalInnerCorner(
+					outline,
+					candidate,
+					tolerance,
+					out probeFailure);
+				if (match != null)
+				{
+					envelopeBackedTurns.Add(turn);
+				}
+				else
+				{
+					turnFailures.Add(FormatLProfileTurn(turn) + ":" + (probeFailure ?? "Unavailable"));
+				}
+			}
+			return envelopeBackedTurns.Count == 1 ? envelopeBackedTurns[0] : null;
+		}
+
+		private static string GetLocalSecondaryTurnRelation(
+			LProfileConcaveTurn primary,
+			LProfileConcaveTurn secondary,
+			LProfileBoundaryGraph graph,
+			IList<LProfileAxisChain> horizontalChains,
+			IList<LProfileAxisChain> verticalChains,
+			OutlineFeature2D outline,
+			double tolerance)
+		{
+			if (primary == null || secondary == null)
+			{
+				return null;
+			}
+			if (ReferenceEquals(primary.HorizontalChain, secondary.HorizontalChain)
+				|| ReferenceEquals(primary.VerticalChain, secondary.VerticalChain)
+				|| (primary.TransitionEdges ?? new List<LProfileEdge>())
+					.Any(edge => (secondary.TransitionEdges ?? new List<LProfileEdge>()).Contains(edge)))
+			{
+				return "SharedAxisOrTransition";
+			}
+			OutlineEnvelope2D envelope;
+			if (!OutlineGeometryQuery.TryGetEnvelope(outline, tolerance, out envelope))
+			{
+				return null;
+			}
+			if (IsLocalBoundaryPath(
+				graph,
+				primary.BoundaryPathEndIndex,
+				secondary.BoundaryPathStartIndex,
+				horizontalChains,
+				verticalChains,
+				envelope,
+				tolerance)
+				|| IsLocalBoundaryPath(
+					graph,
+					secondary.BoundaryPathEndIndex,
+					primary.BoundaryPathStartIndex,
+					horizontalChains,
+					verticalChains,
+					envelope,
+					tolerance))
+			{
+				return "ConnectedCornerPathWithoutOuterEnvelope";
+			}
+			return null;
+		}
+
+		private static bool IsLocalBoundaryPath(
+			LProfileBoundaryGraph graph,
+			int startIndex,
+			int endIndex,
+			IList<LProfileAxisChain> horizontalChains,
+			IList<LProfileAxisChain> verticalChains,
+			OutlineEnvelope2D envelope,
+			double tolerance)
+		{
+			if (graph?.BoundaryPath == null
+				|| graph.BoundaryPath.Count == 0
+				|| startIndex < 0
+				|| endIndex < 0
+				|| startIndex >= graph.BoundaryPath.Count
+				|| endIndex >= graph.BoundaryPath.Count)
+			{
+				return false;
+			}
+			int index = startIndex;
+			for (int count = 0; count < graph.BoundaryPath.Count && index != endIndex; count++)
+			{
+				if (IsEnvelopeSupportedEdge(
+					graph.BoundaryPath[index].Edge,
+					horizontalChains,
+					verticalChains,
+					envelope,
+					tolerance))
+				{
+					return false;
+				}
+				index = (index + 1) % graph.BoundaryPath.Count;
+			}
+			return index == endIndex;
+		}
+
+		private static bool IsEnvelopeSupportedEdge(
+			LProfileEdge edge,
+			IList<LProfileAxisChain> horizontalChains,
+			IList<LProfileAxisChain> verticalChains,
+			OutlineEnvelope2D envelope,
+			double tolerance)
+		{
+			if (edge?.Segment != null)
+			{
+				IEnumerable<LProfileAxisChain> chains = edge.Segment.IsHorizontal(tolerance)
+					? horizontalChains
+					: (edge.Segment.IsVertical(tolerance) ? verticalChains : null);
+				if (chains != null)
+				{
+					LProfileAxisChain chain = chains.FirstOrDefault(item => item != null && item.Edges.Contains(edge));
+					return chain != null && IsEnvelopeCoordinate(
+						chain.Cross,
+						edge.Segment.IsHorizontal(tolerance) ? envelope.MinY : envelope.MinX,
+						edge.Segment.IsHorizontal(tolerance) ? envelope.MaxY : envelope.MaxX,
+						tolerance);
+				}
+				return IsEnvelopePoint(edge.Segment.Start, envelope, tolerance)
+					|| IsEnvelopePoint(edge.Segment.End, envelope, tolerance);
+			}
+			if (edge?.Arc != null
+				&& DimensionPlanner.TryGetArcProjection(
+					edge.Arc,
+					tolerance,
+					out double minX,
+					out double maxX,
+					out double minY,
+					out double maxY))
+			{
+				return IsEnvelopeCoordinate(minX, envelope.MinX, envelope.MaxX, tolerance)
+					|| IsEnvelopeCoordinate(maxX, envelope.MinX, envelope.MaxX, tolerance)
+					|| IsEnvelopeCoordinate(minY, envelope.MinY, envelope.MaxY, tolerance)
+					|| IsEnvelopeCoordinate(maxY, envelope.MinY, envelope.MaxY, tolerance);
+			}
+			return false;
+		}
+
+		private static bool IsEnvelopePoint(Point2D point, OutlineEnvelope2D envelope, double tolerance)
+		{
+			return Math.Abs(point.X - envelope.MinX) <= tolerance
+				|| Math.Abs(point.X - envelope.MaxX) <= tolerance
+				|| Math.Abs(point.Y - envelope.MinY) <= tolerance
+				|| Math.Abs(point.Y - envelope.MaxY) <= tolerance;
+		}
+
+		private static bool IsEnvelopeCoordinate(double value, double minimum, double maximum, double tolerance)
+		{
+			return Math.Abs(value - minimum) <= tolerance || Math.Abs(value - maximum) <= tolerance;
+		}
+
+		private static string FormatLProfileChain(LProfileAxisChain chain)
+		{
+			return chain == null
+				? "Unavailable"
+				: (chain.Horizontal ? "H" : "V")
+					+ ":" + chain.Cross.ToString("0.########", CultureInfo.InvariantCulture)
+					+ "[" + chain.MinT.ToString("0.########", CultureInfo.InvariantCulture)
+					+ "," + chain.MaxT.ToString("0.########", CultureInfo.InvariantCulture) + "]";
+		}
+
+		private static string FormatLProfileTurn(LProfileConcaveTurn turn)
+		{
+			return turn == null
+				? "Unavailable"
+				: "H=" + FormatLProfileChain(turn.HorizontalChain)
+					+ ",V=" + FormatLProfileChain(turn.VerticalChain);
 		}
 
 		public bool TryGetInteriorPositiveSide(LProfileAxisChain chain, bool horizontal, double tolerance, out bool positive)
@@ -2428,6 +3878,10 @@ public sealed partial class DimensionPlanner
 		public Point2D VerticalPoint { get; set; }
 
 		public List<LProfileEdge> TransitionEdges { get; set; }
+
+		public int BoundaryPathStartIndex { get; set; }
+
+		public int BoundaryPathEndIndex { get; set; }
 	}
 
 	private sealed class LProfileMatch
@@ -2980,6 +4434,21 @@ public sealed partial class DimensionPlanner
 		public string TopologyEvidence { get; set; }
 	}
 
+	private sealed class LProfileStepCoverageEvidence
+	{
+		public PlannedDimension Residual { get; set; }
+
+		public Point2D FirstPoint { get; set; }
+
+		public Point2D SecondPoint { get; set; }
+
+		public List<LProfileEdge> EvidenceEdges { get; set; }
+
+		public List<string> SourceGeometryIds { get; set; }
+
+		public string TopologyEvidence { get; set; }
+	}
+
 	private sealed class LProfileLocalAnchorPair
 	{
 		public Point2D FirstPoint { get; set; }
@@ -3354,7 +4823,9 @@ public sealed partial class DimensionPlanner
 					VerticalChain = firstHorizontal ? secondChain : firstChain,
 					HorizontalPoint = firstHorizontal ? first.ToPoint : second.FromPoint,
 					VerticalPoint = firstHorizontal ? second.FromPoint : first.ToPoint,
-					TransitionEdges = transitions
+					TransitionEdges = transitions,
+					BoundaryPathStartIndex = i,
+					BoundaryPathEndIndex = nextIndex
 				});
 			}
 			return turns;

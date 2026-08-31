@@ -232,6 +232,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(ShortVerticalChainTextAvoidsNeighborArrowheads), ShortVerticalChainTextAvoidsNeighborArrowheads);
                 RunTest(nameof(InvalidDatumCoordinateIsSkippedWithDiagnostic), InvalidDatumCoordinateIsSkippedWithDiagnostic);
                 RunTest(nameof(InvalidSlotDatumIsSkippedWithDiagnostic), InvalidSlotDatumIsSkippedWithDiagnostic);
+                RunTest(nameof(AxisSegmentBetweenTwoChamfersIsRecognized), AxisSegmentBetweenTwoChamfersIsRecognized);
                 RunTest(nameof(ChamferSuppressesAdjacentLocalLinearDimensions), ChamferSuppressesAdjacentLocalLinearDimensions);
                 RunTest(nameof(NonFortyFiveSlopeIsNotChamfer), NonFortyFiveSlopeIsNotChamfer);
                 RunTest(nameof(VerticalStructurePointsCreateStepWidths), VerticalStructurePointsCreateStepWidths);
@@ -496,6 +497,38 @@ namespace CadAuto.Core.Tests
 
             AssertHasDimension(plan, DimensionKind.OverallWidth, DimensionOrientation.Horizontal, 100.0, "rectangle overall width");
             AssertHasDimension(plan, DimensionKind.OverallHeight, DimensionOrientation.Vertical, 50.0, "rectangle overall height");
+        }
+
+        private static void AxisSegmentBetweenTwoChamfersIsRecognized()
+        {
+            const double tolerance = 0.001;
+            var vertical = new Segment2D(new Point2D(0.0, 1.0), new Point2D(0.0, 9.0));
+            var lower = new Segment2D(new Point2D(-1.0, 0.0), vertical.Start);
+            var upper = new Segment2D(vertical.End, new Point2D(-1.0, 10.0));
+            var unrelated = new Segment2D(new Point2D(5.0, 0.0), new Point2D(5.0, 10.0));
+            var verticalOutline = new OutlineFeature2D();
+            verticalOutline.Segments.AddRange(new[] { lower, vertical, upper, unrelated });
+            verticalOutline.Chamfers.Add(new ChamferFeature2D { StartPoint = lower.Start, EndPoint = lower.End, SourceSegment = lower });
+            verticalOutline.Chamfers.Add(new ChamferFeature2D { StartPoint = upper.Start, EndPoint = upper.End, SourceSegment = upper });
+
+            Assert(OutlineGeometryQuery.IsAxisSegmentBetweenTwoChamfers(verticalOutline, vertical, tolerance),
+                "vertical line between two chamfers must be recognized");
+            Assert(!OutlineGeometryQuery.IsAxisSegmentBetweenTwoChamfers(verticalOutline, unrelated, tolerance),
+                "an unrelated vertical line must not be recognized");
+
+            var horizontal = new Segment2D(new Point2D(1.0, 0.0), new Point2D(9.0, 0.0));
+            var left = new Segment2D(new Point2D(0.0, -1.0), horizontal.Start);
+            var right = new Segment2D(horizontal.End, new Point2D(10.0, -1.0));
+            var horizontalOutline = new OutlineFeature2D();
+            horizontalOutline.Segments.AddRange(new[] { left, horizontal, right });
+            horizontalOutline.Chamfers.Add(new ChamferFeature2D { StartPoint = left.Start, EndPoint = left.End, SourceSegment = left });
+            horizontalOutline.Chamfers.Add(new ChamferFeature2D { StartPoint = right.Start, EndPoint = right.End, SourceSegment = right });
+
+            Assert(OutlineGeometryQuery.IsAxisSegmentBetweenTwoChamfers(horizontalOutline, horizontal, tolerance),
+                "horizontal line between two chamfers must be recognized");
+            horizontalOutline.Chamfers.RemoveAt(1);
+            Assert(!OutlineGeometryQuery.IsAxisSegmentBetweenTwoChamfers(horizontalOutline, horizontal, tolerance),
+                "both chamfers are required");
         }
 
         private static void ChamferedOutlineKeepsOverallDimensions()

@@ -138,6 +138,12 @@ public sealed class Commands
 		RunAutoFixDim(clearExistingBeforeGenerate: false, commandName: "ASD");
 	}
 
+	[CommandMethod("TY")]
+	public void Ty()
+	{
+		SupportBlockCommand.Execute(Application.DocumentManager.MdiActiveDocument);
+	}
+
 	[CommandMethod("ASDCASE")]
 	public void AsdCase()
 	{
@@ -321,7 +327,7 @@ public sealed class Commands
 		}
 	}
 
-	private static void CopyEntityDisplayProperties(Entity source, Line target)
+	internal static void CopyEntityDisplayProperties(Entity source, Line target)
 	{
 		target.Layer = source.Layer;
 		target.LinetypeId = source.LinetypeId;
@@ -336,7 +342,7 @@ public sealed class Commands
 		}
 	}
 
-	private static bool TryGetAg1SourceSegment(Transaction tr, Entity entity, Point3d pickedPoint, out Point3d startPoint, out Point3d endPoint)
+	internal static bool TryGetAg1SourceSegment(Transaction tr, Entity entity, Point3d pickedPoint, out Point3d startPoint, out Point3d endPoint)
 	{
 		startPoint = Point3d.Origin;
 		endPoint = Point3d.Origin;
@@ -493,7 +499,7 @@ public sealed class Commands
 		return Math.Abs(vector3d.Y) <= num2 && Math.Abs(vector3d.X) > num2;
 	}
 
-	private static Point3d GetAg1TextLandingMidpoint(Point3d textPoint, Point3d arrowPoint, string text, double textHeight)
+	internal static Point3d GetAg1TextLandingMidpoint(Point3d textPoint, Point3d arrowPoint, string text, double textHeight)
 	{
 		double num = EstimateAg1TextWidth(text, textHeight);
 		double num2 = ((textPoint.X < arrowPoint.X) ? (-1.0) : 1.0);

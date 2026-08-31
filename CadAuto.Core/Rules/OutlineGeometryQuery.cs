@@ -92,6 +92,30 @@ public static class OutlineGeometryQuery
 		return false;
 	}
 
+	public static bool IsAxisSegmentBetweenTwoChamfers(OutlineFeature2D outline, Segment2D candidate, double tolerance)
+	{
+		if (outline == null || candidate == null || candidate.IsArcChord || !IsFinite(candidate.Start) || !IsFinite(candidate.End))
+		{
+			return false;
+		}
+		tolerance = Math.Max(NormalizeTolerance(tolerance), NumericEpsilon);
+		if (candidate.Length <= tolerance || (!candidate.IsHorizontal(tolerance) && !candidate.IsVertical(tolerance)))
+		{
+			return false;
+		}
+		Segment2D segment = outline.Segments.FirstOrDefault((Segment2D item) => item != null
+			&& !item.IsArcChord
+			&& (item.IsHorizontal(tolerance) || item.IsVertical(tolerance))
+			&& SegmentsEqual(item, candidate, tolerance));
+		if (segment == null)
+		{
+			return false;
+		}
+		return outline.Chamfers.Any((ChamferFeature2D first) => ChamferTouches(first, segment.Start, tolerance)
+			&& outline.Chamfers.Any((ChamferFeature2D second) => !ReferenceEquals(first, second)
+				&& ChamferTouches(second, segment.End, tolerance)));
+	}
+
 	public static bool TryFindHorizontalBoundaryPoint(OutlineFeature2D outline, double y, double preferredX, double tolerance, out Point2D point)
 	{
 		point = default(Point2D);
@@ -294,6 +318,18 @@ public static class OutlineGeometryQuery
 		ratio = Clamp(ratio, 0.0, 1.0);
 		Point2D projection = new Point2D(segment.Start.X + ratio * dx, segment.Start.Y + ratio * dy);
 		return point.DistanceTo(projection) <= tolerance;
+	}
+
+	private static bool SegmentsEqual(Segment2D first, Segment2D second, double tolerance)
+	{
+		return first.Start.DistanceTo(second.Start) <= tolerance && first.End.DistanceTo(second.End) <= tolerance
+			|| first.Start.DistanceTo(second.End) <= tolerance && first.End.DistanceTo(second.Start) <= tolerance;
+	}
+
+	private static bool ChamferTouches(ChamferFeature2D chamfer, Point2D point, double tolerance)
+	{
+		return chamfer != null && IsFinite(chamfer.StartPoint) && IsFinite(chamfer.EndPoint)
+			&& (chamfer.StartPoint.DistanceTo(point) <= tolerance || chamfer.EndPoint.DistanceTo(point) <= tolerance);
 	}
 
 	private static bool IsPointOnArc(Point2D point, Arc2D arc, double tolerance)

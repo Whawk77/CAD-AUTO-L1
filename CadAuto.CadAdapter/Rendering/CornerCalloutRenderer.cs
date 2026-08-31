@@ -121,7 +121,7 @@ public sealed class CornerCalloutRenderer
 		return CornerCalloutJigResult.Cancel;
 	}
 
-	public void AddLeader(Point3d arrowPoint, Point3d landingPoint, Point3d textPoint, string text)
+	public Point3d AddLeader(Point3d arrowPoint, Point3d landingPoint, Point3d textPoint, string text)
 	{
 		MText mText = new MText();
 		mText.SetDatabaseDefaults(_database);
@@ -145,6 +145,7 @@ public sealed class CornerCalloutRenderer
 		leader.Annotation = mText.ObjectId;
 		leader.EvaluateLeader();
 		leader.Color = DimStyleManager.ByLayerColor;
+		return (leader.NumVertices > 0) ? leader.VertexAt(leader.NumVertices - 1) : landingPoint;
 	}
 
 	public void AddRadialDimension(Point3d centerPoint, Point3d chordPoint, Point3d textPoint, double minimumLeaderLength, string text, bool useCustomTextPosition)

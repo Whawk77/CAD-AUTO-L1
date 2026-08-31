@@ -43,6 +43,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Commands.cs" />
+    <Compile Include="SupportBlockCommand.cs" />
     <Compile Include="PluginEntry.cs" />
     <Compile Include="Properties\**\*.cs" />
   </ItemGroup>

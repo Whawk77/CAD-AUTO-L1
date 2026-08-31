@@ -255,6 +255,11 @@ public static class NativeDiameterDimensioner
 
 	private static void InsertPinRoughnessBlock(Database db, Transaction tr, BlockTableRecord space, HoleFeature hole, Point3d textPoint, string annotationLayer, ObjectId dimStyleId, string calloutText, string groupId)
 	{
+		InsertRoughnessBlock(db, tr, space, textPoint, annotationLayer, dimStyleId, groupId);
+	}
+
+	public static void InsertRoughnessBlock(Database db, Transaction tr, BlockTableRecord space, Point3d textPoint, string annotationLayer, ObjectId dimStyleId, string groupId)
+	{
 		BlockTable blockTable = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
 		if (blockTable.Has(PinRoughnessBlockName))
 		{

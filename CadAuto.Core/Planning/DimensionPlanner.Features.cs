@@ -113,7 +113,7 @@ public sealed partial class DimensionPlanner
 		bool flag = list2.SelectMany((IList<HoleFeature2D> r) => r).Any((HoleFeature2D h) => h.IsPinHole);
 		foreach (SlotFeature2D item in list)
 		{
-			AddSlotCenterDistanceDimension(plan, item);
+			AddSlotCenterDistanceDimension(plan, outline, item);
 		}
 		if (!flag)
 		{
@@ -141,11 +141,38 @@ public sealed partial class DimensionPlanner
 		foreach (List<Point2D> item in GroupSlotAnchorsByCoordinate(slots, datum, (Point2D p) => p.Y))
 		{
 			List<Point2D> list = UniquePointsByCoordinate(item.OrderBy((Point2D p) => p.X), (Point2D p) => p.X);
-			AddHorizontalChainFromOutlineDatum(plan, outline, datum.BaseX, list, "SlotChainH");
+			SlotFeature2D firstSlot = list.Count == 0 ? null : FindSlotByAnchor(slots, list[0]);
+			bool firstIsDoubleArcSlot = firstSlot != null && !firstSlot.IsSingleArcSlot;
+			AddHorizontalChainFromOutlineDatum(
+				plan,
+				outline,
+				datum.BaseX,
+				list,
+				"SlotChainH",
+				firstIsDoubleArcSlot ? "DoubleArcSlotHorizontalDatum" : null,
+				firstSlot != null ? ChooseHorizontalHoleSide(outline, list[0]) : DimensionSide.Bottom);
 			if (list.Count > 0)
 			{
-				Point2D target = PickNearestPointByX(list, datum.BaseX);
-				AddVerticalOutlineReferenceDimension(plan, outline, datum.BaseY, target, DimensionKind.Normal, DimensionSide.Left, string.Empty, "SlotDatumV");
+				DimensionSide side = ChooseVerticalSlotGroupSide(outline, list);
+				Point2D target = side == DimensionSide.Right
+					? list.OrderByDescending(point => point.X).First()
+					: list.OrderBy(point => point.X).First();
+				SlotFeature2D targetSlot = FindSlotByAnchor(slots, target);
+				bool added = AddVerticalOutlineReferenceDimension(
+					plan,
+					outline,
+					datum.BaseY,
+					target,
+					DimensionKind.Normal,
+					side,
+					string.Empty,
+					targetSlot != null && !targetSlot.IsSingleArcSlot ? "DoubleArcSlotVerticalDatum" : "SlotDatumV",
+					targetSlot?.GroupId,
+					skippedDebugRole: "SlotDatumV");
+				if (added && targetSlot != null && !targetSlot.IsSingleArcSlot)
+				{
+					LinkSlotCenterToDatumSide(plan, targetSlot, list.Select(point => FindSlotByAnchor(slots, point)).Where(slot => slot != null), side);
+				}
 			}
 		}
 	}
@@ -155,14 +182,35 @@ public sealed partial class DimensionPlanner
 		foreach (List<Point2D> item in GroupSlotAnchorsByCoordinate(slots, datum, (Point2D p) => p.X))
 		{
 			List<Point2D> list = UniquePointsByCoordinate(item.OrderBy((Point2D p) => p.Y), (Point2D p) => p.Y);
-			AddVerticalChainFromOutlineDatum(plan, outline, datum.BaseY, list, "SlotChainV");
+			SlotFeature2D firstSlot = list.Count == 0 ? null : FindSlotByAnchor(slots, list[0]);
+			bool firstIsSingleArcSlot = firstSlot != null && firstSlot.IsSingleArcSlot;
+			bool firstIsDoubleArcSlot = firstSlot != null && !firstSlot.IsSingleArcSlot;
+			AddVerticalChainFromOutlineDatum(
+				plan,
+				outline,
+				datum.BaseY,
+				list,
+				"SlotChainV",
+				firstIsSingleArcSlot ? "SingleArcSlotVerticalDatum"
+					: firstIsDoubleArcSlot ? "DoubleArcSlotVerticalDatum" : null,
+				firstSlot != null ? ChooseVerticalHoleSide(outline, list[0]) : DimensionSide.Left);
 			if (list.Count != 0)
 			{
-				Point2D point2D = PickNearestPointByY(list, datum.BaseY);
+				DimensionSide side = ChooseHorizontalSlotGroupSide(outline, list);
+				Point2D point2D = side == DimensionSide.Top
+					? list.OrderByDescending(point => point.Y).First()
+					: list.OrderBy(point => point.Y).First();
 				SlotFeature2D slotFeature2D = FindSlotByAnchor(slots, point2D);
 				if (slotFeature2D != null && slotFeature2D.IsSingleArcSlot && outline != null)
 				{
 					AddSingleArcSlotHorizontalDatumDimension(plan, outline, datum, slotFeature2D, point2D);
+				}
+				else if (slotFeature2D != null)
+				{
+					if (AddHorizontalOutlineReferenceDimension(plan, outline, datum.BaseX, point2D, DimensionKind.Normal, side, string.Empty, "DoubleArcSlotHorizontalDatum", slotFeature2D.GroupId, skippedDebugRole: "SlotDatumH"))
+					{
+						LinkSlotCenterToDatumSide(plan, slotFeature2D, list.Select(point => FindSlotByAnchor(slots, point)).Where(slot => slot != null), side);
+					}
 				}
 				else
 				{
@@ -172,7 +220,7 @@ public sealed partial class DimensionPlanner
 		}
 	}
 
-	private void AddSlotCenterDistanceDimension(DimensionPlan plan, SlotFeature2D slot)
+	private void AddSlotCenterDistanceDimension(DimensionPlan plan, OutlineFeature2D outline, SlotFeature2D slot)
 	{
 		if (slot == null || slot.CenterDistance <= _config.GeometryTolerance)
 		{
@@ -182,15 +230,72 @@ public sealed partial class DimensionPlanner
 		Point2D secondCenter = slot.SecondCenter;
 		double num = Math.Abs(firstCenter.X - secondCenter.X);
 		double num2 = Math.Abs(firstCenter.Y - secondCenter.Y);
-		if (!(num <= _config.GeometryTolerance) || !(num2 <= _config.GeometryTolerance))
+		if ((num <= _config.GeometryTolerance && num2 <= _config.GeometryTolerance)
+			|| slot.Radius <= _config.GeometryTolerance
+			|| !OutlineGeometryQuery.TryGetEnvelope(outline, _config.GeometryTolerance, out var envelope))
 		{
-			if (num >= num2)
+			return;
+		}
+		if (num >= num2)
+		{
+			double bottomDistance = Math.Min(firstCenter.Y, secondCenter.Y) - slot.Radius - envelope.MinY;
+			double topDistance = envelope.MaxY - Math.Max(firstCenter.Y, secondCenter.Y) - slot.Radius;
+			DimensionSide side = topDistance + _config.GeometryTolerance < bottomDistance ? DimensionSide.Top : DimensionSide.Bottom;
+			double offset = side == DimensionSide.Top ? slot.Radius : -slot.Radius;
+			AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Horizontal, side, new Point2D(firstCenter.X, firstCenter.Y + offset), new Point2D(secondCenter.X, secondCenter.Y + offset), string.Empty, "SlotCenter", slot.GroupId, preservePreferredSide: true);
+		}
+		else
+		{
+			double leftDistance = Math.Min(firstCenter.X, secondCenter.X) - slot.Radius - envelope.MinX;
+			double rightDistance = envelope.MaxX - Math.Max(firstCenter.X, secondCenter.X) - slot.Radius;
+			DimensionSide side = rightDistance + _config.GeometryTolerance < leftDistance ? DimensionSide.Right : DimensionSide.Left;
+			double offset = side == DimensionSide.Right ? slot.Radius : -slot.Radius;
+			AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Vertical, side, new Point2D(firstCenter.X + offset, firstCenter.Y), new Point2D(secondCenter.X + offset, secondCenter.Y), string.Empty, "SlotCenter", slot.GroupId, preservePreferredSide: true);
+		}
+	}
+
+	private DimensionSide ChooseHorizontalSlotGroupSide(OutlineFeature2D outline, IList<Point2D> points)
+	{
+		double bottomDistance = points.Min(point => point.Y) - outline.MinY;
+		double topDistance = outline.MaxY - points.Max(point => point.Y);
+		return topDistance + _config.GeometryTolerance < bottomDistance ? DimensionSide.Top : DimensionSide.Bottom;
+	}
+
+	private DimensionSide ChooseVerticalSlotGroupSide(OutlineFeature2D outline, IList<Point2D> points)
+	{
+		double leftDistance = points.Min(point => point.X) - outline.MinX;
+		double rightDistance = outline.MaxX - points.Max(point => point.X);
+		return rightDistance + _config.GeometryTolerance < leftDistance ? DimensionSide.Right : DimensionSide.Left;
+	}
+
+	private void LinkSlotCenterToDatumSide(DimensionPlan plan, SlotFeature2D representative, IEnumerable<SlotFeature2D> slots, DimensionSide side)
+	{
+		PlannedDimension datum = plan.Dimensions.LastOrDefault(dimension => dimension.DebugOwner == representative.GroupId
+			&& (dimension.DebugRole == "DoubleArcSlotHorizontalDatum" || dimension.DebugRole == "DoubleArcSlotVerticalDatum"));
+		PlannedDimension linked = plan.Dimensions.FirstOrDefault(dimension => dimension.DebugRole == "SlotCenter"
+			&& dimension.DebugOwner == representative.GroupId);
+		if (datum == null || linked == null)
+		{
+			return;
+		}
+		string alignmentKey = "SlotDatum:" + representative.GroupId + ":" + datum.Orientation;
+		datum.AlignmentKey = alignmentKey;
+		datum.AlignmentPriority = 100;
+		linked.Side = side;
+		linked.RuleId = "LinkedSlotDatumSide";
+		linked.AlignmentKey = alignmentKey;
+		linked.AlignmentPriority = 90;
+		linked.PreservePreferredSide = true;
+		foreach (SlotFeature2D slot in slots.Where(slot => slot != null && slot.GroupId != representative.GroupId
+			&& slot.IsVertical == representative.IsVertical
+			&& Math.Abs(slot.CenterDistance - representative.CenterDistance) <= _config.GeometryTolerance))
+		{
+			PlannedDimension duplicate = plan.Dimensions.FirstOrDefault(dimension => dimension.DebugRole == "SlotCenter"
+				&& dimension.DebugOwner == slot.GroupId);
+			if (duplicate != null)
 			{
-				AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Horizontal, DimensionSide.Bottom, firstCenter, secondCenter, string.Empty, "SlotCenter", slot.GroupId);
-			}
-			else
-			{
-				AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Vertical, DimensionSide.Left, firstCenter, secondCenter, string.Empty, "SlotCenter", slot.GroupId);
+				plan.MarkSuppressed(duplicate, SuppressReason.MirroredDuplicate);
+				plan.Dimensions.Remove(duplicate);
 			}
 		}
 	}
@@ -1251,29 +1356,31 @@ public sealed partial class DimensionPlanner
 
 	private SlotFeature2D FindSlotByAnchor(IEnumerable<SlotFeature2D> slots, Point2D anchor)
 	{
-		return slots?.FirstOrDefault((SlotFeature2D s) => s != null && Math.Abs(s.FirstCenter.X - anchor.X) <= _config.GeometryTolerance && Math.Abs(s.FirstCenter.Y - anchor.Y) <= _config.GeometryTolerance);
+		return slots?.FirstOrDefault((SlotFeature2D s) => s != null
+			&& (PointsEqual(s.FirstCenter, anchor) || PointsEqual(s.SecondCenter, anchor)));
 	}
 
 	private void AddSingleArcSlotHorizontalDatumDimension(DimensionPlan plan, OutlineFeature2D outline, Datum2D datum, SlotFeature2D slot, Point2D center)
 	{
+		DimensionSide side = ChooseHorizontalHoleSide(outline, center);
 		if (!OutlineGeometryQuery.TryFindVerticalBoundaryPoint(outline, datum.BaseX, center.Y, _config.GeometryTolerance, out var firstPoint))
 		{
-			plan.AddSkippedDimension(DimensionKind.Normal, DimensionOrientation.Horizontal, DimensionSide.Bottom, new Point2D(datum.BaseX, center.Y), center, "NoRealOutlineAttachment:XDatum=" + datum.BaseX.ToString("0.########", CultureInfo.InvariantCulture), "SingleArcSlotDatum", slot.GroupId);
+			plan.AddSkippedDimension(DimensionKind.Normal, DimensionOrientation.Horizontal, side, new Point2D(datum.BaseX, center.Y), center, "NoRealOutlineAttachment:XDatum=" + datum.BaseX.ToString("0.########", CultureInfo.InvariantCulture), "SingleArcSlotDatum", slot.GroupId);
 			return;
 		}
-		Point2D singleArcSlotHorizontalGripPoint = GetSingleArcSlotHorizontalGripPoint(slot, firstPoint.Y);
+		firstPoint = GetSideFacingOutlineSegmentEndpoint(outline, firstPoint, DimensionOrientation.Horizontal, side);
+		Point2D singleArcSlotHorizontalGripPoint = GetSingleArcSlotHorizontalGripPoint(slot, side);
 		double num = Math.Abs(center.X - datum.BaseX);
 		if (!(num <= _config.GeometryTolerance))
 		{
-			AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Horizontal, DimensionSide.Bottom, firstPoint, singleArcSlotHorizontalGripPoint, _config.FormatNumber(num), "SingleArcSlotDatum", slot.GroupId);
+			AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Horizontal, side, firstPoint, singleArcSlotHorizontalGripPoint, _config.FormatNumber(num), "SingleArcSlotDatum", slot.GroupId);
 		}
 	}
 
-	private Point2D GetSingleArcSlotHorizontalGripPoint(SlotFeature2D slot, double preferredY)
+	private static Point2D GetSingleArcSlotHorizontalGripPoint(SlotFeature2D slot, DimensionSide side)
 	{
-		Point2D point2D = new Point2D(slot.FirstCenter.X, slot.FirstCenter.Y + slot.Radius);
-		Point2D point2D2 = new Point2D(slot.FirstCenter.X, slot.FirstCenter.Y - slot.Radius);
-		return (Math.Abs(point2D.Y - preferredY) <= Math.Abs(point2D2.Y - preferredY)) ? point2D : point2D2;
+		double offset = side == DimensionSide.Top ? slot.Radius : -slot.Radius;
+		return new Point2D(slot.FirstCenter.X, slot.FirstCenter.Y + offset);
 	}
 
 	private static bool IsVerticalSlot(SlotFeature2D slot)

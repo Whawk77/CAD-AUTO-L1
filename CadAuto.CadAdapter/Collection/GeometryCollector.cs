@@ -124,6 +124,40 @@ public sealed class GeometryCollector
 		throw new InvalidOperationException("选择集中没有 DRAWING 图层上的可用外轮廓对象。");
 	}
 
+	public IList<CenterlineEndpointDefinition> CollectHoleCenterlineEndpoints(Transaction tr, OutlineSelection outlineSelection, double tolerance)
+	{
+		List<CenterlineEndpointDefinition> endpoints = new List<CenterlineEndpointDefinition>();
+		if (tr == null || outlineSelection == null)
+		{
+			return endpoints;
+		}
+		double effectiveTolerance = Math.Max(Math.Abs(tolerance), 1E-9);
+		foreach (ObjectId selectedId in outlineSelection.SelectedIds)
+		{
+			Line line = tr.GetObject(selectedId, OpenMode.ForRead) as Line;
+			if (line == null || !string.Equals(line.Layer, "CENTER", StringComparison.OrdinalIgnoreCase))
+			{
+				continue;
+			}
+			string sourceGeometryId = selectedId.Handle.ToString();
+			AddUniquePoint(endpoints, line.StartPoint, sourceGeometryId, effectiveTolerance);
+			AddUniquePoint(endpoints, line.EndPoint, sourceGeometryId, effectiveTolerance);
+		}
+		return endpoints;
+	}
+
+	private static void AddUniquePoint(IList<CenterlineEndpointDefinition> points, Point3d point, string sourceGeometryId, double tolerance)
+	{
+		if (!points.Any(existing => existing.Point.DistanceTo(point) <= tolerance))
+		{
+			points.Add(new CenterlineEndpointDefinition
+			{
+				Point = point,
+				SourceGeometryId = sourceGeometryId ?? string.Empty
+			});
+		}
+	}
+
 	public IList<ObjectId> PromptForCircleHoles()
 	{
 		PromptSelectionOptions options = new PromptSelectionOptions

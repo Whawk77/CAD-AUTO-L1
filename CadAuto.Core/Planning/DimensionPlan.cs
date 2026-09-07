@@ -270,6 +270,7 @@ public sealed class DimensionPlan
 			IsSuppressed = false,
 			IsSelected = false,
 			IsAttachmentValid = dimension.AttachmentValidity ?? true,
+			AttachmentKind = dimension.AttachmentKind ?? string.Empty,
 			DecisionStatus = "Candidate",
 			DecisionReason = "Generated",
 			SuppressedReason = string.Empty,
@@ -329,6 +330,7 @@ public sealed class DimensionPlan
 			IsSuppressed = source.IsSuppressed,
 			IsSelected = source.IsSelected,
 			IsAttachmentValid = source.IsAttachmentValid,
+			AttachmentKind = source.AttachmentKind,
 			DecisionStatus = source.DecisionStatus,
 			DecisionReason = source.DecisionReason,
 			SuppressedReason = source.SuppressedReason,
@@ -372,6 +374,19 @@ public sealed class DimensionPlan
 			dimension.SourceGeometryIds);
 		diagnostic.Role = dimension.Role;
 		diagnostic.OwnerKind = dimension.OwnerKind;
+		diagnostic.AttachmentKind = dimension.AttachmentKind ?? string.Empty;
+		RefreshDiagnosticGeometry(dimension, diagnostic);
+	}
+
+	private static void RefreshDiagnosticGeometry(PlannedDimension dimension, DimensionCandidateDiagnostic diagnostic)
+	{
+		diagnostic.Value = GetDiagnosticValue(dimension);
+		diagnostic.FirstPointX = dimension.FirstPoint.X;
+		diagnostic.FirstPointY = dimension.FirstPoint.Y;
+		diagnostic.SecondPointX = dimension.SecondPoint.X;
+		diagnostic.SecondPointY = dimension.SecondPoint.Y;
+		diagnostic.MeasurementMinimum = GetMeasurementMinimum(dimension);
+		diagnostic.MeasurementMaximum = GetMeasurementMaximum(dimension);
 	}
 
 	private static void EnsureCompatibleRuleId(string existingRuleId, string ruleId, int diagnosticId)

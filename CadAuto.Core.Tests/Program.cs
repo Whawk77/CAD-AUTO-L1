@@ -160,6 +160,12 @@ namespace CadAuto.Core.Tests
             string filter = args.Length > 0 ? args[0] : null;
             try
             {
+                if (filter == "--runner-self-check")
+                {
+                    CheckRunner();
+                    Console.WriteLine("Runner self-check passed.");
+                    return 0;
+                }
                 RunTest(nameof(RectangularOutlineKeepsOverallDimensions), RectangularOutlineKeepsOverallDimensions);
                 RunTest(nameof(ClosedPathRecognitionBuildsOutline), ClosedPathRecognitionBuildsOutline);
                 RunTest(nameof(ChamferedOutlineKeepsOverallDimensions), ChamferedOutlineKeepsOverallDimensions);
@@ -319,6 +325,9 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(SlotDimensionsUseCenterAndDatumChainsWithoutPins), SlotDimensionsUseCenterAndDatumChainsWithoutPins);
                 RunTest(nameof(HolesAreGroupedByHorizontalRows), HolesAreGroupedByHorizontalRows);
                 RunTest(nameof(NormalHolesLocateFromOutlineDatum), NormalHolesLocateFromOutlineDatum);
+				RunTest(nameof(CenterlineEndpointIsAllowedForHolePositioning), CenterlineEndpointIsAllowedForHolePositioning);
+				RunTest(nameof(SingleArcSlotDatumUsesBottomCenterlineEndpoint), SingleArcSlotDatumUsesBottomCenterlineEndpoint);
+				RunTest(nameof(DoubleArcSlotDatumUsesCenterlineAndOutlineEndpoints), DoubleArcSlotDatumUsesCenterlineAndOutlineEndpoints);
 				RunTest(nameof(PinGroupsPlanBaseAndPairDistances), PinGroupsPlanBaseAndPairDistances);
 				RunTest(nameof(PinAlignmentGroupsRespectSideAndOrientation), PinAlignmentGroupsRespectSideAndOrientation);
 				RunTest(nameof(RootedDatumChainMergesTransitiveAlignmentLanes), RootedDatumChainMergesTransitiveAlignmentLanes);
@@ -441,6 +450,7 @@ namespace CadAuto.Core.Tests
                         {
                             // P0 invariants are prerequisites for every later tier; abort the run.
                             Console.WriteLine("TIER FAIL P0 aborting remaining tiers.");
+                            ReportUnexecutedTiers(priority, filter);
                             return;
                         }
                         continue;
@@ -455,7 +465,79 @@ namespace CadAuto.Core.Tests
                 else
                 {
                     Console.WriteLine("TIER FAIL P" + priority + " failed=" + failedInTier);
+                    ReportUnexecutedTiers(priority, filter);
+                    return;
                 }
+            }
+        }
+
+        private static void ReportUnexecutedTiers(int failedPriority, string filter)
+        {
+            for (int priority = failedPriority + 1; priority <= 3; priority++)
+            {
+                int count = RegisteredTests.Count(test => GetTestPriority(test.Item1) == priority
+                    && MatchesFilter(test.Item1, priority, filter));
+                if (count > 0)
+                    Console.WriteLine("TIER NOT RUN P" + priority + " count=" + count + " blocked by P" + failedPriority);
+            }
+        }
+
+        // Standalone mode: synthetic actions exercise the real runner without production geometry.
+        private static void CheckRunner()
+        {
+            string[][] names = { P0Tests.Take(2).ToArray(), P1Tests.Take(2).ToArray(),
+                new[] { "RunnerSyntheticFirst", "RunnerSyntheticSecond" }, P3Tests.Take(2).ToArray() };
+            TextWriter output = Console.Out;
+            try
+            {
+                for (int failureTier = -1; failureTier <= 3; failureTier++)
+                {
+                    RegisteredTests.Clear();
+                    FailedTests.Clear();
+                    _passedTests = _selectedTests = 0;
+                    var visited = new List<string>();
+                    for (int tier = 0; tier <= 3; tier++)
+                    {
+                        int currentTier = tier;
+                        foreach (string testName in names[tier])
+                        {
+                            string name = testName;
+                            RunTest(name, () =>
+                            {
+                                visited.Add(name);
+                                if (currentTier == failureTier) throw new Exception("synthetic failure");
+                            });
+                        }
+                    }
+                    var log = new StringWriter();
+                    Console.SetOut(log);
+                    RunRegisteredTests(null);
+                    int executed = failureTier < 0 ? 8 : (failureTier == 0 ? 1 : (failureTier + 1) * 2);
+                    Assert(visited.SequenceEqual(names.SelectMany(group => group).Take(executed)), "Runner order/stop mismatch");
+                    Assert(FailedTests.Count == (failureTier < 0 ? 0 : (failureTier == 0 ? 1 : 2)), "Runner failure count mismatch");
+                    for (int tier = failureTier + 1; failureTier >= 0 && tier <= 3; tier++)
+                        Assert(log.ToString().Contains("TIER NOT RUN P" + tier), "Missing unexecuted tier");
+                    if (failureTier == -1)
+                    {
+                        visited.Clear();
+                        RunRegisteredTests("P2");
+                        Assert(visited.SequenceEqual(names[2]), "Priority filter mismatch");
+                        visited.Clear();
+                        RunRegisteredTests(names[2][0]);
+                        Assert(visited.SequenceEqual(new[] { names[2][0] }), "Name filter mismatch");
+                        bool rejected = false;
+                        try { RunRegisteredTests("__no_matching_test__"); }
+                        catch (InvalidOperationException) { rejected = true; }
+                        Assert(rejected, "Unknown filter must fail");
+                    }
+                }
+            }
+            finally
+            {
+                Console.SetOut(output);
+                RegisteredTests.Clear();
+                FailedTests.Clear();
+                _passedTests = _selectedTests = 0;
             }
         }
 
@@ -7422,6 +7504,16 @@ namespace CadAuto.Core.Tests
                 "horizontal slot center distance should be planned");
             Assert(plan.Dimensions.Any(d => d.DebugRole == "SlotCenter" && Math.Abs(GetSpan(d) - 10.0) <= 0.001),
                 "vertical slot center distance should be planned");
+			var horizontalCenter = plan.Dimensions.Single(d => d.DebugRole == "SlotCenter" && Math.Abs(GetSpan(d) - 40.0) <= 0.001);
+			Assert(horizontalCenter.Side == DimensionSide.Bottom
+				&& Math.Abs(horizontalCenter.FirstPoint.Y - 15.0) <= 0.001
+				&& Math.Abs(horizontalCenter.SecondPoint.Y - 15.0) <= 0.001,
+				"horizontal slot center distance should use the nearest real arc-line grips");
+			var verticalCenter = plan.Dimensions.Single(d => d.DebugRole == "SlotCenter" && Math.Abs(GetSpan(d) - 10.0) <= 0.001);
+			Assert(verticalCenter.Side == DimensionSide.Right
+				&& Math.Abs(verticalCenter.FirstPoint.X - 85.0) <= 0.001
+				&& Math.Abs(verticalCenter.SecondPoint.X - 85.0) <= 0.001,
+				"vertical slot center distance should use the nearest real arc-line grips");
             Assert(plan.Dimensions.Any(d => d.DebugRole == "SlotDatumH"),
                 "horizontal slot datum location should be planned without pins");
             Assert(plan.Dimensions.Any(d => d.DebugRole == "SlotDatumV"),
@@ -7463,6 +7555,173 @@ namespace CadAuto.Core.Tests
             Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.HoleLocation && d.Orientation == DimensionOrientation.Vertical && d.Side == DimensionSide.Left),
                 "normal hole vertical location should use nearest vertical side");
         }
+
+		private static void CenterlineEndpointIsAllowedForHolePositioning()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 50.0);
+			var datum = Datum2D.FromOutline(outline);
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D
+			{
+				Point = new Point2D(25.0005, 20.0005),
+				SourceGeometryId = "CENTER-TEST"
+			});
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new[]
+			{
+				CreateHole(25.0, 20.0, 8.0, HoleKind2D.Normal)
+			});
+
+			var holeDimensions = plan.Dimensions.Where(d => d.DebugRole == "HoleDatumX" || d.DebugRole == "HoleDatumY").ToList();
+			Assert(holeDimensions.Count == 2 && holeDimensions.All(d => d.SecondPoint.Equals(new Point2D(25.02, 20.02))),
+				"hole positioning may use a selected centerline endpoint");
+		Assert(plan.Diagnostics.DimensionCandidates.Where(d => d.DebugRole == "HoleDatumX" || d.DebugRole == "HoleDatumY")
+			.All(d => d.TopologyEvidence.IndexOf("CenterlineEndpoint|Status=Applied", StringComparison.Ordinal) >= 0
+				&& d.AttachmentKind == "SelectedCenterlineEndpoint"
+				&& d.SourceGeometryIds.Contains("CENTER-TEST")),
+			"centerline endpoint use must be visible in diagnostics");
+			Assert(plan.Diagnostics.DimensionCandidates.Where(d => d.Kind == DimensionKind.OverallWidth.ToString() || d.Kind == DimensionKind.OverallHeight.ToString())
+				.All(d => d.TopologyEvidence.IndexOf("CenterlineEndpoint", StringComparison.Ordinal) < 0),
+				"centerline endpoints must not affect overall dimensions");
+		}
+
+		private static void SingleArcSlotDatumUsesBottomCenterlineEndpoint()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 50.0);
+			var datum = Datum2D.FromOutline(outline);
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(20.0, 25.0), SourceGeometryId = "SLOT-CENTER" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(20.0, 15.0), SourceGeometryId = "SLOT-CENTER" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(15.0, 20.0), SourceGeometryId = "SLOT-HORIZONTAL-CENTER" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(25.0, 20.0), SourceGeometryId = "SLOT-HORIZONTAL-CENTER" });
+			var slot = new SlotFeature2D
+			{
+				GroupId = "SINGLE-ARC-SLOT",
+				FirstCenter = new Point2D(20.0, 20.0),
+				SecondCenter = new Point2D(20.0, 20.0),
+				Radius = 5.0,
+				IsSingleArcSlot = true
+			};
+
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new HoleFeature2D[0], new[] { slot });
+			var dimension = plan.Dimensions.Single(d => d.DebugRole == "SingleArcSlotDatum");
+
+			Assert(dimension.Side == DimensionSide.Bottom
+				&& dimension.FirstPoint.Equals(new Point2D(0.0, 0.0))
+				&& dimension.SecondPoint.Equals(new Point2D(20.0, 15.0)),
+				"bottom single-arc slot datum must use the lower vertical centerline endpoint");
+			Assert(dimension.AttachmentKind == "SelectedCenterlineEndpoint"
+				&& dimension.TopologyEvidence.IndexOf("Mode=VerticalAxisEndpointByPlacementSide", StringComparison.Ordinal) >= 0,
+				"single-arc slot centerline endpoint selection must be visible in diagnostics");
+			var verticalDimension = plan.Dimensions.Single(d => d.DebugRole == "SingleArcSlotVerticalDatum");
+			Assert(verticalDimension.Side == DimensionSide.Left
+				&& verticalDimension.FirstPoint.Equals(new Point2D(0.0, 0.0))
+				&& verticalDimension.SecondPoint.Equals(new Point2D(15.0, 20.0))
+				&& verticalDimension.TopologyEvidence.IndexOf("Mode=HorizontalAxisEndpointByPlacementSide", StringComparison.Ordinal) >= 0,
+				"left single-arc slot vertical datum must use the left horizontal centerline endpoint");
+
+			var topDatum = Datum2D.FromOutline(outline);
+			topDatum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(20.0, 45.0), SourceGeometryId = "TOP-SLOT-CENTER" });
+			topDatum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(20.0, 35.0), SourceGeometryId = "TOP-SLOT-CENTER" });
+			slot.FirstCenter = new Point2D(20.0, 40.0);
+			slot.SecondCenter = slot.FirstCenter;
+			var topDimension = new DimensionPlanner(config)
+				.CreateDimensionPlan(outline, topDatum, new HoleFeature2D[0], new[] { slot })
+				.Dimensions.Single(d => d.DebugRole == "SingleArcSlotDatum");
+			Assert(topDimension.Side == DimensionSide.Top
+				&& topDimension.FirstPoint.Equals(new Point2D(0.0, 50.0))
+				&& topDimension.SecondPoint.Equals(new Point2D(20.0, 45.0)),
+				"top single-arc slot datum must use the upper vertical centerline endpoint");
+
+			var rightDatum = Datum2D.FromOutline(outline);
+			rightDatum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(75.0, 20.0), SourceGeometryId = "RIGHT-SLOT-CENTER" });
+			rightDatum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(85.0, 20.0), SourceGeometryId = "RIGHT-SLOT-CENTER" });
+			slot.FirstCenter = new Point2D(80.0, 20.0);
+			slot.SecondCenter = slot.FirstCenter;
+			var rightDimension = new DimensionPlanner(config)
+				.CreateDimensionPlan(outline, rightDatum, new HoleFeature2D[0], new[] { slot })
+				.Dimensions.Single(d => d.DebugRole == "SingleArcSlotVerticalDatum");
+			Assert(rightDimension.Side == DimensionSide.Right
+				&& rightDimension.FirstPoint.Equals(new Point2D(100.0, 0.0))
+				&& rightDimension.SecondPoint.Equals(new Point2D(85.0, 20.0)),
+				"right single-arc slot vertical datum must use the right horizontal centerline endpoint");
+		}
+
+		private static void DoubleArcSlotDatumUsesCenterlineAndOutlineEndpoints()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 50.0);
+			var datum = Datum2D.FromOutline(outline);
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(20.0, 15.0), SourceGeometryId = "DOUBLE-V" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(20.0, 25.0), SourceGeometryId = "DOUBLE-V" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(15.0, 20.0), SourceGeometryId = "DOUBLE-H" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(25.0, 20.0), SourceGeometryId = "DOUBLE-H" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(15.0, 35.0), SourceGeometryId = "DOUBLE-H-2" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(25.0, 35.0), SourceGeometryId = "DOUBLE-H-2" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(20.0, 30.0), SourceGeometryId = "DOUBLE-V-2A" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(20.0, 40.0), SourceGeometryId = "DOUBLE-V-2A" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(40.0, 30.0), SourceGeometryId = "DOUBLE-V-2B" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(40.0, 40.0), SourceGeometryId = "DOUBLE-V-2B" });
+			var slot = new SlotFeature2D
+			{
+				GroupId = "DOUBLE-ARC-SLOT",
+				FirstCenter = new Point2D(40.0, 20.0),
+				SecondCenter = new Point2D(20.0, 20.0),
+				Radius = 5.0,
+				CenterDistance = 20.0
+			};
+
+			var secondSlot = new SlotFeature2D
+			{
+				GroupId = "DOUBLE-ARC-SLOT-2",
+				FirstCenter = new Point2D(40.0, 35.0),
+				SecondCenter = new Point2D(20.0, 35.0),
+				Radius = 5.0,
+				CenterDistance = 20.0
+			};
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new HoleFeature2D[0], new[] { slot, secondSlot });
+			var horizontal = plan.Dimensions.Single(d => d.DebugRole == "DoubleArcSlotHorizontalDatum");
+			var vertical = plan.Dimensions.Single(d => d.DebugRole == "DoubleArcSlotVerticalDatum");
+
+			Assert(horizontal.Side == DimensionSide.Top
+				&& horizontal.FirstPoint.Equals(new Point2D(0.0, 50.0))
+				&& horizontal.SecondPoint.Equals(new Point2D(20.0, 40.0)),
+				"double-arc horizontal location must use the nearest-side slot and top endpoints");
+			Assert(vertical.Side == DimensionSide.Left
+				&& vertical.FirstPoint.Equals(new Point2D(0.0, 0.0))
+				&& vertical.SecondPoint.Equals(new Point2D(15.0, 20.0)),
+				"double-arc vertical location must use the left centerline and outline endpoints");
+			var linkedCenterDistance = plan.Dimensions.Single(d => d.DebugRole == "SlotChainV");
+			Assert(linkedCenterDistance.FirstPoint.Equals(new Point2D(15.0, 20.0))
+				&& linkedCenterDistance.SecondPoint.Equals(new Point2D(15.0, 35.0)),
+				"linked slot center distance must use centerline endpoints on the inherited side");
+			var slotCenter = plan.Dimensions.Single(d => d.DebugRole == "SlotCenter");
+			Assert(slotCenter.Side == DimensionSide.Top
+				&& Math.Abs(slotCenter.FirstPoint.Y - 40.0) <= 0.001
+				&& Math.Abs(slotCenter.SecondPoint.Y - 40.0) <= 0.001
+				&& slotCenter.AlignmentKey == horizontal.AlignmentKey
+				&& horizontal.AlignmentPriority > slotCenter.AlignmentPriority
+				&& !horizontal.PreserveAlignmentLevel
+				&& !slotCenter.PreserveAlignmentLevel,
+				"slot center distance must inherit the connected datum side and axis endpoints");
+			var topChain = new[] { horizontal, slotCenter }.Select(dimension => new DimensionLayoutItem
+			{
+				Kind = dimension.Kind,
+				FirstPoint = dimension.FirstPoint,
+				SecondPoint = dimension.SecondPoint,
+				Span = GetSpan(dimension),
+				AlignmentKey = dimension.AlignmentKey,
+				AlignmentPriority = dimension.AlignmentPriority,
+				PreserveAlignmentLevel = dimension.PreserveAlignmentLevel,
+				ReadingLevel = dimension.ReadingLevel,
+				SourceFeatureId = dimension.DebugOwner
+			}).ToList();
+			var placements = new DimensionLayoutRules(config)
+				.CreateStackingPlan(topChain, DimensionSide.Top, outline, 2.5, 1.25, 10.0, 6.5, isHorizontal: true);
+			Assert(placements.All(placement => placement.Level == 0
+				&& placement.LayoutBlockType == "RootedAlignmentLane")
+				&& placements.Select(placement => placement.LayoutBlockId).Distinct().Count() == 1,
+				"linked top slot datum and center distance must form one nearest-level rooted layout block");
+		}
 
 		private static void NonPinHorizontalHoleChainSharesAlignmentKey()
 		{

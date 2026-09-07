@@ -35,9 +35,8 @@ High-priority rules for AI coding agents. Keep this file short.
 - Cleanup commands must remove only plugin-generated objects marked with `AUTOFIXDIM` XData.
 - Never create a `CENTER` layer.
 - Never generate hole centerlines or cross centerlines.
+- Hole/slot positioning may use real endpoints of existing selected `CENTER` centerlines; other dimensions remain real-geometry attached.
 - Hole recognition is based on the current user selection/window selection, not a full model-space scan.
-- Dimension and leader attachment points must land on real geometry: edges, arcs, real endpoints, or real intersections.
-- Do not attach annotations to theoretical intersections, virtual sharp corners, centerlines, auxiliary lines, dimension lines, projected points, or floating points.
 - Use AutoCAD diameter control text `%%c`, not Unicode diameter symbols, for diameter callouts.
 - Zero-length dimensions must never be emitted.
 

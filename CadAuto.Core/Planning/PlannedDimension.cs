@@ -64,4 +64,6 @@ public sealed class PlannedDimension
 	/// do not have a scoped validator.
 	/// </summary>
 	public bool? AttachmentValidity { get; set; }
+
+	public string AttachmentKind { get; set; }
 }

@@ -103,6 +103,9 @@ internal static class DimensionCandidateSemantics
 		case "SlotDatumV":
 		case "SlotPinRef":
 		case "SingleArcSlotDatum":
+		case "SingleArcSlotVerticalDatum":
+		case "DoubleArcSlotHorizontalDatum":
+		case "DoubleArcSlotVerticalDatum":
 			return DimensionCandidateRole.Slot;
 		case "DatumX":
 		case "DatumY":

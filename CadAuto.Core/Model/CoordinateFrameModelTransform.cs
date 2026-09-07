@@ -167,6 +167,18 @@ public static class CoordinateFrameModelTransform
 			target.DatumHoleLocationBaseX = source.DatumHoleLocationBaseX.HasValue ? location.X : (double?)null;
 			target.DatumHoleLocationBaseY = source.DatumHoleLocationBaseY.HasValue ? location.Y : (double?)null;
 		}
+		foreach (CenterlineEndpoint2D endpoint in source.HoleCenterlineEndpoints ?? Enumerable.Empty<CenterlineEndpoint2D>())
+		{
+			if (endpoint == null)
+			{
+				continue;
+			}
+			target.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D
+			{
+				Point = effectiveFrame.ToLocal(endpoint.Point),
+				SourceGeometryId = endpoint.SourceGeometryId ?? string.Empty
+			});
+		}
 		return target;
 	}
 

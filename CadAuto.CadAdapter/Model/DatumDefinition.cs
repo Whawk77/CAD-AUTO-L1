@@ -1,4 +1,14 @@
+using System.Collections.Generic;
+using Autodesk.AutoCAD.Geometry;
+
 namespace CadAuto.CadAdapter.Model;
+
+public sealed class CenterlineEndpointDefinition
+{
+	public Point3d Point { get; set; }
+
+	public string SourceGeometryId { get; set; }
+}
 
 public sealed class DatumDefinition
 {
@@ -15,6 +25,8 @@ public sealed class DatumDefinition
 	public bool DatumHoleLocationUseToleranceX { get; set; }
 
 	public bool DatumHoleLocationUseToleranceY { get; set; }
+
+	public List<CenterlineEndpointDefinition> HoleCenterlineEndpoints { get; set; } = new List<CenterlineEndpointDefinition>();
 
 	public static DatumDefinition FromOutline(OutlineFeature outline)
 	{

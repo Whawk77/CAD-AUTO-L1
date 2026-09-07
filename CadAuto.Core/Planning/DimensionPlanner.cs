@@ -30,6 +30,19 @@ public sealed partial class DimensionPlanner
 		public string Reason { get; set; }
 	}
 
+	private sealed class CenterlineEndpointMatch
+	{
+		public CenterlineEndpoint2D Endpoint { get; set; }
+
+		public double? Distance { get; set; }
+
+		public string Status { get; set; }
+
+		public string MatchMode { get; set; }
+
+		public bool IsMatched => Endpoint != null && string.Equals(Status, "Matched", StringComparison.Ordinal);
+	}
+
 	// Every MarkSuppressed reason emitted by this planner, in one place.
 	private static class SuppressReason
 	{
@@ -302,11 +315,257 @@ public sealed partial class DimensionPlanner
 		Datum2D datum2 = localDatum ?? Datum2D.FromOutline(localOutline);
 		AddHolePositionDimensions(dimensionPlan, localOutline, datum2, localHoles);
 		AddSlotDimensions(dimensionPlan, localOutline, datum2, localHoles, localSlots);
+		ApplyCenterlineEndpointAttachments(dimensionPlan, datum2);
 		SuppressDuplicateDimensions(dimensionPlan, localOutline);
 		_postValidator.Validate(dimensionPlan, localOutline);
 		dimensionPlan.CaptureFinalDimensions();
 		dimensionPlan.CoordinateFrame = frame;
 		return dimensionPlan;
+	}
+
+	private void ApplyCenterlineEndpointAttachments(DimensionPlan plan, Datum2D datum)
+	{
+		if (plan == null || datum == null || datum.HoleCenterlineEndpoints == null || datum.HoleCenterlineEndpoints.Count == 0)
+		{
+			return;
+		}
+		foreach (PlannedDimension dimension in plan.Dimensions.ToList())
+		{
+			if (!AllowsCenterlineEndpoint(dimension))
+			{
+				continue;
+			}
+			List<string> evidence = new List<string>();
+			List<string> sourceGeometryIds = new List<string>();
+			bool changed = false;
+			bool linkedSlotCenterDistance = IsLinkedSlotCenterDistance(plan, dimension);
+			bool linkedSlotDimension = linkedSlotCenterDistance
+				|| string.Equals(dimension.RuleId, "LinkedSlotDatumSide", StringComparison.Ordinal);
+			if (!dimension.FirstPointMustLieOnOutline)
+			{
+				Point2D beforePoint = dimension.FirstPoint;
+				CenterlineEndpointMatch firstMatch = linkedSlotDimension
+					? FindSingleArcSlotCenterlineEndpoint(datum, beforePoint, dimension.Side)
+					: FindCenterlineEndpoint(datum, beforePoint);
+				if (firstMatch.IsMatched && HasSpan(dimension, firstMatch.Endpoint.Point, dimension.SecondPoint))
+				{
+					dimension.FirstPoint = firstMatch.Endpoint.Point;
+					changed = true;
+					if (!string.IsNullOrEmpty(firstMatch.Endpoint.SourceGeometryId))
+					{
+						sourceGeometryIds.Add(firstMatch.Endpoint.SourceGeometryId);
+					}
+					evidence.Add(BuildAppliedCenterlineEvidence("First", firstMatch, beforePoint, dimension.FirstPoint));
+				}
+				else
+				{
+					evidence.Add(BuildCenterlineCheckEvidence("First", firstMatch, firstMatch.IsMatched ? "InvalidSpan" : null));
+				}
+			}
+			Point2D beforeSecondPoint = dimension.SecondPoint;
+			bool arcSlotDatum = string.Equals(dimension.DebugRole, "SingleArcSlotDatum", StringComparison.Ordinal)
+				|| string.Equals(dimension.DebugRole, "SingleArcSlotVerticalDatum", StringComparison.Ordinal)
+				|| string.Equals(dimension.DebugRole, "DoubleArcSlotHorizontalDatum", StringComparison.Ordinal)
+				|| string.Equals(dimension.DebugRole, "DoubleArcSlotVerticalDatum", StringComparison.Ordinal)
+				|| linkedSlotDimension;
+			CenterlineEndpointMatch secondMatch = arcSlotDatum
+				? FindSingleArcSlotCenterlineEndpoint(datum, beforeSecondPoint, dimension.Side)
+				: FindCenterlineEndpoint(datum, beforeSecondPoint);
+			if (secondMatch.IsMatched && HasSpan(dimension, dimension.FirstPoint, secondMatch.Endpoint.Point))
+			{
+				dimension.SecondPoint = secondMatch.Endpoint.Point;
+				changed = true;
+				if (!string.IsNullOrEmpty(secondMatch.Endpoint.SourceGeometryId))
+				{
+					sourceGeometryIds.Add(secondMatch.Endpoint.SourceGeometryId);
+				}
+				evidence.Add(BuildAppliedCenterlineEvidence("Second", secondMatch, beforeSecondPoint, dimension.SecondPoint));
+			}
+			else
+			{
+				evidence.Add(BuildCenterlineCheckEvidence("Second", secondMatch, secondMatch.IsMatched ? "InvalidSpan" : null));
+			}
+			if (changed)
+			{
+				dimension.AttachmentKind = "SelectedCenterlineEndpoint";
+				plan.SetAttachmentValidity(dimension, true);
+			}
+			plan.RecordRuleEvidence(
+				dimension,
+				null,
+				sourceGeometryIds,
+				AppendCenterlineEndpointEvidence(dimension.TopologyEvidence, evidence));
+		}
+	}
+
+	private static bool IsLinkedSlotCenterDistance(DimensionPlan plan, PlannedDimension dimension)
+	{
+		if (dimension == null
+			|| (dimension.DebugRole != "SlotChainH" && dimension.DebugRole != "SlotChainV")
+			|| string.IsNullOrEmpty(dimension.AlignmentKey))
+		{
+			return false;
+		}
+		return plan.Dimensions.Any(candidate => candidate != null
+			&& candidate.AlignmentKey == dimension.AlignmentKey
+			&& (candidate.DebugRole == "SingleArcSlotDatum"
+				|| candidate.DebugRole == "SingleArcSlotVerticalDatum"
+				|| candidate.DebugRole == "DoubleArcSlotHorizontalDatum"
+				|| candidate.DebugRole == "DoubleArcSlotVerticalDatum"));
+	}
+
+	private bool AllowsCenterlineEndpoint(PlannedDimension dimension)
+	{
+		if (dimension == null)
+		{
+			return false;
+		}
+		if (string.Equals(dimension.DebugRole, "SlotCenter", StringComparison.Ordinal))
+		{
+			return string.Equals(dimension.RuleId, "LinkedSlotDatumSide", StringComparison.Ordinal);
+		}
+		return dimension.Role == DimensionCandidateRole.Hole
+			|| dimension.Role == DimensionCandidateRole.Slot;
+	}
+
+	private CenterlineEndpointMatch FindCenterlineEndpoint(Datum2D datum, Point2D target)
+	{
+		double tolerance = Math.Max(Math.Abs(_config.GeometryTolerance), 1E-9);
+		List<CenterlineEndpointMatch> matches = datum.HoleCenterlineEndpoints
+			.Where(candidate => candidate != null)
+			.Select(candidate => new CenterlineEndpointMatch
+			{
+				Endpoint = candidate,
+				Distance = candidate.Point.DistanceTo(target),
+				Status = "Matched"
+			})
+			.Where(match => match.Distance.HasValue && match.Distance.Value <= tolerance)
+			.OrderBy(match => match.Distance.Value)
+			.ToList();
+		if (matches.Count == 0)
+		{
+			double? nearestDistance = datum.HoleCenterlineEndpoints
+			.Where(candidate => candidate != null)
+			.Select(candidate => (double?)candidate.Point.DistanceTo(target))
+			.OrderBy(distance => distance)
+			.FirstOrDefault();
+			return new CenterlineEndpointMatch
+			{
+				Distance = nearestDistance,
+				Status = nearestDistance.HasValue ? "NoMatch" : "NoEndpoint"
+			};
+		}
+		if (matches.Count > 1
+			&& Math.Abs(matches[1].Distance.Value - matches[0].Distance.Value) <= _config.GeometryTolerance)
+		{
+			return new CenterlineEndpointMatch
+			{
+				Distance = matches[0].Distance,
+				Status = "Ambiguous"
+			};
+		}
+		return matches[0];
+	}
+
+	private CenterlineEndpointMatch FindSingleArcSlotCenterlineEndpoint(Datum2D datum, Point2D target, DimensionSide side)
+	{
+		bool verticalAxis = side == DimensionSide.Bottom || side == DimensionSide.Top;
+		bool horizontalAxis = side == DimensionSide.Left || side == DimensionSide.Right;
+		string matchMode = verticalAxis ? "VerticalAxisEndpointByPlacementSide" : "HorizontalAxisEndpointByPlacementSide";
+		if (!verticalAxis && !horizontalAxis)
+		{
+			return new CenterlineEndpointMatch { Status = "UnsupportedSide", MatchMode = matchMode };
+		}
+		double tolerance = Math.Max(Math.Abs(_config.GeometryTolerance), 1E-9);
+		List<CenterlineEndpointMatch> matches = datum.HoleCenterlineEndpoints
+			.Where(endpoint => endpoint != null && !string.IsNullOrEmpty(endpoint.SourceGeometryId))
+			.GroupBy(endpoint => endpoint.SourceGeometryId)
+			.Where(group => group.Count() >= 2
+				&& (verticalAxis
+					? group.Max(endpoint => endpoint.Point.X) - group.Min(endpoint => endpoint.Point.X) <= tolerance
+						&& Math.Abs(group.First().Point.X - target.X) <= tolerance
+					: group.Max(endpoint => endpoint.Point.Y) - group.Min(endpoint => endpoint.Point.Y) <= tolerance
+						&& Math.Abs(group.First().Point.Y - target.Y) <= tolerance))
+			.Select(group => new CenterlineEndpointMatch
+			{
+				Endpoint = side == DimensionSide.Bottom ? group.OrderBy(endpoint => endpoint.Point.Y).First()
+					: side == DimensionSide.Top ? group.OrderByDescending(endpoint => endpoint.Point.Y).First()
+					: side == DimensionSide.Left ? group.OrderBy(endpoint => endpoint.Point.X).First()
+					: group.OrderByDescending(endpoint => endpoint.Point.X).First(),
+				Status = "Matched",
+				MatchMode = matchMode
+			})
+			.Select(match =>
+			{
+				match.Distance = match.Endpoint.Point.DistanceTo(target);
+				return match;
+			})
+			.OrderBy(match => match.Distance.Value)
+			.ToList();
+		if (matches.Count == 0)
+		{
+			return new CenterlineEndpointMatch { Status = verticalAxis ? "NoMatchingVerticalAxis" : "NoMatchingHorizontalAxis", MatchMode = matchMode };
+		}
+		if (matches.Count > 1 && Math.Abs(matches[1].Distance.Value - matches[0].Distance.Value) <= tolerance)
+		{
+			return new CenterlineEndpointMatch
+			{
+				Distance = matches[0].Distance,
+				Status = "Ambiguous",
+				MatchMode = matchMode
+			};
+		}
+		return matches[0];
+	}
+
+	private bool HasSpan(PlannedDimension dimension, Point2D firstPoint, Point2D secondPoint)
+	{
+		double span = dimension.Orientation == DimensionOrientation.Horizontal
+			? Math.Abs(secondPoint.X - firstPoint.X)
+			: Math.Abs(secondPoint.Y - firstPoint.Y);
+		return span > _config.GeometryTolerance;
+	}
+
+	private static string BuildAppliedCenterlineEvidence(string pointName, CenterlineEndpointMatch match, Point2D beforePoint, Point2D afterPoint)
+	{
+		return string.Format(
+			CultureInfo.InvariantCulture,
+			"CenterlineEndpoint|Status=Applied|Mode={0}|Point={1}|Source={2}|Distance={3:0.########}|Before={4:0.########},{5:0.########}|After={6:0.########},{7:0.########}",
+			match.MatchMode ?? "CoincidentEndpoint",
+			pointName,
+			match.Endpoint.SourceGeometryId ?? string.Empty,
+			match.Distance ?? 0.0,
+			beforePoint.X,
+			beforePoint.Y,
+			afterPoint.X,
+			afterPoint.Y);
+	}
+
+	private static string BuildCenterlineCheckEvidence(string pointName, CenterlineEndpointMatch match, string overrideStatus)
+	{
+		return string.Format(
+			CultureInfo.InvariantCulture,
+			"CenterlineEndpointCheck|Point={0}|Status={1}|Distance={2}",
+			pointName,
+			overrideStatus ?? match.Status,
+			match.Distance.HasValue ? match.Distance.Value.ToString("0.########", CultureInfo.InvariantCulture) : "none");
+	}
+
+	private static string AppendCenterlineEndpointEvidence(string evidence, IEnumerable<string> additions)
+	{
+		List<string> entries = new List<string>();
+		if (!string.IsNullOrEmpty(evidence))
+		{
+			entries.Add(evidence);
+		}
+		foreach (string addition in additions ?? Enumerable.Empty<string>())
+		{
+			if (!string.IsNullOrEmpty(addition) && !entries.Contains(addition))
+			{
+				entries.Add(addition);
+			}
+		}
+		return string.Join(";", entries);
 	}
 
 	private bool ContainsStructurePoint(IEnumerable<StructurePoint> points, Point2D point)
@@ -349,29 +608,61 @@ public sealed partial class DimensionPlanner
 		return _structureEndpointRules.GetBoundaryPoint(outline, DimensionSide.Top);
 	}
 
-	private bool AddHorizontalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredX, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing)
+	private bool AddHorizontalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredX, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing, string skippedDebugRole = null)
 	{
 		if (!OutlineGeometryQuery.TryFindVerticalBoundaryPoint(outline, preferredX, target.Y, _config.GeometryTolerance, out var point))
 		{
-			plan.AddSkippedDimension(kind, DimensionOrientation.Horizontal, side, new Point2D(preferredX, target.Y), target, "NoRealOutlineAttachment:XDatum=" + preferredX.ToString("0.########", CultureInfo.InvariantCulture), debugRole, debugOwner);
+			plan.AddSkippedDimension(kind, DimensionOrientation.Horizontal, side, new Point2D(preferredX, target.Y), target, "NoRealOutlineAttachment:XDatum=" + preferredX.ToString("0.########", CultureInfo.InvariantCulture), skippedDebugRole ?? debugRole, debugOwner);
 			return false;
+		}
+		if (string.Equals(debugRole, "DoubleArcSlotHorizontalDatum", StringComparison.Ordinal))
+		{
+			point = GetSideFacingOutlineSegmentEndpoint(outline, point, DimensionOrientation.Horizontal, side);
 		}
 		AddDimension(plan, kind, DimensionOrientation.Horizontal, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredX, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, readingLevel: readingLevel);
 		return true;
 	}
 
-	private bool AddVerticalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredY, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing, bool preservePreferredSide = false)
+	private bool AddVerticalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredY, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing, bool preservePreferredSide = false, string skippedDebugRole = null)
 	{
 		if (!OutlineGeometryQuery.TryFindHorizontalBoundaryPoint(outline, preferredY, target.X, _config.GeometryTolerance, out var point))
 		{
-			plan.AddSkippedDimension(kind, DimensionOrientation.Vertical, side, new Point2D(target.X, preferredY), target, "NoRealOutlineAttachment:YDatum=" + preferredY.ToString("0.########", CultureInfo.InvariantCulture), debugRole, debugOwner);
+			plan.AddSkippedDimension(kind, DimensionOrientation.Vertical, side, new Point2D(target.X, preferredY), target, "NoRealOutlineAttachment:YDatum=" + preferredY.ToString("0.########", CultureInfo.InvariantCulture), skippedDebugRole ?? debugRole, debugOwner);
 			return false;
+		}
+		if (string.Equals(debugRole, "SingleArcSlotVerticalDatum", StringComparison.Ordinal)
+			|| string.Equals(debugRole, "DoubleArcSlotVerticalDatum", StringComparison.Ordinal))
+		{
+			point = GetSideFacingOutlineSegmentEndpoint(outline, point, DimensionOrientation.Vertical, side);
 		}
 		AddDimension(plan, kind, DimensionOrientation.Vertical, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredY, preservePreferredSide: preservePreferredSide, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, readingLevel: readingLevel);
 		return true;
 	}
 
-	private void AddHorizontalChainFromOutlineDatum(DimensionPlan plan, OutlineFeature2D outline, double datumX, IList<Point2D> ordered, string debugRole)
+	private Point2D GetSideFacingOutlineSegmentEndpoint(OutlineFeature2D outline, Point2D attachment, DimensionOrientation orientation, DimensionSide side)
+	{
+		double tolerance = Math.Max(Math.Abs(_config.GeometryTolerance), 1E-9);
+		List<Segment2D> segments = outline.Segments
+			.Where(segment => segment != null && !segment.IsArcChord
+				&& (orientation == DimensionOrientation.Horizontal ? segment.IsVertical(tolerance) : segment.IsHorizontal(tolerance))
+				&& (orientation == DimensionOrientation.Horizontal
+					? Math.Abs(segment.Start.X - attachment.X) <= tolerance
+					: Math.Abs(segment.Start.Y - attachment.Y) <= tolerance))
+			.ToList();
+		if (segments.Count == 0)
+		{
+			return attachment;
+		}
+		if (orientation == DimensionOrientation.Horizontal)
+		{
+			double y = side == DimensionSide.Top ? segments.Max(segment => segment.MaxY) : segments.Min(segment => segment.MinY);
+			return new Point2D(attachment.X, y);
+		}
+		double x = side == DimensionSide.Right ? segments.Max(segment => segment.MaxX) : segments.Min(segment => segment.MinX);
+		return new Point2D(x, attachment.Y);
+	}
+
+	private void AddHorizontalChainFromOutlineDatum(DimensionPlan plan, OutlineFeature2D outline, double datumX, IList<Point2D> ordered, string debugRole, string firstDebugRole = null, DimensionSide side = DimensionSide.Bottom)
 	{
 		if (ordered == null || ordered.Count == 0)
 		{
@@ -379,28 +670,28 @@ public sealed partial class DimensionPlanner
 		}
 		// Edge→first hole + inter-hole spans form one continuous locating chain (e.g. U-slot
 		// edge location + center distance) and must share a dim-line alignment lane.
-		string alignmentKey = GetSlotChainAlignmentKey(DimensionSide.Bottom, horizontal: true, ordered[0].Y);
+		string alignmentKey = GetSlotChainAlignmentKey(side, horizontal: true, ordered[0].Y);
 		const int alignmentPriority = 80;
-		AddHorizontalOutlineReferenceDimension(plan, outline, datumX, ordered[0], DimensionKind.Normal, DimensionSide.Bottom, string.Empty, debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority);
+		AddHorizontalOutlineReferenceDimension(plan, outline, datumX, ordered[0], DimensionKind.Normal, side, string.Empty, firstDebugRole ?? debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, skippedDebugRole: debugRole);
 		for (int i = 1; i < ordered.Count; i++)
 		{
-			AddHorizontalDim(plan, ordered[i - 1], ordered[i], debugRole, alignmentKey, alignmentPriority);
+			AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Horizontal, side, ordered[i - 1], ordered[i], string.Empty, debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority);
 		}
 	}
 
-	private void AddVerticalChainFromOutlineDatum(DimensionPlan plan, OutlineFeature2D outline, double datumY, IList<Point2D> ordered, string debugRole)
+	private void AddVerticalChainFromOutlineDatum(DimensionPlan plan, OutlineFeature2D outline, double datumY, IList<Point2D> ordered, string debugRole, string firstDebugRole = null, DimensionSide side = DimensionSide.Left)
 	{
 		if (ordered == null || ordered.Count == 0)
 		{
 			return;
 		}
 		// Edge→first U-slot location + slot-to-slot center distance stay on one left-side lane.
-		string alignmentKey = GetSlotChainAlignmentKey(DimensionSide.Left, horizontal: false, ordered[0].X);
+		string alignmentKey = GetSlotChainAlignmentKey(side, horizontal: false, ordered[0].X);
 		const int alignmentPriority = 80;
-		AddVerticalOutlineReferenceDimension(plan, outline, datumY, ordered[0], DimensionKind.Normal, DimensionSide.Left, string.Empty, debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority);
+		AddVerticalOutlineReferenceDimension(plan, outline, datumY, ordered[0], DimensionKind.Normal, side, string.Empty, firstDebugRole ?? debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, skippedDebugRole: debugRole);
 		for (int i = 1; i < ordered.Count; i++)
 		{
-			AddVerticalDim(plan, ordered[i - 1], ordered[i], debugRole, alignmentKey, alignmentPriority);
+			AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Vertical, side, ordered[i - 1], ordered[i], string.Empty, debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority);
 		}
 	}
 

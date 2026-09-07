@@ -48,7 +48,7 @@ internal static class SupportBlockCommand
 					return;
 				}
 
-				PromptKeywordOptions directionOptions = new PromptKeywordOptions("\n选择方向进行复制该直线 [左(A)/上(W)/右(D)/下(S)]: ");
+				PromptKeywordOptions directionOptions = new PromptKeywordOptions("\n选择方向进行复制该几何 [左(A)/上(W)/右(D)/下(S)]: ");
 				directionOptions.AllowNone = false;
 				directionOptions.Keywords.Add("A");
 				directionOptions.Keywords.Add("W");
@@ -79,8 +79,8 @@ internal static class SupportBlockCommand
 				Vector3d segmentVector = endPoint - startPoint;
 				bool horizontal = Math.Abs(segmentVector.X) >= Math.Abs(segmentVector.Y);
 				double globalLinetypeScale = database.Ltscale;
-				if (!TryGetVisibleDashPoint(transaction, dashedLinetypeId, startPoint + direction, endPoint + direction, sourceEntity.LinetypeScale, globalLinetypeScale, !horizontal, out Point3d cncArrowPoint)
-					|| !TryGetVisibleDashPoint(transaction, dashedLinetypeId, startPoint + direction * 2.0, endPoint + direction * 2.0, sourceEntity.LinetypeScale, globalLinetypeScale, horizontal, out Point3d quenchArrowPoint))
+				if (!TryGetVisibleDashPoint(transaction, dashedLinetypeId, sourceEntity, startPoint, endPoint, direction, 1.0, sourceEntity.LinetypeScale, globalLinetypeScale, !horizontal, out Point3d cncArrowPoint)
+					|| !TryGetVisibleDashPoint(transaction, dashedLinetypeId, sourceEntity, startPoint, endPoint, direction, 2.0, sourceEntity.LinetypeScale, globalLinetypeScale, horizontal, out Point3d quenchArrowPoint))
 				{
 					editor.WriteMessage("\n无法确定 DASHED 可见实线段，已取消托压块标注。\n");
 					return;
@@ -91,15 +91,29 @@ internal static class SupportBlockCommand
 				for (int offset = 1; offset <= 2; offset++)
 				{
 					Vector3d displacement = direction * offset;
-					Line line = new Line(startPoint + displacement, endPoint + displacement);
-					line.SetDatabaseDefaults(database);
-					Commands.CopyEntityDisplayProperties(sourceEntity, line);
-					line.LayerId = database.Clayer;
-					line.Color = Color.FromColorIndex(ColorMethod.ByAci, 6);
-					line.LinetypeId = dashedLinetypeId;
-					space.AppendEntity(line);
-					transaction.AddNewlyCreatedDBObject(line, add: true);
-					AnnotationMetadata.Mark(line, groupId, AnnotationMetadata.KindDimension);
+					Entity copy;
+					if (sourceEntity is Arc sourceArc)
+					{
+						copy = (Entity)sourceArc.Clone();
+						copy.TransformBy(Matrix3d.Displacement(displacement));
+						copy.SetDatabaseDefaults(database);
+						copy.LinetypeScale = sourceEntity.LinetypeScale;
+						copy.LineWeight = sourceEntity.LineWeight;
+						copy.Transparency = sourceEntity.Transparency;
+					}
+					else
+					{
+						Line line = new Line(startPoint + displacement, endPoint + displacement);
+						line.SetDatabaseDefaults(database);
+						Commands.CopyEntityDisplayProperties(sourceEntity, line);
+						copy = line;
+					}
+					copy.LayerId = database.Clayer;
+					copy.Color = Color.FromColorIndex(ColorMethod.ByAci, 6);
+					copy.LinetypeId = dashedLinetypeId;
+					space.AppendEntity(copy);
+					transaction.AddNewlyCreatedDBObject(copy, add: true);
+					AnnotationMetadata.Mark(copy, groupId, AnnotationMetadata.KindDimension);
 				}
 
 				CadEntityWriter supportWriter = new CadEntityWriter(database, transaction, space, config, dimStyleId, dimScale, annotationLayer, groupId, AnnotationMetadata.KindDimension);
@@ -124,7 +138,7 @@ internal static class SupportBlockCommand
 				NativeDiameterDimensioner.InsertRoughnessBlock(database, transaction, space, roughnessPoint, annotationLayer, diameterCalloutDimStyleId, groupId);
 				transaction.Commit();
 			}
-			editor.WriteMessage("\nTY 已生成两条托压块线（偏移 1、2，洋红色，DASHED）及 CNC加工/淬火引线和粗糙度块。");
+			editor.WriteMessage("\nTY 已生成两条托压块几何（偏移 1、2，洋红色，DASHED）及 CNC加工/淬火引线和粗糙度块。");
 		}
 		catch (Autodesk.AutoCAD.Runtime.Exception ex)
 		{
@@ -143,26 +157,26 @@ internal static class SupportBlockCommand
 		endPoint = Point3d.Origin;
 		while (true)
 		{
-			PromptEntityResult entityResult = editor.GetEntity(new PromptEntityOptions("\n选择 DRAWING 图层中的独立直线: "));
+			PromptEntityResult entityResult = editor.GetEntity(new PromptEntityOptions("\n选择 DRAWING 图层中的独立直线或圆弧: "));
 			if (entityResult.Status != PromptStatus.OK)
 			{
 				return false;
 			}
 			Entity candidate = transaction.GetObject(entityResult.ObjectId, OpenMode.ForRead, openErased: false) as Entity;
-			Line line = candidate as Line;
-			if (line == null || !string.Equals(line.Layer, "DRAWING", StringComparison.OrdinalIgnoreCase))
+			if (candidate == null || (!(candidate is Line) && !(candidate is Arc)) || !string.Equals(candidate.Layer, "DRAWING", StringComparison.OrdinalIgnoreCase))
 			{
-				editor.WriteMessage("\nTY 只能选择 DRAWING 图层中的独立 LINE。请重选。");
+				editor.WriteMessage("\nTY 只能选择 DRAWING 图层中的独立 LINE 或 ARC。请重选。");
 				continue;
 			}
-			if (line.StartPoint.DistanceTo(line.EndPoint) <= config.GeometryTolerance)
+			Curve curve = (Curve)candidate;
+			if (curve.StartPoint.DistanceTo(curve.EndPoint) <= config.GeometryTolerance)
 			{
-				editor.WriteMessage("\n所选 LINE 长度无效，请重选。");
+				editor.WriteMessage("\n所选 LINE/ARC 长度无效，请重选。");
 				continue;
 			}
 			sourceEntity = candidate;
-			startPoint = line.StartPoint;
-			endPoint = line.EndPoint;
+			startPoint = curve.StartPoint;
+			endPoint = curve.EndPoint;
 			return true;
 		}
 	}
@@ -214,12 +228,86 @@ internal static class SupportBlockCommand
 		};
 	}
 
+	private static bool TryGetVisibleDashPoint(Transaction transaction, ObjectId linetypeId, Entity sourceEntity, Point3d startPoint, Point3d endPoint, Vector3d displacement, double offset, double objectLinetypeScale, double globalLinetypeScale, bool fromMinimum, out Point3d point)
+	{
+		Vector3d offsetVector = displacement * offset;
+		Arc sourceArc = sourceEntity as Arc;
+		if (sourceArc != null)
+		{
+			return TryGetVisibleDashPoint(transaction, linetypeId, sourceArc, offsetVector, objectLinetypeScale, globalLinetypeScale, fromMinimum, out point);
+		}
+		return TryGetVisibleDashPoint(transaction, linetypeId, startPoint + offsetVector, endPoint + offsetVector, objectLinetypeScale, globalLinetypeScale, fromMinimum, out point);
+	}
+
+	private static bool TryGetVisibleDashPoint(Transaction transaction, ObjectId linetypeId, Arc arc, Vector3d displacement, double objectLinetypeScale, double globalLinetypeScale, bool fromMinimum, out Point3d point)
+	{
+		point = Point3d.Origin;
+		if (arc == null)
+		{
+			return false;
+		}
+		double length = Math.Abs(arc.TotalAngle * arc.Radius);
+		if (!TryGetVisibleDashDistances(transaction, linetypeId, length, objectLinetypeScale, globalLinetypeScale, out List<double> visibleCenters))
+		{
+			return false;
+		}
+
+		bool horizontal = Math.Abs(arc.EndPoint.X - arc.StartPoint.X) >= Math.Abs(arc.EndPoint.Y - arc.StartPoint.Y);
+		double bestDistance = fromMinimum ? double.MaxValue : double.MinValue;
+		bool found = false;
+		foreach (double centerDistance in visibleCenters)
+		{
+			Point3d candidate;
+			try
+			{
+				candidate = arc.GetPointAtDist(centerDistance) + displacement;
+			}
+			catch (Autodesk.AutoCAD.Runtime.Exception)
+			{
+				return false;
+			}
+			double axis = horizontal ? candidate.X : candidate.Y;
+			if (!found || (fromMinimum ? axis < bestDistance : axis > bestDistance))
+			{
+				bestDistance = axis;
+				point = candidate;
+				found = true;
+			}
+		}
+		return found;
+	}
+
 	private static bool TryGetVisibleDashPoint(Transaction transaction, ObjectId linetypeId, Point3d startPoint, Point3d endPoint, double objectLinetypeScale, double globalLinetypeScale, bool fromMinimum, out Point3d point)
 	{
 		point = Point3d.Origin;
 		Vector3d vector = endPoint - startPoint;
 		double length = vector.Length;
-		if (transaction == null || linetypeId.IsNull || length <= 1E-9)
+		if (!TryGetVisibleDashDistances(transaction, linetypeId, length, objectLinetypeScale, globalLinetypeScale, out List<double> visibleCenters))
+		{
+			return false;
+		}
+
+		bool horizontal = Math.Abs(vector.X) >= Math.Abs(vector.Y);
+		double bestDistance = fromMinimum ? double.MaxValue : double.MinValue;
+		bool found = false;
+		foreach (double centerDistance in visibleCenters)
+		{
+			Point3d candidate = startPoint + vector * (centerDistance / length);
+			double axis = horizontal ? candidate.X : candidate.Y;
+			if (!found || (fromMinimum ? axis < bestDistance : axis > bestDistance))
+			{
+				bestDistance = axis;
+				point = candidate;
+				found = true;
+			}
+		}
+		return found;
+	}
+
+	private static bool TryGetVisibleDashDistances(Transaction transaction, ObjectId linetypeId, double length, double objectLinetypeScale, double globalLinetypeScale, out List<double> visibleCenters)
+	{
+		visibleCenters = new List<double>();
+		if (transaction == null || linetypeId.IsNull || double.IsNaN(length) || double.IsInfinity(length) || length <= 1E-9)
 		{
 			return false;
 		}
@@ -263,7 +351,6 @@ internal static class SupportBlockCommand
 			return false;
 		}
 
-		List<double> visibleCenters = new List<double>();
 		double cursor = 0.0;
 		int patternIndex = 0;
 		int guard = 0;
@@ -291,26 +378,7 @@ internal static class SupportBlockCommand
 			}
 			cursor = segmentEnd;
 		}
-		if (visibleCenters.Count == 0 || (guard >= 100000 && cursor < length - 1E-9))
-		{
-			return false;
-		}
-
-		bool horizontal = Math.Abs(vector.X) >= Math.Abs(vector.Y);
-		double bestDistance = fromMinimum ? double.MaxValue : double.MinValue;
-		bool found = false;
-		foreach (double centerDistance in visibleCenters)
-		{
-			Point3d candidate = startPoint + vector * (centerDistance / length);
-			double axis = horizontal ? candidate.X : candidate.Y;
-			if (!found || (fromMinimum ? axis < bestDistance : axis > bestDistance))
-			{
-				bestDistance = axis;
-				point = candidate;
-				found = true;
-			}
-		}
-		return found;
+		return visibleCenters.Count > 0 && !(guard >= 100000 && cursor < length - 1E-9);
 	}
 
 	private static Point3d GetSupportCalloutTextPoint(Point3d dimensionLineMidpoint, Point3d startPoint, Point3d endPoint, bool horizontal, Vector3d outward, double axisDistance, double outwardDistance, bool fromMinimum)

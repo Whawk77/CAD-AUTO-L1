@@ -81,7 +81,7 @@ public static class CadToCoreModelMapper
 
 	public static Datum2D ToCoreDatum(DatumDefinition source)
 	{
-		return new Datum2D
+		Datum2D datum = new Datum2D
 		{
 			BaseX = source.BaseX,
 			BaseY = source.BaseY,
@@ -91,6 +91,19 @@ public static class CadToCoreModelMapper
 			DatumHoleLocationUseToleranceX = source.DatumHoleLocationUseToleranceX,
 			DatumHoleLocationUseToleranceY = source.DatumHoleLocationUseToleranceY
 		};
+		foreach (CenterlineEndpointDefinition endpoint in source.HoleCenterlineEndpoints ?? new List<CenterlineEndpointDefinition>())
+		{
+			if (endpoint == null)
+			{
+				continue;
+			}
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D
+			{
+				Point = new Point2D(endpoint.Point.X, endpoint.Point.Y),
+				SourceGeometryId = endpoint.SourceGeometryId ?? string.Empty
+			});
+		}
+		return datum;
 	}
 
 	public static List<HoleFeature2D> ToCoreHoles(IEnumerable<HoleFeature> source)

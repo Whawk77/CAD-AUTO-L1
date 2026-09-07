@@ -1,4 +1,14 @@
+using System.Collections.Generic;
+using CadAuto.Core.Geometry;
+
 namespace CadAuto.Core.Model;
+
+public sealed class CenterlineEndpoint2D
+{
+	public Point2D Point { get; set; }
+
+	public string SourceGeometryId { get; set; }
+}
 
 public sealed class Datum2D
 {
@@ -15,6 +25,8 @@ public sealed class Datum2D
 	public bool DatumHoleLocationUseToleranceX { get; set; }
 
 	public bool DatumHoleLocationUseToleranceY { get; set; }
+
+	public List<CenterlineEndpoint2D> HoleCenterlineEndpoints { get; private set; } = new List<CenterlineEndpoint2D>();
 
 	public static Datum2D FromOutline(OutlineFeature2D outline)
 	{

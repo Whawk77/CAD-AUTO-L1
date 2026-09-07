@@ -78,6 +78,8 @@ public sealed class DimensionCandidateDiagnostic
 
 	public bool IsAttachmentValid { get; set; }
 
+	public string AttachmentKind { get; set; }
+
 	public string DecisionStatus { get; set; }
 
 	public string DecisionReason { get; set; }

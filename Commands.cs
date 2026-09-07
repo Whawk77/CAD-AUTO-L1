@@ -50,6 +50,13 @@ public sealed class Commands
 		public double MaxZ { get; set; }
 	}
 
+	private sealed class DiagnosticCenterlineEndpoint
+	{
+		public string SourceGeometryId { get; set; }
+
+		public Point3d PointWcs { get; set; }
+	}
+
 	private sealed class DiagnosticFileIdentity
 	{
 		public string Path { get; set; }
@@ -80,6 +87,8 @@ public sealed class Commands
 		public List<string> EntityHandles { get; } = new List<string>();
 
 		public SortedDictionary<string, int> EntityTypeCounts { get; } = new SortedDictionary<string, int>(StringComparer.Ordinal);
+
+		public List<DiagnosticCenterlineEndpoint> CenterlineEndpoints { get; } = new List<DiagnosticCenterlineEndpoint>();
 
 		public DiagnosticBounds SelectedGeometryBoundsWcs { get; set; }
 
@@ -621,6 +630,7 @@ public sealed class Commands
 				ReportEnvelopeSkippedEntities(editor, featureRecognizer);
 			}
 			DatumDefinition datumDefinition = DatumDefinition.FromOutline(outlineFeature);
+			datumDefinition.HoleCenterlineEndpoints.AddRange(geometryCollector.CollectHoleCenterlineEndpoints(transaction, outlineSelection, dimensionRuleConfig.GeometryTolerance));
 			IList<SlotFeature> list = featureRecognizer.RecognizeOutlineSlotFeatures(outlineFeature);
 			IList<ObjectId> list2 = geometryCollector.CollectHoleSourcesFromOutlineSelection(transaction, outlineFeature, outlineSelection, dimensionRuleConfig);
 			bool flag = false;
@@ -762,6 +772,7 @@ public sealed class Commands
 					ReportEnvelopeSkippedEntities(editor, featureRecognizer);
 				}
 				DatumDefinition datumDefinition = DatumDefinition.FromOutline(outlineFeature);
+				datumDefinition.HoleCenterlineEndpoints.AddRange(geometryCollector.CollectHoleCenterlineEndpoints(transaction, outlineSelection, config.GeometryTolerance));
 				IList<SlotFeature> list3;
 				if (!flag4)
 				{
@@ -1208,6 +1219,18 @@ public sealed class Commands
 			DimScale = database?.Dimscale ?? 1.0,
 			DimStyle = GetSystemVariableText("DIMSTYLE")
 		};
+		foreach (CenterlineEndpointDefinition endpoint in datum?.HoleCenterlineEndpoints ?? new List<CenterlineEndpointDefinition>())
+		{
+			if (endpoint == null)
+			{
+				continue;
+			}
+			diagnosticRunContext.CenterlineEndpoints.Add(new DiagnosticCenterlineEndpoint
+			{
+				SourceGeometryId = endpoint.SourceGeometryId ?? string.Empty,
+				PointWcs = endpoint.Point
+			});
+		}
 		try
 		{
 			ObjectId resolvedDimStyleId = DimStyleManager.ResolveDimStyle(database, transaction);
@@ -1509,9 +1532,34 @@ public sealed class Commands
 		AppendStringIntMap(builder, 2, "entityTypeCounts", context.EntityTypeCounts, comma: true);
 		AppendJsonProperty(builder, 2, "selectedGeometryBoundsStatus", context.SelectedGeometryBoundsStatus, comma: true);
 		AppendDiagnosticBounds(builder, 2, "selectedGeometryBoundsWcs", context.SelectedGeometryBoundsWcs, comma: true);
-		AppendDiagnosticBounds(builder, 2, "recognizedOutlineBoundsWcs", context.RecognizedOutlineBoundsWcs, comma: false);
+		AppendDiagnosticBounds(builder, 2, "recognizedOutlineBoundsWcs", context.RecognizedOutlineBoundsWcs, comma: true);
+		AppendJsonProperty(builder, 2, "centerlineEndpointCount", context.CenterlineEndpoints.Count, comma: true);
+		AppendDiagnosticCenterlineEndpoints(builder, 2, context.CenterlineEndpoints, comma: false);
 		AppendIndent(builder, 1);
 		builder.Append("}");
+		builder.AppendLine(comma ? "," : string.Empty);
+	}
+
+	private static void AppendDiagnosticCenterlineEndpoints(StringBuilder builder, int indent, IEnumerable<DiagnosticCenterlineEndpoint> endpoints, bool comma)
+	{
+		AppendIndent(builder, indent);
+		builder.AppendLine("\"centerlineEndpoints\": [");
+		List<DiagnosticCenterlineEndpoint> list = (endpoints ?? Enumerable.Empty<DiagnosticCenterlineEndpoint>()).ToList();
+		for (int i = 0; i < list.Count; i++)
+		{
+			DiagnosticCenterlineEndpoint endpoint = list[i];
+			AppendIndent(builder, indent + 1);
+			builder.AppendLine("{");
+			AppendJsonProperty(builder, indent + 2, "sourceGeometryId", endpoint.SourceGeometryId, comma: true);
+			AppendJsonProperty(builder, indent + 2, "x", endpoint.PointWcs.X, comma: true);
+			AppendJsonProperty(builder, indent + 2, "y", endpoint.PointWcs.Y, comma: true);
+			AppendJsonProperty(builder, indent + 2, "z", endpoint.PointWcs.Z, comma: false);
+			AppendIndent(builder, indent + 1);
+			builder.Append("}");
+			builder.AppendLine((i == list.Count - 1) ? string.Empty : ",");
+		}
+		AppendIndent(builder, indent);
+		builder.Append("]");
 		builder.AppendLine(comma ? "," : string.Empty);
 	}
 
@@ -1685,6 +1733,7 @@ public sealed class Commands
 			AppendJsonProperty(builder, indent + 2, "isSuppressed", dimensionCandidateDiagnostic.IsSuppressed, comma: true);
 			AppendJsonProperty(builder, indent + 2, "isSelected", dimensionCandidateDiagnostic.IsSelected, comma: true);
 			AppendJsonProperty(builder, indent + 2, "isAttachmentValid", dimensionCandidateDiagnostic.IsAttachmentValid, comma: true);
+			AppendJsonProperty(builder, indent + 2, "attachmentKind", dimensionCandidateDiagnostic.AttachmentKind, comma: true);
 			AppendJsonProperty(builder, indent + 2, "decisionStatus", dimensionCandidateDiagnostic.DecisionStatus, comma: true);
 			AppendJsonProperty(builder, indent + 2, "decisionReason", dimensionCandidateDiagnostic.DecisionReason, comma: true);
 			AppendJsonProperty(builder, indent + 2, "suppressedReason", dimensionCandidateDiagnostic.SuppressedReason, comma: true);

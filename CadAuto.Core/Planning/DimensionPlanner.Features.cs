@@ -143,14 +143,16 @@ public sealed partial class DimensionPlanner
 			List<Point2D> list = UniquePointsByCoordinate(item.OrderBy((Point2D p) => p.X), (Point2D p) => p.X);
 			SlotFeature2D firstSlot = list.Count == 0 ? null : FindSlotByAnchor(slots, list[0]);
 			bool firstIsDoubleArcSlot = firstSlot != null && !firstSlot.IsSingleArcSlot;
+			DimensionSide chainSide = firstSlot != null ? ChooseHorizontalHoleSide(outline, list[0]) : DimensionSide.Bottom;
+			List<Point2D> chainPoints = list.Select(point => GetDoubleArcSlotCenterFacingSide(FindSlotByAnchor(slots, point), point, chainSide)).ToList();
 			AddHorizontalChainFromOutlineDatum(
 				plan,
 				outline,
 				datum.BaseX,
-				list,
+				chainPoints,
 				"SlotChainH",
 				firstIsDoubleArcSlot ? "DoubleArcSlotHorizontalDatum" : null,
-				firstSlot != null ? ChooseHorizontalHoleSide(outline, list[0]) : DimensionSide.Bottom);
+				chainSide);
 			if (list.Count > 0)
 			{
 				DimensionSide side = ChooseVerticalSlotGroupSide(outline, list);
@@ -185,15 +187,17 @@ public sealed partial class DimensionPlanner
 			SlotFeature2D firstSlot = list.Count == 0 ? null : FindSlotByAnchor(slots, list[0]);
 			bool firstIsSingleArcSlot = firstSlot != null && firstSlot.IsSingleArcSlot;
 			bool firstIsDoubleArcSlot = firstSlot != null && !firstSlot.IsSingleArcSlot;
+			DimensionSide chainSide = firstSlot != null ? ChooseVerticalHoleSide(outline, list[0]) : DimensionSide.Left;
+			List<Point2D> chainPoints = list.Select(point => GetDoubleArcSlotCenterFacingSide(FindSlotByAnchor(slots, point), point, chainSide)).ToList();
 			AddVerticalChainFromOutlineDatum(
 				plan,
 				outline,
 				datum.BaseY,
-				list,
+				chainPoints,
 				"SlotChainV",
 				firstIsSingleArcSlot ? "SingleArcSlotVerticalDatum"
 					: firstIsDoubleArcSlot ? "DoubleArcSlotVerticalDatum" : null,
-				firstSlot != null ? ChooseVerticalHoleSide(outline, list[0]) : DimensionSide.Left);
+				chainSide);
 			if (list.Count != 0)
 			{
 				DimensionSide side = ChooseHorizontalSlotGroupSide(outline, list);
@@ -346,9 +350,12 @@ public sealed partial class DimensionPlanner
 		if (baseHole != null)
 		{
 			List<HoleFeature2D> normalTargets = list.Where((HoleFeature2D h) => !h.IsThreadHole && !IsSameHole(h, baseHole)).ToList();
-			string horizontalAlignmentKey = GetNonPinHorizontalChainAlignmentKey(outline, baseHole, normalTargets);
-			AddNonPinHoleDatumLocation(plan, outline, datum, baseHole, horizontalAlignmentKey);
-			AddNonPinHoleChainsFromBase(plan, outline, baseHole, normalTargets, "HoleChain", horizontalAlignmentKey);
+			DimensionSide horizontalSide = ChooseHorizontalHoleSide(outline, baseHole.Center);
+			DimensionSide verticalSide = ChooseVerticalHoleSide(outline, baseHole.Center);
+			string horizontalAlignmentKey = GetNonPinChainAlignmentKey(baseHole, normalTargets, horizontalSide, horizontal: true);
+			string verticalAlignmentKey = GetNonPinChainAlignmentKey(baseHole, normalTargets, verticalSide, horizontal: false);
+			AddNonPinHoleDatumLocation(plan, outline, datum, baseHole, horizontalSide, verticalSide, horizontalAlignmentKey, verticalAlignmentKey);
+			AddNonPinHoleChainsFromBase(plan, baseHole, normalTargets, "HoleChain", horizontalSide, verticalSide, horizontalAlignmentKey, verticalAlignmentKey);
 			AddNonPinHoleChainsFromBase(plan, outline, baseHole, list.Where((HoleFeature2D h) => h.IsThreadHole && !IsSameHole(h, baseHole)).ToList(), "ThreadHoleChain");
 		}
 	}
@@ -362,32 +369,47 @@ public sealed partial class DimensionPlanner
 			select h).FirstOrDefault();
 	}
 
-	private void AddNonPinHoleChainsFromBase(DimensionPlan plan, OutlineFeature2D outline, HoleFeature2D baseHole, IList<HoleFeature2D> targets, string debugRole, string horizontalAlignmentKey = null)
+	private void AddNonPinHoleChainsFromBase(DimensionPlan plan, HoleFeature2D baseHole, IList<HoleFeature2D> targets, string debugRole, DimensionSide horizontalSide, DimensionSide verticalSide, string horizontalAlignmentKey, string verticalAlignmentKey)
 	{
 		if (targets != null && targets.Count != 0)
 		{
 			List<HoleFeature2D> list = new List<HoleFeature2D> { baseHole };
 			list.AddRange(targets);
-			AddNonPinHoleAxisChain(plan, outline, list, horizontalAxis: true, debugRole + "H", horizontalAlignmentKey);
+			AddNonPinHoleAxisChain(plan, list, baseHole, horizontalAxis: true, debugRole + "H", horizontalSide, horizontalAlignmentKey);
 			List<HoleFeature2D> list2 = new List<HoleFeature2D> { baseHole };
 			list2.AddRange(targets);
-			AddNonPinHoleAxisChain(plan, outline, list2, horizontalAxis: false, debugRole + "V");
+			AddNonPinHoleAxisChain(plan, list2, baseHole, horizontalAxis: false, debugRole + "V", verticalSide, verticalAlignmentKey);
 		}
 	}
 
-	private void AddNonPinHoleAxisChain(DimensionPlan plan, OutlineFeature2D outline, IList<HoleFeature2D> holes, bool horizontalAxis, string debugRole, string alignmentKey = null)
+	private void AddNonPinHoleChainsFromBase(DimensionPlan plan, OutlineFeature2D outline, HoleFeature2D baseHole, IList<HoleFeature2D> targets, string debugRole)
 	{
-		List<HoleFeature2D> list = (from h in holes
-			orderby horizontalAxis ? h.Center.X : h.Center.Y, horizontalAxis ? h.Center.Y : h.Center.X
-			select h).ToList();
-		DimensionSide side = ChooseLooseDimensionSide(outline, list, horizontalAxis);
+		DimensionSide horizontalSide = ChooseLooseDimensionSide(outline, new[] { baseHole }, horizontal: true);
+		DimensionSide verticalSide = ChooseLooseDimensionSide(outline, new[] { baseHole }, horizontal: false);
+		AddNonPinHoleChainsFromBase(plan, baseHole, targets, debugRole, horizontalSide, verticalSide, null, null);
+	}
+
+	private void AddNonPinHoleAxisChain(DimensionPlan plan, IList<HoleFeature2D> holes, HoleFeature2D anchorHole, bool horizontalAxis, string debugRole, DimensionSide side, string alignmentKey)
+	{
+		Func<HoleFeature2D, double> axisCoordinate = h => horizontalAxis ? h.Center.X : h.Center.Y;
+		Func<HoleFeature2D, double> perpendicularCoordinate = h => horizontalAxis ? h.Center.Y : h.Center.X;
+		Func<HoleFeature2D, double> sideDistance = h => horizontalAxis
+			? (side == DimensionSide.Bottom ? h.Center.Y : -h.Center.Y)
+			: (side == DimensionSide.Left ? h.Center.X : -h.Center.X);
+		double tolerance = GetFunctionalHoleAlignmentTolerance();
+		List<HoleFeature2D> list = ClusterCoordinates(holes.Select(axisCoordinate))
+			.Select(coordinate => holes.Where(h => Math.Abs(axisCoordinate(h) - coordinate) <= tolerance)
+				.OrderBy(h => Math.Abs(perpendicularCoordinate(h) - perpendicularCoordinate(anchorHole)))
+				.ThenBy(sideDistance).First())
+			.OrderBy(axisCoordinate)
+			.ToList();
 		for (int num = 1; num < list.Count; num++)
 		{
-			AddDimension(plan, DimensionKind.HoleLocation, (!horizontalAxis) ? DimensionOrientation.Vertical : DimensionOrientation.Horizontal, side, list[num - 1].Center, list[num].Center, string.Empty, debugRole, alignmentKey: horizontalAxis ? alignmentKey : null, alignmentPriority: horizontalAxis && !string.IsNullOrEmpty(alignmentKey) ? 80 : 0);
+			AddDimension(plan, DimensionKind.HoleLocation, (!horizontalAxis) ? DimensionOrientation.Vertical : DimensionOrientation.Horizontal, side, list[num - 1].Center, list[num].Center, string.Empty, debugRole, alignmentKey: alignmentKey, alignmentPriority: string.IsNullOrEmpty(alignmentKey) ? 0 : 90);
 		}
 	}
 
-	private string GetNonPinHorizontalChainAlignmentKey(OutlineFeature2D outline, HoleFeature2D baseHole, IList<HoleFeature2D> targets)
+	private string GetNonPinChainAlignmentKey(HoleFeature2D baseHole, IList<HoleFeature2D> targets, DimensionSide side, bool horizontal)
 	{
 		List<HoleFeature2D> chain = new List<HoleFeature2D> { baseHole };
 		chain.AddRange(targets ?? new HoleFeature2D[0]);
@@ -395,19 +417,18 @@ public sealed partial class DimensionPlanner
 		{
 			return string.Empty;
 		}
-		DimensionSide side = ChooseLooseDimensionSide(outline, chain, horizontal: true);
-		HoleFeature2D first = chain.OrderBy((HoleFeature2D h) => h.Center.X).ThenBy((HoleFeature2D h) => h.Center.Y).First();
-		HoleFeature2D last = chain.OrderByDescending((HoleFeature2D h) => h.Center.X).ThenByDescending((HoleFeature2D h) => h.Center.Y).First();
-		return "LooseHoleChain:" + side.ToString() + ":H:"
+		HoleFeature2D first = chain.OrderBy(h => horizontal ? h.Center.X : h.Center.Y).First();
+		HoleFeature2D last = chain.OrderByDescending(h => horizontal ? h.Center.X : h.Center.Y).First();
+		return "LooseHoleChain:" + side.ToString() + ":" + (horizontal ? "H" : "V") + ":"
 			+ baseHole.Center.X.ToString("0.###", CultureInfo.InvariantCulture) + "," + baseHole.Center.Y.ToString("0.###", CultureInfo.InvariantCulture)
 			+ ":" + first.Center.X.ToString("0.###", CultureInfo.InvariantCulture) + "," + first.Center.Y.ToString("0.###", CultureInfo.InvariantCulture)
 			+ "-" + last.Center.X.ToString("0.###", CultureInfo.InvariantCulture) + "," + last.Center.Y.ToString("0.###", CultureInfo.InvariantCulture);
 	}
 
-	private void AddNonPinHoleDatumLocation(DimensionPlan plan, OutlineFeature2D outline, Datum2D datum, HoleFeature2D hole, string horizontalAlignmentKey = null)
+	private void AddNonPinHoleDatumLocation(DimensionPlan plan, OutlineFeature2D outline, Datum2D datum, HoleFeature2D hole, DimensionSide horizontalSide, DimensionSide verticalSide, string horizontalAlignmentKey, string verticalAlignmentKey)
 	{
-		AddHorizontalOutlineReferenceDimension(plan, outline, datum.BaseX, hole.Center, DimensionKind.HoleLocation, ChooseHorizontalHoleSide(outline, hole.Center), string.Empty, "HoleDatumX", alignmentKey: horizontalAlignmentKey, alignmentPriority: string.IsNullOrEmpty(horizontalAlignmentKey) ? 0 : 80);
-		AddVerticalOutlineReferenceDimension(plan, outline, datum.BaseY, hole.Center, DimensionKind.HoleLocation, ChooseVerticalHoleSide(outline, hole.Center), string.Empty, "HoleDatumY", preservePreferredSide: true);
+		AddHorizontalOutlineReferenceDimension(plan, outline, datum.BaseX, hole.Center, DimensionKind.HoleLocation, horizontalSide, string.Empty, "HoleDatumX", alignmentKey: horizontalAlignmentKey, alignmentPriority: string.IsNullOrEmpty(horizontalAlignmentKey) ? 0 : 100);
+		AddVerticalOutlineReferenceDimension(plan, outline, datum.BaseY, hole.Center, DimensionKind.HoleLocation, verticalSide, string.Empty, "HoleDatumY", alignmentKey: verticalAlignmentKey, alignmentPriority: string.IsNullOrEmpty(verticalAlignmentKey) ? 0 : 100, preservePreferredSide: true);
 	}
 
 	private PinGroupPlan CreatePinPairGroup(HoleFeature2D seed, IList<HoleFeature2D> candidates, HoleFeature2D forcedBasePin, HoleFeature2D referenceBasePin)
@@ -493,11 +514,11 @@ public sealed partial class DimensionPlanner
 			double num2 = Math.Abs(basePin2.Center.Y - basePin.Center.Y);
 			if (num > _config.GeometryTolerance)
 			{
-				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Horizontal, groups[i].HorizontalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: horizontalAlignmentKey, alignmentPriority: 110, readingLevel: DimensionReadingLevel.DatumTransfer);
+				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Horizontal, groups[0].HorizontalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: horizontalAlignmentKey, alignmentPriority: 110, readingLevel: DimensionReadingLevel.DatumTransfer);
 			}
 			if (num2 > _config.GeometryTolerance)
 			{
-				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Vertical, groups[i].VerticalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num2), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: verticalAlignmentKey, alignmentPriority: 110, readingLevel: DimensionReadingLevel.DatumTransfer);
+				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Vertical, groups[0].VerticalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num2), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: verticalAlignmentKey, alignmentPriority: 110, readingLevel: DimensionReadingLevel.DatumTransfer);
 			}
 		}
 	}
@@ -517,11 +538,11 @@ public sealed partial class DimensionPlanner
 					double num2 = Math.Abs(pin.Center.Y - group.BasePin.Center.Y);
 					if (num > _config.GeometryTolerance)
 					{
-						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Horizontal, group.HorizontalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: horizontalAlignmentKey, alignmentPriority: 100, readingLevel: DimensionReadingLevel.IntraGroup);
+						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Horizontal, groups[0].HorizontalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: horizontalAlignmentKey, alignmentPriority: 100, readingLevel: DimensionReadingLevel.IntraGroup);
 					}
 					if (num2 > _config.GeometryTolerance)
 					{
-						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Vertical, group.VerticalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num2), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: verticalAlignmentKey, alignmentPriority: 100, readingLevel: DimensionReadingLevel.IntraGroup);
+						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Vertical, groups[0].VerticalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num2), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: verticalAlignmentKey, alignmentPriority: 100, readingLevel: DimensionReadingLevel.IntraGroup);
 					}
 				}
 			}
@@ -1358,6 +1379,23 @@ public sealed partial class DimensionPlanner
 	{
 		return slots?.FirstOrDefault((SlotFeature2D s) => s != null
 			&& (PointsEqual(s.FirstCenter, anchor) || PointsEqual(s.SecondCenter, anchor)));
+	}
+
+	private static Point2D GetDoubleArcSlotCenterFacingSide(SlotFeature2D slot, Point2D fallback, DimensionSide side)
+	{
+		if (slot == null || slot.IsSingleArcSlot)
+		{
+			return fallback;
+		}
+		if (side == DimensionSide.Left || side == DimensionSide.Right)
+		{
+			return side == DimensionSide.Left
+				? (slot.FirstCenter.X <= slot.SecondCenter.X ? slot.FirstCenter : slot.SecondCenter)
+				: (slot.FirstCenter.X >= slot.SecondCenter.X ? slot.FirstCenter : slot.SecondCenter);
+		}
+		return side == DimensionSide.Bottom
+			? (slot.FirstCenter.Y <= slot.SecondCenter.Y ? slot.FirstCenter : slot.SecondCenter)
+			: (slot.FirstCenter.Y >= slot.SecondCenter.Y ? slot.FirstCenter : slot.SecondCenter);
 	}
 
 	private void AddSingleArcSlotHorizontalDatumDimension(DimensionPlan plan, OutlineFeature2D outline, Datum2D datum, SlotFeature2D slot, Point2D center)

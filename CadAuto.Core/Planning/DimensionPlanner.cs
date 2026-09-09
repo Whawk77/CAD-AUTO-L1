@@ -325,7 +325,7 @@ public sealed partial class DimensionPlanner
 
 	private void ApplyCenterlineEndpointAttachments(DimensionPlan plan, Datum2D datum)
 	{
-		if (plan == null || datum == null || datum.HoleCenterlineEndpoints == null || datum.HoleCenterlineEndpoints.Count == 0)
+		if (plan == null || datum == null || datum.HoleCenterlineEndpoints == null)
 		{
 			return;
 		}
@@ -341,11 +341,15 @@ public sealed partial class DimensionPlanner
 			bool linkedSlotCenterDistance = IsLinkedSlotCenterDistance(plan, dimension);
 			bool linkedSlotDimension = linkedSlotCenterDistance
 				|| string.Equals(dimension.RuleId, "LinkedSlotDatumSide", StringComparison.Ordinal);
+			bool sideFacingHoleEndpoint = dimension.Role == DimensionCandidateRole.Hole
+				|| dimension.Role == DimensionCandidateRole.Pin
+				|| (dimension.Role == DimensionCandidateRole.Datum
+					&& (dimension.DebugRole == "DatumX" || dimension.DebugRole == "DatumY"));
 			if (!dimension.FirstPointMustLieOnOutline)
 			{
 				Point2D beforePoint = dimension.FirstPoint;
-				CenterlineEndpointMatch firstMatch = linkedSlotDimension
-					? FindSingleArcSlotCenterlineEndpoint(datum, beforePoint, dimension.Side)
+				CenterlineEndpointMatch firstMatch = linkedSlotDimension || sideFacingHoleEndpoint
+					? FindSideFacingCenterlineEndpoint(datum, beforePoint, dimension.Side)
 					: FindCenterlineEndpoint(datum, beforePoint);
 				if (firstMatch.IsMatched && HasSpan(dimension, firstMatch.Endpoint.Point, dimension.SecondPoint))
 				{
@@ -368,8 +372,8 @@ public sealed partial class DimensionPlanner
 				|| string.Equals(dimension.DebugRole, "DoubleArcSlotHorizontalDatum", StringComparison.Ordinal)
 				|| string.Equals(dimension.DebugRole, "DoubleArcSlotVerticalDatum", StringComparison.Ordinal)
 				|| linkedSlotDimension;
-			CenterlineEndpointMatch secondMatch = arcSlotDatum
-				? FindSingleArcSlotCenterlineEndpoint(datum, beforeSecondPoint, dimension.Side)
+			CenterlineEndpointMatch secondMatch = arcSlotDatum || sideFacingHoleEndpoint
+				? FindSideFacingCenterlineEndpoint(datum, beforeSecondPoint, dimension.Side)
 				: FindCenterlineEndpoint(datum, beforeSecondPoint);
 			if (secondMatch.IsMatched && HasSpan(dimension, dimension.FirstPoint, secondMatch.Endpoint.Point))
 			{
@@ -425,7 +429,23 @@ public sealed partial class DimensionPlanner
 			return string.Equals(dimension.RuleId, "LinkedSlotDatumSide", StringComparison.Ordinal);
 		}
 		return dimension.Role == DimensionCandidateRole.Hole
+			|| dimension.Role == DimensionCandidateRole.Pin
+			|| (dimension.Role == DimensionCandidateRole.Datum
+				&& (dimension.DebugRole == "DatumX" || dimension.DebugRole == "DatumY"))
 			|| dimension.Role == DimensionCandidateRole.Slot;
+	}
+
+	private CenterlineEndpointMatch FindSideFacingCenterlineEndpoint(Datum2D datum, Point2D target, DimensionSide side)
+	{
+		CenterlineEndpointMatch sideMatch = FindSingleArcSlotCenterlineEndpoint(datum, target, side);
+		if (sideMatch.IsMatched || string.Equals(sideMatch.Status, "Ambiguous", StringComparison.Ordinal))
+		{
+			return sideMatch;
+		}
+		CenterlineEndpointMatch exactMatch = FindCenterlineEndpoint(datum, target);
+		return exactMatch.IsMatched || string.Equals(exactMatch.Status, "Ambiguous", StringComparison.Ordinal)
+			? exactMatch
+			: sideMatch;
 	}
 
 	private CenterlineEndpointMatch FindCenterlineEndpoint(Datum2D datum, Point2D target)
@@ -472,6 +492,10 @@ public sealed partial class DimensionPlanner
 		bool verticalAxis = side == DimensionSide.Bottom || side == DimensionSide.Top;
 		bool horizontalAxis = side == DimensionSide.Left || side == DimensionSide.Right;
 		string matchMode = verticalAxis ? "VerticalAxisEndpointByPlacementSide" : "HorizontalAxisEndpointByPlacementSide";
+		if (datum.HoleCenterlineEndpoints.Count == 0)
+		{
+			return new CenterlineEndpointMatch { Status = "NoEndpoint", MatchMode = matchMode };
+		}
 		if (!verticalAxis && !horizontalAxis)
 		{
 			return new CenterlineEndpointMatch { Status = "UnsupportedSide", MatchMode = matchMode };
@@ -615,7 +639,9 @@ public sealed partial class DimensionPlanner
 			plan.AddSkippedDimension(kind, DimensionOrientation.Horizontal, side, new Point2D(preferredX, target.Y), target, "NoRealOutlineAttachment:XDatum=" + preferredX.ToString("0.########", CultureInfo.InvariantCulture), skippedDebugRole ?? debugRole, debugOwner);
 			return false;
 		}
-		if (string.Equals(debugRole, "DoubleArcSlotHorizontalDatum", StringComparison.Ordinal))
+		if (kind == DimensionKind.HoleLocation
+			|| kind == DimensionKind.DatumHoleLocationX
+			|| string.Equals(debugRole, "DoubleArcSlotHorizontalDatum", StringComparison.Ordinal))
 		{
 			point = GetSideFacingOutlineSegmentEndpoint(outline, point, DimensionOrientation.Horizontal, side);
 		}
@@ -630,7 +656,9 @@ public sealed partial class DimensionPlanner
 			plan.AddSkippedDimension(kind, DimensionOrientation.Vertical, side, new Point2D(target.X, preferredY), target, "NoRealOutlineAttachment:YDatum=" + preferredY.ToString("0.########", CultureInfo.InvariantCulture), skippedDebugRole ?? debugRole, debugOwner);
 			return false;
 		}
-		if (string.Equals(debugRole, "SingleArcSlotVerticalDatum", StringComparison.Ordinal)
+		if (kind == DimensionKind.HoleLocation
+			|| kind == DimensionKind.DatumHoleLocationY
+			|| string.Equals(debugRole, "SingleArcSlotVerticalDatum", StringComparison.Ordinal)
 			|| string.Equals(debugRole, "DoubleArcSlotVerticalDatum", StringComparison.Ordinal))
 		{
 			point = GetSideFacingOutlineSegmentEndpoint(outline, point, DimensionOrientation.Vertical, side);

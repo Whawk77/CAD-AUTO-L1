@@ -101,7 +101,8 @@ namespace CadAuto.Core.Tests
             nameof(LeftStepStructureHeightsPreferOverRightOutlineSegments),
             nameof(RightStepStructureHeightsPreferOverLeftOutlineSegments),
             nameof(OrphanRightOuterStructureHeightTipsAreSuppressed),
-            nameof(PartialEnvelopeStructureHeightSurvivesOrphanTipSuppression)
+			nameof(PartialEnvelopeStructureHeightSurvivesOrphanTipSuppression),
+			nameof(HoleAndPinChainsUseSideFacingCenterlineEndpoints)
         };
         private static readonly HashSet<string> P3Tests = new HashSet<string>
         {
@@ -326,6 +327,7 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(HolesAreGroupedByHorizontalRows), HolesAreGroupedByHorizontalRows);
                 RunTest(nameof(NormalHolesLocateFromOutlineDatum), NormalHolesLocateFromOutlineDatum);
 				RunTest(nameof(CenterlineEndpointIsAllowedForHolePositioning), CenterlineEndpointIsAllowedForHolePositioning);
+				RunTest(nameof(HoleAndPinChainsUseSideFacingCenterlineEndpoints), HoleAndPinChainsUseSideFacingCenterlineEndpoints);
 				RunTest(nameof(SingleArcSlotDatumUsesBottomCenterlineEndpoint), SingleArcSlotDatumUsesBottomCenterlineEndpoint);
 				RunTest(nameof(DoubleArcSlotDatumUsesCenterlineAndOutlineEndpoints), DoubleArcSlotDatumUsesCenterlineAndOutlineEndpoints);
 				RunTest(nameof(PinGroupsPlanBaseAndPairDistances), PinGroupsPlanBaseAndPairDistances);
@@ -7584,6 +7586,115 @@ namespace CadAuto.Core.Tests
 				"centerline endpoints must not affect overall dimensions");
 		}
 
+		private static void HoleAndPinChainsUseSideFacingCenterlineEndpoints()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 100.0);
+			var normalDatum = Datum2D.FromOutline(outline);
+			AddCenterlineCross(normalDatum, new Point2D(20.0, 20.0), "N1");
+			AddCenterlineCross(normalDatum, new Point2D(50.0, 40.0), "N2");
+			var normalPlan = new DimensionPlanner(config).CreateDimensionPlan(outline, normalDatum, new[]
+			{
+				CreateHole(20.0, 20.0, 8.0, HoleKind2D.Normal),
+				CreateHole(50.0, 40.0, 8.0, HoleKind2D.Normal)
+			});
+			var normalHorizontal = normalPlan.Dimensions.Where(d => d.DebugRole == "HoleDatumX" || d.DebugRole == "HoleChainH").ToList();
+			var normalVertical = normalPlan.Dimensions.Where(d => d.DebugRole == "HoleDatumY" || d.DebugRole == "HoleChainV").ToList();
+			Assert(normalHorizontal.Count == 2 && normalHorizontal.All(d => d.Side == DimensionSide.Bottom)
+				&& normalHorizontal.Select(d => d.AlignmentKey).Distinct().Count() == 1
+				&& normalHorizontal.Single(d => d.DebugRole == "HoleDatumX").FirstPoint.Equals(new Point2D(0.0, 0.0))
+				&& normalHorizontal.Any(d => d.SecondPoint.Equals(new Point2D(20.0, 15.0)))
+				&& normalHorizontal.Any(d => d.SecondPoint.Equals(new Point2D(50.0, 35.0))),
+				"normal-hole horizontal location and center distance must share the bottom vertical-axis endpoints and rooted key");
+			Assert(normalVertical.Count == 2 && normalVertical.All(d => d.Side == DimensionSide.Left)
+				&& normalVertical.Select(d => d.AlignmentKey).Distinct().Count() == 1
+				&& normalVertical.Single(d => d.DebugRole == "HoleDatumY").FirstPoint.Equals(new Point2D(0.0, 0.0))
+				&& normalVertical.Any(d => d.SecondPoint.Equals(new Point2D(15.0, 20.0)))
+				&& normalVertical.Any(d => d.SecondPoint.Equals(new Point2D(45.0, 40.0))),
+				"normal-hole vertical location and center distance must share the left horizontal-axis endpoints and rooted key");
+			var normalLayout = normalHorizontal.Select(d => new DimensionLayoutItem
+			{
+				Kind = d.Kind,
+				FirstPoint = d.FirstPoint,
+				SecondPoint = d.SecondPoint,
+				Span = GetSpan(d),
+				AlignmentKey = d.AlignmentKey,
+				AlignmentPriority = d.AlignmentPriority,
+				ReadingLevel = d.ReadingLevel
+			}).ToList();
+			var normalPlacements = new DimensionLayoutRules(config)
+				.CreateStackingPlan(normalLayout, DimensionSide.Bottom, outline, 2.5, 1.25, 10.0, 6.5, isHorizontal: true);
+			Assert(normalPlacements.All(p => p.Level == 0 && p.LayoutBlockType == "RootedAlignmentLane")
+				&& normalPlacements.Select(p => p.LayoutBlockId).Distinct().Count() == 1,
+				"normal-hole location must anchor its connected center distance in one nearest rooted block");
+
+			var gridDatum = Datum2D.FromOutline(outline);
+			var gridHoles = new[]
+			{
+				CreateHole(20.0, 20.0, 8.0, HoleKind2D.Normal),
+				CreateHole(20.0, 40.0, 8.0, HoleKind2D.Normal),
+				CreateHole(40.0, 20.0, 8.0, HoleKind2D.Normal),
+				CreateHole(40.0, 40.0, 8.0, HoleKind2D.Normal)
+			};
+			foreach (HoleFeature2D hole in gridHoles)
+			{
+				AddCenterlineCross(gridDatum, hole.Center, "G" + hole.Center.X + ":" + hole.Center.Y);
+			}
+			var gridPlan = new DimensionPlanner(config).CreateDimensionPlan(outline, gridDatum, gridHoles);
+			var gridHorizontal = gridPlan.Dimensions.Single(d => d.DebugRole == "HoleChainH");
+			var gridVertical = gridPlan.Dimensions.Single(d => d.DebugRole == "HoleChainV");
+			Assert(gridHorizontal.FirstPoint.Equals(new Point2D(20.0, 15.0))
+				&& gridHorizontal.SecondPoint.Equals(new Point2D(40.0, 15.0))
+				&& gridVertical.FirstPoint.Equals(new Point2D(15.0, 20.0))
+				&& gridVertical.SecondPoint.Equals(new Point2D(15.0, 40.0)),
+				"rectangular normal-hole grids must use the row and column facing their inherited layout sides");
+
+			var pinDatum = Datum2D.FromOutline(outline);
+			var datumPin = CreateHole(80.0, 80.0, 6.0, HoleKind2D.Pin);
+			pinDatum.DatumHole = datumPin;
+			var pins = new[]
+			{
+				datumPin,
+				CreateHole(50.0, 80.0, 6.0, HoleKind2D.Pin),
+				CreateHole(80.0, 30.0, 6.0, HoleKind2D.Pin),
+				CreateHole(50.0, 30.0, 6.0, HoleKind2D.Pin)
+			};
+			foreach (HoleFeature2D pin in pins)
+			{
+				AddCenterlineCross(pinDatum, pin.Center, "P" + pin.Center.X + ":" + pin.Center.Y);
+			}
+			var pinPlan = new DimensionPlanner(config).CreateDimensionPlan(outline, pinDatum, pins);
+			var horizontalPinChain = pinPlan.Dimensions.Where(d => d.Kind == DimensionKind.DatumHoleLocationX
+				|| (d.Orientation == DimensionOrientation.Horizontal && (d.Kind == DimensionKind.PinDistance || d.Kind == DimensionKind.PinGroupDistance))).ToList();
+			var verticalPinChain = pinPlan.Dimensions.Where(d => d.Kind == DimensionKind.DatumHoleLocationY
+				|| (d.Orientation == DimensionOrientation.Vertical && (d.Kind == DimensionKind.PinDistance || d.Kind == DimensionKind.PinGroupDistance))).ToList();
+			Assert(horizontalPinChain.All(d => d.Side == DimensionSide.Top && d.AttachmentKind == "SelectedCenterlineEndpoint")
+				&& horizontalPinChain.Single(d => d.Kind == DimensionKind.DatumHoleLocationX).FirstPoint.Equals(new Point2D(0.0, 100.0))
+				&& horizontalPinChain.Select(d => d.AlignmentKey).Distinct().Count() == 1,
+				"pin horizontal distances must inherit the datum-pin top side and axis-endpoint chain");
+			Assert(verticalPinChain.All(d => d.Side == DimensionSide.Right && d.AttachmentKind == "SelectedCenterlineEndpoint")
+				&& verticalPinChain.Single(d => d.Kind == DimensionKind.DatumHoleLocationY).FirstPoint.Equals(new Point2D(100.0, 0.0))
+				&& verticalPinChain.Select(d => d.AlignmentKey).Distinct().Count() == 1,
+				"pin vertical distances must inherit the datum-pin right side and axis-endpoint chain");
+
+			var fallbackPlan = new DimensionPlanner(config).CreateDimensionPlan(outline, Datum2D.FromOutline(outline), new[]
+			{
+				CreateHole(25.0, 20.0, 8.0, HoleKind2D.Normal)
+			});
+			Assert(fallbackPlan.Dimensions.Where(d => d.DebugRole == "HoleDatumX" || d.DebugRole == "HoleDatumY")
+				.All(d => d.SecondPoint.Equals(new Point2D(25.0, 20.0))
+					&& d.TopologyEvidence.IndexOf("Status=NoEndpoint", StringComparison.Ordinal) >= 0),
+				"missing centerline evidence must retain the hole center and record NoEndpoint");
+		}
+
+		private static void AddCenterlineCross(Datum2D datum, Point2D center, string sourceId)
+		{
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(center.X, center.Y - 5.0), SourceGeometryId = sourceId + ":V" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(center.X, center.Y + 5.0), SourceGeometryId = sourceId + ":V" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(center.X - 5.0, center.Y), SourceGeometryId = sourceId + ":H" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(center.X + 5.0, center.Y), SourceGeometryId = sourceId + ":H" });
+		}
+
 		private static void SingleArcSlotDatumUsesBottomCenterlineEndpoint()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -7721,6 +7832,34 @@ namespace CadAuto.Core.Tests
 				&& placement.LayoutBlockType == "RootedAlignmentLane")
 				&& placements.Select(placement => placement.LayoutBlockId).Distinct().Count() == 1,
 				"linked top slot datum and center distance must form one nearest-level rooted layout block");
+
+			var rightDatum = Datum2D.FromOutline(outline);
+			foreach (var endpoint in new[]
+			{
+				new CenterlineEndpoint2D { Point = new Point2D(55.0, 20.0), SourceGeometryId = "RIGHT-1-L" },
+				new CenterlineEndpoint2D { Point = new Point2D(65.0, 20.0), SourceGeometryId = "RIGHT-1-L" },
+				new CenterlineEndpoint2D { Point = new Point2D(75.0, 20.0), SourceGeometryId = "RIGHT-1-R" },
+				new CenterlineEndpoint2D { Point = new Point2D(85.0, 20.0), SourceGeometryId = "RIGHT-1-R" },
+				new CenterlineEndpoint2D { Point = new Point2D(55.0, 35.0), SourceGeometryId = "RIGHT-2-L" },
+				new CenterlineEndpoint2D { Point = new Point2D(65.0, 35.0), SourceGeometryId = "RIGHT-2-L" },
+				new CenterlineEndpoint2D { Point = new Point2D(75.0, 35.0), SourceGeometryId = "RIGHT-2-R" },
+				new CenterlineEndpoint2D { Point = new Point2D(85.0, 35.0), SourceGeometryId = "RIGHT-2-R" }
+			})
+			{
+				rightDatum.HoleCenterlineEndpoints.Add(endpoint);
+			}
+			var rightSlots = new[]
+			{
+				new SlotFeature2D { GroupId = "RIGHT-1", FirstCenter = new Point2D(80.0, 20.0), SecondCenter = new Point2D(60.0, 20.0), Radius = 5.0, CenterDistance = 20.0 },
+				new SlotFeature2D { GroupId = "RIGHT-2", FirstCenter = new Point2D(80.0, 35.0), SecondCenter = new Point2D(60.0, 35.0), Radius = 5.0, CenterDistance = 20.0 }
+			};
+			var rightPlan = new DimensionPlanner(config).CreateDimensionPlan(outline, rightDatum, new HoleFeature2D[0], rightSlots);
+			var rightVertical = rightPlan.Dimensions.Single(d => d.DebugRole == "DoubleArcSlotVerticalDatum");
+			var rightLinked = rightPlan.Dimensions.Single(d => d.DebugRole == "SlotChainV");
+			Assert(rightVertical.SecondPoint.Equals(new Point2D(85.0, 20.0))
+				&& rightLinked.FirstPoint.Equals(new Point2D(85.0, 20.0))
+				&& rightLinked.SecondPoint.Equals(new Point2D(85.0, 35.0)),
+				"right double-arc slot chain must use the outermost right centerline endpoints");
 		}
 
 		private static void NonPinHorizontalHoleChainSharesAlignmentKey()

@@ -3864,7 +3864,8 @@ public sealed partial class DimensionPlanner
 			int num2 = num;
 			for (int num3 = num + 1; num3 < list.Count; num3++)
 			{
-				if (IsSameMeasuredDimension(list[num], list[num3], horizontal) && CompareDuplicatePreference(list[num3], list[num2]) > 0)
+				if (IsSameMeasuredDimension(list[num], list[num3], horizontal)
+					&& CompareSameSideDuplicatePreference(list[num3], list[num2], side) > 0)
 				{
 					num2 = num3;
 				}
@@ -3894,6 +3895,45 @@ public sealed partial class DimensionPlanner
 			return false;
 		}
 		return _dimensionDeduplicationRules.IsSameMeasuredDimension(ToDeduplicationItem(a), ToDeduplicationItem(b), horizontal);
+	}
+
+	private int CompareSameSideDuplicatePreference(PlannedDimension a, PlannedDimension b, DimensionSide side)
+	{
+		int basePreference = CompareDuplicatePreference(a, b);
+		if (basePreference != 0 || !IsSlotLayoutDimension(a) || !IsSlotLayoutDimension(b))
+		{
+			return basePreference;
+		}
+		double aCoordinate = a.Orientation == DimensionOrientation.Horizontal
+			? (a.FirstPoint.Y + a.SecondPoint.Y) / 2.0
+			: (a.FirstPoint.X + a.SecondPoint.X) / 2.0;
+		double bCoordinate = b.Orientation == DimensionOrientation.Horizontal
+			? (b.FirstPoint.Y + b.SecondPoint.Y) / 2.0
+			: (b.FirstPoint.X + b.SecondPoint.X) / 2.0;
+		if (Math.Abs(aCoordinate - bCoordinate) <= _config.GeometryTolerance)
+		{
+			return 0;
+		}
+		int coordinatePreference = aCoordinate.CompareTo(bCoordinate);
+		return side == DimensionSide.Top || side == DimensionSide.Right
+			? coordinatePreference
+			: -coordinatePreference;
+	}
+
+	private static bool IsSlotLayoutDimension(PlannedDimension dimension)
+	{
+		if (dimension == null)
+		{
+			return false;
+		}
+		return dimension.DebugRole == "SlotDatumH"
+			|| dimension.DebugRole == "SlotDatumV"
+			|| dimension.DebugRole == "SingleArcSlotDatum"
+			|| dimension.DebugRole == "SingleArcSlotVerticalDatum"
+			|| dimension.DebugRole == "DoubleArcSlotHorizontalDatum"
+			|| dimension.DebugRole == "DoubleArcSlotVerticalDatum"
+			|| dimension.DebugRole == "SlotChainH"
+			|| dimension.DebugRole == "SlotChainV";
 	}
 
 	private static Tuple<double, double> ComputeArrowInterval(PlannedDimension dim, bool horizontal)

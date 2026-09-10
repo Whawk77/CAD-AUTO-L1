@@ -60,6 +60,12 @@ public sealed partial class DimensionPlanner
 		}
 		if (outerContour == null)
 		{
+			if (outerContourFailure.StartsWith("OuterContour|Shape=RoundedRectangle|", StringComparison.Ordinal))
+			{
+				plan.Diagnostics.Warnings.Add(outerContourFailure);
+				plan.Diagnostics.Warnings.Add("LProfile.NotApplied|Reason=RoundedRectangle");
+				return;
+			}
 			string legacyDirectFailure;
 			LProfileMatch.TryCreate(outline, _config.GeometryTolerance, out legacyDirectFailure);
 			string legacyTransposedFailure;
@@ -3493,6 +3499,19 @@ public sealed partial class DimensionPlanner
 			List<LProfileAxisChain> horizontalChains = LProfileAxisChain.Build(graph.BoundaryEdges, horizontal: true, tolerance);
 			List<LProfileAxisChain> verticalChains = LProfileAxisChain.Build(graph.BoundaryEdges, horizontal: false, tolerance);
 			List<LProfileConcaveTurn> turns = graph.FindConcaveTurns(horizontalChains, verticalChains, tolerance);
+			string roundedRectangleEvidence;
+			if (TryClassifyRoundedRectangle(
+				graph,
+				outline,
+				horizontalChains,
+				verticalChains,
+				turns,
+				tolerance,
+				out roundedRectangleEvidence))
+			{
+				failureReason = roundedRectangleEvidence;
+				return null;
+			}
 			if (turns.Count == 0)
 			{
 				failureReason = "EffectiveConcaveTurnCount=0";
@@ -3571,6 +3590,72 @@ public sealed partial class DimensionPlanner
 				SecondaryTurns = secondaryTurns,
 				TopologyEvidence = topologyEvidence
 			};
+		}
+
+		private static bool TryClassifyRoundedRectangle(
+			LProfileBoundaryGraph graph,
+			OutlineFeature2D outline,
+			IList<LProfileAxisChain> horizontalChains,
+			IList<LProfileAxisChain> verticalChains,
+			IList<LProfileConcaveTurn> turns,
+			double tolerance,
+			out string evidence)
+		{
+			evidence = string.Empty;
+			if (graph == null || outline == null || (turns?.Count ?? 0) != 0)
+			{
+				return false;
+			}
+
+			List<LProfileAxisChain> horizontal = (horizontalChains ?? new List<LProfileAxisChain>())
+				.Where(chain => chain != null && chain.Span > tolerance)
+				.ToList();
+			List<LProfileAxisChain> vertical = (verticalChains ?? new List<LProfileAxisChain>())
+				.Where(chain => chain != null && chain.Span > tolerance)
+				.ToList();
+			if (horizontal.Count != 2 || vertical.Count != 2
+				|| horizontal.Any(chain => !IsEnvelopeCoordinate(chain.Cross, outline.MinY, outline.MaxY, tolerance))
+				|| vertical.Any(chain => !IsEnvelopeCoordinate(chain.Cross, outline.MinX, outline.MaxX, tolerance)))
+			{
+				return false;
+			}
+
+			if (graph.BoundaryEdges.Any(edge => edge == null
+				|| (edge.Segment == null && edge.Arc == null)
+				|| (edge.Segment != null
+					&& !edge.Segment.IsHorizontal(tolerance)
+					&& !edge.Segment.IsVertical(tolerance))))
+			{
+				return false;
+			}
+
+			List<LProfileEdge> arcs = graph.BoundaryEdges
+				.Where(edge => edge?.Arc != null)
+				.ToList();
+			if (arcs.Count < 1 || arcs.Count > 4)
+			{
+				return false;
+			}
+			foreach (LProfileEdge edge in arcs)
+			{
+				LProfileArcAttachment attachment = LProfileArcAttachment.TryCreate(
+					edge,
+					graph,
+					horizontalChains,
+					verticalChains,
+					tolerance);
+				double sweep = Math.Abs(4.0 * Math.Atan(edge.Arc.Bulge));
+				double angleTolerance = Math.Max(1E-4, tolerance / Math.Max(edge.Arc.Radius, tolerance) * 2.0);
+				if (attachment == null
+					|| !IsLProfileTangentArc(edge, graph, horizontalChains, verticalChains, tolerance)
+					|| Math.Abs(sweep - Math.PI / 2.0) > angleTolerance)
+				{
+					return false;
+				}
+			}
+
+			evidence = "OuterContour|Shape=RoundedRectangle|HorizontalChains=2|VerticalChains=2|ArcCount=" + arcs.Count;
+			return true;
 		}
 
 		private static LProfileConcaveTurn SelectPrimaryTurn(

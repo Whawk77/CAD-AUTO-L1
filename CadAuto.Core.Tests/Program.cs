@@ -93,6 +93,7 @@ namespace CadAuto.Core.Tests
             nameof(LProfileFarEndCornerUsesAdjacentVerticalChain),
             nameof(LProfileOuterContourAnnotationRulesUseTopology),
             nameof(LProfileTopologyRejectionIsDiagnostic),
+            nameof(RoundedRectangleOuterContourIsNotLProfile),
             nameof(LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment),
             nameof(BottomStepWidthOnOverallEnvelopeIsSuppressed),
             nameof(BottomProtrusionSuppressesOuterWidthAndInnerLedge),
@@ -102,8 +103,14 @@ namespace CadAuto.Core.Tests
             nameof(RightStepStructureHeightsPreferOverLeftOutlineSegments),
             nameof(OrphanRightOuterStructureHeightTipsAreSuppressed),
 			nameof(PartialEnvelopeStructureHeightSurvivesOrphanTipSuppression),
-			nameof(HoleAndPinChainsUseSideFacingCenterlineEndpoints)
-        };
+			nameof(HoleAndPinChainsUseSideFacingCenterlineEndpoints),
+			nameof(MultipleSlotGroupsFormContinuousChains),
+			nameof(ChamferSideSlotChainUsesChamferSideDatum),
+			nameof(LowerChamferSlotChainUsesBottomPlacement),
+			nameof(VerticalSlotDatumUsesLayoutFacingChamferPoint),
+			nameof(FilletedOuterDatumUsesLayoutFacingFilletEndpoint),
+			nameof(FilletedSlotGridKeepsContinuousVerticalChain)
+		};
         private static readonly HashSet<string> P3Tests = new HashSet<string>
         {
             nameof(OverallRemainsOutermostAfterLayoutAlignment),
@@ -305,6 +312,7 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(LProfileFarEndCornerUsesAdjacentVerticalChain), LProfileFarEndCornerUsesAdjacentVerticalChain);
                 RunTest(nameof(LProfileOuterContourAnnotationRulesUseTopology), LProfileOuterContourAnnotationRulesUseTopology);
                 RunTest(nameof(LProfileTopologyRejectionIsDiagnostic), LProfileTopologyRejectionIsDiagnostic);
+                RunTest(nameof(RoundedRectangleOuterContourIsNotLProfile), RoundedRectangleOuterContourIsNotLProfile);
                 RunTest(nameof(LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment), LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment);
                 RunTest(nameof(BottomStepWidthOnOverallEnvelopeIsSuppressed), BottomStepWidthOnOverallEnvelopeIsSuppressed);
 				RunTest(nameof(BottomProtrusionSuppressesOuterWidthAndInnerLedge), BottomProtrusionSuppressesOuterWidthAndInnerLedge);
@@ -330,6 +338,11 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(HoleAndPinChainsUseSideFacingCenterlineEndpoints), HoleAndPinChainsUseSideFacingCenterlineEndpoints);
 				RunTest(nameof(SingleArcSlotDatumUsesBottomCenterlineEndpoint), SingleArcSlotDatumUsesBottomCenterlineEndpoint);
 				RunTest(nameof(DoubleArcSlotDatumUsesCenterlineAndOutlineEndpoints), DoubleArcSlotDatumUsesCenterlineAndOutlineEndpoints);
+				RunTest(nameof(MultipleSlotGroupsFormContinuousChains), MultipleSlotGroupsFormContinuousChains);
+				RunTest(nameof(LowerChamferSlotChainUsesBottomPlacement), LowerChamferSlotChainUsesBottomPlacement);
+				RunTest(nameof(VerticalSlotDatumUsesLayoutFacingChamferPoint), VerticalSlotDatumUsesLayoutFacingChamferPoint);
+				RunTest(nameof(FilletedOuterDatumUsesLayoutFacingFilletEndpoint), FilletedOuterDatumUsesLayoutFacingFilletEndpoint);
+				RunTest(nameof(FilletedSlotGridKeepsContinuousVerticalChain), FilletedSlotGridKeepsContinuousVerticalChain);
 				RunTest(nameof(PinGroupsPlanBaseAndPairDistances), PinGroupsPlanBaseAndPairDistances);
 				RunTest(nameof(PinAlignmentGroupsRespectSideAndOrientation), PinAlignmentGroupsRespectSideAndOrientation);
 				RunTest(nameof(RootedDatumChainMergesTransitiveAlignmentLanes), RootedDatumChainMergesTransitiveAlignmentLanes);
@@ -6213,6 +6226,49 @@ namespace CadAuto.Core.Tests
 				"a non-L outline must explain why the L profile rule was not applied");
 		}
 
+		private static void RoundedRectangleOuterContourIsNotLProfile()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var segments = new[]
+			{
+				new Segment2D(new Point2D(0.0, 0.0), new Point2D(100.0, 0.0)) { SourceKey = "bottom" },
+				new Segment2D(new Point2D(100.0, 0.0), new Point2D(100.0, 40.0)) { SourceKey = "right" },
+				new Segment2D(new Point2D(90.0, 50.0), new Point2D(10.0, 50.0)) { SourceKey = "top" },
+				new Segment2D(new Point2D(0.0, 40.0), new Point2D(0.0, 0.0)) { SourceKey = "left" }
+			};
+			var arcs = new[]
+			{
+				new Arc2D
+				{
+					Start = new Point2D(100.0, 40.0),
+					End = new Point2D(90.0, 50.0),
+					Center = new Point2D(90.0, 40.0),
+					Radius = 10.0,
+					Bulge = Math.Tan(Math.PI / 8.0),
+					SourceKey = "top-right-fillet"
+				},
+				new Arc2D
+				{
+					Start = new Point2D(10.0, 50.0),
+					End = new Point2D(0.0, 40.0),
+					Center = new Point2D(10.0, 40.0),
+					Radius = 10.0,
+					Bulge = Math.Tan(Math.PI / 8.0),
+					SourceKey = "top-left-fillet"
+				}
+			};
+			DimensionPlan plan = new DimensionPlanner(config).CreateOutlinePlan(
+				new FeatureRecognizer2D(config).RecognizeOutlineFromSegments(segments, arcs));
+
+			Assert(plan.Diagnostics.Warnings.Any(w => w.StartsWith("OuterContour|Shape=RoundedRectangle|", StringComparison.Ordinal)),
+				"rounded rectangle must be recognized before L-profile matching");
+			Assert(plan.Diagnostics.Warnings.Any(w => w == "LProfile.NotApplied|Reason=RoundedRectangle"),
+				"rounded rectangle must skip L-profile rules");
+			Assert(!plan.Diagnostics.Warnings.Any(w => w.StartsWith("LProfile.Applied|", StringComparison.Ordinal)),
+				"rounded rectangle must not apply L-profile dimensions");
+		}
+
 		private static void LProfileFarEndCornerUsesAdjacentVerticalChain()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -7862,6 +7918,230 @@ namespace CadAuto.Core.Tests
 				"right double-arc slot chain must use the outermost right centerline endpoints");
 		}
 
+		private static void MultipleSlotGroupsFormContinuousChains()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 100.0);
+			var datum = Datum2D.FromOutline(outline);
+			var slots = new[]
+			{
+				new SlotFeature2D { GroupId = "VL-B", FirstCenter = new Point2D(20.0, 15.0), SecondCenter = new Point2D(20.0, 25.0), Radius = 5.0, CenterDistance = 10.0 },
+				new SlotFeature2D { GroupId = "VL-T", FirstCenter = new Point2D(20.0, 35.0), SecondCenter = new Point2D(20.0, 45.0), Radius = 5.0, CenterDistance = 10.0 },
+				new SlotFeature2D { GroupId = "VR-B", FirstCenter = new Point2D(60.0, 15.0), SecondCenter = new Point2D(60.0, 25.0), Radius = 5.0, CenterDistance = 10.0 },
+				new SlotFeature2D { GroupId = "VR-T", FirstCenter = new Point2D(60.0, 35.0), SecondCenter = new Point2D(60.0, 45.0), Radius = 5.0, CenterDistance = 10.0 }
+			};
+
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new HoleFeature2D[0], slots);
+			var verticalChain = plan.Dimensions.Single(d => d.DebugRole == "SlotChainV"
+				&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 10.0) <= 0.001);
+			Assert(verticalChain.FirstPoint.Equals(new Point2D(20.0, 25.0))
+				&& verticalChain.SecondPoint.Equals(new Point2D(20.0, 35.0)),
+				"multiple slot rows must emit the gap between facing slot endpoints");
+			Assert(plan.Dimensions.Count(d => d.DebugRole == "SlotCenter"
+				&& d.Orientation == DimensionOrientation.Vertical
+				&& (d.DebugOwner == "VL-B" || d.DebugOwner == "VL-T")) == 2
+				&& plan.Dimensions.Where(d => d.DebugRole == "SlotCenter"
+					&& d.Orientation == DimensionOrientation.Vertical
+					&& (d.DebugOwner == "VL-B" || d.DebugOwner == "VL-T"))
+					.All(d => d.AlignmentKey == verticalChain.AlignmentKey),
+				"slot-internal distances must join the same continuous chain lane");
+			Assert(plan.Dimensions.Any(d => d.DebugRole == "DoubleArcSlotVerticalDatum"
+				&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 15.0) <= 0.001)
+				&& !plan.Dimensions.Any(d => d.DebugRole == "DoubleArcSlotVerticalDatum"
+					&& Math.Abs(Math.Abs(d.SecondPoint.Y - d.FirstPoint.Y) - 35.0) <= 0.001),
+				"the second row must not retain a redundant outline-to-row datum");
+		}
+
+		private static void ChamferSideSlotChainUsesChamferSideDatum()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateTopRightChamferedOutline();
+			new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+			var slots = new[]
+			{
+				new SlotFeature2D { GroupId = "CH-R1", FirstCenter = new Point2D(70.0, 10.0), SecondCenter = new Point2D(70.0, 20.0), Radius = 5.0, CenterDistance = 10.0 },
+				new SlotFeature2D { GroupId = "CH-R2", FirstCenter = new Point2D(90.0, 10.0), SecondCenter = new Point2D(90.0, 20.0), Radius = 5.0, CenterDistance = 10.0 }
+			};
+
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, Datum2D.FromOutline(outline), new HoleFeature2D[0], slots);
+			var datum = plan.Dimensions.Single(d => d.DebugRole == "DoubleArcSlotHorizontalDatum");
+			var chain = plan.Dimensions.Single(d => d.DebugRole == "SlotChainH");
+
+			Assert(datum.Side == DimensionSide.Top
+				&& datum.FirstPoint.Equals(new Point2D(100.0, 40.0))
+				&& datum.SecondPoint.Equals(new Point2D(90.0, 20.0))
+				&& Math.Abs(GetSpan(datum) - 10.0) <= 0.001,
+				"a top outer chamfer must drive the horizontal slot chain to the top side");
+			Assert(chain.Side == DimensionSide.Top
+				&& chain.FirstPoint.Equals(new Point2D(90.0, 20.0))
+				&& chain.SecondPoint.Equals(new Point2D(70.0, 20.0))
+				&& Math.Abs(GetSpan(chain) - 20.0) <= 0.001,
+				"the slot chain must continue inward from the chamfer-side datum");
+		}
+
+		private static void LowerChamferSlotChainUsesBottomPlacement()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateBottomLeftChamferedOutline();
+			new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+			var slots = new[]
+			{
+				new SlotFeature2D { GroupId = "CH-B1", FirstCenter = new Point2D(70.0, 30.0), SecondCenter = new Point2D(70.0, 40.0), Radius = 5.0, CenterDistance = 10.0 },
+				new SlotFeature2D { GroupId = "CH-B2", FirstCenter = new Point2D(90.0, 30.0), SecondCenter = new Point2D(90.0, 40.0), Radius = 5.0, CenterDistance = 10.0 }
+			};
+
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, Datum2D.FromOutline(outline), new HoleFeature2D[0], slots);
+			var datum = plan.Dimensions.Single(d => d.DebugRole == "DoubleArcSlotHorizontalDatum");
+			var chain = plan.Dimensions.Single(d => d.DebugRole == "SlotChainH");
+
+			Assert(datum.Side == DimensionSide.Bottom
+				&& datum.FirstPoint.Equals(new Point2D(0.0, 10.0))
+				&& datum.SecondPoint.Equals(new Point2D(70.0, 30.0)),
+				"a lower-left chamfer must drive horizontal slot location to the bottom side");
+			Assert(chain.Side == DimensionSide.Bottom
+				&& chain.FirstPoint.Equals(new Point2D(70.0, 30.0))
+				&& chain.SecondPoint.Equals(new Point2D(90.0, 30.0)),
+				"the lower chamfer slot chain must keep its bottom-side center endpoints aligned");
+		}
+
+		private static void VerticalSlotDatumUsesLayoutFacingChamferPoint()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateBottomLeftChamferedOutline();
+			new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+			var datum = Datum2D.FromOutline(outline);
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(25.0, 30.0), SourceGeometryId = "CHAMFER-SLOT-H" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(35.0, 30.0), SourceGeometryId = "CHAMFER-SLOT-H" });
+			var slot = new SlotFeature2D
+			{
+				GroupId = "CHAMFER-SINGLE-ARC",
+				FirstCenter = new Point2D(30.0, 30.0),
+				SecondCenter = new Point2D(30.0, 30.0),
+				Radius = 5.0,
+				IsSingleArcSlot = true,
+				IsVertical = true
+			};
+
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new HoleFeature2D[0], new[] { slot });
+			var dimension = plan.Dimensions.Single(d => d.DebugRole == "SlotDatumV");
+
+			Assert(dimension.Side == DimensionSide.Left
+				&& dimension.FirstPoint.Equals(new Point2D(10.0, 0.0))
+				&& dimension.SecondPoint.Equals(new Point2D(25.0, 30.0)),
+				"vertical slot datum must use the lower layout-facing chamfer endpoint and the left centerline endpoint");
+		}
+
+		private static void FilletedOuterDatumUsesLayoutFacingFilletEndpoint()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var segments = new[]
+			{
+				new Segment2D(new Point2D(0.0, 0.0), new Point2D(100.0, 0.0)),
+				new Segment2D(new Point2D(100.0, 0.0), new Point2D(100.0, 50.0)),
+				new Segment2D(new Point2D(10.0, 50.0), new Point2D(100.0, 50.0)),
+				new Segment2D(new Point2D(0.0, 40.0), new Point2D(0.0, 0.0))
+			};
+			var arcs = new[]
+			{
+				new Arc2D
+				{
+					Start = new Point2D(0.0, 40.0),
+					End = new Point2D(10.0, 50.0),
+					Center = new Point2D(10.0, 40.0),
+					Radius = 10.0,
+					Bulge = Math.Tan(Math.PI / 8.0)
+				}
+			};
+			var outline = new FeatureRecognizer2D(config).RecognizeOutlineFromSegments(segments, arcs);
+			var slots = new[]
+			{
+				new SlotFeature2D { GroupId = "FILLET-L", FirstCenter = new Point2D(30.0, 15.0), SecondCenter = new Point2D(30.0, 25.0), Radius = 5.0, CenterDistance = 10.0 },
+				new SlotFeature2D { GroupId = "FILLET-R", FirstCenter = new Point2D(70.0, 15.0), SecondCenter = new Point2D(70.0, 25.0), Radius = 5.0, CenterDistance = 10.0 }
+			};
+
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, Datum2D.FromOutline(outline), new HoleFeature2D[0], slots);
+			var datum = plan.Dimensions.Single(d => d.DebugRole == "DoubleArcSlotHorizontalDatum");
+			var chain = plan.Dimensions.Single(d => d.DebugRole == "SlotChainH");
+
+			Assert(outline.Fillets.Count == 1
+				&& datum.Side == DimensionSide.Top
+				&& datum.FirstPoint.Equals(new Point2D(0.0, 40.0))
+				&& datum.SecondPoint.Equals(new Point2D(30.0, 25.0)),
+				"horizontal slot datum must use the outer fillet endpoint nearest the layout-facing rounded side");
+			Assert(chain.Side == DimensionSide.Top
+				&& chain.FirstPoint.Equals(new Point2D(30.0, 25.0))
+				&& chain.SecondPoint.Equals(new Point2D(70.0, 25.0)),
+				"horizontal slot chain must follow the fillet-facing datum side");
+		}
+
+		private static void FilletedSlotGridKeepsContinuousVerticalChain()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var segments = new[]
+			{
+				new Segment2D(new Point2D(0.0, 0.0), new Point2D(100.0, 0.0)),
+				new Segment2D(new Point2D(100.0, 0.0), new Point2D(100.0, 90.0)),
+				new Segment2D(new Point2D(10.0, 100.0), new Point2D(90.0, 100.0)),
+				new Segment2D(new Point2D(0.0, 90.0), new Point2D(0.0, 0.0))
+			};
+			var arcs = new[]
+			{
+				new Arc2D
+				{
+					Start = new Point2D(0.0, 90.0),
+					End = new Point2D(10.0, 100.0),
+					Center = new Point2D(10.0, 90.0),
+					Radius = 10.0,
+					Bulge = Math.Tan(Math.PI / 8.0)
+				},
+				new Arc2D
+				{
+					Start = new Point2D(90.0, 100.0),
+					End = new Point2D(100.0, 90.0),
+					Center = new Point2D(90.0, 90.0),
+					Radius = 10.0,
+					Bulge = Math.Tan(Math.PI / 8.0)
+				}
+			};
+			var outline = new FeatureRecognizer2D(config).RecognizeOutlineFromSegments(segments, arcs);
+			var slots = new[]
+			{
+				new SlotFeature2D { GroupId = "GRID-L-B", FirstCenter = new Point2D(30.0, 20.0), SecondCenter = new Point2D(30.0, 40.0), Radius = 5.0, CenterDistance = 20.0 },
+				new SlotFeature2D { GroupId = "GRID-R-B", FirstCenter = new Point2D(70.0, 20.0), SecondCenter = new Point2D(70.0, 40.0), Radius = 5.0, CenterDistance = 20.0 },
+				new SlotFeature2D { GroupId = "GRID-L-T", FirstCenter = new Point2D(30.0, 70.0), SecondCenter = new Point2D(30.0, 90.0), Radius = 5.0, CenterDistance = 20.0 },
+				new SlotFeature2D { GroupId = "GRID-R-T", FirstCenter = new Point2D(70.0, 70.0), SecondCenter = new Point2D(70.0, 90.0), Radius = 5.0, CenterDistance = 20.0 }
+			};
+
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, Datum2D.FromOutline(outline), new HoleFeature2D[0], slots);
+			var verticalChain = plan.Dimensions.Single(d => d.DebugRole == "SlotChainV" && d.Side == DimensionSide.Left);
+			var verticalDatum = plan.Dimensions.Single(d => d.DebugRole == "DoubleArcSlotVerticalDatum" && d.Side == DimensionSide.Left);
+
+			Assert(verticalDatum.FirstPoint.Equals(new Point2D(10.0, 100.0))
+				&& verticalDatum.SecondPoint.Equals(new Point2D(30.0, 90.0)),
+				"top vertical datum must attach to the slot endpoint facing the rounded top");
+			Assert(verticalChain.FirstPoint.Equals(new Point2D(30.0, 70.0))
+				&& verticalChain.SecondPoint.Equals(new Point2D(30.0, 40.0))
+				&& Math.Abs(GetSpan(verticalChain) - 30.0) <= 0.001,
+				"vertical slot chain must keep the local inter-row span instead of a cross-grid long span");
+			List<PlannedDimension> verticalChainMembers = plan.Dimensions
+				.Where(d => d.Side == DimensionSide.Left
+					&& d.Orientation == DimensionOrientation.Vertical
+					&& (d.DebugRole == "DoubleArcSlotVerticalDatum"
+						|| d.DebugRole == "SlotCenter"
+						|| d.DebugRole == "SlotChainV"))
+				.ToList();
+			Assert(verticalChainMembers.Count == 4
+				&& !string.IsNullOrEmpty(verticalChain.AlignmentKey)
+				&& verticalChainMembers.All(d => d.AlignmentKey == verticalChain.AlignmentKey),
+				"vertical slot datum and center chain members must share one alignment key");
+			var topHorizontalChain = plan.Dimensions.Single(d => d.DebugRole == "SlotChainH" && d.Side == DimensionSide.Top);
+			Assert(topHorizontalChain.FirstPoint.Equals(new Point2D(30.0, 90.0))
+				&& topHorizontalChain.SecondPoint.Equals(new Point2D(70.0, 90.0)),
+				"top horizontal slot chain must use the upper slot centerline");
+			Assert(!plan.Dimensions.Any(d => d.DebugRole == "SlotChainV" && Math.Abs(GetSpan(d) - 70.0) <= 0.001),
+				"vertical slot chain must not use the full cross-grid span");
+		}
+
 		private static void NonPinHorizontalHoleChainSharesAlignmentKey()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -8857,6 +9137,24 @@ namespace CadAuto.Core.Tests
             AddSegment(outline, new Point2D(100.0, 40.0), new Point2D(90.0, 50.0), "chamfer");
             AddSegment(outline, new Point2D(90.0, 50.0), new Point2D(0.0, 50.0), "top-local");
             AddSegment(outline, new Point2D(0.0, 50.0), new Point2D(0.0, 0.0), "left");
+            return outline;
+        }
+
+        private static OutlineFeature2D CreateBottomLeftChamferedOutline()
+        {
+            var outline = new OutlineFeature2D
+            {
+                MinX = 0.0,
+                MinY = 0.0,
+                MaxX = 100.0,
+                MaxY = 50.0
+            };
+
+            AddSegment(outline, new Point2D(10.0, 0.0), new Point2D(100.0, 0.0), "bottom");
+            AddSegment(outline, new Point2D(100.0, 0.0), new Point2D(100.0, 50.0), "right");
+            AddSegment(outline, new Point2D(100.0, 50.0), new Point2D(0.0, 50.0), "top");
+            AddSegment(outline, new Point2D(0.0, 50.0), new Point2D(0.0, 10.0), "left");
+            AddSegment(outline, new Point2D(0.0, 10.0), new Point2D(10.0, 0.0), "chamfer");
             return outline;
         }
 

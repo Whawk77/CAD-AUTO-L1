@@ -84,6 +84,8 @@ public sealed partial class DimensionPlanner
 
 		public const string DuplicateMeasuredDimension = "DuplicateMeasuredDimension";
 
+		public const string SlotContinuousChainRedundantDatum = "SlotContinuousChainRedundantDatum";
+
 		public const string LeftStructureHeightCoveredByDatumRootedOuterStep = "LeftStructureHeightCoveredByDatumRootedOuterStep";
 
 		public const string StructureOverallPartition = "StructureOverallPartition";
@@ -345,10 +347,11 @@ public sealed partial class DimensionPlanner
 				|| dimension.Role == DimensionCandidateRole.Pin
 				|| (dimension.Role == DimensionCandidateRole.Datum
 					&& (dimension.DebugRole == "DatumX" || dimension.DebugRole == "DatumY"));
+			bool sideFacingSlotEndpoint = dimension.Role == DimensionCandidateRole.Slot;
 			if (!dimension.FirstPointMustLieOnOutline)
 			{
 				Point2D beforePoint = dimension.FirstPoint;
-				CenterlineEndpointMatch firstMatch = linkedSlotDimension || sideFacingHoleEndpoint
+				CenterlineEndpointMatch firstMatch = linkedSlotDimension || sideFacingHoleEndpoint || sideFacingSlotEndpoint
 					? FindSideFacingCenterlineEndpoint(datum, beforePoint, dimension.Side)
 					: FindCenterlineEndpoint(datum, beforePoint);
 				if (firstMatch.IsMatched && HasSpan(dimension, firstMatch.Endpoint.Point, dimension.SecondPoint))
@@ -372,7 +375,7 @@ public sealed partial class DimensionPlanner
 				|| string.Equals(dimension.DebugRole, "DoubleArcSlotHorizontalDatum", StringComparison.Ordinal)
 				|| string.Equals(dimension.DebugRole, "DoubleArcSlotVerticalDatum", StringComparison.Ordinal)
 				|| linkedSlotDimension;
-			CenterlineEndpointMatch secondMatch = arcSlotDatum || sideFacingHoleEndpoint
+			CenterlineEndpointMatch secondMatch = arcSlotDatum || sideFacingHoleEndpoint || sideFacingSlotEndpoint
 				? FindSideFacingCenterlineEndpoint(datum, beforeSecondPoint, dimension.Side)
 				: FindCenterlineEndpoint(datum, beforeSecondPoint);
 			if (secondMatch.IsMatched && HasSpan(dimension, dimension.FirstPoint, secondMatch.Endpoint.Point))
@@ -632,38 +635,54 @@ public sealed partial class DimensionPlanner
 		return _structureEndpointRules.GetBoundaryPoint(outline, DimensionSide.Top);
 	}
 
-	private bool AddHorizontalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredX, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing, string skippedDebugRole = null)
+	private bool AddHorizontalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredX, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing, string skippedDebugRole = null, Point2D? explicitAttachment = null)
 	{
-		if (!OutlineGeometryQuery.TryFindVerticalBoundaryPoint(outline, preferredX, target.Y, _config.GeometryTolerance, out var point))
+		bool usingExplicitAttachment = explicitAttachment.HasValue
+			&& OutlineGeometryQuery.IsPointOnBoundary(explicitAttachment.Value, outline, _config.GeometryTolerance);
+		Point2D point;
+		if (usingExplicitAttachment)
+		{
+			point = explicitAttachment.Value;
+		}
+		else if (!OutlineGeometryQuery.TryFindVerticalBoundaryPoint(outline, preferredX, target.Y, _config.GeometryTolerance, out point))
 		{
 			plan.AddSkippedDimension(kind, DimensionOrientation.Horizontal, side, new Point2D(preferredX, target.Y), target, "NoRealOutlineAttachment:XDatum=" + preferredX.ToString("0.########", CultureInfo.InvariantCulture), skippedDebugRole ?? debugRole, debugOwner);
 			return false;
 		}
-		if (kind == DimensionKind.HoleLocation
+		if (!usingExplicitAttachment && (kind == DimensionKind.HoleLocation
 			|| kind == DimensionKind.DatumHoleLocationX
-			|| string.Equals(debugRole, "DoubleArcSlotHorizontalDatum", StringComparison.Ordinal))
+			|| string.Equals(debugRole, "DoubleArcSlotHorizontalDatum", StringComparison.Ordinal)))
 		{
 			point = GetSideFacingOutlineSegmentEndpoint(outline, point, DimensionOrientation.Horizontal, side);
 		}
-		AddDimension(plan, kind, DimensionOrientation.Horizontal, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredX, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, readingLevel: readingLevel);
+		double requiredCoordinate = usingExplicitAttachment ? point.X : preferredX;
+		AddDimension(plan, kind, DimensionOrientation.Horizontal, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: requiredCoordinate, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, readingLevel: readingLevel);
 		return true;
 	}
 
-	private bool AddVerticalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredY, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing, bool preservePreferredSide = false, string skippedDebugRole = null)
+	private bool AddVerticalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredY, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing, bool preservePreferredSide = false, string skippedDebugRole = null, Point2D? explicitAttachment = null)
 	{
-		if (!OutlineGeometryQuery.TryFindHorizontalBoundaryPoint(outline, preferredY, target.X, _config.GeometryTolerance, out var point))
+		bool usingExplicitAttachment = explicitAttachment.HasValue
+			&& OutlineGeometryQuery.IsPointOnBoundary(explicitAttachment.Value, outline, _config.GeometryTolerance);
+		Point2D point;
+		if (usingExplicitAttachment)
+		{
+			point = explicitAttachment.Value;
+		}
+		else if (!OutlineGeometryQuery.TryFindHorizontalBoundaryPoint(outline, preferredY, target.X, _config.GeometryTolerance, out point))
 		{
 			plan.AddSkippedDimension(kind, DimensionOrientation.Vertical, side, new Point2D(target.X, preferredY), target, "NoRealOutlineAttachment:YDatum=" + preferredY.ToString("0.########", CultureInfo.InvariantCulture), skippedDebugRole ?? debugRole, debugOwner);
 			return false;
 		}
-		if (kind == DimensionKind.HoleLocation
+		if (!usingExplicitAttachment && (kind == DimensionKind.HoleLocation
 			|| kind == DimensionKind.DatumHoleLocationY
 			|| string.Equals(debugRole, "SingleArcSlotVerticalDatum", StringComparison.Ordinal)
-			|| string.Equals(debugRole, "DoubleArcSlotVerticalDatum", StringComparison.Ordinal))
+			|| string.Equals(debugRole, "DoubleArcSlotVerticalDatum", StringComparison.Ordinal)))
 		{
 			point = GetSideFacingOutlineSegmentEndpoint(outline, point, DimensionOrientation.Vertical, side);
 		}
-		AddDimension(plan, kind, DimensionOrientation.Vertical, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: preferredY, preservePreferredSide: preservePreferredSide, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, readingLevel: readingLevel);
+		double requiredCoordinate = usingExplicitAttachment ? point.Y : preferredY;
+		AddDimension(plan, kind, DimensionOrientation.Vertical, side, point, target, overrideText, debugRole, debugOwner, preferFeatureLocalPlacement, firstPointMustLieOnOutline: true, requiredOutlineReferenceCoordinate: requiredCoordinate, preservePreferredSide: preservePreferredSide, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, readingLevel: readingLevel);
 		return true;
 	}
 
@@ -690,7 +709,7 @@ public sealed partial class DimensionPlanner
 		return new Point2D(x, attachment.Y);
 	}
 
-	private void AddHorizontalChainFromOutlineDatum(DimensionPlan plan, OutlineFeature2D outline, double datumX, IList<Point2D> ordered, string debugRole, string firstDebugRole = null, DimensionSide side = DimensionSide.Bottom)
+	private void AddHorizontalChainFromOutlineDatum(DimensionPlan plan, OutlineFeature2D outline, double datumX, IList<Point2D> ordered, string debugRole, string firstDebugRole = null, DimensionSide side = DimensionSide.Bottom, Point2D? datumPoint = null)
 	{
 		if (ordered == null || ordered.Count == 0)
 		{
@@ -700,14 +719,14 @@ public sealed partial class DimensionPlanner
 		// edge location + center distance) and must share a dim-line alignment lane.
 		string alignmentKey = GetSlotChainAlignmentKey(side, horizontal: true, ordered[0].Y);
 		const int alignmentPriority = 80;
-		AddHorizontalOutlineReferenceDimension(plan, outline, datumX, ordered[0], DimensionKind.Normal, side, string.Empty, firstDebugRole ?? debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, skippedDebugRole: debugRole);
+		AddHorizontalOutlineReferenceDimension(plan, outline, datumX, ordered[0], DimensionKind.Normal, side, string.Empty, firstDebugRole ?? debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, skippedDebugRole: debugRole, explicitAttachment: datumPoint);
 		for (int i = 1; i < ordered.Count; i++)
 		{
 			AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Horizontal, side, ordered[i - 1], ordered[i], string.Empty, debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority);
 		}
 	}
 
-	private void AddVerticalChainFromOutlineDatum(DimensionPlan plan, OutlineFeature2D outline, double datumY, IList<Point2D> ordered, string debugRole, string firstDebugRole = null, DimensionSide side = DimensionSide.Left)
+	private void AddVerticalChainFromOutlineDatum(DimensionPlan plan, OutlineFeature2D outline, double datumY, IList<Point2D> ordered, string debugRole, string firstDebugRole = null, DimensionSide side = DimensionSide.Left, Point2D? datumPoint = null)
 	{
 		if (ordered == null || ordered.Count == 0)
 		{
@@ -716,7 +735,7 @@ public sealed partial class DimensionPlanner
 		// Edge→first U-slot location + slot-to-slot center distance stay on one left-side lane.
 		string alignmentKey = GetSlotChainAlignmentKey(side, horizontal: false, ordered[0].X);
 		const int alignmentPriority = 80;
-		AddVerticalOutlineReferenceDimension(plan, outline, datumY, ordered[0], DimensionKind.Normal, side, string.Empty, firstDebugRole ?? debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, skippedDebugRole: debugRole);
+		AddVerticalOutlineReferenceDimension(plan, outline, datumY, ordered[0], DimensionKind.Normal, side, string.Empty, firstDebugRole ?? debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority, skippedDebugRole: debugRole, explicitAttachment: datumPoint);
 		for (int i = 1; i < ordered.Count; i++)
 		{
 			AddDimension(plan, DimensionKind.Normal, DimensionOrientation.Vertical, side, ordered[i - 1], ordered[i], string.Empty, debugRole, alignmentKey: alignmentKey, alignmentPriority: alignmentPriority);

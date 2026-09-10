@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core.Tests/Program.cs": {
-    "mtime": 1788770795.5861237,
-    "ast_hash": "2e600d645a1e01c514a27ee5e3a81172",
+    "mtime": 1789020094.5738394,
+    "ast_hash": "a6a61aeec3465d7c624520641f064469",
     "semantic_hash": ""
   },
   "CadAuto.Core.Tests/Properties/AssemblyInfo.cs": {
@@ -155,8 +155,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.cs": {
-    "mtime": 1788767899.7833385,
-    "ast_hash": "30660bcec53445795f4e1e989ec06be8",
+    "mtime": 1789015025.904019,
+    "ast_hash": "ca127f292399bd0d3c86225084d44930",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/HoleCalloutPlan.cs": {
@@ -555,8 +555,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.Features.cs": {
-    "mtime": 1788770795.5831244,
-    "ast_hash": "527bd8fa15239a3599abeb32c89fee71",
+    "mtime": 1789018663.1085856,
+    "ast_hash": "44a3bd52bb813d8444d1af366c697419",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.Structure.cs": {
@@ -570,8 +570,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.Suppression.cs": {
-    "mtime": 1788256962.3971367,
-    "ast_hash": "71373b59335fd29dab78c153889478e8",
+    "mtime": 1789020094.5708382,
+    "ast_hash": "7ebe6b2627ab28264334f135f362fc07",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/StructureFeature.cs": {
@@ -735,13 +735,18 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.LProfile.cs": {
-    "mtime": 1788256962.3951366,
-    "ast_hash": "01c95d86ce7c736cf1bb49829ba7c592",
+    "mtime": 1788940306.9904327,
+    "ast_hash": "6c734e16ef33a53680e8845c4cd39ce9",
     "semantic_hash": ""
   },
   "SupportBlockCommand.cs": {
     "mtime": 1788257486.8650348,
     "ast_hash": "7f3ca7119712d2437fd2bba51e7932f3",
+    "semantic_hash": ""
+  },
+  "docs/\u4e0d\u906e\u6321\u4e2d\u5fc3\u7ebf\u6807\u6ce8\u89c4\u5219.md": {
+    "mtime": 1788771263.5587277,
+    "ast_hash": "d717344b86aa7a75232b6ec6433dacdd",
     "semantic_hash": ""
   }
 }

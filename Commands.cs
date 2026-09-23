@@ -161,17 +161,19 @@ public sealed class Commands
 		{
 			return;
 		}
-		if (AnnotationCaseRuntime.LastFeatures == null || AnnotationCaseRuntime.LastOutline == null)
+		Document document = Application.DocumentManager.MdiActiveDocument;
+		AnnotationCaseSnapshot snapshot = AnnotationCaseRuntime.LastSnapshot;
+		if (snapshot == null || !IsSnapshotForDocument(snapshot, document))
 		{
-			editor.WriteMessage("\nASDCASE: run ASD on a drawing first, then ASDCASE to save it as a confirmed case.");
+			editor.WriteMessage("\nASDCASE: run ASD successfully on the current drawing first, then ASDCASE to save it as a confirmed case.");
 			return;
 		}
 		string pluginDir = Path.GetDirectoryName(typeof(Commands).Assembly.Location) ?? ".";
 		string path = Path.Combine(pluginDir, "annotation-cases.json");
 		AnnotationCaseStore store = AnnotationCaseStore.Load(path);
 		AnnotationCase captured = AnnotationCaseOverlay.Capture(
-			AnnotationCaseRuntime.LastFeatures,
-			AnnotationCaseRuntime.LastOutline,
+			snapshot.Features,
+			snapshot.Outline,
 			"case-" + DateTime.Now.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture));
 		store.Add(captured);
 		store.Save(path);
@@ -239,6 +241,7 @@ public sealed class Commands
 		{
 			return;
 		}
+		AnnotationCaseRuntime.Invalidate();
 		Database database = mdiActiveDocument.Database;
 		Editor editor = mdiActiveDocument.Editor;
 		try
@@ -608,6 +611,7 @@ public sealed class Commands
 		{
 			return;
 		}
+		AnnotationCaseRuntime.Invalidate();
 		Database database = mdiActiveDocument.Database;
 		Editor editor = mdiActiveDocument.Editor;
 		DimensionRuleConfig dimensionRuleConfig = DimensionRuleConfig.CreateDefault();
@@ -697,7 +701,7 @@ public sealed class Commands
 			string text = EnsureCoreDebugLayer(database, transaction);
 			BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
 			DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, objectId, DimStyleManager.ResolveDiameterCalloutDimStyle(database, transaction, objectId), (database.Dimscale <= 0.0) ? 1.0 : database.Dimscale, text, DateTime.Now.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture), annotationKind: AnnotationMetadata.KindCoreDebug);
-			dimensionDrawer.DrawDimensionPlan(dimensionPlan2, dimensionPlan.Diagnostics);
+			dimensionDrawer.DrawDimensionPlan(dimensionPlan2, dimensionPlan.Diagnostics, datum2D);
 			dimensionDrawer.FlushStackedDimensions(outlineFeature);
 			dimensionPlan.SynchronizeFinalPlacementSides();
 			WriteCoreDebugSummary(editor, outlineFeature, list5, list7.Count, dimensionPlan, dimensionPlan2, holeCalloutPlans, text);
@@ -705,10 +709,12 @@ public sealed class Commands
 		}
 		catch (Autodesk.AutoCAD.Runtime.Exception ex)
 		{
+			AnnotationCaseRuntime.Invalidate();
 			editor.WriteMessage("\nASDCOREDBG cancelled or failed: {0}", ex.Message);
 		}
 		catch (System.Exception ex2)
 		{
+			AnnotationCaseRuntime.Invalidate();
 			editor.WriteMessage("\nASDCOREDBG failed: {0}", ex2.Message);
 		}
 	}
@@ -720,6 +726,7 @@ public sealed class Commands
 		{
 			return;
 		}
+		AnnotationCaseRuntime.Invalidate();
 		Database database = mdiActiveDocument.Database;
 		Editor editor = mdiActiveDocument.Editor;
 		DimensionRuleConfig config = DimensionRuleConfig.CreateDefault();
@@ -921,15 +928,27 @@ public sealed class Commands
 			{
 				NativeDiameterDimensioner.PromptHoleCalloutPlans(mdiActiveDocument, list, sourceHoles, config, annotationLayer, objectId, groupId);
 			}
+			if (completedLinearPlan?.AnnotationCaseSnapshot != null)
+			{
+				AnnotationCaseRuntime.Publish(
+					completedLinearPlan.AnnotationCaseSnapshot,
+					mdiActiveDocument,
+					database,
+					GetDocumentIdentity(mdiActiveDocument),
+					GetDatabaseIdentity(database),
+					groupId);
+			}
 			editor.WriteMessage("\nAUTOFIXDIM 标注完成。");
 		}
 		catch (Autodesk.AutoCAD.Runtime.Exception ex3)
 		{
+			AnnotationCaseRuntime.Invalidate();
 			editor.WriteMessage("\nAUTOFIXDIM 取消或失败: {0}: {1}", ex3.GetType().Name, ex3.Message);
 			WriteDimensionRunSummary(editor, completedLinearPlan, outline, recognizedHoles, slotFeatures, outputScope, diagnosticsEnabled, diagnosticSide, diagnosticContext, ex3);
 		}
 		catch (System.Exception ex4)
 		{
+			AnnotationCaseRuntime.Invalidate();
 			editor.WriteMessage("\nAUTOFIXDIM 发生异常: {0}: {1}", ex4.GetType().Name, ex4.Message);
 			WriteDimensionRunSummary(editor, completedLinearPlan, outline, recognizedHoles, slotFeatures, outputScope, diagnosticsEnabled, diagnosticSide, diagnosticContext, ex4);
 		}
@@ -1149,6 +1168,22 @@ public sealed class Commands
 		return false;
 	}
 
+	private static bool IsSnapshotForDocument(AnnotationCaseSnapshot snapshot, Document document)
+	{
+		return document != null
+			&& snapshot.MatchesDocument(document, document.Database, GetDocumentIdentity(document), GetDatabaseIdentity(document.Database));
+	}
+
+	private static string GetDocumentIdentity(Document document)
+	{
+		return document?.Name ?? string.Empty;
+	}
+
+	private static string GetDatabaseIdentity(Database database)
+	{
+		return database?.FingerprintGuid ?? string.Empty;
+	}
+
 	private static IList<HoleCalloutPlan> BuildHoleCalloutPlansForPlacement(IEnumerable<HoleFeature> holes, HoleFeature datumPin, DimensionRuleConfig config)
 	{
 		List<HoleFeature> source = ((holes == null) ? new List<HoleFeature>() : holes.Where((HoleFeature h) => h != null && !h.IsSlotPoint).ToList());
@@ -1177,7 +1212,7 @@ public sealed class Commands
 		List<HoleFeature2D> holes2 = CadToCoreModelMapper.ToCoreHoles(source);
 		List<SlotFeature2D> slots2 = CadToCoreModelMapper.ToCoreSlots(slots);
 		DimensionPlan dimensionPlan = new DimensionPlanner(config).CreateDimensionPlan(outline2, datum2, holes2, slots2);
-		drawer.DrawDimensionPlan(FilterDimensionPlan(dimensionPlan, outputScope), dimensionPlan.Diagnostics);
+		drawer.DrawDimensionPlan(FilterDimensionPlan(dimensionPlan, outputScope), dimensionPlan.Diagnostics, datum2);
 		drawer.FlushStackedDimensions(outline);
 		dimensionPlan.SynchronizeFinalPlacementSides();
 		return dimensionPlan;

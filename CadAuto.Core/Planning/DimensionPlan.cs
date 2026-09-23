@@ -23,6 +23,8 @@ public sealed class DimensionPlan
 
 	public DimensionDiagnosticReport Diagnostics { get; private set; }
 
+	public AnnotationCaseSnapshot AnnotationCaseSnapshot { get; set; }
+
 	public DimensionPlan()
 	{
 		_nextDiagnosticId = 1;

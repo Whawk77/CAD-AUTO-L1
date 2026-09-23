@@ -19,6 +19,7 @@ namespace CadAuto.Core.Tests
         private static readonly HashSet<string> P0Tests = new HashSet<string>
         {
             nameof(RectangularOutlineKeepsOverallDimensions),
+            nameof(ChamferedEnvelopeDropsSplitStructureFragments),
             nameof(OverallDimensionsUseBoundaryGripPoints),
             nameof(ConcaveHoleDatumUsesRealOutlineIntersections),
             nameof(DuplicateSegmentsAreSuppressedWithDiagnostic),
@@ -113,6 +114,7 @@ namespace CadAuto.Core.Tests
 		};
         private static readonly HashSet<string> P3Tests = new HashSet<string>
         {
+            nameof(DatumRoughnessFollowsToleranceAndVisibleExtensionLine),
             nameof(OverallRemainsOutermostAfterLayoutAlignment),
             nameof(OverallCompactsToOnePhysicalSpacing),
             nameof(EffectiveSpanControlsHorizontalStacking),
@@ -125,7 +127,9 @@ namespace CadAuto.Core.Tests
             nameof(LayoutBlocksUseBottomV203SpanOrder),
             nameof(RootedLayoutBlockSurvivesLegacyLaneProcessing),
             nameof(RootedLaneChoosesNearestSafeFiniteSegmentCoordinate),
+            nameof(RootedAlignmentStaysOutsideOuterContour),
             nameof(LooseChainFormsOneEffectiveSpanBlock),
+            nameof(NestedLooseHoleSpansStackOnSeparateLayers),
             nameof(DisconnectedLooseChainsRemainSeparateBlocks),
             nameof(OverlappingRootedIntervalsSplitIntoSeparateLeftBlocks),
             nameof(OverlappingDatumAndPinIntervalsSplitIntoSeparateBlocks),
@@ -175,6 +179,8 @@ namespace CadAuto.Core.Tests
                     return 0;
                 }
                 RunTest(nameof(RectangularOutlineKeepsOverallDimensions), RectangularOutlineKeepsOverallDimensions);
+                RunTest(nameof(ChamferedEnvelopeDropsSplitStructureFragments), ChamferedEnvelopeDropsSplitStructureFragments);
+                RunTest(nameof(DatumRoughnessFollowsToleranceAndVisibleExtensionLine), DatumRoughnessFollowsToleranceAndVisibleExtensionLine);
                 RunTest(nameof(ClosedPathRecognitionBuildsOutline), ClosedPathRecognitionBuildsOutline);
                 RunTest(nameof(ChamferedOutlineKeepsOverallDimensions), ChamferedOutlineKeepsOverallDimensions);
                 RunTest(nameof(MultipleChamfersKeepOverallDimensions), MultipleChamfersKeepOverallDimensions);
@@ -225,7 +231,9 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(LayoutBlocksUseBottomV203SpanOrder), LayoutBlocksUseBottomV203SpanOrder);
 				RunTest(nameof(RootedLayoutBlockSurvivesLegacyLaneProcessing), RootedLayoutBlockSurvivesLegacyLaneProcessing);
 				RunTest(nameof(RootedLaneChoosesNearestSafeFiniteSegmentCoordinate), RootedLaneChoosesNearestSafeFiniteSegmentCoordinate);
+				RunTest(nameof(RootedAlignmentStaysOutsideOuterContour), RootedAlignmentStaysOutsideOuterContour);
 				RunTest(nameof(LooseChainFormsOneEffectiveSpanBlock), LooseChainFormsOneEffectiveSpanBlock);
+				RunTest(nameof(NestedLooseHoleSpansStackOnSeparateLayers), NestedLooseHoleSpansStackOnSeparateLayers);
 				RunTest(nameof(DisconnectedLooseChainsRemainSeparateBlocks), DisconnectedLooseChainsRemainSeparateBlocks);
 				RunTest(nameof(OverlappingRootedIntervalsSplitIntoSeparateLeftBlocks), OverlappingRootedIntervalsSplitIntoSeparateLeftBlocks);
 				RunTest(nameof(OverlappingDatumAndPinIntervalsSplitIntoSeparateBlocks), OverlappingDatumAndPinIntervalsSplitIntoSeparateBlocks);
@@ -289,6 +297,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(SteppedPlateReplacesThinStepRisersWithComplement53), SteppedPlateReplacesThinStepRisersWithComplement53);
 				RunTest(nameof(CNotchPlateKeepsTopEnvelopeBodyWidth120), CNotchPlateKeepsTopEnvelopeBodyWidth120);
 				RunTest(nameof(AnnotationCaseOverlayDropsMaxEndResidual), AnnotationCaseOverlayDropsMaxEndResidual);
+				RunTest(nameof(AnnotationCaseSnapshotRequiresSuccessfulCurrentDocumentRun), AnnotationCaseSnapshotRequiresSuccessfulCurrentDocumentRun);
 				RunTest(nameof(AnnotationCaseStrategyMatchesSquareAndFilletCoveringChains), AnnotationCaseStrategyMatchesSquareAndFilletCoveringChains);
 				RunTest(nameof(AnnotationCaseStrategyDoesNotDropLoneResidual), AnnotationCaseStrategyDoesNotDropLoneResidual);
 				RunTest(nameof(StepGroovePlacesOnSameSideAsOuterStepFourWay), StepGroovePlacesOnSameSideAsOuterStepFourWay);
@@ -337,6 +346,11 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(CenterlineEndpointIsAllowedForHolePositioning), CenterlineEndpointIsAllowedForHolePositioning);
 				RunTest(nameof(HoleAndPinChainsUseSideFacingCenterlineEndpoints), HoleAndPinChainsUseSideFacingCenterlineEndpoints);
 				RunTest(nameof(SingleArcSlotDatumUsesBottomCenterlineEndpoint), SingleArcSlotDatumUsesBottomCenterlineEndpoint);
+				RunTest(nameof(HoleGripUsesNearCenterlineStubNotFarAxisEnd), HoleGripUsesNearCenterlineStubNotFarAxisEnd);
+				RunTest(nameof(BottomHoleGripUsesLowerHoleCenterlineInColumn), BottomHoleGripUsesLowerHoleCenterlineInColumn);
+				RunTest(nameof(OffsetColumnDoesNotStealLowerHoleCenterline), OffsetColumnDoesNotStealLowerHoleCenterline);
+				RunTest(nameof(PinGroupBasePinLocatesHolesAs14And16), PinGroupBasePinLocatesHolesAs14And16);
+				RunTest(nameof(TopLeftRightHoleGripsUsePlacementSideHoleCenterline), TopLeftRightHoleGripsUsePlacementSideHoleCenterline);
 				RunTest(nameof(DoubleArcSlotDatumUsesCenterlineAndOutlineEndpoints), DoubleArcSlotDatumUsesCenterlineAndOutlineEndpoints);
 				RunTest(nameof(MultipleSlotGroupsFormContinuousChains), MultipleSlotGroupsFormContinuousChains);
 				RunTest(nameof(LowerChamferSlotChainUsesBottomPlacement), LowerChamferSlotChainUsesBottomPlacement);
@@ -584,6 +598,243 @@ namespace CadAuto.Core.Tests
                 return 3;
             }
             return 2;
+        }
+
+        private static void DatumRoughnessFollowsToleranceAndVisibleExtensionLine()
+        {
+            var datum = new Datum2D { DatumHole = new HoleFeature2D { Kind = HoleKind2D.Pin } };
+            for (int mode = 0; mode < 4; mode++)
+            {
+                datum.DatumHoleLocationUseToleranceX = (mode & 1) != 0;
+                datum.DatumHoleLocationUseToleranceY = (mode & 2) != 0;
+                foreach (DimensionKind kind in Enum.GetValues(typeof(DimensionKind)))
+                {
+                    bool expected = (kind == DimensionKind.DatumHoleLocationX && (mode & 1) != 0)
+                        || (kind == DimensionKind.DatumHoleLocationY && (mode & 2) != 0);
+                    Assert(DimensionLayoutRules.ShouldAddDatumRoughness(datum, kind) == expected,
+                        "roughness must follow the selected axis only, never pin spacing or other toleranced dimensions");
+                }
+            }
+            datum.DatumHole = null;
+            Assert(!DimensionLayoutRules.ShouldAddDatumRoughness(datum, DimensionKind.DatumHoleLocationX)
+                && !DimensionLayoutRules.ShouldAddDatumRoughness(null, DimensionKind.DatumHoleLocationY),
+                "automatic datum tolerance without a selected datum pin must not insert roughness");
+
+            var origin = new Point2D(87682.82948477, 16542.81444545);
+            foreach (double angle in new[] { 0.0, Math.PI / 2.0, Math.PI / 6.0, 7.0 * Math.PI / 6.0 })
+            {
+                foreach (double sign in new[] { -1.0, 1.0 })
+                {
+                    double nx = -Math.Sin(angle), ny = Math.Cos(angle);
+                    Func<double, double, Point2D> pointAt = (across, along) => new Point2D(
+                        origin.X + Math.Cos(angle) * across + nx * sign * along,
+                        origin.Y + Math.Sin(angle) * across + ny * sign * along);
+                    var lines = new[]
+                    {
+                        new Segment2D(pointAt(0.0, 2.0), pointAt(0.0, 11.0)),
+                        new Segment2D(pointAt(10.0, -50.0), pointAt(10.0, 11.0)), // longer hole-side extension
+                        new Segment2D(pointAt(0.0, 10.0), pointAt(40.0, 10.0)), // dimension line
+                        new Segment2D(pointAt(0.0, 10.0), pointAt(0.0, 10.5)) // short arrow detail
+                    };
+                    Assert(DimensionLayoutRules.TryGetDatumRoughnessPlacement(origin, angle, lines,
+                        0.001, out var point, out var rotation), "visible datum extension should accept roughness");
+                    Assert(point.DistanceTo(pointAt(0.0, 6.5)) < 1E-6,
+                        "insertion point must be the visible datum-side extension midpoint on all four sides and rotated drawings");
+                    Assert(Math.Abs(Math.Cos(rotation) * ny - Math.Sin(rotation) * nx) < 1E-6,
+                        "roughness block must rotate parallel to the extension line");
+                    lines[0] = new Segment2D(pointAt(0.0, 6.0), pointAt(0.0, 11.0));
+                    Assert(DimensionLayoutRules.TryGetDatumRoughnessPlacement(origin, angle, lines,
+                        0.001, out point, out rotation)
+                        && point.DistanceTo(pointAt(0.0, 8.5)) < 1E-6,
+                        "fixed extension length must keep the marker inside the shortened visible segment");
+                }
+            }
+            // Run 20260922133332794: DatumX nominal gap is only 0.00000013.
+            // A native visible overhang must still accept the S marker.
+            var overhang = new Segment2D(new Point2D(origin.X, origin.Y - 0.05), new Point2D(origin.X, origin.Y - 1.25));
+            Assert(DimensionLayoutRules.TryGetDatumRoughnessPlacement(origin, 0.0, new[] { overhang },
+                0.001, out var stubPoint, out var ignoredRotation)
+                && stubPoint.DistanceTo(new Point2D(origin.X, origin.Y - 0.65)) < 1E-6,
+                "a zero nominal gap must not discard the actual rendered datum extension");
+            Assert(!DimensionLayoutRules.TryGetDatumRoughnessPlacement(origin, 0.0, new[]
+                { new Segment2D(new Point2D(origin.X + 10.0, origin.Y), new Point2D(origin.X + 10.0, origin.Y - 40.0)) },
+                0.001, out stubPoint, out ignoredRotation), "never substitute the hole-side extension when the datum side is absent");
+            Assert(!DimensionLayoutRules.TryGetDatumRoughnessPlacement(origin, 0.0, null,
+                0.001, out stubPoint, out ignoredRotation), "no rendered extension must not receive a floating marker");
+
+            var crowdedExtension = new Segment2D(new Point2D(0.0, 0.0), new Point2D(20.0, 0.0));
+            var crowdedMidpoint = new Point2D(10.0, 0.0);
+            var clearOfText = DimensionLayoutRules.ClearDatumRoughnessFromDimensionText(
+                crowdedMidpoint, crowdedExtension, new Point2D(40.0, 12.0), 0.0, 6.0, 4.0);
+            Assert(clearOfText.DistanceTo(crowdedMidpoint) < 1E-6,
+                "a roughness marker already clear of the dimension text stays on the extension midpoint");
+            var shifted = DimensionLayoutRules.ClearDatumRoughnessFromDimensionText(
+                crowdedMidpoint, crowdedExtension, new Point2D(10.0, 1.0), 0.0, 8.0, 4.0);
+            Assert(Math.Abs(shifted.Y) < 1E-6 && shifted.X > 18.0,
+                "a roughness marker on the extension slides along the line until it clears the dimension text");
+
+            OutlineFeature2D outline = CreateRectangle(100.0, 50.0);
+            Assert(DimensionLayoutRules.SelectDatumRoughnessBlockName(
+                new Point2D(0.0, 25.0), new Point2D(40.0, 25.0),
+                new Segment2D(new Point2D(0.0, 10.0), new Point2D(0.0, 40.0)), outline.Segments, 0.001)
+                == DimensionLayoutRules.DatumRoughnessBlockName,
+                "a datum extension parallel to the left contour end uses the upright roughness block");
+            Assert(DimensionLayoutRules.SelectDatumRoughnessBlockName(
+                new Point2D(50.0, 50.0), new Point2D(50.0, 20.0),
+                new Segment2D(new Point2D(20.0, 50.0), new Point2D(70.0, 50.0)), outline.Segments, 0.001)
+                == DimensionLayoutRules.DatumRoughnessBlockName,
+                "a datum extension parallel to the top contour end uses the upright roughness block");
+            Assert(DimensionLayoutRules.SelectDatumRoughnessBlockName(
+                new Point2D(100.0, 20.0), new Point2D(40.0, 20.0),
+                new Segment2D(new Point2D(100.0, 5.0), new Point2D(100.0, 35.0)), outline.Segments, 0.001)
+                == DimensionLayoutRules.DatumRoughnessDownBlockName,
+                "a datum extension parallel to the right contour end uses the downward roughness block");
+            Assert(DimensionLayoutRules.SelectDatumRoughnessBlockName(
+                new Point2D(30.0, 0.0), new Point2D(30.0, 20.0),
+                new Segment2D(new Point2D(10.0, 0.0), new Point2D(55.0, 0.0)), outline.Segments, 0.001)
+                == DimensionLayoutRules.DatumRoughnessDownBlockName,
+                "a datum extension parallel to the bottom contour end uses the downward roughness block");
+            Assert(Math.Abs(DimensionLayoutRules.ApplyDatumRoughnessEndRotation(0.0,
+                new Point2D(50.0, 50.0), new Point2D(50.0, 20.0),
+                new Segment2D(new Point2D(20.0, 50.0), new Point2D(70.0, 50.0)), outline.Segments, 0.001)) < 1E-6,
+                "the top-end upright block keeps the extension rotation");
+            Assert(Math.Abs(DimensionLayoutRules.ApplyDatumRoughnessEndRotation(0.0,
+                new Point2D(30.0, 0.0), new Point2D(30.0, 20.0),
+                new Segment2D(new Point2D(10.0, 0.0), new Point2D(55.0, 0.0)), outline.Segments, 0.001) - Math.PI) < 1E-6,
+                "the bottom-end downward block is rotated 180 degrees");
+            Assert(Math.Abs(DimensionLayoutRules.ApplyDatumRoughnessEndRotation(Math.PI / 2.0,
+                new Point2D(100.0, 20.0), new Point2D(40.0, 20.0),
+                new Segment2D(new Point2D(100.0, 5.0), new Point2D(100.0, 35.0)), outline.Segments, 0.001) - 3.0 * Math.PI / 2.0) < 1E-6,
+                "the right-end block is rotated 180 degrees clockwise from the extension angle");
+            double contourRotation = Math.PI / 9.0;
+            OutlineFeature2D rotated = RotateOutline(outline, contourRotation);
+            Assert(DimensionLayoutRules.SelectDatumRoughnessBlockName(
+                RotatePoint(new Point2D(0.0, 25.0), contourRotation), RotatePoint(new Point2D(40.0, 25.0), contourRotation),
+                new Segment2D(RotatePoint(new Point2D(0.0, 10.0), contourRotation), RotatePoint(new Point2D(0.0, 40.0), contourRotation)),
+                rotated.Segments, 0.001) == DimensionLayoutRules.DatumRoughnessBlockName,
+                "a rotated left contour end still uses the upright roughness block");
+            Assert(DimensionLayoutRules.SelectDatumRoughnessBlockName(
+                RotatePoint(new Point2D(30.0, 0.0), contourRotation), RotatePoint(new Point2D(30.0, 20.0), contourRotation),
+                new Segment2D(RotatePoint(new Point2D(10.0, 0.0), contourRotation), RotatePoint(new Point2D(55.0, 0.0), contourRotation)),
+                rotated.Segments, 0.001) == DimensionLayoutRules.DatumRoughnessDownBlockName,
+                "a rotated bottom contour end still uses the downward roughness block");
+        }
+
+        private static void ChamferedEnvelopeDropsSplitStructureFragments()
+        {
+            var config = DimensionRuleConfig.CreateDefault();
+            var planner = new DimensionPlanner(config);
+            var outline = new OutlineFeature2D
+            {
+                MinX = 0.0,
+                MinY = 0.0,
+                MaxX = 118.0,
+                MaxY = 40.0
+            };
+            AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(10.0, 0.0), "bottom-left");
+            AddSegment(outline, new Point2D(10.0, 0.0), new Point2D(113.0, 0.0), "bottom-body");
+            AddSegment(outline, new Point2D(113.0, 0.0), new Point2D(118.0, 5.0), "chamfer");
+            AddSegment(outline, new Point2D(118.0, 5.0), new Point2D(118.0, 40.0), "right");
+            AddSegment(outline, new Point2D(118.0, 40.0), new Point2D(0.0, 40.0), "top");
+            AddSegment(outline, new Point2D(0.0, 40.0), new Point2D(0.0, 0.0), "left");
+            AddSegment(outline, new Point2D(10.0, 0.0), new Point2D(10.0, 15.0), "groove");
+            outline.Chamfers.Add(new ChamferFeature2D
+            {
+                StartPoint = new Point2D(113.0, 0.0),
+                EndPoint = new Point2D(118.0, 5.0),
+                DeltaX = 5.0,
+                DeltaY = 5.0,
+                Value = 5.0
+            });
+            var plan = new DimensionPlan();
+            var overallWidth = new PlannedDimension
+            {
+                Kind = DimensionKind.OverallWidth,
+                Orientation = DimensionOrientation.Horizontal,
+                Side = DimensionSide.Bottom,
+                FirstPoint = new Point2D(0.0, 0.0),
+                SecondPoint = new Point2D(118.0, 0.0),
+                DebugRole = "OverallWidth"
+            };
+            var overallHeight = new PlannedDimension
+            {
+                Kind = DimensionKind.OverallHeight,
+                Orientation = DimensionOrientation.Vertical,
+                Side = DimensionSide.Left,
+                FirstPoint = new Point2D(0.0, 0.0),
+                SecondPoint = new Point2D(0.0, 40.0),
+                DebugRole = "OverallHeight"
+            };
+            var bottomTen = new PlannedDimension
+            {
+                Kind = DimensionKind.Normal,
+                Orientation = DimensionOrientation.Horizontal,
+                Side = DimensionSide.Bottom,
+                FirstPoint = new Point2D(0.0, 0.0),
+                SecondPoint = new Point2D(10.0, 0.0),
+                DebugRole = "BottomStructWidth"
+            };
+            var bottomBody = new PlannedDimension
+            {
+                Kind = DimensionKind.Normal,
+                Orientation = DimensionOrientation.Horizontal,
+                Side = DimensionSide.Bottom,
+                FirstPoint = new Point2D(10.0, 0.0),
+                SecondPoint = new Point2D(113.0, 0.0),
+                DebugRole = "BottomStructWidth"
+            };
+            var rightHeight = new PlannedDimension
+            {
+                Kind = DimensionKind.Normal,
+                Orientation = DimensionOrientation.Vertical,
+                Side = DimensionSide.Right,
+                FirstPoint = new Point2D(118.0, 5.0),
+                SecondPoint = new Point2D(118.0, 40.0),
+                DebugRole = "RightStructHeight"
+            };
+            plan.Add(overallWidth);
+            plan.Add(overallHeight);
+            plan.Add(bottomTen);
+            plan.Add(bottomBody);
+            plan.Add(rightHeight);
+            planner.SuppressLocalGeometryOnOverallEnvelope(plan, outline);
+            Assert(plan.Dimensions.Contains(overallWidth) && plan.Dimensions.Contains(overallHeight),
+                "overall width and height stay when the envelope edge is completed by a chamfer");
+            Assert(!plan.Dimensions.Contains(bottomTen) && !plan.Dimensions.Contains(bottomBody),
+                "collinear bottom fragments on a chamfer-completed outer edge must be suppressed");
+            Assert(!plan.Dimensions.Contains(rightHeight),
+                "right height that only omits a chamfer must be suppressed");
+
+            var step = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 60.0, MaxY = 40.0 };
+            AddSegment(step, new Point2D(0.0, 0.0), new Point2D(60.0, 0.0), "bottom");
+            AddSegment(step, new Point2D(60.0, 0.0), new Point2D(60.0, 20.0), "right-step");
+            AddSegment(step, new Point2D(60.0, 20.0), new Point2D(30.0, 20.0), "ledge");
+            AddSegment(step, new Point2D(30.0, 20.0), new Point2D(30.0, 40.0), "riser");
+            AddSegment(step, new Point2D(30.0, 40.0), new Point2D(0.0, 40.0), "top");
+            AddSegment(step, new Point2D(0.0, 40.0), new Point2D(0.0, 0.0), "left");
+            var stepPlan = new DimensionPlan();
+            var stepHeight = new PlannedDimension
+            {
+                Kind = DimensionKind.Normal,
+                Orientation = DimensionOrientation.Vertical,
+                Side = DimensionSide.Right,
+                FirstPoint = new Point2D(60.0, 0.0),
+                SecondPoint = new Point2D(60.0, 20.0),
+                DebugRole = "RightStructHeight"
+            };
+            stepPlan.Add(new PlannedDimension
+            {
+                Kind = DimensionKind.OverallHeight,
+                Orientation = DimensionOrientation.Vertical,
+                Side = DimensionSide.Left,
+                FirstPoint = new Point2D(0.0, 0.0),
+                SecondPoint = new Point2D(0.0, 40.0),
+                DebugRole = "OverallHeight"
+            });
+            stepPlan.Add(stepHeight);
+            planner.SuppressLocalGeometryOnOverallEnvelope(stepPlan, step);
+            Assert(stepPlan.Dimensions.Contains(stepHeight),
+                "a real right step shorter than overall height must stay");
         }
 
         private static void RectangularOutlineKeepsOverallDimensions()
@@ -2431,6 +2682,85 @@ namespace CadAuto.Core.Tests
 			}
 		}
 
+		private static void RootedAlignmentStaysOutsideOuterContour()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 100.0,
+				MaxY = 50.0
+			};
+			AddSegment(outline, new Point2D(0.0, 0.0), new Point2D(100.0, 0.0), "bottom");
+			AddSegment(outline, new Point2D(100.0, 0.0), new Point2D(100.0, 10.0), "rise");
+			AddSegment(outline, new Point2D(100.0, 10.0), new Point2D(40.0, 10.0), "ledge");
+			AddSegment(outline, new Point2D(40.0, 10.0), new Point2D(40.0, 50.0), "step");
+			AddSegment(outline, new Point2D(40.0, 50.0), new Point2D(0.0, 50.0), "top");
+			AddSegment(outline, new Point2D(0.0, 50.0), new Point2D(0.0, 0.0), "left");
+
+			const double offset = 10.0;
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.DatumHoleLocationX,
+					FirstPoint = new Point2D(100.0, 0.0),
+					SecondPoint = new Point2D(90.0, 40.0),
+					Span = 10.0,
+					AlignmentKey = "PG1:DatumChain:H",
+					AlignmentPriority = 120,
+					ReadingLevel = DimensionReadingLevel.DatumTransfer,
+					SourceFeatureId = "PG1"
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.PinDistance,
+					FirstPoint = new Point2D(50.0, 40.0),
+					SecondPoint = new Point2D(90.0, 40.0),
+					Span = 40.0,
+					AlignmentKey = "PG1:DatumChain:H",
+					AlignmentPriority = 100,
+					ReadingLevel = DimensionReadingLevel.IntraGroup,
+					SourceFeatureId = "PG1"
+				},
+				new DimensionLayoutItem
+				{
+					Kind = DimensionKind.OverallWidth,
+					FirstPoint = new Point2D(0.0, 0.0),
+					SecondPoint = new Point2D(100.0, 0.0),
+					Span = 100.0,
+					ForceOuterLevel = true,
+					ReadingLevel = DimensionReadingLevel.Overall
+				}
+			};
+			var rules = new DimensionLayoutRules(config);
+			Assert(rules.TryGetDimensionLocalBoundary(dimensions[1], DimensionSide.Bottom, outline, out var localBoundary)
+				&& Math.Abs(localBoundary - 10.0) <= config.GeometryTolerance,
+				"the pin chain must see the ledge as its local bottom boundary");
+			double outward = rules.GetDimLineCoordinate(dimensions[0], DimensionSide.Bottom, outline, offset);
+			double pinCoordinate = rules.GetDimLineCoordinate(dimensions[1], DimensionSide.Bottom, outline, offset);
+			Assert(Math.Abs(localBoundary - offset) <= config.GeometryTolerance,
+				"the pin local boundary minus the stack offset would lie on the outer contour");
+			Assert(rules.DimensionLineEntersOutlineInterior(dimensions[1], DimensionSide.Bottom, localBoundary - offset, outline),
+				"a dimension line lying on the outer contour is not an outward placement");
+			Assert(pinCoordinate < -config.GeometryTolerance && outward < -config.GeometryTolerance,
+				"both natural coordinates stay outside the outer contour");
+
+			var placements = rules.CreateStackingPlan(dimensions, DimensionSide.Bottom, outline, 2.5, 1.25, offset, 6.5, isHorizontal: true)
+				.ToDictionary(item => item.Index);
+			Assert(placements[0].DimLineCoordinateOverride.HasValue && placements[1].DimLineCoordinateOverride.HasValue
+				&& Math.Abs(placements[0].DimLineCoordinateOverride.Value - placements[1].DimLineCoordinateOverride.Value) <= config.GeometryTolerance,
+				"alignment still keeps the datum and pin chain on one dimension line");
+			Assert(placements[0].DimLineCoordinateOverride.Value < -config.GeometryTolerance
+				&& Math.Abs(placements[0].DimLineCoordinateOverride.Value - pinCoordinate) <= config.GeometryTolerance,
+				"the shared line uses the outward stack, not the contour-coincident candidate");
+			double overall = placements[2].DimLineCoordinateOverride
+				?? rules.GetDimLineCoordinate(dimensions[2], DimensionSide.Bottom, outline, placements[2].Offset);
+			Assert(overall < placements[0].DimLineCoordinateOverride.Value - config.GeometryTolerance,
+				"the overall dimension remains outside the aligned chain");
+		}
+
 		private static void LooseChainFormsOneEffectiveSpanBlock()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -2451,6 +2781,30 @@ namespace CadAuto.Core.Tests
 				"all members of one loose chain must form one 50-unit layout block");
 			Assert(placements[0].Level < placements[2].Level && placements[2].Level < placements[4].Level,
 				"right-side loose50, rooted85, and outline100 blocks must follow effective-span order");
+		}
+
+		private static void NestedLooseHoleSpansStackOnSeparateLayers()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(40.0, 40.0);
+			var dimensions = new[]
+			{
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(30.0, 0.0), Span = 30.0, LooseChainId = 1, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "L1" },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(16.0, 0.0), SecondPoint = new Point2D(30.0, 0.0), Span = 14.0, LooseChainId = 2, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "L2" },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(0.0, 0.0), SecondPoint = new Point2D(15.0, 0.0), Span = 15.0, AlignmentKey = "PG2:FunctionalHoles:H", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "PG2" },
+				new DimensionLayoutItem { Kind = DimensionKind.HoleLocation, FirstPoint = new Point2D(15.0, 0.0), SecondPoint = new Point2D(30.0, 0.0), Span = 15.0, AlignmentKey = "PG2:FunctionalHoles:H", AlignmentPriority = 90, PreserveAlignmentLevel = true, ReadingLevel = DimensionReadingLevel.LocalSpacing, SourceFeatureId = "PG2" }
+			};
+			var placements = new DimensionLayoutRules(config)
+				.CreateStackingPlan(dimensions, DimensionSide.Bottom, outline, 2.5, 1.25, 10.0, 6.5, isHorizontal: true)
+				.ToDictionary(item => item.Index);
+			Assert(placements[0].LayoutBlockId != placements[1].LayoutBlockId,
+				"a nested 14 must not share the loose-chain layout block of the outer 30");
+			Assert(placements[1].Level < placements[0].Level,
+				"the nested 14 must sit closer to the part than the outer 30");
+			Assert(placements[1].Level <= placements[2].Level && placements[1].Level <= placements[3].Level,
+				"the nested 14 must not sit outside either 15");
+			Assert(placements[0].Level >= placements[2].Level && placements[0].Level >= placements[3].Level,
+				"the outer 30 must not sit inside the 15s");
 		}
 
 		private static void DisconnectedLooseChainsRemainSeparateBlocks()
@@ -5285,6 +5639,43 @@ namespace CadAuto.Core.Tests
 				+ topPlacements[2].Level + "/" + topPlacements[3].Level);
 		}
 
+		private static void AnnotationCaseSnapshotRequiresSuccessfulCurrentDocumentRun()
+		{
+			AnnotationCaseRuntime.Invalidate();
+			try
+			{
+				var config = DimensionRuleConfig.CreateDefault();
+				config.UseFeatureFirstStructurePipeline = true;
+				var planner = new DimensionPlanner(config);
+				var plan = planner.CreateOutlinePlan(CreateRectangle(100.0, 50.0));
+				var document = new object();
+				var database = new object();
+				Assert(plan.AnnotationCaseSnapshot != null && AnnotationCaseRuntime.LastSnapshot == null,
+					"Planning alone must not publish a confirmed case");
+				Assert(!plan.AnnotationCaseSnapshot.MatchesDocument(document, database, "A.dwg", "fingerprint"),
+					"An uncommitted plan must not be saveable");
+				AnnotationCaseRuntime.Publish(plan.AnnotationCaseSnapshot, document, database, "A.dwg", "fingerprint", "run-1");
+				var snapshot = AnnotationCaseRuntime.LastSnapshot;
+				Assert(snapshot != null && snapshot.MatchesDocument(document, database, "A.dwg", "fingerprint"),
+					"A successful run must be saveable on its current document");
+				Assert(!snapshot.MatchesDocument(new object(), database, "A.dwg", "fingerprint")
+					&& !snapshot.MatchesDocument(document, new object(), "A.dwg", "fingerprint")
+					&& !snapshot.MatchesDocument(document, database, "B.dwg", "fingerprint"),
+					"A different or reopened document/database must not reuse the snapshot");
+				planner.CreateOutlinePlan(CreateRectangle(80.0, 40.0));
+				Assert(object.ReferenceEquals(snapshot, AnnotationCaseRuntime.LastSnapshot),
+					"Other planner callers must not replace the confirmed snapshot");
+				AnnotationCaseRuntime.Invalidate();
+				Assert(AnnotationCaseRuntime.LastSnapshot == null, "Cancellation/failure must clear the snapshot");
+				AnnotationCaseRuntime.Publish(plan.AnnotationCaseSnapshot, document, database, "A.dwg", "fingerprint", "");
+				Assert(AnnotationCaseRuntime.LastSnapshot == null, "Publishing without a run identity must fail closed");
+			}
+			finally
+			{
+				AnnotationCaseRuntime.Invalidate();
+			}
+		}
+
 		private static void AnnotationCaseOverlayDropsMaxEndResidual()
 		{
 			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 180.0, MaxY = 100.0 };
@@ -7751,6 +8142,125 @@ namespace CadAuto.Core.Tests
 			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(center.X + 5.0, center.Y), SourceGeometryId = sourceId + ":H" });
 		}
 
+		private static void OffsetColumnDoesNotStealLowerHoleCenterline()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 80.0);
+			var datum = Datum2D.FromOutline(outline);
+			AddCenterlineCross(datum, new Point2D(25.0, 25.0), "UPPER");
+			AddCenterlineCross(datum, new Point2D(26.0, 10.0), "LOWER");
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new[]
+			{
+				CreateHole(25.0, 25.0, 8.0, HoleKind2D.Normal)
+			});
+			var horizontal = plan.Dimensions.Single(d => d.DebugRole == "HoleDatumX");
+			Assert(horizontal.Side == DimensionSide.Bottom && horizontal.SecondPoint.Equals(new Point2D(25.0, 20.0)),
+				"a 1mm column offset is not coaxial, so the bottom grip stays on this hole's centerline");
+		}
+
+		private static void PinGroupBasePinLocatesHolesAs14And16()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 80.0);
+			var pinA = CreateHole(50.0, 20.0, 6.0, HoleKind2D.Pin);
+			var pinB = CreateHole(50.0, 50.0, 6.0, HoleKind2D.Pin);
+			var datum = Datum2D.FromOutline(outline);
+			datum.DatumHole = pinA;
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new[]
+			{
+				pinA,
+				pinB,
+				CreateHole(36.0, 35.0, 8.0, HoleKind2D.Thread),
+				CreateHole(66.0, 35.0, 8.0, HoleKind2D.Thread)
+			});
+			var horizontal = plan.Dimensions.Where(d => d.Orientation == DimensionOrientation.Horizontal
+				&& (d.DebugRole == "LooseHole" || d.DebugRole == "FunctionalHole")).ToList();
+			Assert(horizontal.Any(d => Math.Abs(GetSpan(d) - 14.0) <= 0.001)
+				&& horizontal.Any(d => Math.Abs(GetSpan(d) - 16.0) <= 0.001),
+				"holes in a pin group must be located from the base pin as 14 and 16");
+			Assert(!horizontal.Any(d => Math.Abs(GetSpan(d) - 15.0) <= 0.001),
+				"pin-group holes must not be located by a 15 hole-to-hole chain");
+		}
+
+		private static void BottomHoleGripUsesLowerHoleCenterlineInColumn()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 80.0);
+			var datum = Datum2D.FromOutline(outline);
+			AddCenterlineCross(datum, new Point2D(25.0, 25.0), "UPPER");
+			AddCenterlineCross(datum, new Point2D(25.0, 10.0), "LOWER");
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new[]
+			{
+				CreateHole(25.0, 25.0, 8.0, HoleKind2D.Normal)
+			});
+			var horizontal = plan.Dimensions.Single(d => d.DebugRole == "HoleDatumX");
+			Assert(horizontal.Side == DimensionSide.Bottom && horizontal.SecondPoint.Equals(new Point2D(25.0, 5.0)),
+				"a bottom-placed hole dimension must take the lower hole's vertical centerline");
+		}
+
+		private static void TopLeftRightHoleGripsUsePlacementSideHoleCenterline()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var topOutline = CreateRectangle(100.0, 80.0);
+			var topDatum = Datum2D.FromOutline(topOutline);
+			AddCenterlineCross(topDatum, new Point2D(25.0, 50.0), "TOP-LOWER");
+			AddCenterlineCross(topDatum, new Point2D(25.0, 65.0), "TOP-UPPER");
+			var topPlan = new DimensionPlanner(config).CreateDimensionPlan(topOutline, topDatum, new[]
+			{
+				CreateHole(25.0, 50.0, 8.0, HoleKind2D.Normal)
+			});
+			var topHorizontal = topPlan.Dimensions.Single(d => d.DebugRole == "HoleDatumX");
+			Assert(topHorizontal.Side == DimensionSide.Top && topHorizontal.SecondPoint.Equals(new Point2D(25.0, 70.0)),
+				"a top-placed hole dimension must take the upper hole's vertical centerline");
+
+			var leftOutline = CreateRectangle(100.0, 80.0);
+			var leftDatum = Datum2D.FromOutline(leftOutline);
+			AddCenterlineCross(leftDatum, new Point2D(25.0, 40.0), "LEFT-INNER");
+			AddCenterlineCross(leftDatum, new Point2D(10.0, 40.0), "LEFT-OUTER");
+			var leftPlan = new DimensionPlanner(config).CreateDimensionPlan(leftOutline, leftDatum, new[]
+			{
+				CreateHole(25.0, 40.0, 8.0, HoleKind2D.Normal)
+			});
+			var leftVertical = leftPlan.Dimensions.Single(d => d.DebugRole == "HoleDatumY");
+			Assert(leftVertical.Side == DimensionSide.Left && leftVertical.SecondPoint.Equals(new Point2D(5.0, 40.0)),
+				"a left-placed hole dimension must take the leftmost hole's horizontal centerline");
+
+			var rightOutline = CreateRectangle(100.0, 80.0);
+			var rightDatum = Datum2D.FromOutline(rightOutline);
+			AddCenterlineCross(rightDatum, new Point2D(70.0, 40.0), "RIGHT-INNER");
+			AddCenterlineCross(rightDatum, new Point2D(85.0, 40.0), "RIGHT-OUTER");
+			var rightPlan = new DimensionPlanner(config).CreateDimensionPlan(rightOutline, rightDatum, new[]
+			{
+				CreateHole(70.0, 40.0, 8.0, HoleKind2D.Normal)
+			});
+			var rightVertical = rightPlan.Dimensions.Single(d => d.DebugRole == "HoleDatumY");
+			Assert(rightVertical.Side == DimensionSide.Right && rightVertical.SecondPoint.Equals(new Point2D(90.0, 40.0)),
+				"a right-placed hole dimension must take the rightmost hole's horizontal centerline");
+		}
+
+		private static void HoleGripUsesNearCenterlineStubNotFarAxisEnd()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 80.0);
+			var datum = Datum2D.FromOutline(outline);
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(25.0, 0.0), SourceGeometryId = "LONG-V" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(25.0, 80.0), SourceGeometryId = "LONG-V" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(25.0, 16.0), SourceGeometryId = "HOLE-V" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(25.0, 24.0), SourceGeometryId = "HOLE-V" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(21.0, 20.0), SourceGeometryId = "HOLE-H" });
+			datum.HoleCenterlineEndpoints.Add(new CenterlineEndpoint2D { Point = new Point2D(29.0, 20.0), SourceGeometryId = "HOLE-H" });
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new[]
+			{
+				CreateHole(25.0, 20.0, 8.0, HoleKind2D.Normal)
+			});
+			var horizontal = plan.Dimensions.Single(d => d.DebugRole == "HoleDatumX");
+			var vertical = plan.Dimensions.Single(d => d.DebugRole == "HoleDatumY");
+			Assert(horizontal.Side == DimensionSide.Bottom && horizontal.SecondPoint.Equals(new Point2D(25.0, 16.0)),
+				"a bottom hole grip must use the near vertical-centerline stub, not the far axis end");
+			Assert(vertical.Side == DimensionSide.Left && vertical.SecondPoint.Equals(new Point2D(21.0, 20.0)),
+				"a left hole grip must use the near horizontal-centerline stub, not the far axis end");
+		}
+
 		private static void SingleArcSlotDatumUsesBottomCenterlineEndpoint()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -7854,12 +8364,12 @@ namespace CadAuto.Core.Tests
 				&& horizontal.SecondPoint.Equals(new Point2D(20.0, 40.0)),
 				"double-arc horizontal location must use the nearest-side slot and top endpoints");
 			Assert(vertical.Side == DimensionSide.Left
-				&& vertical.FirstPoint.Equals(new Point2D(0.0, 0.0))
-				&& vertical.SecondPoint.Equals(new Point2D(15.0, 20.0)),
-				"double-arc vertical location must use the left centerline and outline endpoints");
+				&& vertical.FirstPoint.Equals(new Point2D(0.0, 50.0))
+				&& vertical.SecondPoint.Equals(new Point2D(15.0, 35.0)),
+				"double-arc vertical location must use the left horizontal centerline endpoint");
 			var linkedCenterDistance = plan.Dimensions.Single(d => d.DebugRole == "SlotChainV");
-			Assert(linkedCenterDistance.FirstPoint.Equals(new Point2D(15.0, 20.0))
-				&& linkedCenterDistance.SecondPoint.Equals(new Point2D(15.0, 35.0)),
+			Assert(linkedCenterDistance.FirstPoint.Equals(new Point2D(15.0, 35.0))
+				&& linkedCenterDistance.SecondPoint.Equals(new Point2D(15.0, 20.0)),
 				"linked slot center distance must use centerline endpoints on the inherited side");
 			var slotCenter = plan.Dimensions.Single(d => d.DebugRole == "SlotCenter");
 			Assert(slotCenter.Side == DimensionSide.Top
@@ -7912,9 +8422,9 @@ namespace CadAuto.Core.Tests
 			var rightPlan = new DimensionPlanner(config).CreateDimensionPlan(outline, rightDatum, new HoleFeature2D[0], rightSlots);
 			var rightVertical = rightPlan.Dimensions.Single(d => d.DebugRole == "DoubleArcSlotVerticalDatum");
 			var rightLinked = rightPlan.Dimensions.Single(d => d.DebugRole == "SlotChainV");
-			Assert(rightVertical.SecondPoint.Equals(new Point2D(85.0, 20.0))
-				&& rightLinked.FirstPoint.Equals(new Point2D(85.0, 20.0))
-				&& rightLinked.SecondPoint.Equals(new Point2D(85.0, 35.0)),
+			Assert(rightVertical.SecondPoint.Equals(new Point2D(85.0, 35.0))
+				&& rightLinked.FirstPoint.Equals(new Point2D(85.0, 35.0))
+				&& rightLinked.SecondPoint.Equals(new Point2D(85.0, 20.0)),
 				"right double-arc slot chain must use the outermost right centerline endpoints");
 		}
 
@@ -9044,6 +9554,29 @@ namespace CadAuto.Core.Tests
                 "counterbore outer diameter should stay as a separate normal callout");
             Assert(plans.Any(p => p.Kind == HoleCalloutKind.Normal && p.DebugOwner == "PG1" && p.Text == "%%c9"),
                 "counterbore inner diameter should stay as a separate normal callout");
+        }
+
+        private static Point2D RotatePoint(Point2D point, double angle)
+        {
+            double cos = Math.Cos(angle);
+            double sin = Math.Sin(angle);
+            return new Point2D(point.X * cos - point.Y * sin, point.X * sin + point.Y * cos);
+        }
+
+        private static OutlineFeature2D RotateOutline(OutlineFeature2D outline, double angle)
+        {
+            var rotated = new OutlineFeature2D();
+            foreach (Segment2D segment in outline.Segments)
+            {
+                Point2D start = RotatePoint(segment.Start, angle);
+                Point2D end = RotatePoint(segment.End, angle);
+                rotated.Segments.Add(new Segment2D(start, end));
+                rotated.MinX = rotated.Segments.Count == 1 ? Math.Min(start.X, end.X) : Math.Min(rotated.MinX, Math.Min(start.X, end.X));
+                rotated.MinY = rotated.Segments.Count == 1 ? Math.Min(start.Y, end.Y) : Math.Min(rotated.MinY, Math.Min(start.Y, end.Y));
+                rotated.MaxX = rotated.Segments.Count == 1 ? Math.Max(start.X, end.X) : Math.Max(rotated.MaxX, Math.Max(start.X, end.X));
+                rotated.MaxY = rotated.Segments.Count == 1 ? Math.Max(start.Y, end.Y) : Math.Max(rotated.MaxY, Math.Max(start.Y, end.Y));
+            }
+            return rotated;
         }
 
         private static OutlineFeature2D CreateRectangle(double width, double height)

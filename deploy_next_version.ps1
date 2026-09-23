@@ -16,6 +16,9 @@ if ([string]::IsNullOrWhiteSpace($DeployDir)) {
 }
 
 $resolvedSource = Resolve-Path -LiteralPath $SourceDll
+if (-not (Test-Path -LiteralPath $resolvedSource.Path -PathType Leaf)) {
+    throw "SourceDll is not a file: $SourceDll"
+}
 if (-not (Test-Path -LiteralPath $DeployDir -PathType Container)) {
     throw "Deploy directory does not exist: $DeployDir"
 }
@@ -26,23 +29,39 @@ if (-not (Test-Path -LiteralPath $DeployDir -PathType Container)) {
 $requiredDlls = @('AutoFixtureDim.dll', 'CadAuto.Core.dll', 'CadAuto.CadAdapter.dll')
 $sourceDir = Split-Path -Parent $resolvedSource.Path
 foreach ($requiredDll in $requiredDlls) {
-    if (-not (Test-Path -LiteralPath (Join-Path $sourceDir $requiredDll))) {
+    if (-not (Test-Path -LiteralPath (Join-Path $sourceDir $requiredDll) -PathType Leaf)) {
         throw "Missing $requiredDll in $sourceDir - refusing to deploy an incomplete build."
     }
 }
 
 $maxVersion = 0
-Get-ChildItem -LiteralPath $DeployDir -Filter "$BaseName-v*.dll" -File | ForEach-Object {
-    if ($_.Name -match ('^' + [regex]::Escape($BaseName) + '-v(\d+)\.dll$')) {
-        $version = [int]$Matches[1]
-        if ($version -gt $maxVersion) {
-            $maxVersion = $version
-        }
+foreach ($entry in Get-ChildItem -LiteralPath $DeployDir -Force) {
+    if (($entry.PSIsContainer -or $entry.Extension -eq '.dll') -and
+        $entry.Name -match ('^' + [regex]::Escape($BaseName) + '-v(\d+)(?:\.dll)?$')) {
+        $maxVersion = [Math]::Max($maxVersion, [int]$Matches[1])
+    }
+}
+$nextVersion = $maxVersion + 1
+$versionDirectory = Join-Path $DeployDir ("{0}-v{1}" -f $BaseName, $nextVersion)
+if (Test-Path -LiteralPath $versionDirectory) {
+    throw "Refusing to overwrite existing deployment directory: $versionDirectory"
+}
+New-Item -ItemType Directory -Path $versionDirectory | Out-Null
+
+$sourceFiles = @{
+    'AutoFixtureDim.dll' = $resolvedSource.Path
+    'CadAuto.Core.dll' = Join-Path $sourceDir 'CadAuto.Core.dll'
+    'CadAuto.CadAdapter.dll' = Join-Path $sourceDir 'CadAuto.CadAdapter.dll'
+}
+foreach ($fileName in $sourceFiles.Keys) {
+    $sourcePath = $sourceFiles[$fileName]
+    $destinationPath = Join-Path $versionDirectory $fileName
+    Copy-Item -LiteralPath $sourcePath -Destination $destinationPath
+    $sourceHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash
+    $destinationHash = (Get-FileHash -LiteralPath $destinationPath -Algorithm SHA256).Hash
+    if ($sourceHash -ne $destinationHash) {
+        throw "SHA256 mismatch after copying $fileName."
     }
 }
 
-$nextVersion = $maxVersion + 1
-$destination = Join-Path $DeployDir ("{0}-v{1}.dll" -f $BaseName, $nextVersion)
-Copy-Item -LiteralPath $resolvedSource.Path -Destination $destination -Force
-
-Write-Output $destination
+Write-Output (Join-Path $versionDirectory 'AutoFixtureDim.dll')

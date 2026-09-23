@@ -2,14 +2,15 @@
 
 ## Test DLL Naming
 
-- Direct regression builds use a new output folder ending in `-vNNN` for every build; never reuse an earlier folder.
-- Versioned folder names should end in `-vNNN`. When continuing an existing local version sequence, inspect `bin\` for the highest used number and increment; historical guidance started at `-v190` and continued `-v191`, `-v192`, …
+- Every loadable/test DLL build uses a fresh `bin\Debug-vN\` folder; never reuse an earlier folder or deliver a bare overwrite of `bin\Debug\`.
+- Inspect `bin\Debug-v*` before every build and use the highest numeric `N` plus one. This workspace starts at `Debug-v1` when no version exists.
+- Keep the complete build set together: `AutoFixtureDim.dll`, `CadAuto.Core.dll`, and `CadAuto.CadAdapter.dll`.
 - Core tests and full plugin builds must not share the same `-vNNN` output directory (see `docs/DimensionLayoutRegression.md`).
 - The legacy manual helper `run-cad-test.ps1` copies `bin\Debug\AutoFixtureDim.dll` to an uppercase `LB` filename such as `autofixdim-LB<N>.dll`.
 - The `LB` copy flow is not the four-direction automated regression flow.
 - If AutoCAD locks a loaded DLL, use a fresh `-vNNN` build output for regression instead of overwriting it.
 - Do not use the abandoned historical `autofixdim-v89.dll` behavior as a baseline.
-- A current loadable set for day-to-day work may live under `bin\Debug\` (gitignored); keep only the newest intended set there.
+- `bin\Debug\` is the default unversioned output, not the versioned deliverable.
 
 ## CAD Test Script
 
@@ -34,13 +35,17 @@ Important behavior:
 
 ## Deployment Script
 
-Deployment script:
+Deployment script (replace `N` with the already-built version selected for deployment):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\deploy_next_version.ps1
+powershell -ExecutionPolicy Bypass -File .\deploy_next_version.ps1 -SourceDll .\bin\Debug-vN\AutoFixtureDim.dll
 ```
 
 Use it only when the user explicitly asks for deployment.
+
+- The script copies the complete three-DLL set into a new `<DeployDir>\<BaseName>-vN\` directory and returns its `AutoFixtureDim.dll` path for `NETLOAD`; it does not compile the plugin.
+- The deployment sequence considers both legacy `<BaseName>-vN.dll` files and version directories, independently of the `bin\Debug-vN` build sequence. Previous deployments are preserved.
+- Every copied DLL must match its source SHA256 before the script reports success.
 
 ## Manual AutoCAD Flow
 

@@ -1498,22 +1498,18 @@ public sealed partial class DimensionPlanner
 
 	private void AddLooseHoleMacroGroup(DimensionPlan plan, OutlineFeature2D outline, LooseHoleLocationPlan loosePlan)
 	{
-		List<Tuple<HoleFeature2D, HoleFeature2D>> edges = AddLooseHoleCenterDistances(plan, outline, loosePlan.MacroGroup.LineGroups, loosePlan.ReferencePinGroup);
-		List<HoleFeature2D> located = new List<HoleFeature2D> { loosePlan.AnchorHole };
-		ExpandLocatedLooseHolesByCenterEdges(located, edges);
-		AddLooseHoleLocationPair(plan, outline, loosePlan.ReferencePinGroup, loosePlan.ReferencePinGroup.BasePin.Center, loosePlan.AnchorHole, located, forcePinReference: true);
-		while (located.Count < loosePlan.MacroGroup.Holes.Count)
+		List<LooseHoleLineGroup> verticalLineGroups = loosePlan.MacroGroup.LineGroups
+			.Where((LooseHoleLineGroup g) => g != null && !g.Horizontal)
+			.ToList();
+		List<Tuple<HoleFeature2D, HoleFeature2D>> edges = AddLooseHoleCenterDistances(plan, outline, verticalLineGroups, loosePlan.ReferencePinGroup);
+		List<HoleFeature2D> located = new List<HoleFeature2D>();
+		foreach (HoleFeature2D hole in loosePlan.MacroGroup.Holes.OrderBy((HoleFeature2D h) => DistanceSquared(h.Center, loosePlan.ReferencePinGroup.BasePin.Center)).ThenBy((HoleFeature2D h) => h.Center.X).ThenBy((HoleFeature2D h) => h.Center.Y))
 		{
-			HoleFeature2D holeFeature2D = (from h in loosePlan.MacroGroup.Holes
-				where !ContainsHole(located, h)
-				orderby GetNearestLooseLocationDistance(h, located, loosePlan.ReferencePinGroup.BasePin.Center), h.Center.X, h.Center.Y
-				select h).FirstOrDefault();
-			if (holeFeature2D == null)
+			AddLooseHoleLocationPair(plan, outline, loosePlan.ReferencePinGroup, loosePlan.ReferencePinGroup.BasePin.Center, hole, located, forcePinReference: true);
+			if (!ContainsHole(located, hole))
 			{
-				break;
+				located.Add(hole);
 			}
-			AddLooseHoleLocationPair(plan, outline, loosePlan.ReferencePinGroup, loosePlan.ReferencePinGroup.BasePin.Center, holeFeature2D, located, forcePinReference: false);
-			located.Add(holeFeature2D);
 			ExpandLocatedLooseHolesByCenterEdges(located, edges);
 		}
 	}

@@ -86,6 +86,181 @@ public sealed class DimensionLayoutRules
 		_structureRules = new StructureSuppressionRules(config);
 	}
 
+	public static bool ShouldAddDatumRoughness(Datum2D datum, DimensionKind kind)
+	{
+		return datum?.DatumHole != null
+			&& ((kind == DimensionKind.DatumHoleLocationX && datum.DatumHoleLocationUseToleranceX)
+				|| (kind == DimensionKind.DatumHoleLocationY && datum.DatumHoleLocationUseToleranceY));
+	}
+
+	public const string DatumRoughnessBlockName = "CadAider_国标粗糙度32";
+
+	public const string DatumRoughnessDownBlockName = "CadAider_国标粗糙度32下";
+
+	public static bool TryGetDatumRoughnessPlacement(Point2D datumPoint, double dimensionRotation, IEnumerable<Segment2D> renderedLines,
+		double tolerance, out Point2D insertionPoint, out double blockRotation)
+	{
+		return TryGetDatumRoughnessPlacement(datumPoint, dimensionRotation, renderedLines, tolerance, out insertionPoint, out blockRotation, out _);
+	}
+
+	public static bool TryGetDatumRoughnessPlacement(Point2D datumPoint, double dimensionRotation, IEnumerable<Segment2D> renderedLines,
+		double tolerance, out Point2D insertionPoint, out double blockRotation, out Segment2D extension)
+	{
+		insertionPoint = default(Point2D);
+		blockRotation = 0.0;
+		extension = null;
+		double axisX = Math.Cos(dimensionRotation);
+		double axisY = Math.Sin(dimensionRotation);
+		// Match both ends to the datum-side extension axis. Native geometry already
+		// includes DIMEXO, fixed length and any visible overhang at a zero-offset datum.
+		extension = (renderedLines ?? Enumerable.Empty<Segment2D>())
+			.Where(line => line != null && line.Length > tolerance
+				&& Math.Abs((line.Start.X - datumPoint.X) * axisX + (line.Start.Y - datumPoint.Y) * axisY) <= tolerance
+				&& Math.Abs((line.End.X - datumPoint.X) * axisX + (line.End.Y - datumPoint.Y) * axisY) <= tolerance)
+			.OrderByDescending(line => line.Length)
+			.FirstOrDefault();
+		if (extension == null)
+		{
+			return false;
+		}
+		insertionPoint = new Point2D((extension.Start.X + extension.End.X) / 2.0, (extension.Start.Y + extension.End.Y) / 2.0);
+		// The block's local X axis follows the extension line.
+		blockRotation = (dimensionRotation + Math.PI / 2.0) % Math.PI;
+		if (blockRotation < 0.0)
+		{
+			blockRotation += Math.PI;
+		}
+		return true;
+	}
+
+	public static Point2D ClearDatumRoughnessFromDimensionText(Point2D insertionPoint, Segment2D extension, Point2D textPosition, double textRotation, double textHalfAlong, double textHalfAcross)
+	{
+		if (extension == null || extension.Length <= 1E-9
+			|| !DatumRoughnessCoversDimensionText(insertionPoint, textPosition, textRotation, textHalfAlong, textHalfAcross))
+		{
+			return insertionPoint;
+		}
+		double length = extension.Length;
+		double axisX = (extension.End.X - extension.Start.X) / length;
+		double axisY = (extension.End.Y - extension.Start.Y) / length;
+		double textParameter = (textPosition.X - extension.Start.X) * axisX + (textPosition.Y - extension.Start.Y) * axisY;
+		double insertionParameter = (insertionPoint.X - extension.Start.X) * axisX + (insertionPoint.Y - extension.Start.Y) * axisY;
+		double direction = insertionParameter >= textParameter ? 1.0 : -1.0;
+		double step = Math.Max(Math.Min(Math.Abs(textHalfAlong), Math.Abs(textHalfAcross)) * 0.25, 0.25);
+		double limit = Math.Max(Math.Abs(textHalfAlong), Math.Abs(textHalfAcross)) + length;
+		for (double parameter = insertionParameter; Math.Abs(parameter - insertionParameter) <= limit; parameter += direction * step)
+		{
+			Point2D candidate = new Point2D(extension.Start.X + axisX * parameter, extension.Start.Y + axisY * parameter);
+			if (!DatumRoughnessCoversDimensionText(candidate, textPosition, textRotation, textHalfAlong, textHalfAcross))
+			{
+				return candidate;
+			}
+		}
+		double endParameter = insertionParameter + direction * limit;
+		return new Point2D(extension.Start.X + axisX * endParameter, extension.Start.Y + axisY * endParameter);
+	}
+
+	private static bool DatumRoughnessCoversDimensionText(Point2D point, Point2D textPosition, double textRotation, double textHalfAlong, double textHalfAcross)
+	{
+		double dx = point.X - textPosition.X;
+		double dy = point.Y - textPosition.Y;
+		double along = dx * Math.Cos(textRotation) + dy * Math.Sin(textRotation);
+		double across = dx * -Math.Sin(textRotation) + dy * Math.Cos(textRotation);
+		return Math.Abs(along) <= Math.Abs(textHalfAlong) && Math.Abs(across) <= Math.Abs(textHalfAcross);
+	}
+
+	public static string SelectDatumRoughnessBlockName(Point2D datumPoint, Point2D measuredPoint, Segment2D extension, IEnumerable<Segment2D> outlineSegments, double tolerance)
+	{
+		if (!TryGetContourEndOutwardNormal(datumPoint, measuredPoint, extension, outlineSegments, tolerance, out double normalX, out double normalY))
+		{
+			return DatumRoughnessBlockName;
+		}
+		// Top and left use the upright block. Right and bottom use the downward block.
+		// The bottom block is turned 180 degrees so its text stays upright and the symbol hangs below the line.
+		bool downward = Math.Abs(normalX) >= Math.Abs(normalY) ? normalX > 0.0 : normalY < 0.0;
+		return downward ? DatumRoughnessDownBlockName : DatumRoughnessBlockName;
+	}
+
+	public static double ApplyDatumRoughnessEndRotation(double blockRotation, Point2D datumPoint, Point2D measuredPoint, Segment2D extension, IEnumerable<Segment2D> outlineSegments, double tolerance)
+	{
+		if (!TryGetContourEndOutwardNormal(datumPoint, measuredPoint, extension, outlineSegments, tolerance, out double normalX, out double normalY))
+		{
+			return blockRotation;
+		}
+		bool bottomEnd = Math.Abs(normalY) > Math.Abs(normalX) && normalY < 0.0;
+		bool rightEnd = Math.Abs(normalX) >= Math.Abs(normalY) && normalX > 0.0;
+		// Clockwise 180 degrees is the same orientation as adding half a turn.
+		return bottomEnd || rightEnd ? blockRotation + Math.PI : blockRotation;
+	}
+
+	private static bool TryGetContourEndOutwardNormal(Point2D datumPoint, Point2D measuredPoint, Segment2D extension, IEnumerable<Segment2D> outlineSegments, double tolerance, out double normalX, out double normalY)
+	{
+		normalX = 0.0;
+		normalY = 0.0;
+		double limit = Math.Max(Math.Abs(tolerance), 1E-9);
+		if (extension != null && extension.Length > limit
+			&& TryGetParallelExtremeNormal(datumPoint, extension, outlineSegments, limit, out normalX, out normalY))
+		{
+			return true;
+		}
+		double dx = datumPoint.X - measuredPoint.X;
+		double dy = datumPoint.Y - measuredPoint.Y;
+		if (dx * dx + dy * dy <= limit * limit)
+		{
+			return false;
+		}
+		normalX = dx;
+		normalY = dy;
+		return true;
+	}
+
+	private static bool TryGetParallelExtremeNormal(Point2D datumPoint, Segment2D extension, IEnumerable<Segment2D> outlineSegments, double tolerance, out double normalX, out double normalY)
+	{
+		normalX = 0.0;
+		normalY = 0.0;
+		double length = extension.Length;
+		double edgeX = (extension.End.X - extension.Start.X) / length;
+		double edgeY = (extension.End.Y - extension.Start.Y) / length;
+		double normalAxisX = -edgeY;
+		double normalAxisY = edgeX;
+		bool found = false;
+		double minProjection = 0.0;
+		double maxProjection = 0.0;
+		foreach (Segment2D segment in outlineSegments ?? Enumerable.Empty<Segment2D>())
+		{
+			if (segment == null || segment.IsArcChord || segment.Length <= tolerance)
+			{
+				continue;
+			}
+			double segmentX = (segment.End.X - segment.Start.X) / segment.Length;
+			double segmentY = (segment.End.Y - segment.Start.Y) / segment.Length;
+			if (Math.Abs(edgeX * segmentY - edgeY * segmentX) > 0.0175)
+			{
+				continue;
+			}
+			double projection = ((segment.Start.X + segment.End.X) * 0.5) * normalAxisX
+				+ ((segment.Start.Y + segment.End.Y) * 0.5) * normalAxisY;
+			if (!found || projection < minProjection)
+			{
+				minProjection = projection;
+			}
+			if (!found || projection > maxProjection)
+			{
+				maxProjection = projection;
+			}
+			found = true;
+		}
+		if (!found || maxProjection - minProjection <= tolerance)
+		{
+			return false;
+		}
+		double datumProjection = datumPoint.X * normalAxisX + datumPoint.Y * normalAxisY;
+		bool onMaxSide = Math.Abs(maxProjection - datumProjection) <= Math.Abs(datumProjection - minProjection);
+		normalX = onMaxSide ? normalAxisX : -normalAxisX;
+		normalY = onMaxSide ? normalAxisY : -normalAxisY;
+		return true;
+	}
+
 	public List<DimensionStackingPlacement> CreateStackingPlan(IList<DimensionLayoutItem> dimensions, DimensionSide side, OutlineFeature2D outline, double textHeight, double gap, double firstOffset, double perLevelSpacing, bool isHorizontal)
 	{
 		List<DimensionStackingPlacement> placements = new List<DimensionStackingPlacement>();
@@ -337,8 +512,7 @@ public sealed class DimensionLayoutRules
 				added = false;
 				foreach (IndexedLayoutItem candidate in remaining.ToList())
 				{
-					if (!chain.Any(member => member.Dimension.LooseChainId == candidate.Dimension.LooseChainId
-						|| SharesArrowEndpoint(member.Dimension, candidate.Dimension, isHorizontal)))
+					if (!chain.Any(member => CanJoinLooseLayoutChain(member.Dimension, candidate.Dimension, isHorizontal)))
 					{
 						continue;
 					}
@@ -351,6 +525,39 @@ public sealed class DimensionLayoutRules
 			chains.Add(chain.OrderBy(item => item.SourceIndex).ToList());
 		}
 		return chains.OrderBy(chain => chain.Min(item => item.SourceIndex)).ToList();
+	}
+
+	private bool CanJoinLooseLayoutChain(DimensionLayoutItem first, DimensionLayoutItem second, bool isHorizontal)
+	{
+		if (first.LooseChainId != 0 && first.LooseChainId == second.LooseChainId)
+		{
+			return true;
+		}
+		return SharesArrowEndpoint(first, second, isHorizontal)
+			&& !MeasurementIntervalsNest(first, second, isHorizontal);
+	}
+
+	private bool MeasurementIntervalsNest(DimensionLayoutItem first, DimensionLayoutItem second, bool isHorizontal)
+	{
+		Tuple<double, double> firstInterval = GetMeasuredInterval(first, isHorizontal);
+		Tuple<double, double> secondInterval = GetMeasuredInterval(second, isHorizontal);
+		double tolerance = Math.Max(Math.Abs(_config.GeometryTolerance), 1E-9);
+		return IntervalStrictlyInside(firstInterval, secondInterval, tolerance)
+			|| IntervalStrictlyInside(secondInterval, firstInterval, tolerance);
+	}
+
+	private static Tuple<double, double> GetMeasuredInterval(DimensionLayoutItem dimension, bool isHorizontal)
+	{
+		double first = isHorizontal ? dimension.FirstPoint.X : dimension.FirstPoint.Y;
+		double second = isHorizontal ? dimension.SecondPoint.X : dimension.SecondPoint.Y;
+		return first <= second ? Tuple.Create(first, second) : Tuple.Create(second, first);
+	}
+
+	private static bool IntervalStrictlyInside(Tuple<double, double> inner, Tuple<double, double> outer, double tolerance)
+	{
+		return inner.Item1 >= outer.Item1 - tolerance
+			&& inner.Item2 <= outer.Item2 + tolerance
+			&& (inner.Item1 - outer.Item1 > tolerance || outer.Item2 - inner.Item2 > tolerance);
 	}
 
 	private List<List<IndexedLayoutItem>> BuildRootedLayoutLanes(IEnumerable<IndexedLayoutItem> source, bool isHorizontal)
@@ -1088,9 +1295,9 @@ public sealed class DimensionLayoutRules
 			}
 			candidates.Add(naturalCoordinate);
 		}
-		// The first safe natural coordinate is the layer nearest the outline. A rooted
-		// block must move together; never fall back to a split coordinate when one
-		// member rejects the candidate.
+		// Nearest to the outline among coordinates that stay clear of the contour.
+		// A line lying on the outer edge is not an outward stack, so alignment must
+		// not pull the whole chain onto it.
 		foreach (double candidate in candidates.OrderBy(value => GetPhysicalOutwardRank(side, value)))
 		{
 			if (members.All(placement => !DimensionLineEntersOutlineInterior(dimensions[placement.Index], side, candidate, outline)))
@@ -1506,7 +1713,35 @@ public sealed class DimensionLayoutRules
 		{
 			double x = (flag ? num3 : coordinate);
 			double y = (flag ? coordinate : num3);
-			if (_structureRules.IsPointInsideOutlineByRayCast(x, y, outline) && !IsPointOnAnyOutlineSegment(new Point2D(x, y), outline))
+			Point2D point = new Point2D(x, y);
+			if (DimensionLinePointLiesOnOutline(point, outline)
+				|| (_structureRules.IsPointInsideOutlineByRayCast(x, y, outline) && !IsPointOnAnyOutlineSegment(point, outline)))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private bool DimensionLinePointLiesOnOutline(Point2D point, OutlineFeature2D outline)
+	{
+		double tolerance = Math.Max(Math.Abs(_config.GeometryTolerance), 1E-9);
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (segment == null || segment.IsArcChord || segment.Length <= tolerance)
+			{
+				continue;
+			}
+			double dx = segment.End.X - segment.Start.X;
+			double dy = segment.End.Y - segment.Start.Y;
+			double length = segment.Length;
+			double cross = Math.Abs((point.X - segment.Start.X) * dy - (point.Y - segment.Start.Y) * dx) / length;
+			if (cross > tolerance)
+			{
+				continue;
+			}
+			double along = ((point.X - segment.Start.X) * dx + (point.Y - segment.Start.Y) * dy) / length;
+			if (along >= -tolerance && along <= length + tolerance)
 			{
 				return true;
 			}

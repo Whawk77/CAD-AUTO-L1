@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using Autodesk.AutoCAD.ApplicationServices.Core;
 using Autodesk.AutoCAD.Colors;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
 using CadAuto.CadAdapter.Environment;
+using CadAuto.Core.Geometry;
 using CadAuto.Core.Rules;
 
 namespace CadAuto.CadAdapter.Rendering;
@@ -42,7 +44,7 @@ public sealed class CadEntityWriter
 		AnnotationMetadata.EnsureRegApp(database, transaction);
 	}
 
-	public void AddRotatedDimension(double rotation, Point3d xLine1, Point3d xLine2, Point3d dimLinePoint, string overrideText, bool useSegmentedExtensionLines, bool useCustomTextPosition = false, Point3d customTextPosition = default(Point3d))
+	public void AddRotatedDimension(double rotation, Point3d xLine1, Point3d xLine2, Point3d dimLinePoint, string overrideText, bool useSegmentedExtensionLines, bool useCustomTextPosition = false, Point3d customTextPosition = default(Point3d), bool addDatumRoughness = false, IList<Segment2D> outlineSegments = null)
 	{
 		RotatedDimension rotatedDimension = new RotatedDimension(rotation, xLine1, xLine2, dimLinePoint, overrideText ?? string.Empty, _dimStyleId);
 		rotatedDimension.SetDatabaseDefaults(_database);
@@ -61,6 +63,111 @@ public sealed class CadEntityWriter
 			rotatedDimension.TextPosition = customTextPosition;
 			rotatedDimension.RecomputeDimensionBlock(forceUpdate: true);
 		}
+		if (addDatumRoughness)
+		{
+			InsertDatumRoughnessBlock(rotatedDimension, outlineSegments);
+		}
+	}
+
+	private void InsertDatumRoughnessBlock(RotatedDimension dimension, IList<Segment2D> outlineSegments)
+	{
+		BlockTable blocks = (BlockTable)_transaction.GetObject(_database.BlockTableId, OpenMode.ForRead);
+		double scale = dimension.Dimscale > 0.0 ? dimension.Dimscale : _dimScale;
+		dimension.RecomputeDimensionBlock(forceUpdate: true);
+		List<Segment2D> renderedLines = new List<Segment2D>();
+		using (DBObjectCollection parts = new DBObjectCollection())
+		{
+			try
+			{
+				// Inspect temporary rendered parts; keep the original dimension intact.
+				dimension.Explode(parts);
+				foreach (DBObject part in parts)
+				{
+					if (part is Line line)
+					{
+						renderedLines.Add(new Segment2D(new Point2D(line.StartPoint.X, line.StartPoint.Y),
+							new Point2D(line.EndPoint.X, line.EndPoint.Y)));
+					}
+				}
+			}
+			catch (Autodesk.AutoCAD.Runtime.Exception ex)
+			{
+				Application.DocumentManager.MdiActiveDocument?.Editor.WriteMessage("\n无法读取基准尺寸界线，已跳过粗糙度并保留定位尺寸: {0}", ex.Message);
+				return;
+			}
+			finally
+			{
+				foreach (DBObject part in parts)
+				{
+					part.Dispose();
+				}
+			}
+		}
+		Point2D datumPoint = new Point2D(dimension.XLine1Point.X, dimension.XLine1Point.Y);
+		if (dimension.Dimse1 || !DimensionLayoutRules.TryGetDatumRoughnessPlacement(
+			datumPoint,
+			dimension.Rotation, renderedLines,
+			_config.GeometryTolerance, out var point, out var rotation, out Segment2D extension))
+		{
+			Application.DocumentManager.MdiActiveDocument?.Editor.WriteMessage("\n基准点侧尺寸界线无可见线段，已跳过基准尺寸粗糙度。");
+			return;
+		}
+		double textHeight = dimension.Dimtxt > 0.0 ? dimension.Dimtxt * scale : Scale(_config.TextHeight);
+		string visibleText = VisibleDimensionText(dimension);
+		double symbolMargin = textHeight * 1.6;
+		double textHalfAlong = Math.Max(visibleText.Length, 1) * textHeight * 0.45 + symbolMargin;
+		double textHalfAcross = textHeight * 0.7 + symbolMargin;
+		point = DimensionLayoutRules.ClearDatumRoughnessFromDimensionText(
+			point,
+			extension,
+			new Point2D(dimension.TextPosition.X, dimension.TextPosition.Y),
+			dimension.TextRotation,
+			textHalfAlong,
+			textHalfAcross);
+		Point2D measuredPoint = new Point2D(dimension.XLine2Point.X, dimension.XLine2Point.Y);
+		rotation = DimensionLayoutRules.ApplyDatumRoughnessEndRotation(
+			rotation, datumPoint, measuredPoint, extension, outlineSegments, _config.GeometryTolerance);
+		string blockName = DimensionLayoutRules.SelectDatumRoughnessBlockName(
+			datumPoint,
+			measuredPoint,
+			extension,
+			outlineSegments,
+			_config.GeometryTolerance);
+		if (!blocks.Has(blockName))
+		{
+			Application.DocumentManager.MdiActiveDocument?.Editor.WriteMessage("\n未找到块 {0}，已跳过基准尺寸粗糙度，定位尺寸保留。", blockName);
+			return;
+		}
+		BlockReference block = new BlockReference(new Point3d(point.X, point.Y, dimension.XLine1Point.Z), blocks[blockName]);
+		block.SetDatabaseDefaults(_database);
+		block.Layer = _annotationLayer;
+		block.Color = DimStyleManager.ByLayerColor;
+		block.ScaleFactors = new Scale3d(scale);
+		block.Rotation = rotation;
+		Append(block);
+	}
+
+	private static string VisibleDimensionText(RotatedDimension dimension)
+	{
+		string text = dimension.DimensionText ?? string.Empty;
+		System.Text.StringBuilder visible = new System.Text.StringBuilder();
+		for (int i = 0; i < text.Length; i++)
+		{
+			if (text[i] == '\\')
+			{
+				int end = text.IndexOf(';', i);
+				i = end < 0 ? text.Length : end;
+				continue;
+			}
+			if (i + 1 < text.Length && text[i] == '<' && text[i + 1] == '>')
+			{
+				visible.Append(dimension.Measurement.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+				i++;
+				continue;
+			}
+			visible.Append(text[i]);
+		}
+		return visible.Length == 0 ? dimension.Measurement.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) : visible.ToString();
 	}
 
 	public ObjectId GetDimStyleTextStyle(ObjectId dimStyleId)

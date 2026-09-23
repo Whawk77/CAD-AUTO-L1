@@ -2,8 +2,8 @@
 
 ## Project Paths
 
-- This worktree (current agent workspace): `D:\work\AI\project\L1-grok`
-- Main git worktree / shared `.git`: `D:\work\AI\project\L1`
+- Workspace verified on 2026-09-10: `D:\work\AI\9.1 托压块版本`
+- Git directory: `D:\work\AI\9.1 托压块版本\.git`. Recheck `Get-Location` and `git rev-parse --show-toplevel` after switching workspaces.
 - Remote: `https://github.com/Whawk77/CAD-AUTO-L1.git`
 - Main project file: `AutoFixtureDim.csproj` (repo root)
 - Active product sources in this repo:
@@ -12,7 +12,7 @@
   - `CadAuto.Core.Tests/` — core unit/plan tests
   - Root plugin entry: `Commands.cs`, `PluginEntry.cs`, …
 - Default build output (may be locked by AutoCAD): `bin\Debug\AutoFixtureDim.dll`
-- Prefer a versioned output folder when AutoCAD holds locks; see `docs/Deployment.md`.
+- Loadable/test DLL deliverables must use a fresh `bin\Debug-vN\` folder containing all three plugin DLLs; see `docs/Deployment.md`.
 
 ## Runtime
 
@@ -23,17 +23,21 @@
 
 ## Build Command
 
-Use this only when the user explicitly asks to compile or test:
+Use this only when the user explicitly asks to compile or test. Run from the verified repository root; choose the next unused version before each build:
 
 ```powershell
-dotnet msbuild AutoFixtureDim.csproj /p:Configuration=Debug /p:PostBuildEvent= /p:DebugType=None /p:DebugSymbols=false /v:minimal
+$versions = @(Get-ChildItem -LiteralPath .\bin -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -match '^Debug-v[0-9]+$' } |
+    ForEach-Object { [int]($_.Name -replace '^Debug-v', '') })
+$nextVersion = 1 + [int](($versions | Measure-Object -Maximum).Maximum)
+dotnet msbuild AutoFixtureDim.csproj /p:Configuration=Debug "/p:OutputPath=bin\Debug-v$nextVersion\\" /p:PostBuildEvent= /p:DebugType=None /p:DebugSymbols=false /v:minimal
 ```
 
 Notes:
 
 - Keep `/p:PostBuildEvent=` unless the user explicitly wants the project post-build copy to run.
 - Use `DebugSymbols=false` and `DebugType=None` when AutoCAD may lock `bin\Debug\AutoFixtureDim.pdb`.
-- AutoCAD can lock loaded DLLs; use a fresh versioned test DLL when overwrite fails.
+- Start at `Debug-v1` if none exists; otherwise use the highest existing version plus one. Never reuse a previous output directory. Keep `AutoFixtureDim.dll`, `CadAuto.Core.dll`, and `CadAuto.CadAdapter.dll` together; Core-test output stays separate.
 
 ## Source Map
 

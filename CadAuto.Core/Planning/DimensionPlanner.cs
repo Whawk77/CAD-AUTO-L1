@@ -235,6 +235,7 @@ public sealed partial class DimensionPlanner
 			AddStepOutlineDimensions(dimensionPlan, outline);
 		}
 		AddLinearSegmentDimensions(dimensionPlan, outline);
+		SnapStructureGripsOntoRealOutline(dimensionPlan, outline);
 		if (_config.UseFeatureFirstStructurePipeline)
 		{
 			ApplyLProfileAnnotationRule(
@@ -261,13 +262,13 @@ public sealed partial class DimensionPlanner
 		var adapter = new StructurePlacementAdapter(_config);
 		IList<StructureFeature> features = extractor.Extract(outline);
 		selector.Select(features, outline);
-		AnnotationCaseRuntime.LastFeatures = features;
-		AnnotationCaseRuntime.LastOutline = outline;
+		string matchedCaseId = string.Empty;
 		if (!string.IsNullOrEmpty(_config.AnnotationCaseStorePath))
 		{
 			AnnotationCaseStore store = AnnotationCaseStore.Load(_config.AnnotationCaseStorePath);
-			new AnnotationCaseOverlay(store).Apply(features, outline);
+			matchedCaseId = new AnnotationCaseOverlay(store).Apply(features, outline);
 		}
+		plan.AnnotationCaseSnapshot = new AnnotationCaseSnapshot(features, outline, matchedCaseId);
 		IList<StructureFeature> kept = features
 			.Where(f => f != null && f.Keep && f.Kind != StructureFeatureKind.Overall)
 			.ToList();
@@ -504,45 +505,197 @@ public sealed partial class DimensionPlanner
 			return new CenterlineEndpointMatch { Status = "UnsupportedSide", MatchMode = matchMode };
 		}
 		double tolerance = Math.Max(Math.Abs(_config.GeometryTolerance), 1E-9);
-		List<CenterlineEndpointMatch> matches = datum.HoleCenterlineEndpoints
+		List<IGrouping<string, CenterlineEndpoint2D>> axisGroups = datum.HoleCenterlineEndpoints
 			.Where(endpoint => endpoint != null && !string.IsNullOrEmpty(endpoint.SourceGeometryId))
 			.GroupBy(endpoint => endpoint.SourceGeometryId)
 			.Where(group => group.Count() >= 2
 				&& (verticalAxis
 					? group.Max(endpoint => endpoint.Point.X) - group.Min(endpoint => endpoint.Point.X) <= tolerance
-						&& Math.Abs(group.First().Point.X - target.X) <= tolerance
-					: group.Max(endpoint => endpoint.Point.Y) - group.Min(endpoint => endpoint.Point.Y) <= tolerance
-						&& Math.Abs(group.First().Point.Y - target.Y) <= tolerance))
-			.Select(group => new CenterlineEndpointMatch
-			{
-				Endpoint = side == DimensionSide.Bottom ? group.OrderBy(endpoint => endpoint.Point.Y).First()
-					: side == DimensionSide.Top ? group.OrderByDescending(endpoint => endpoint.Point.Y).First()
-					: side == DimensionSide.Left ? group.OrderBy(endpoint => endpoint.Point.X).First()
-					: group.OrderByDescending(endpoint => endpoint.Point.X).First(),
-				Status = "Matched",
-				MatchMode = matchMode
-			})
-			.Select(match =>
-			{
-				match.Distance = match.Endpoint.Point.DistanceTo(target);
-				return match;
-			})
-			.OrderBy(match => match.Distance.Value)
+					: group.Max(endpoint => endpoint.Point.Y) - group.Min(endpoint => endpoint.Point.Y) <= tolerance))
 			.ToList();
-		if (matches.Count == 0)
+		List<IGrouping<string, CenterlineEndpoint2D>> facingGroups = axisGroups
+			.Where(group => verticalAxis
+				? Math.Abs(AxisCoordinate(group, true) - target.X) <= tolerance
+				: Math.Abs(AxisCoordinate(group, false) - target.Y) <= tolerance)
+			.ToList();
+		if (facingGroups.Count == 0)
 		{
 			return new CenterlineEndpointMatch { Status = verticalAxis ? "NoMatchingVerticalAxis" : "NoMatchingHorizontalAxis", MatchMode = matchMode };
 		}
-		if (matches.Count > 1 && Math.Abs(matches[1].Distance.Value - matches[0].Distance.Value) <= tolerance)
+		IGrouping<string, CenterlineEndpoint2D> chosen = side == DimensionSide.Bottom
+			? facingGroups.OrderBy(group => AxisCenter(group, false)).First()
+			: side == DimensionSide.Top
+				? facingGroups.OrderByDescending(group => AxisCenter(group, false)).First()
+				: side == DimensionSide.Left
+					? facingGroups.OrderBy(group => AxisCenter(group, true)).First()
+					: facingGroups.OrderByDescending(group => AxisCenter(group, true)).First();
+		Point2D holeCenter = verticalAxis
+			? new Point2D(AxisCoordinate(chosen, true), AxisCenter(chosen, false))
+			: new Point2D(AxisCenter(chosen, true), AxisCoordinate(chosen, false));
+		CenterlineEndpoint2D endpoint = PickPlacementSideEndpoint(chosen, holeCenter, side, tolerance);
+		if (endpoint == null)
 		{
-			return new CenterlineEndpointMatch
-			{
-				Distance = matches[0].Distance,
-				Status = "Ambiguous",
-				MatchMode = matchMode
-			};
+			return new CenterlineEndpointMatch { Status = verticalAxis ? "NoMatchingVerticalAxis" : "NoMatchingHorizontalAxis", MatchMode = matchMode };
 		}
-		return matches[0];
+		return new CenterlineEndpointMatch
+		{
+			Endpoint = endpoint,
+			Distance = endpoint.Point.DistanceTo(target),
+			Status = "Matched",
+			MatchMode = matchMode
+		};
+	}
+
+	private static double AxisCoordinate(IEnumerable<CenterlineEndpoint2D> group, bool verticalAxis)
+	{
+		return verticalAxis
+			? group.Average(endpoint => endpoint.Point.X)
+			: group.Average(endpoint => endpoint.Point.Y);
+	}
+
+	private static double AxisCenter(IEnumerable<CenterlineEndpoint2D> group, bool alongX)
+	{
+		return alongX
+			? (group.Min(endpoint => endpoint.Point.X) + group.Max(endpoint => endpoint.Point.X)) / 2.0
+			: (group.Min(endpoint => endpoint.Point.Y) + group.Max(endpoint => endpoint.Point.Y)) / 2.0;
+	}
+
+	private static CenterlineEndpoint2D PickPlacementSideEndpoint(IEnumerable<CenterlineEndpoint2D> endpoints, Point2D target, DimensionSide side, double tolerance)
+	{
+		List<CenterlineEndpoint2D> onSide = (side == DimensionSide.Bottom
+			? endpoints.Where(endpoint => endpoint.Point.Y <= target.Y + tolerance)
+			: side == DimensionSide.Top
+				? endpoints.Where(endpoint => endpoint.Point.Y >= target.Y - tolerance)
+				: side == DimensionSide.Left
+					? endpoints.Where(endpoint => endpoint.Point.X <= target.X + tolerance)
+					: endpoints.Where(endpoint => endpoint.Point.X >= target.X - tolerance)).ToList();
+		if (onSide.Count == 0)
+		{
+			return null;
+		}
+		return onSide.OrderBy(endpoint => endpoint.Point.DistanceTo(target)).First();
+	}
+
+	private static bool TrySegmentAxisCrossing(Segment2D segment, bool verticalLine, double axis, double tolerance, out double crossing)
+	{
+		crossing = 0.0;
+		double dx = segment.End.X - segment.Start.X;
+		double dy = segment.End.Y - segment.Start.Y;
+		if (verticalLine)
+		{
+			if (Math.Abs(dx) <= tolerance)
+			{
+				return false;
+			}
+			double t = (axis - segment.Start.X) / dx;
+			if (t < -tolerance || t > 1.0 + tolerance)
+			{
+				return false;
+			}
+			crossing = segment.Start.Y + t * dy;
+			return true;
+		}
+		if (Math.Abs(dy) <= tolerance)
+		{
+			return false;
+		}
+		double u = (axis - segment.Start.Y) / dy;
+		if (u < -tolerance || u > 1.0 + tolerance)
+		{
+			return false;
+		}
+		crossing = segment.Start.X + u * dx;
+		return true;
+	}
+
+	private void SnapStructureGripsOntoRealOutline(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		if (plan == null || outline == null)
+		{
+			return;
+		}
+		foreach (PlannedDimension dimension in plan.Dimensions)
+		{
+			if (dimension == null || !IsStructureWidthOrHeightRole(dimension.DebugRole))
+			{
+				continue;
+			}
+			if (!GripLiesOnOutline(outline, dimension.FirstPoint)
+				&& TrySnapGripKeepingMeasuredAxis(outline, dimension, dimension.FirstPoint, out Point2D first)
+				&& HasSpan(dimension, first, dimension.SecondPoint))
+			{
+				dimension.FirstPoint = first;
+			}
+			if (!GripLiesOnOutline(outline, dimension.SecondPoint)
+				&& TrySnapGripKeepingMeasuredAxis(outline, dimension, dimension.SecondPoint, out Point2D second)
+				&& HasSpan(dimension, dimension.FirstPoint, second))
+			{
+				dimension.SecondPoint = second;
+			}
+		}
+	}
+
+	private bool GripLiesOnOutline(OutlineFeature2D outline, Point2D point)
+	{
+		double tolerance = Math.Max(Math.Abs(_config.GeometryTolerance), 1E-6);
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (segment != null && !segment.IsArcChord && PointLiesOnSegment(point, segment, tolerance))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private bool TrySnapGripKeepingMeasuredAxis(OutlineFeature2D outline, PlannedDimension dimension, Point2D point, out Point2D snapped)
+	{
+		snapped = point;
+		bool horizontal = dimension.Orientation == DimensionOrientation.Horizontal;
+		double axis = horizontal ? point.X : point.Y;
+		double origin = horizontal ? point.Y : point.X;
+		double tolerance = Math.Max(Math.Abs(_config.GeometryTolerance), 1E-9);
+		bool found = false;
+		double best = 0.0;
+		double bestDistance = 0.0;
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (segment == null || segment.IsArcChord || !TrySegmentAxisCrossing(segment, horizontal, axis, tolerance, out double crossing))
+			{
+				continue;
+			}
+			double distance = Math.Abs(crossing - origin);
+			if (!found || distance < bestDistance)
+			{
+				best = crossing;
+				bestDistance = distance;
+				found = true;
+			}
+		}
+		if (!found || bestDistance <= tolerance)
+		{
+			return false;
+		}
+		snapped = horizontal ? new Point2D(point.X, best) : new Point2D(best, point.Y);
+		return true;
+	}
+
+	private static bool PointLiesOnSegment(Point2D point, Segment2D segment, double tolerance)
+	{
+		double dx = segment.End.X - segment.Start.X;
+		double dy = segment.End.Y - segment.Start.Y;
+		double length = Math.Sqrt(dx * dx + dy * dy);
+		if (length <= tolerance)
+		{
+			return point.DistanceTo(segment.Start) <= tolerance;
+		}
+		double cross = Math.Abs((point.X - segment.Start.X) * dy - (point.Y - segment.Start.Y) * dx) / length;
+		if (cross > tolerance)
+		{
+			return false;
+		}
+		double along = ((point.X - segment.Start.X) * dx + (point.Y - segment.Start.Y) * dy) / length;
+		return along >= -tolerance && along <= length + tolerance;
 	}
 
 	private bool HasSpan(PlannedDimension dimension, Point2D firstPoint, Point2D secondPoint)

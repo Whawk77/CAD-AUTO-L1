@@ -520,6 +520,11 @@ public sealed partial class DimensionPlanner
 			return false;
 		}
 		Point2D interior = aAtOverallCorner ? b : a;
+		// A vertex that stays on the same envelope line is a split of one face, not a step.
+		if (EnvelopeEdgeContinuesThrough(outline, interior, horizontal, tol))
+		{
+			return false;
+		}
 		return HasOrthogonalShoulderLeavingEnvelope(outline, interior, horizontal, tol);
 	}
 
@@ -557,8 +562,10 @@ public sealed partial class DimensionPlanner
 	}
 
 	/// <summary>
-	/// True when collinear outer segments on the envelope line cover the full overall width
-	/// (horizontal edge) or height (vertical edge). Partial coverage means a step face.
+	/// True when collinear outer segments on the envelope line, plus chamfer and fillet
+	/// projections that meet that line, cover the full overall width or height.
+	/// A shortfall that is only a corner chamfer or fillet is still one outer edge.
+	/// A shortfall that is a parallel step face is not.
 	/// </summary>
 	private static bool IsFullLengthEnvelopeEdge(OutlineFeature2D outline, bool horizontal, double edgeCoordinate, double tol)
 	{
@@ -594,8 +601,83 @@ public sealed partial class DimensionPlanner
 				covered += segment.LengthY;
 			}
 		}
+		covered += CornerProjectionOnEnvelope(outline, horizontal, edgeCoordinate, tol);
 		double overall = horizontal ? outline.Width : outline.Height;
 		return overall > tol && covered + tol >= overall;
+	}
+
+	private static bool EnvelopeEdgeContinuesThrough(OutlineFeature2D outline, Point2D point, bool horizontal, double tol)
+	{
+		int touching = 0;
+		foreach (Segment2D segment in outline.Segments)
+		{
+			if (segment == null)
+			{
+				continue;
+			}
+			bool onEdge = horizontal
+				? segment.IsHorizontal(tol)
+					&& Math.Abs(segment.Start.Y - point.Y) <= tol
+					&& Math.Abs(segment.End.Y - point.Y) <= tol
+				: segment.IsVertical(tol)
+					&& Math.Abs(segment.Start.X - point.X) <= tol
+					&& Math.Abs(segment.End.X - point.X) <= tol;
+			if (!onEdge)
+			{
+				continue;
+			}
+			if (point.DistanceTo(segment.Start) <= tol || point.DistanceTo(segment.End) <= tol)
+			{
+				touching++;
+			}
+		}
+		return touching >= 2;
+	}
+
+	private static double CornerProjectionOnEnvelope(OutlineFeature2D outline, bool horizontal, double edgeCoordinate, double tol)
+	{
+		double extra = 0.0;
+		if (outline.Chamfers != null)
+		{
+			foreach (ChamferFeature2D chamfer in outline.Chamfers)
+			{
+				if (chamfer == null || !CornerTouchesEnvelope(chamfer.StartPoint, chamfer.EndPoint, horizontal, edgeCoordinate, tol))
+				{
+					continue;
+				}
+				double projection = horizontal ? Math.Abs(chamfer.DeltaX) : Math.Abs(chamfer.DeltaY);
+				if (projection <= tol)
+				{
+					projection = horizontal
+						? Math.Abs(chamfer.EndPoint.X - chamfer.StartPoint.X)
+						: Math.Abs(chamfer.EndPoint.Y - chamfer.StartPoint.Y);
+				}
+				extra += projection;
+			}
+		}
+		if (outline.Fillets != null)
+		{
+			foreach (FilletFeature2D fillet in outline.Fillets)
+			{
+				if (fillet == null || !CornerTouchesEnvelope(fillet.StartPoint, fillet.EndPoint, horizontal, edgeCoordinate, tol))
+				{
+					continue;
+				}
+				extra += horizontal
+					? Math.Abs(fillet.EndPoint.X - fillet.StartPoint.X)
+					: Math.Abs(fillet.EndPoint.Y - fillet.StartPoint.Y);
+			}
+		}
+		return extra;
+	}
+
+	private static bool CornerTouchesEnvelope(Point2D start, Point2D end, bool horizontal, double edgeCoordinate, double tol)
+	{
+		if (horizontal)
+		{
+			return Math.Abs(start.Y - edgeCoordinate) <= tol || Math.Abs(end.Y - edgeCoordinate) <= tol;
+		}
+		return Math.Abs(start.X - edgeCoordinate) <= tol || Math.Abs(end.X - edgeCoordinate) <= tol;
 	}
 
 	private static void SuppressLocalGeometryOnOverallEnvelope(
@@ -3843,17 +3925,13 @@ public sealed partial class DimensionPlanner
 		return 0;
 	}
 
-	private static bool CanSuppressMirroredDimension(PlannedDimension a, PlannedDimension b)
+	private bool CanSuppressMirroredDimension(PlannedDimension a, PlannedDimension b)
 	{
-		if (a.ForceOuterLevel || b.ForceOuterLevel)
-		{
-			return false;
-		}
-		if (a.Kind == DimensionKind.Normal && b.Kind == DimensionKind.Normal)
-		{
-			return true;
-		}
-		return a.Kind == DimensionKind.HoleLocation || b.Kind == DimensionKind.HoleLocation;
+		DimensionDeduplicationItem first = ToDeduplicationItem(a);
+		DimensionDeduplicationItem second = ToDeduplicationItem(b);
+		return (_dimensionDeduplicationRules.CanSuppressMirroredNormalDimension(first)
+			&& _dimensionDeduplicationRules.CanSuppressMirroredNormalDimension(second))
+			|| _dimensionDeduplicationRules.CanSuppressMirroredHoleRelatedDimension(first, second);
 	}
 
 	private void SuppressDuplicateMeasuredDimensions(DimensionPlan plan, DimensionSide side, bool horizontal)

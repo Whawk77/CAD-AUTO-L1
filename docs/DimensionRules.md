@@ -12,7 +12,8 @@
 
 - All dimension and leader attachment points must land on real geometry.
 - Allowed attachment targets include entity edges, arcs, chamfer edges, fillet arcs, real endpoints, and real intersections.
-- Do not attach to theoretical intersections, extension-line intersections, virtual sharp corners, centerlines, auxiliary lines, dimension lines, projected points, or floating points.
+- Hole/slot positioning dimensions may use real endpoints of existing selected `CENTER` centerlines; all other dimensions remain attached to real feature or outline geometry. See `docs/不遮挡中心线标注规则.md` for feature ownership and layout-side selection.
+- Do not attach to theoretical intersections, extension-line intersections, virtual sharp corners, auxiliary lines, dimension lines, projected points, or floating points. Centerlines are prohibited except for the hole/slot positioning endpoint rule above; never create centerlines or a `CENTER` layer.
 - Chamfer leader arrows attach to real chamfer edges.
 - Fillet/radius arrows attach to real arcs.
 

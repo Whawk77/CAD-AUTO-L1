@@ -37,6 +37,8 @@ public sealed class DimensionDrawer
 
 		public string OverrideText;
 
+		public bool AddDatumRoughness;
+
 		public double Span;
 
 		public DimensionType DimType;
@@ -168,7 +170,7 @@ public sealed class DimensionDrawer
 
 	private CoordinateFrame2D _coordinateFrame = CoordinateFrame2D.Identity;
 
-	private void AddRotatedDimension(double rotation, Point3d xLine1, Point3d xLine2, Point3d dimLinePoint, string overrideText, bool useSegmentedExtensionLines, bool useCustomTextPosition = false, Point3d customTextPosition = default(Point3d))
+	private void AddRotatedDimension(double rotation, Point3d xLine1, Point3d xLine2, Point3d dimLinePoint, string overrideText, bool useSegmentedExtensionLines, bool useCustomTextPosition = false, Point3d customTextPosition = default(Point3d), bool addDatumRoughness = false, IList<Segment2D> worldOutlineSegments = null)
 	{
 		Point3d worldXLine1 = ToWorld(xLine1);
 		Point3d worldXLine2 = ToWorld(xLine2);
@@ -182,13 +184,37 @@ public sealed class DimensionDrawer
 			overrideText,
 			useSegmentedExtensionLines,
 			useCustomTextPosition,
-			worldCustomTextPosition);
+			worldCustomTextPosition,
+			addDatumRoughness,
+			worldOutlineSegments);
 	}
 
 	private Point3d ToWorld(Point3d local)
 	{
 		Point2D world = _coordinateFrame.ToWorld(new Point2D(local.X, local.Y));
 		return new Point3d(world.X, world.Y, local.Z);
+	}
+
+	private IList<Segment2D> ToWorldOutlineSegments(OutlineFeature outline)
+	{
+		OutlineFeature2D coreOutline = ToCoreOutlineOrNull(outline);
+		if (coreOutline == null)
+		{
+			return null;
+		}
+		List<Segment2D> worldSegments = new List<Segment2D>();
+		foreach (Segment2D segment in coreOutline.Segments)
+		{
+			if (segment == null)
+			{
+				continue;
+			}
+			worldSegments.Add(new Segment2D(_coordinateFrame.ToWorld(segment.Start), _coordinateFrame.ToWorld(segment.End))
+			{
+				IsArcChord = segment.IsArcChord
+			});
+		}
+		return worldSegments;
 	}
 
 	private ObjectId GetDimStyleTextStyle(ObjectId dimStyleId)
@@ -634,7 +660,7 @@ public sealed class DimensionDrawer
 		{
 			_linearDimTextObstacles.Add(item.TextBounds);
 		}
-		RenderPlacedDimensions(list, isHorizontal, dimStyleTextHeight);
+		RenderPlacedDimensions(list, isHorizontal, dimStyleTextHeight, outline);
 	}
 
 	private IList<DimensionStackingPlacement> CreateSideStackingPlacements(List<DeferredDim> dims, DimSide side, OutlineFeature outline, double textHeight, double gap, double perLevelSpacing, bool isHorizontal)
@@ -841,11 +867,12 @@ public sealed class DimensionDrawer
 		return placed.Dim.PreserveAlignmentLevel ? "PreservedOriginalCoordinateUnsafe" : "AlignmentLaneWithoutCoordinateOverride";
 	}
 
-	private void RenderPlacedDimensions(IList<PlacedDim> placedDims, bool isHorizontal, double textHeight)
+	private void RenderPlacedDimensions(IList<PlacedDim> placedDims, bool isHorizontal, double textHeight, OutlineFeature outline)
 	{
+		IList<Segment2D> worldOutlineSegments = ToWorldOutlineSegments(outline);
 		foreach (PlacedDim placedDim in placedDims)
 		{
-			AddRotatedDimension(placedDim.Dim.Rotation, placedDim.Dim.XLine1, placedDim.Dim.XLine2, placedDim.DimLinePoint, placedDim.Dim.OverrideText, useSegmentedExtensionLines: false, placedDim.HasCustomTextPosition, placedDim.TextPosition);
+			AddRotatedDimension(placedDim.Dim.Rotation, placedDim.Dim.XLine1, placedDim.Dim.XLine2, placedDim.DimLinePoint, placedDim.Dim.OverrideText, useSegmentedExtensionLines: false, placedDim.HasCustomTextPosition, placedDim.TextPosition, placedDim.Dim.AddDatumRoughness, worldOutlineSegments);
 			if (_diagnosticsEnabled)
 			{
 				AddDimensionDebugLabel(placedDim, isHorizontal, textHeight);
@@ -896,7 +923,7 @@ public sealed class DimensionDrawer
 		DrawDimensionPlan(plan, null);
 	}
 
-	public void DrawDimensionPlan(DimensionPlan plan, DimensionDiagnosticReport diagnostics)
+	public void DrawDimensionPlan(DimensionPlan plan, DimensionDiagnosticReport diagnostics, Datum2D datum = null)
 	{
 		if (plan == null)
 		{
@@ -910,11 +937,11 @@ public sealed class DimensionDrawer
 		_dimensionDiagnosticReport = diagnostics ?? plan.Diagnostics;
 		foreach (DimensionPlanCadItem item in _dimensionPlanMapper.Map(plan))
 		{
-			AddPlannedDimension(item);
+			AddPlannedDimension(item, DimensionLayoutRules.ShouldAddDatumRoughness(datum, ToDimensionKind(item.DimensionType)));
 		}
 	}
 
-	private void AddPlannedDimension(DimensionPlanCadItem dimension)
+	private void AddPlannedDimension(DimensionPlanCadItem dimension, bool addDatumRoughness)
 	{
 		if (dimension != null)
 		{
@@ -925,6 +952,7 @@ public sealed class DimensionDrawer
 				XLine1 = dimension.FirstPoint,
 				XLine2 = dimension.SecondPoint,
 				OverrideText = (dimension.OverrideText ?? string.Empty),
+				AddDatumRoughness = addDatumRoughness,
 				Span = dimension.Span,
 				DimType = dimension.DimensionType,
 				ForceOuterLevel = dimension.ForceOuterLevel,

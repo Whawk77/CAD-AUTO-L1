@@ -155,8 +155,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.cs": {
-    "mtime": 1790145968.1109276,
-    "ast_hash": "9deaad6dd1e7637a5d5b875ff12381ca",
+    "mtime": 1790218102.3307226,
+    "ast_hash": "4d3cda3eeabec2ec39727b8002b3bf3a",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/HoleCalloutPlan.cs": {
@@ -285,8 +285,8 @@
     "semantic_hash": ""
   },
   "docs/DimensionRules.md": {
-    "mtime": 1789023206.3017304,
-    "ast_hash": "d4655fdd006e2e2ce59ab72f9e30aed8",
+    "mtime": 1790218400.938508,
+    "ast_hash": "044df77b7edfb06872fcdfea2f071259",
     "semantic_hash": ""
   },
   "docs/Environment.md": {
@@ -555,8 +555,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.Features.cs": {
-    "mtime": 1790145968.1039274,
-    "ast_hash": "de3687815aa41899e4511fecff77e33f",
+    "mtime": 1790218400.9433348,
+    "ast_hash": "5379bdbeb02e424f7c73fd78c80853cd",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.Structure.cs": {
@@ -757,6 +757,16 @@
   "HANDOFF-2026-09-10-outer-contour-dimension-analysis.md": {
     "mtime": 1789022611.8716025,
     "ast_hash": "72377ea12f1b0ed7223f2af7fa5432fc",
+    "semantic_hash": ""
+  },
+  "docs/dimfix/INDEX.md": {
+    "mtime": 1790218400.9315097,
+    "ast_hash": "d3bed83ed928e8a6833ee87522c6c8dd",
+    "semantic_hash": ""
+  },
+  "docs/dimfix/cases/\u6c34\u5e73\u9500\u8ddd-\u672c\u7ec4\u8f6e\u5ed3\u4fa7\u4e0d\u5bf9\u9f50\u7ec4\u95f4\u5b9a\u4f4d.md": {
+    "mtime": 1790218400.9463334,
+    "ast_hash": "94cedbbb50aecd2a6c59694173e86584",
     "semantic_hash": ""
   }
 }

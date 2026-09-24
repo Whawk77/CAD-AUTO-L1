@@ -20,10 +20,12 @@
 ## Pin And Hole Position Dimensions
 
 - Hole positioning follows pin-first logic when pin holes exist.
-- The first pin group base pin is positioned from the outline/datum edge.
-- Current source behavior positions later pin-group base pins from the first pin-group base pin.
-- Same-group pin spacing is emitted from the group base pin to other pins and uses `PinCenterDistanceToleranceText`.
-- Pin-group transfer dimensions use `PinGroupDistanceToleranceText`.
+- The first pin group base pin is positioned from the outline/datum edge (A).
+- Same-group pin spacing (C) is emitted from the group base pin to other pins and uses `PinCenterDistanceToleranceText`.
+- Horizontal C is placed on Bottom when the group's nearest pin to outline Ymin is at least as close as its nearest pin to Ymax; otherwise Top. A tie takes the Ymin side (Bottom).
+- Vertical C is placed on Left when the group's nearest pin to outline Xmin is at least as close as its nearest pin to Xmax; otherwise Right. A tie takes the Xmin side (Left).
+- Pin-group transfer dimensions (B) use `PinGroupDistanceToleranceText` and are generated after C. Every later pin group is measured from the first group's base pin, and each group chooses its own C side.
+- B is placed on that group's C side and shares C's dimension line. When that side is also A's side, A, B, and C use the datum alignment key. When A and C face different sides, that group's B and C use `PGn:PinPair:H` or `PGn:PinPair:V`, and A stays on its own side. Groups do not borrow another group's pair key.
 - Normal holes are not high-precision pin holes and do not establish or transfer pin-group datum.
 - Thread holes follow normal-hole positioning and never become pin-group bases.
 - If no pin holes exist, normal/thread holes fall back to outline/datum-edge positioning.
@@ -105,6 +107,7 @@ Current follow-up areas:
 - Same-side dimensions first follow the reading hierarchy: local hole spacing, intra-group pin spacing, datum/group-transfer spacing, then overall size.
 - Within one reading level, shorter spans are generally placed inside; longer spans stack outward, with original generation order as the stable tie-breaker.
 - A rooted datum chain may align its datum, inter-group transfer, and intra-group pin distances on one shared dimension line when consecutive members share endpoints and have no strict arrow overlap; a text or arrow conflict moves the whole chain outward.
+- Chain order is A, then C, then B, for both horizontal and vertical pin dimensions. Horizontal C follows Ymin/Ymax; vertical C follows Xmin/Xmax. Each later pin group does this on its own. B always shares that group's C dimension line. A joins the line only when it faces the same side.
 - Functional-hole dimensions belonging to one pin group share a separate same-orientation alignment line and do not join the rooted datum chain.
 - Placement checks arrow conflicts, text-box conflicts, and outline coverage.
 - Shared-extension alignment may move eligible dimensions outward, but must not move dimensions whose real arrow endpoints touch another dimension at the same dimension-line level.

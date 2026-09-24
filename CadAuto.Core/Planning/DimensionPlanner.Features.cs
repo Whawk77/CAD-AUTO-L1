@@ -97,8 +97,8 @@ public sealed partial class DimensionPlanner
 			return;
 		}
 		AddFirstPinGroupBaseLocation(plan, outline, datum, list2[0]);
-		AddPinGroupBaseTransfers(plan, list2);
 		AddSameGroupPinDistances(plan, outline, list2);
+		AddPinGroupBaseTransfers(plan, outline, list2);
 		AddNonPinHoleLocationsFromPinGroups(plan, outline, list, list2);
 	}
 
@@ -845,13 +845,15 @@ public sealed partial class DimensionPlanner
 		AddVerticalOutlineReferenceDimension(plan, outline, y, basePin.Center, DimensionKind.DatumHoleLocationY, group.VerticalSide, overrideText2, "DatumY", GetPinGroupDebugOwner(group), alignmentKey: GetPinDatumAlignmentKey(group, horizontal: false), alignmentPriority: 120, readingLevel: DimensionReadingLevel.DatumTransfer);
 	}
 
-	private void AddPinGroupBaseTransfers(DimensionPlan plan, IList<PinGroupPlan> groups)
+	private void AddPinGroupBaseTransfers(DimensionPlan plan, OutlineFeature2D outline, IList<PinGroupPlan> groups)
 	{
 		if (groups.Count < 2)
 		{
 			return;
 		}
 		HoleFeature2D basePin = groups[0].BasePin;
+		DimensionSide datumHorizontalSide = groups[0].HorizontalSide;
+		DimensionSide datumVerticalSide = groups[0].VerticalSide;
 		for (int i = 1; i < groups.Count; i++)
 		{
 			HoleFeature2D basePin2 = groups[i].BasePin;
@@ -861,13 +863,63 @@ public sealed partial class DimensionPlanner
 			double num2 = Math.Abs(basePin2.Center.Y - basePin.Center.Y);
 			if (num > _config.GeometryTolerance)
 			{
-				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Horizontal, groups[0].HorizontalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: horizontalAlignmentKey, alignmentPriority: 110, readingLevel: DimensionReadingLevel.DatumTransfer);
+				DimensionSide groupHorizontalSide = ChoosePinGroupHorizontalLayoutSide(outline, groups[i]);
+				string alignmentKey = ChoosePinGroupAlignmentKey(groupHorizontalSide, datumHorizontalSide, horizontalAlignmentKey, groups[i], horizontal: true);
+				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Horizontal, groupHorizontalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: alignmentKey, alignmentPriority: 110, readingLevel: DimensionReadingLevel.DatumTransfer);
 			}
 			if (num2 > _config.GeometryTolerance)
 			{
-				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Vertical, groups[0].VerticalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num2), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: verticalAlignmentKey, alignmentPriority: 110, readingLevel: DimensionReadingLevel.DatumTransfer);
+				DimensionSide groupVerticalSide = ChoosePinGroupVerticalLayoutSide(outline, groups[i]);
+				string alignmentKey = ChoosePinGroupAlignmentKey(groupVerticalSide, datumVerticalSide, verticalAlignmentKey, groups[i], horizontal: false);
+				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Vertical, groupVerticalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num2), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: alignmentKey, alignmentPriority: 110, readingLevel: DimensionReadingLevel.DatumTransfer);
 			}
 		}
+	}
+
+	private static DimensionSide ChoosePinGroupHorizontalLayoutSide(OutlineFeature2D outline, PinGroupPlan group)
+	{
+		if (outline == null || group == null)
+		{
+			return group != null ? group.HorizontalSide : DimensionSide.Bottom;
+		}
+		List<HoleFeature2D> list = (group.Pins ?? new List<HoleFeature2D>()).Where(pin => pin != null).ToList();
+		if (group.BasePin != null && !list.Any(pin => pin == group.BasePin))
+		{
+			list.Add(group.BasePin);
+		}
+		if (list.Count == 0)
+		{
+			return group.HorizontalSide;
+		}
+		double nearestToMinY = list.Min(pin => Math.Abs(pin.Center.Y - outline.MinY));
+		double nearestToMaxY = list.Min(pin => Math.Abs(outline.MaxY - pin.Center.Y));
+		return nearestToMinY <= nearestToMaxY ? DimensionSide.Bottom : DimensionSide.Top;
+	}
+
+	private static DimensionSide ChoosePinGroupVerticalLayoutSide(OutlineFeature2D outline, PinGroupPlan group)
+	{
+		if (outline == null || group == null)
+		{
+			return group != null ? group.VerticalSide : DimensionSide.Left;
+		}
+		List<HoleFeature2D> list = (group.Pins ?? new List<HoleFeature2D>()).Where(pin => pin != null).ToList();
+		if (group.BasePin != null && !list.Any(pin => pin == group.BasePin))
+		{
+			list.Add(group.BasePin);
+		}
+		if (list.Count == 0)
+		{
+			return group.VerticalSide;
+		}
+		double nearestToMinX = list.Min(pin => Math.Abs(pin.Center.X - outline.MinX));
+		double nearestToMaxX = list.Min(pin => Math.Abs(outline.MaxX - pin.Center.X));
+		return nearestToMinX <= nearestToMaxX ? DimensionSide.Left : DimensionSide.Right;
+	}
+
+	// B shares C's side. A keeps the datum key only when it faces that same side.
+	private static string ChoosePinGroupAlignmentKey(DimensionSide groupSide, DimensionSide datumSide, string datumAlignmentKey, PinGroupPlan group, bool horizontal)
+	{
+		return groupSide == datumSide ? datumAlignmentKey : GetPinGroupPairAlignmentKey(group, horizontal);
 	}
 
 	private void AddSameGroupPinDistances(DimensionPlan plan, OutlineFeature2D outline, IList<PinGroupPlan> groups)
@@ -885,11 +937,15 @@ public sealed partial class DimensionPlanner
 					double num2 = Math.Abs(pin.Center.Y - group.BasePin.Center.Y);
 					if (num > _config.GeometryTolerance)
 					{
-						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Horizontal, groups[0].HorizontalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: horizontalAlignmentKey, alignmentPriority: 100, readingLevel: DimensionReadingLevel.IntraGroup);
+						DimensionSide horizontalSide = ChoosePinGroupHorizontalLayoutSide(outline, group);
+						string alignmentKey = ChoosePinGroupAlignmentKey(horizontalSide, groups[0].HorizontalSide, horizontalAlignmentKey, group, horizontal: true);
+						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Horizontal, horizontalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: alignmentKey, alignmentPriority: 100, readingLevel: DimensionReadingLevel.IntraGroup);
 					}
 					if (num2 > _config.GeometryTolerance)
 					{
-						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Vertical, groups[0].VerticalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num2), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: verticalAlignmentKey, alignmentPriority: 100, readingLevel: DimensionReadingLevel.IntraGroup);
+						DimensionSide verticalSide = ChoosePinGroupVerticalLayoutSide(outline, group);
+						string alignmentKey = ChoosePinGroupAlignmentKey(verticalSide, groups[0].VerticalSide, verticalAlignmentKey, group, horizontal: false);
+						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Vertical, verticalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num2), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: alignmentKey, alignmentPriority: 100, readingLevel: DimensionReadingLevel.IntraGroup);
 					}
 				}
 			}

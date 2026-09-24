@@ -1107,6 +1107,16 @@ public sealed partial class DimensionPlanner
 			+ ":DatumChain:" + (horizontal ? "H" : "V");
 	}
 
+	private static string GetPinGroupPairAlignmentKey(PinGroupPlan group, bool horizontal)
+	{
+		if (group == null)
+		{
+			return string.Empty;
+		}
+		return "PG" + group.GroupIndex.ToString(CultureInfo.InvariantCulture)
+			+ ":PinPair:" + (horizontal ? "H" : "V");
+	}
+
 	private static string GetPinFunctionalHoleAlignmentKey(PinGroupPlan group, bool horizontal)
 	{
 		if (group == null)

@@ -17,9 +17,14 @@ namespace AutoFixtureDim;
 
 internal static class SupportBlockCommand
 {
-	private const string RoughnessBlockName = "CadAider_国标粗糙度16下";
+	private const string RoughnessBlockName = "CadAider_日标3个角";
 
 	public static void Execute(Document document)
+	{
+		Execute(document, ty1: false);
+	}
+
+	public static void Execute(Document document, bool ty1, bool ty2 = false)
 	{
 		if (document == null)
 		{
@@ -30,6 +35,7 @@ internal static class SupportBlockCommand
 		Editor editor = document.Editor;
 		DimensionRuleConfig config = DimensionRuleConfig.CreateDefault();
 		config.UseFeatureFirstStructurePipeline = true;
+		string commandName = ty2 ? "TY2" : ty1 ? "TY1" : "TY";
 		string pluginDir = Path.GetDirectoryName(typeof(SupportBlockCommand).Assembly.Location);
 		if (!string.IsNullOrEmpty(pluginDir))
 		{
@@ -43,7 +49,7 @@ internal static class SupportBlockCommand
 				Entity sourceEntity;
 				Point3d startPoint;
 				Point3d endPoint;
-				if (!TrySelectSupportSource(editor, transaction, config, out sourceEntity, out startPoint, out endPoint))
+				if (!TrySelectSupportSource(editor, transaction, config, commandName, out sourceEntity, out startPoint, out endPoint))
 				{
 					return;
 				}
@@ -65,7 +71,7 @@ internal static class SupportBlockCommand
 				double dimScale = (database.Dimscale <= 0.0) ? 1.0 : database.Dimscale;
 				ObjectId dimStyleId = DimStyleManager.ResolveDimStyle(database, transaction);
 				ObjectId diameterCalloutDimStyleId = DimStyleManager.ResolveDiameterCalloutDimStyle(database, transaction, dimStyleId);
-				if (!HasRoughnessBlock(database, transaction))
+				if (!ty2 && !HasRoughnessBlock(database, transaction))
 				{
 					editor.WriteMessage("\n未找到块 {0}，已取消托压块标注。", RoughnessBlockName);
 					return;
@@ -79,8 +85,10 @@ internal static class SupportBlockCommand
 				Vector3d segmentVector = endPoint - startPoint;
 				bool horizontal = Math.Abs(segmentVector.X) >= Math.Abs(segmentVector.Y);
 				double globalLinetypeScale = database.Ltscale;
-				if (!TryGetVisibleDashPoint(transaction, dashedLinetypeId, sourceEntity, startPoint, endPoint, direction, 1.0, sourceEntity.LinetypeScale, globalLinetypeScale, !horizontal, out Point3d cncArrowPoint)
-					|| !TryGetVisibleDashPoint(transaction, dashedLinetypeId, sourceEntity, startPoint, endPoint, direction, 2.0, sourceEntity.LinetypeScale, globalLinetypeScale, horizontal, out Point3d quenchArrowPoint))
+				Point3d cncArrowPoint = Point3d.Origin;
+				Point3d quenchArrowPoint = Point3d.Origin;
+				if (!TryGetVisibleDashPoint(transaction, dashedLinetypeId, sourceEntity, startPoint, endPoint, direction, 1.0, sourceEntity.LinetypeScale, globalLinetypeScale, !horizontal, out cncArrowPoint)
+					|| (!ty1 && !ty2 && !TryGetVisibleDashPoint(transaction, dashedLinetypeId, sourceEntity, startPoint, endPoint, direction, 2.0, sourceEntity.LinetypeScale, globalLinetypeScale, horizontal, out quenchArrowPoint)))
 				{
 					editor.WriteMessage("\n无法确定 DASHED 可见实线段，已取消托压块标注。\n");
 					return;
@@ -88,7 +96,7 @@ internal static class SupportBlockCommand
 
 				AnnotationMetadata.EnsureRegApp(database, transaction);
 				BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
-				for (int offset = 1; offset <= 2; offset++)
+				for (int offset = 1; offset <= (ty1 || ty2 ? 1 : 2); offset++)
 				{
 					Vector3d displacement = direction * offset;
 					Entity copy;
@@ -109,7 +117,7 @@ internal static class SupportBlockCommand
 						copy = line;
 					}
 					copy.LayerId = database.Clayer;
-					copy.Color = Color.FromColorIndex(ColorMethod.ByAci, 6);
+					copy.Color = Color.FromColorIndex(ColorMethod.ByAci, (short)(ty1 || ty2 ? 1 : 6));
 					copy.LinetypeId = dashedLinetypeId;
 					space.AppendEntity(copy);
 					transaction.AddNewlyCreatedDBObject(copy, add: true);
@@ -126,46 +134,59 @@ internal static class SupportBlockCommand
 				Point3d dimensionLineMidpoint = GetSupportDimensionLineMidpoint(startPoint, endPoint, supportDimensionSide, supportWriter.Scale(config.FirstDimOffset));
 				Vector3d outward = GetSupportDimensionOutward(supportDimensionSide);
 				bool cncFromMinimum = !horizontal;
-				bool quenchFromMinimum = horizontal;
+				string cncText = ty2
+					? "刻+字两条磨损线" + MText.ParagraphBreak + "（V型深度0.2 宽度0.5）"
+					: ty1 ? "NC" : "CNC加工";
 				Point3d cncTextPoint = GetSupportCalloutTextPoint(dimensionLineMidpoint, startPoint, endPoint, horizontal, outward, labelSeparation, leaderOffset, cncFromMinimum);
-				Point3d quenchTextPoint = GetSupportCalloutTextPoint(dimensionLineMidpoint, startPoint, endPoint, horizontal, outward, labelSeparation, leaderOffset, quenchFromMinimum);
 				Point3d cncLandingPoint = GetSupportCalloutLandingPoint(dimensionLineMidpoint, cncTextPoint, horizontal, outward, landingGap);
-				Point3d quenchLandingPoint = GetSupportCalloutLandingPoint(dimensionLineMidpoint, quenchTextPoint, horizontal, outward, landingGap);
-				Point3d cncEvaluatedLandingPoint = supportRenderer.AddLeader(cncArrowPoint, cncLandingPoint, cncTextPoint, "CNC加工");
-				supportRenderer.AddLeader(quenchArrowPoint, quenchLandingPoint, quenchTextPoint, "淬火");
-				Point3d cncTextMidpoint = Commands.GetAg1TextLandingMidpoint(cncTextPoint, cncArrowPoint, "CNC加工", textHeight);
-				Point3d roughnessPoint = new Point3d(cncTextMidpoint.X, cncEvaluatedLandingPoint.Y, cncTextMidpoint.Z);
-				NativeDiameterDimensioner.InsertRoughnessBlock(database, transaction, space, roughnessPoint, annotationLayer, diameterCalloutDimStyleId, groupId);
+				Point3d cncEvaluatedLandingPoint = supportRenderer.AddLeader(cncArrowPoint, cncLandingPoint, cncTextPoint, cncText);
+				if (!ty1 && !ty2)
+				{
+					bool quenchFromMinimum = horizontal;
+					Point3d quenchTextPoint = GetSupportCalloutTextPoint(dimensionLineMidpoint, startPoint, endPoint, horizontal, outward, labelSeparation, leaderOffset, quenchFromMinimum);
+					Point3d quenchLandingPoint = GetSupportCalloutLandingPoint(dimensionLineMidpoint, quenchTextPoint, horizontal, outward, landingGap);
+					supportRenderer.AddLeader(quenchArrowPoint, quenchLandingPoint, quenchTextPoint, "淬火");
+				}
+				if (!ty2)
+				{
+					Point3d cncTextMidpoint = Commands.GetAg1TextLandingMidpoint(cncTextPoint, cncArrowPoint, cncText, textHeight);
+					Point3d roughnessPoint = new Point3d(cncTextMidpoint.X, cncEvaluatedLandingPoint.Y, cncTextMidpoint.Z);
+					NativeDiameterDimensioner.InsertRoughnessBlock(database, transaction, space, roughnessPoint, annotationLayer, diameterCalloutDimStyleId, groupId);
+				}
 				transaction.Commit();
 			}
-			editor.WriteMessage("\nTY 已生成两条托压块几何（偏移 1、2，洋红色，DASHED）及 CNC加工/淬火引线和粗糙度块。");
+			editor.WriteMessage(ty2
+				? "\nTY2 已生成一条红色偏移线（偏移 1，DASHED）及两条磨损线引线。"
+				: ty1
+					? "\nTY1 已生成一条红色偏移线（偏移 1，DASHED）、NC 引线及粗糙度块。"
+					: "\nTY 已生成两条托压块几何（偏移 1、2，洋红色，DASHED）及 CNC加工/淬火引线和粗糙度块。");
 		}
 		catch (Autodesk.AutoCAD.Runtime.Exception ex)
 		{
-			editor.WriteMessage("\nTY 取消或失败: {0}: {1}", ex.GetType().Name, ex.Message);
+			editor.WriteMessage("\n{0} 取消或失败: {1}: {2}", commandName, ex.GetType().Name, ex.Message);
 		}
 		catch (System.Exception ex)
 		{
-			editor.WriteMessage("\nTY 发生异常: {0}: {1}", ex.GetType().Name, ex.Message);
+			editor.WriteMessage("\n{0} 发生异常: {1}: {2}", commandName, ex.GetType().Name, ex.Message);
 		}
 	}
 
-	private static bool TrySelectSupportSource(Editor editor, Transaction transaction, DimensionRuleConfig config, out Entity sourceEntity, out Point3d startPoint, out Point3d endPoint)
+	private static bool TrySelectSupportSource(Editor editor, Transaction transaction, DimensionRuleConfig config, string commandName, out Entity sourceEntity, out Point3d startPoint, out Point3d endPoint)
 	{
 		sourceEntity = null;
 		startPoint = Point3d.Origin;
 		endPoint = Point3d.Origin;
 		while (true)
 		{
-			PromptEntityResult entityResult = editor.GetEntity(new PromptEntityOptions("\n选择 DRAWING 图层中的独立直线或圆弧: "));
+		PromptEntityResult entityResult = editor.GetEntity(new PromptEntityOptions("\n选择 DRAWING 或 0 图层中的独立直线或圆弧: "));
 			if (entityResult.Status != PromptStatus.OK)
 			{
 				return false;
 			}
 			Entity candidate = transaction.GetObject(entityResult.ObjectId, OpenMode.ForRead, openErased: false) as Entity;
-			if (candidate == null || (!(candidate is Line) && !(candidate is Arc)) || !string.Equals(candidate.Layer, "DRAWING", StringComparison.OrdinalIgnoreCase))
+			if (candidate == null || (!(candidate is Line) && !(candidate is Arc)) || !IsDrawingLayer(candidate.Layer))
 			{
-				editor.WriteMessage("\nTY 只能选择 DRAWING 图层中的独立 LINE 或 ARC。请重选。");
+				editor.WriteMessage("\n{0} 只能选择 DRAWING 或 0 图层中的独立 LINE 或 ARC。请重选。", commandName);
 				continue;
 			}
 			Curve curve = (Curve)candidate;
@@ -179,6 +200,13 @@ internal static class SupportBlockCommand
 			endPoint = curve.EndPoint;
 			return true;
 		}
+	}
+
+	private static bool IsDrawingLayer(string layerName)
+	{
+		string text = (layerName ?? string.Empty).Trim();
+		return string.Equals(text, "DRAWING", StringComparison.OrdinalIgnoreCase)
+			|| string.Equals(text, "0", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static Vector3d ResolveDirection(string keyword)

@@ -153,6 +153,18 @@ public sealed class Commands
 		SupportBlockCommand.Execute(Application.DocumentManager.MdiActiveDocument);
 	}
 
+	[CommandMethod("TY1")]
+	public void Ty1()
+	{
+		SupportBlockCommand.Execute(Application.DocumentManager.MdiActiveDocument, ty1: true);
+	}
+
+	[CommandMethod("TY2")]
+	public void Ty2()
+	{
+		SupportBlockCommand.Execute(Application.DocumentManager.MdiActiveDocument, ty1: true, ty2: true);
+	}
+
 	[CommandMethod("ASDCASE")]
 	public void AsdCase()
 	{

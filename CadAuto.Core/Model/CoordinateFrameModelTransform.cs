@@ -157,7 +157,13 @@ public static class CoordinateFrameModelTransform
 			BaseY = localBase.Y,
 			DatumHole = ToLocal(source.DatumHole, effectiveFrame),
 			DatumHoleLocationUseToleranceX = source.DatumHoleLocationUseToleranceX,
-			DatumHoleLocationUseToleranceY = source.DatumHoleLocationUseToleranceY
+			DatumHoleLocationUseToleranceY = source.DatumHoleLocationUseToleranceY,
+			DatumHoleLocationBasePointX = source.DatumHoleLocationBasePointX.HasValue
+				? effectiveFrame.ToLocal(source.DatumHoleLocationBasePointX.Value)
+				: (Point2D?)null,
+			DatumHoleLocationBasePointY = source.DatumHoleLocationBasePointY.HasValue
+				? effectiveFrame.ToLocal(source.DatumHoleLocationBasePointY.Value)
+				: (Point2D?)null
 		};
 		if (source.DatumHoleLocationBaseX.HasValue || source.DatumHoleLocationBaseY.HasValue)
 		{

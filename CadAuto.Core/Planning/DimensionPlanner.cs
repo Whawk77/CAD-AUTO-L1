@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using CadAuto.Core.Geometry;
 using CadAuto.Core.Model;
+using CadAuto.Core.Planning.Modules;
 using CadAuto.Core.Rules;
 
 namespace CadAuto.Core.Planning;
@@ -173,6 +174,12 @@ public sealed partial class DimensionPlanner
 
 	private int _nextLooseChainId = 1;
 
+	public LaneOccupancy LaneOccupancy { get; set; }
+
+	public IList<Segment2D> Centerlines { get; set; }
+
+	private IList<Segment2D> _activeCenterlines;
+
 	public DimensionPlanner(DimensionRuleConfig config)
 	{
 		_config = config;
@@ -311,6 +318,7 @@ public sealed partial class DimensionPlanner
 		List<SlotFeature2D> localSlots = frame.IsIdentity
 			? (slots ?? new SlotFeature2D[0]).Where((SlotFeature2D s) => s != null).ToList()
 			: CoordinateFrameModelTransform.ToLocal(slots, frame);
+		BindCenterlines(frame);
 		DimensionPlan dimensionPlan = CreateOutlinePlanLocal(localOutline);
 		Datum2D datum2 = localDatum ?? Datum2D.FromOutline(localOutline);
 		AddHolePositionDimensions(dimensionPlan, localOutline, datum2, localHoles);
@@ -566,6 +574,63 @@ public sealed partial class DimensionPlanner
 			}
 		}
 		return string.Join(";", entries);
+	}
+
+	public DimensionPlan CreateHolePlan(OutlineFeature2D outline, Datum2D datum, IEnumerable<HoleFeature2D> holes)
+	{
+		return CreateHolePlan(outline, datum, holes, new SlotFeature2D[0], null);
+	}
+
+	public DimensionPlan CreateHolePlan(OutlineFeature2D outline, Datum2D datum, IEnumerable<HoleFeature2D> holes, IEnumerable<SlotFeature2D> slots)
+	{
+		return CreateHolePlan(outline, datum, holes, slots, null);
+	}
+
+	public DimensionPlan CreateHolePlan(OutlineFeature2D outline, Datum2D datum, IEnumerable<HoleFeature2D> holes, IEnumerable<SlotFeature2D> slots, CoordinateFrame2D coordinateFrame)
+	{
+		if (outline == null)
+		{
+			throw new ArgumentNullException("outline");
+		}
+		CoordinateFrame2D frame = coordinateFrame ?? CoordinateFrame2D.InferFromOutline(outline, _config.GeometryTolerance);
+		OutlineFeature2D localOutline = frame.IsIdentity
+			? outline
+			: CoordinateFrameModelTransform.ToLocal(outline, frame, _config.GeometryTolerance);
+		Datum2D localDatum = datum == null
+			? null
+			: (frame.IsIdentity ? datum : CoordinateFrameModelTransform.ToLocal(datum, frame));
+		List<HoleFeature2D> localHoles = frame.IsIdentity
+			? (holes ?? new HoleFeature2D[0]).Where((HoleFeature2D h) => h != null).ToList()
+			: CoordinateFrameModelTransform.ToLocal(holes, frame);
+		List<SlotFeature2D> localSlots = frame.IsIdentity
+			? (slots ?? new SlotFeature2D[0]).Where((SlotFeature2D s) => s != null).ToList()
+			: CoordinateFrameModelTransform.ToLocal(slots, frame);
+		BindCenterlines(frame);
+		_nextLooseChainId = 1;
+		DimensionPlan dimensionPlan = new DimensionPlan();
+		Datum2D datum2 = localDatum ?? Datum2D.FromOutline(localOutline);
+		AddHolePositionDimensions(dimensionPlan, localOutline, datum2, localHoles);
+		AddSlotDimensions(dimensionPlan, localOutline, datum2, localHoles, localSlots);
+		ApplyCenterlineEndpointAttachments(dimensionPlan, datum2);
+		SuppressHoleDuplicateDimensions(dimensionPlan, localOutline);
+		_postValidator.ValidateHolePlan(dimensionPlan, localOutline);
+		dimensionPlan.CaptureFinalDimensions();
+		dimensionPlan.CoordinateFrame = frame;
+		return dimensionPlan;
+	}
+
+	private void BindCenterlines(CoordinateFrame2D frame)
+	{
+		List<Segment2D> source = (Centerlines ?? new Segment2D[0]).Where((Segment2D s) => s != null && !s.IsArcChord).ToList();
+		if (frame == null || frame.IsIdentity)
+		{
+			_activeCenterlines = source;
+			return;
+		}
+		_activeCenterlines = source.Select((Segment2D s) => new Segment2D(frame.ToLocal(s.Start), frame.ToLocal(s.End))
+		{
+			SourceKey = s.SourceKey
+		}).ToList();
 	}
 
 	private bool ContainsStructurePoint(IEnumerable<StructurePoint> points, Point2D point)
@@ -836,36 +901,63 @@ public sealed partial class DimensionPlanner
 	{
 		double num = Math.Abs(point.Y - outline.MinY);
 		double num2 = Math.Abs(outline.MaxY - point.Y);
+		DimensionSide nearest;
 		if (Math.Abs(num - num2) <= _config.GeometryTolerance)
 		{
-			return ChooseOppositeHorizontalDatumSide(outline, datum);
+			nearest = ChooseOppositeHorizontalDatumSide(outline, datum);
 		}
-		return (!(num < num2)) ? DimensionSide.Top : DimensionSide.Bottom;
+		else
+		{
+			nearest = (!(num < num2)) ? DimensionSide.Top : DimensionSide.Bottom;
+		}
+		return PreferUnoccupiedSide(nearest, nearest == DimensionSide.Bottom ? DimensionSide.Top : DimensionSide.Bottom);
 	}
 
 	private DimensionSide ChooseVerticalHoleSide(OutlineFeature2D outline, Datum2D datum, Point2D point)
 	{
 		double num = Math.Abs(point.X - outline.MinX);
 		double num2 = Math.Abs(outline.MaxX - point.X);
+		DimensionSide nearest;
 		if (Math.Abs(num - num2) <= _config.GeometryTolerance)
 		{
-			return ChooseOppositeVerticalDatumSide(outline, datum);
+			nearest = ChooseOppositeVerticalDatumSide(outline, datum);
 		}
-		return (num < num2) ? DimensionSide.Left : DimensionSide.Right;
+		else
+		{
+			nearest = (num < num2) ? DimensionSide.Left : DimensionSide.Right;
+		}
+		return PreferUnoccupiedSide(nearest, nearest == DimensionSide.Left ? DimensionSide.Right : DimensionSide.Left);
 	}
 
 	private DimensionSide ChooseHorizontalHoleSide(OutlineFeature2D outline, Point2D point)
 	{
 		double num = Math.Abs(point.Y - outline.MinY);
 		double num2 = Math.Abs(outline.MaxY - point.Y);
-		return (!(num <= num2)) ? DimensionSide.Top : DimensionSide.Bottom;
+		DimensionSide nearest = (!(num <= num2)) ? DimensionSide.Top : DimensionSide.Bottom;
+		return PreferUnoccupiedSide(nearest, nearest == DimensionSide.Bottom ? DimensionSide.Top : DimensionSide.Bottom);
 	}
 
 	private DimensionSide ChooseVerticalHoleSide(OutlineFeature2D outline, Point2D point)
 	{
 		double num = Math.Abs(point.X - outline.MinX);
 		double num2 = Math.Abs(outline.MaxX - point.X);
-		return (num <= num2) ? DimensionSide.Left : DimensionSide.Right;
+		DimensionSide nearest = (num <= num2) ? DimensionSide.Left : DimensionSide.Right;
+		return PreferUnoccupiedSide(nearest, nearest == DimensionSide.Left ? DimensionSide.Right : DimensionSide.Left);
+	}
+
+	private DimensionSide PreferUnoccupiedSide(DimensionSide preferred, DimensionSide opposite)
+	{
+		if (LaneOccupancy == null)
+		{
+			return preferred;
+		}
+		int preferredCount = LaneOccupancy.Count(preferred);
+		int oppositeCount = LaneOccupancy.Count(opposite);
+		if (oppositeCount < preferredCount)
+		{
+			return opposite;
+		}
+		return preferred;
 	}
 
 	private DimensionSide ChooseOppositeHorizontalDatumSide(OutlineFeature2D outline, Datum2D datum)

@@ -5,6 +5,7 @@ using System.Linq;
 using CadAuto.Core.Geometry;
 using CadAuto.Core.Model;
 using CadAuto.Core.Planning;
+using CadAuto.Core.Planning.Modules;
 using CadAuto.Core.Recognition;
 using CadAuto.Core.Rules;
 
@@ -329,6 +330,10 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(SingleArcSlotDatumUsesBottomCenterlineEndpoint), SingleArcSlotDatumUsesBottomCenterlineEndpoint);
 				RunTest(nameof(DoubleArcSlotDatumUsesCenterlineAndOutlineEndpoints), DoubleArcSlotDatumUsesCenterlineAndOutlineEndpoints);
 				RunTest(nameof(PinGroupsPlanBaseAndPairDistances), PinGroupsPlanBaseAndPairDistances);
+				RunTest(nameof(HolePlanOmitsOutlineOverallDimensions), HolePlanOmitsOutlineOverallDimensions);
+				RunTest(nameof(HoleOccupancyPrefersUnoccupiedSide), HoleOccupancyPrefersUnoccupiedSide);
+				RunTest(nameof(DatumPinLocationUsesCloserCenterlineEndpoint), DatumPinLocationUsesCloserCenterlineEndpoint);
+				RunTest(nameof(DatumPinLocationPrefersLocalCenterMarkOverLongAxis), DatumPinLocationPrefersLocalCenterMarkOverLongAxis);
 				RunTest(nameof(PinAlignmentGroupsRespectSideAndOrientation), PinAlignmentGroupsRespectSideAndOrientation);
 				RunTest(nameof(RootedDatumChainMergesTransitiveAlignmentLanes), RootedDatumChainMergesTransitiveAlignmentLanes);
 				RunTest(nameof(PinAlignmentAnchorFallsBackWithStableOrdering), PinAlignmentAnchorFallsBackWithStableOrdering);
@@ -7742,6 +7747,102 @@ namespace CadAuto.Core.Tests
 				"a non-pin chain should contain one datum location and four center distances");
 			Assert(horizontalChain.All(d => !string.IsNullOrEmpty(d.AlignmentKey)) && horizontalChain.Select(d => d.AlignmentKey).Distinct().Count() == 1,
 				"a non-pin horizontal chain must share one alignment key");
+		}
+
+		private static void HolePlanOmitsOutlineOverallDimensions()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 50.0);
+			var datum = Datum2D.FromOutline(outline);
+			var hole = CreateHole(25.0, 20.0, 8.0, HoleKind2D.Normal);
+			var plan = new DimensionPlanner(config).CreateHolePlan(outline, datum, new[] { hole });
+			Assert(!plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth || d.Kind == DimensionKind.OverallHeight || d.Kind == DimensionKind.Normal),
+				"hole plan must not emit outline overall or structure kinds");
+			Assert(plan.Dimensions.Count(d => d.Kind == DimensionKind.HoleLocation) == 2,
+				"independent hole plan should still emit X/Y hole locations");
+		}
+
+		private static void HoleOccupancyPrefersUnoccupiedSide()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100.0, 50.0);
+			var datum = Datum2D.FromOutline(outline);
+			var occupancy = new LaneOccupancy();
+			occupancy.Record(new PlannedDimension
+			{
+				Kind = DimensionKind.OverallHeight,
+				Orientation = DimensionOrientation.Horizontal,
+				Side = DimensionSide.Bottom,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(100.0, 0.0)
+			});
+			var planner = new DimensionPlanner(config)
+			{
+				LaneOccupancy = occupancy
+			};
+			var plan = planner.CreateHolePlan(outline, datum, new[]
+			{
+				CreateHole(25.0, 10.0, 8.0, HoleKind2D.Normal)
+			});
+			Assert(plan.Dimensions.Where(d => d.Kind == DimensionKind.HoleLocation && d.Orientation == DimensionOrientation.Horizontal).All(d => d.Side == DimensionSide.Top),
+				"hole horizontal locations should leave an occupied bottom lane");
+		}
+
+		private static void DatumPinLocationUsesCloserCenterlineEndpoint()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(200.0, 100.0);
+			var datumPin = CreateHole(40.0, 30.0, 6.0, HoleKind2D.Pin);
+			var datum = Datum2D.FromOutline(outline);
+			datum.DatumHole = datumPin;
+			datum.DatumHoleLocationBaseX = 10.0;
+			datum.DatumHoleLocationBaseY = 80.0;
+			datum.DatumHoleLocationBasePointX = new Point2D(10.0, 12.0);
+			datum.DatumHoleLocationBasePointY = new Point2D(18.0, 80.0);
+			var planner = new DimensionPlanner(config)
+			{
+				Centerlines = new List<Segment2D>
+				{
+					new Segment2D(new Point2D(20.0, 30.0), new Point2D(90.0, 30.0)),
+					new Segment2D(new Point2D(40.0, 5.0), new Point2D(40.0, 70.0))
+				}
+			};
+			var plan = planner.CreateHolePlan(outline, datum, new[] { datumPin });
+			var datumX = plan.Dimensions.Single(d => d.Kind == DimensionKind.DatumHoleLocationX);
+			var datumY = plan.Dimensions.Single(d => d.Kind == DimensionKind.DatumHoleLocationY);
+			Assert(Math.Abs(datumX.FirstPoint.X - 10.0) <= 0.001 && Math.Abs(datumX.FirstPoint.Y - 12.0) <= 0.001,
+				"X location first grip must be the user-picked X datum point");
+			Assert(Math.Abs(datumX.SecondPoint.X - 40.0) <= 0.001 && Math.Abs(datumX.SecondPoint.Y - 5.0) <= 0.001,
+				"X location hole grip must be the nearer vertical centerline endpoint");
+			Assert(datumX.TopologyEvidence == "CenterLayerEndpoint" && datumX.FirstPointMustLieOnOutline == false,
+				"X location must record centerline attachment");
+			Assert(Math.Abs(datumY.FirstPoint.X - 18.0) <= 0.001 && Math.Abs(datumY.FirstPoint.Y - 80.0) <= 0.001,
+				"Y location first grip must be the user-picked Y datum point");
+			Assert(Math.Abs(datumY.SecondPoint.X - 20.0) <= 0.001 && Math.Abs(datumY.SecondPoint.Y - 30.0) <= 0.001,
+				"Y location hole grip must be the nearer horizontal centerline endpoint");
+		}
+
+		private static void DatumPinLocationPrefersLocalCenterMarkOverLongAxis()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(200.0, 100.0);
+			var datumPin = CreateHole(40.0, 30.0, 6.0, HoleKind2D.Pin);
+			var datum = Datum2D.FromOutline(outline);
+			datum.DatumHole = datumPin;
+			datum.DatumHoleLocationBasePointX = new Point2D(10.0, 12.0);
+			datum.DatumHoleLocationBaseX = 10.0;
+			var planner = new DimensionPlanner(config)
+			{
+				Centerlines = new List<Segment2D>
+				{
+					new Segment2D(new Point2D(40.0, -20.0), new Point2D(40.0, 90.0)),
+					new Segment2D(new Point2D(40.0, 26.0), new Point2D(40.0, 34.0))
+				}
+			};
+			var plan = planner.CreateHolePlan(outline, datum, new[] { datumPin });
+			var datumX = plan.Dimensions.Single(d => d.Kind == DimensionKind.DatumHoleLocationX);
+			Assert(Math.Abs(datumX.SecondPoint.Y - 26.0) <= 0.001,
+				"X location must use the short local vertical center mark, not the long column axis");
 		}
 
         private static void PinGroupsPlanBaseAndPairDistances()

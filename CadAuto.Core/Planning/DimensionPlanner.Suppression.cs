@@ -53,6 +53,18 @@ public sealed partial class DimensionPlanner
 	// This method runs twice per full plan (once inside CreateOutlinePlan, once after
 	// hole/slot dimensions are added) - outline candidates see it twice, hole/slot
 	// candidates once.
+	private void SuppressHoleDuplicateDimensions(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		if (plan == null)
+		{
+			return;
+		}
+		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Bottom, horizontal: true);
+		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Top, horizontal: true);
+		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Left, horizontal: false);
+		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Right, horizontal: false);
+	}
+
 	private void SuppressDuplicateDimensions(DimensionPlan plan, OutlineFeature2D outline)
 	{
 		List<PlannedDimension> localGeometryOnEnvelope = FindLocalGeometryOnOverallEnvelope(plan, outline);

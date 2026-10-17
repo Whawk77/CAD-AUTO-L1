@@ -473,8 +473,37 @@ public sealed partial class DimensionPlanner
 		double y = datum.DatumHoleLocationBaseY ?? datum.BaseY;
 		string overrideText = (ShouldUseDatumHoleLocationTolerance(datum, isXDirection: true) ? (_config.DatumHoleLocationToleranceText ?? string.Empty) : string.Empty);
 		string overrideText2 = (ShouldUseDatumHoleLocationTolerance(datum, isXDirection: false) ? (_config.DatumHoleLocationToleranceText ?? string.Empty) : string.Empty);
-		AddHorizontalOutlineReferenceDimension(plan, outline, x, basePin.Center, DimensionKind.DatumHoleLocationX, group.HorizontalSide, overrideText, "DatumX", GetPinGroupDebugOwner(group), alignmentKey: GetPinDatumAlignmentKey(group, horizontal: true), alignmentPriority: 120, readingLevel: DimensionReadingLevel.DatumTransfer);
-		AddVerticalOutlineReferenceDimension(plan, outline, y, basePin.Center, DimensionKind.DatumHoleLocationY, group.VerticalSide, overrideText2, "DatumY", GetPinGroupDebugOwner(group), alignmentKey: GetPinDatumAlignmentKey(group, horizontal: false), alignmentPriority: 120, readingLevel: DimensionReadingLevel.DatumTransfer);
+		string owner = GetPinGroupDebugOwner(group);
+		string horizontalAlignmentKey = GetPinDatumAlignmentKey(group, horizontal: true);
+		string verticalAlignmentKey = GetPinDatumAlignmentKey(group, horizontal: false);
+		Point2D xDatumPoint = datum.DatumHoleLocationBasePointX ?? new Point2D(x, basePin.Center.Y);
+		Point2D yDatumPoint = datum.DatumHoleLocationBasePointY ?? new Point2D(basePin.Center.X, y);
+		if (CenterlineGripQuery.TryPickCloserEndpoint(_activeCenterlines, basePin.Center, xDatumPoint, horizontalCenterline: false, _config.GeometryTolerance, basePin.Diameter, out Point2D xHoleGrip))
+		{
+			AddDatumCenterlineDimension(plan, DimensionKind.DatumHoleLocationX, DimensionOrientation.Horizontal, group.HorizontalSide, xDatumPoint, xHoleGrip, overrideText, "DatumX", owner, horizontalAlignmentKey);
+		}
+		else
+		{
+			AddHorizontalOutlineReferenceDimension(plan, outline, x, basePin.Center, DimensionKind.DatumHoleLocationX, group.HorizontalSide, overrideText, "DatumX", owner, alignmentKey: horizontalAlignmentKey, alignmentPriority: 120, readingLevel: DimensionReadingLevel.DatumTransfer);
+		}
+		if (CenterlineGripQuery.TryPickCloserEndpoint(_activeCenterlines, basePin.Center, yDatumPoint, horizontalCenterline: true, _config.GeometryTolerance, basePin.Diameter, out Point2D yHoleGrip))
+		{
+			AddDatumCenterlineDimension(plan, DimensionKind.DatumHoleLocationY, DimensionOrientation.Vertical, group.VerticalSide, yDatumPoint, yHoleGrip, overrideText2, "DatumY", owner, verticalAlignmentKey);
+		}
+		else
+		{
+			AddVerticalOutlineReferenceDimension(plan, outline, y, basePin.Center, DimensionKind.DatumHoleLocationY, group.VerticalSide, overrideText2, "DatumY", owner, alignmentKey: verticalAlignmentKey, alignmentPriority: 120, readingLevel: DimensionReadingLevel.DatumTransfer);
+		}
+	}
+
+	private void AddDatumCenterlineDimension(DimensionPlan plan, DimensionKind kind, DimensionOrientation orientation, DimensionSide side, Point2D datumPoint, Point2D holeGrip, string overrideText, string debugRole, string debugOwner, string alignmentKey)
+	{
+		int count = plan.Dimensions.Count;
+		AddDimension(plan, kind, orientation, side, datumPoint, holeGrip, overrideText, debugRole, debugOwner, firstPointMustLieOnOutline: false, alignmentKey: alignmentKey, alignmentPriority: 120, readingLevel: DimensionReadingLevel.DatumTransfer);
+		if (plan.Dimensions.Count > count)
+		{
+			plan.Dimensions[plan.Dimensions.Count - 1].TopologyEvidence = "CenterLayerEndpoint";
+		}
 	}
 
 	private void AddPinGroupBaseTransfers(DimensionPlan plan, IList<PinGroupPlan> groups)
@@ -1272,10 +1301,12 @@ public sealed partial class DimensionPlanner
 		if (horizontal)
 		{
 			double num = list.Average((Point2D p) => p.Y);
-			return (!(Math.Abs(num - outline.MinY) <= Math.Abs(outline.MaxY - num))) ? DimensionSide.Top : DimensionSide.Bottom;
+			DimensionSide nearest = (!(Math.Abs(num - outline.MinY) <= Math.Abs(outline.MaxY - num))) ? DimensionSide.Top : DimensionSide.Bottom;
+			return PreferUnoccupiedSide(nearest, nearest == DimensionSide.Bottom ? DimensionSide.Top : DimensionSide.Bottom);
 		}
 		double num2 = list.Average((Point2D p) => p.X);
-		return (Math.Abs(num2 - outline.MinX) <= Math.Abs(outline.MaxX - num2)) ? DimensionSide.Left : DimensionSide.Right;
+		DimensionSide nearestVertical = (Math.Abs(num2 - outline.MinX) <= Math.Abs(outline.MaxX - num2)) ? DimensionSide.Left : DimensionSide.Right;
+		return PreferUnoccupiedSide(nearestVertical, nearestVertical == DimensionSide.Left ? DimensionSide.Right : DimensionSide.Left);
 	}
 
 	private DimensionSide? ChoosePinGroupAnchoredDimensionSide(PinGroupPlan referencePinGroup, bool horizontal)

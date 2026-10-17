@@ -88,6 +88,12 @@ public static class CadToCoreModelMapper
 			DatumHole = ((source.DatumHole == null) ? null : ToCoreHole(source.DatumHole)),
 			DatumHoleLocationBaseX = source.DatumHoleLocationBaseX,
 			DatumHoleLocationBaseY = source.DatumHoleLocationBaseY,
+			DatumHoleLocationBasePointX = source.DatumHoleLocationBasePointX.HasValue
+				? new Point2D(source.DatumHoleLocationBasePointX.Value.X, source.DatumHoleLocationBasePointX.Value.Y)
+				: (Point2D?)null,
+			DatumHoleLocationBasePointY = source.DatumHoleLocationBasePointY.HasValue
+				? new Point2D(source.DatumHoleLocationBasePointY.Value.X, source.DatumHoleLocationBasePointY.Value.Y)
+				: (Point2D?)null,
 			DatumHoleLocationUseToleranceX = source.DatumHoleLocationUseToleranceX,
 			DatumHoleLocationUseToleranceY = source.DatumHoleLocationUseToleranceY
 		};

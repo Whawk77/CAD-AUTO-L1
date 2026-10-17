@@ -16,11 +16,13 @@ using CadAuto.CadAdapter.Collection;
 using CadAuto.CadAdapter.Environment;
 using CadAuto.CadAdapter.Mapping;
 using CadAuto.CadAdapter.Model;
+using CadAuto.CadAdapter.Modules;
 using CadAuto.CadAdapter.Recognition;
 using CadAuto.CadAdapter.Rendering;
 using CadAuto.Core.Geometry;
 using CadAuto.Core.Model;
 using CadAuto.Core.Planning;
+using CadAuto.Core.Planning.Modules;
 using CadAuto.Core.Rules;
 
 namespace AutoFixtureDim;
@@ -673,13 +675,15 @@ public sealed class Commands
 					if (holeFeature != null)
 					{
 						datumDefinition.DatumHole = holeFeature;
-						if (!geometryCollector.PromptForDatumHoleLocationPoints(dimensionRuleConfig, out var xBase, out var yBase, out var useToleranceX, out var useToleranceY))
+						if (!geometryCollector.PromptForDatumHoleLocationPoints(dimensionRuleConfig, out var xBase, out var yBase, out var useToleranceX, out var useToleranceY, out var xPoint, out var yPoint))
 						{
 							editor.WriteMessage("\nASDCOREDBG: datum-hole base selection cancelled.");
 							return;
 						}
 						datumDefinition.DatumHoleLocationBaseX = xBase;
 						datumDefinition.DatumHoleLocationBaseY = yBase;
+						datumDefinition.DatumHoleLocationBasePointX = xPoint;
+						datumDefinition.DatumHoleLocationBasePointY = yPoint;
 						datumDefinition.DatumHoleLocationUseToleranceX = useToleranceX;
 						datumDefinition.DatumHoleLocationUseToleranceY = useToleranceY;
 					}
@@ -690,7 +694,10 @@ public sealed class Commands
 			Datum2D datum2D = CadToCoreModelMapper.ToCoreDatum(datumDefinition);
 			List<HoleFeature2D> holes = CadToCoreModelMapper.ToCoreHoles(list5);
 			List<SlotFeature2D> list7 = CadToCoreModelMapper.ToCoreSlots(featureRecognizer.LastRecognizedSlots);
-			DimensionPlanner dimensionPlanner = new DimensionPlanner(config);
+			DimensionPlanner dimensionPlanner = new DimensionPlanner(config)
+			{
+				Centerlines = geometryCollector.CollectCenterLayerSegments(transaction)
+			};
 			DimensionPlan dimensionPlan = dimensionPlanner.CreateDimensionPlan(outline, datum2D, holes, list7);
 			IList<HoleCalloutPlan> holeCalloutPlans = new HoleCalloutPlanner(config).CreatePlans(holes, datum2D.DatumHole);
 			DimensionPlan dimensionPlan2 = CreateCoreDebugRenderPlan(dimensionPlan);
@@ -832,13 +839,15 @@ public sealed class Commands
 						{
 							datumDefinition.DatumHole = holeFeature;
 							editor.WriteMessage("\n已设置基准孔: X={0:0.###}, Y={1:0.###}", holeFeature.Center.X, holeFeature.Center.Y);
-							if (!geometryCollector.PromptForDatumHoleLocationPoints(config, out var xBase, out var yBase, out var useToleranceX, out var useToleranceY))
+							if (!geometryCollector.PromptForDatumHoleLocationPoints(config, out var xBase, out var yBase, out var useToleranceX, out var useToleranceY, out var xPoint, out var yPoint))
 							{
 								editor.WriteMessage("\n用户取消基准点选择，命令结束。");
 								return;
 							}
 							datumDefinition.DatumHoleLocationBaseX = xBase;
 							datumDefinition.DatumHoleLocationBaseY = yBase;
+							datumDefinition.DatumHoleLocationBasePointX = xPoint;
+							datumDefinition.DatumHoleLocationBasePointY = yPoint;
 							datumDefinition.DatumHoleLocationUseToleranceX = useToleranceX;
 							datumDefinition.DatumHoleLocationUseToleranceY = useToleranceY;
 							editor.WriteMessage("\n基准孔定位基准: X基准={0:0.###}, Y基准={1:0.###}", xBase, yBase);
@@ -866,9 +875,10 @@ public sealed class Commands
 				IList<HoleCalloutPlan> list13 = list12;
 				BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
 				DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, objectId2, objectId3, num, text, groupId, diagnosticsEnabled, diagnosticSide);
+				IList<Segment2D> centerlines = geometryCollector.CollectCenterLayerSegments(transaction);
 				if (flag)
 				{
-					DimensionPlan dimensionPlan = DrawLinearDimensions(dimensionDrawer, outlineFeature, datumDefinition, list8, list10, flag6, config, outputScope);
+					DimensionPlan dimensionPlan = DrawLinearDimensions(dimensionDrawer, outlineFeature, datumDefinition, list8, list10, flag6, config, outputScope, centerlines);
 					completedLinearPlan = dimensionPlan;
 					recognizedHoles = list8;
 				}
@@ -1117,7 +1127,21 @@ public sealed class Commands
 			{
 				try
 				{
-					dimensionDrawer.DrawCornerFeatureLeadersWithJig(editor, outline);
+					AnnotationModuleRunner.Run(new CornerAnnotationModule(), new CadAnnotationSession
+					{
+						Document = document,
+						Database = database,
+						Editor = editor,
+						Transaction = transaction,
+						Drawer = dimensionDrawer,
+						Outline = outline,
+						Config = config,
+						DimStyleId = dimStyleId,
+						DiameterCalloutDimStyleId = diameterCalloutDimStyleId,
+						DimScale = dimScale,
+						AnnotationLayer = annotationLayer,
+						GroupId = groupId
+					});
 				}
 				catch (System.Exception ex)
 				{
@@ -1169,14 +1193,42 @@ public sealed class Commands
 		return num * num + num2 * num2 <= config.GeometryTolerance * config.GeometryTolerance && Math.Abs(a.Diameter - b.Diameter) <= config.GeometryTolerance;
 	}
 
-	private static DimensionPlan DrawLinearDimensions(DimensionDrawer drawer, OutlineFeature outline, DatumDefinition datum, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, bool skipHoleDimensions, DimensionRuleConfig config, AutoFixDimOutputScope outputScope)
+	private static DimensionPlan DrawLinearDimensions(DimensionDrawer drawer, OutlineFeature outline, DatumDefinition datum, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, bool skipHoleDimensions, DimensionRuleConfig config, AutoFixDimOutputScope outputScope, IList<Segment2D> centerlines)
 	{
+		if (outputScope == AutoFixDimOutputScope.OutlineOnly)
+		{
+			ModulePlan outlinePlan = AnnotationModuleRunner.Run(new OutlineAnnotationModule(), new CadAnnotationSession
+			{
+				Drawer = drawer,
+				Outline = outline,
+				Config = config
+			});
+			return outlinePlan?.LinearPlan ?? new DimensionPlan();
+		}
+		if (outputScope == AutoFixDimOutputScope.HoleOnly)
+		{
+			List<HoleFeature> holeSource = (skipHoleDimensions ? new List<HoleFeature>() : (holes ?? new List<HoleFeature>()).Where((HoleFeature hole) => hole != null).ToList());
+			ModulePlan holePlan = AnnotationModuleRunner.Run(new HoleAnnotationModule(), new CadAnnotationSession
+			{
+				Drawer = drawer,
+				Outline = outline,
+				Datum = datum,
+				Holes = holeSource,
+				Slots = slots == null ? new List<SlotFeature>() : slots.Where((SlotFeature slot) => slot != null).ToList(),
+				Config = config,
+				Centerlines = centerlines
+			});
+			return holePlan?.LinearPlan ?? new DimensionPlan();
+		}
 		OutlineFeature2D outline2 = CadToCoreModelMapper.ToCoreOutline(outline);
 		Datum2D datum2 = CadToCoreModelMapper.ToCoreDatum(datum);
 		List<HoleFeature> source = (skipHoleDimensions ? new List<HoleFeature>() : (holes ?? new List<HoleFeature>()).Where((HoleFeature hole) => hole != null).ToList());
 		List<HoleFeature2D> holes2 = CadToCoreModelMapper.ToCoreHoles(source);
 		List<SlotFeature2D> slots2 = CadToCoreModelMapper.ToCoreSlots(slots);
-		DimensionPlan dimensionPlan = new DimensionPlanner(config).CreateDimensionPlan(outline2, datum2, holes2, slots2);
+		DimensionPlan dimensionPlan = new DimensionPlanner(config)
+		{
+			Centerlines = centerlines
+		}.CreateDimensionPlan(outline2, datum2, holes2, slots2);
 		drawer.DrawDimensionPlan(FilterDimensionPlan(dimensionPlan, outputScope), dimensionPlan.Diagnostics);
 		drawer.FlushStackedDimensions(outline);
 		dimensionPlan.SynchronizeFinalPlacementSides();
@@ -1963,9 +2015,11 @@ public sealed class Commands
 
 	private static void DrawCornerFeatureLeadersWithPreview(Editor editor, DimensionDrawer drawer, OutlineFeature outline)
 	{
-		if (outline.Chamfers.Count != 0 || outline.Fillets.Count != 0)
+		AnnotationModuleRunner.Run(new CornerAnnotationModule(), new CadAnnotationSession
 		{
-			drawer.DrawCornerFeatureLeadersWithJig(editor, outline);
-		}
+			Editor = editor,
+			Drawer = drawer,
+			Outline = outline
+		});
 	}
 }

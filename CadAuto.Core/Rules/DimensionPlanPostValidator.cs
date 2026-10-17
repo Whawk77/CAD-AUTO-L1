@@ -38,6 +38,25 @@ public sealed class DimensionPlanPostValidator
 		ValidateRequiredOutlineAttachments(plan.Dimensions, outline);
 	}
 
+	public void ValidateHolePlan(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		if (plan == null)
+		{
+			throw new ArgumentNullException("plan");
+		}
+		if (outline == null)
+		{
+			throw new ArgumentNullException("outline");
+		}
+		if (!OutlineGeometryQuery.TryGetEnvelope(outline, _config.GeometryTolerance, out var envelope))
+		{
+			throw new InvalidOperationException("The selected outline has no verifiable line or arc geometry for dimension attachment.");
+		}
+		ValidateStoredEnvelope(plan, outline, envelope);
+		ValidateNoZeroLengthLinearDimensions(plan.Dimensions);
+		ValidateRequiredOutlineAttachments(plan.Dimensions, outline);
+	}
+
 	private void ValidateNoZeroLengthLinearDimensions(IEnumerable<PlannedDimension> dimensions)
 	{
 		foreach (PlannedDimension dimension in dimensions.Where((PlannedDimension item) => item != null))

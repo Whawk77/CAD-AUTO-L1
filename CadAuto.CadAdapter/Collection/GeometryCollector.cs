@@ -6,6 +6,7 @@ using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
 using CadAuto.CadAdapter.Model;
 using CadAuto.CadAdapter.Recognition;
+using CadAuto.Core.Geometry;
 using CadAuto.Core.Rules;
 
 namespace CadAuto.CadAdapter.Collection;
@@ -397,18 +398,21 @@ public sealed class GeometryCollector
 		return result;
 	}
 
-	public bool PromptForDatumHoleLocationPoints(DimensionRuleConfig config, out double? xBase, out double? yBase, out bool useToleranceX, out bool useToleranceY)
+	public bool PromptForDatumHoleLocationPoints(DimensionRuleConfig config, out double? xBase, out double? yBase, out bool useToleranceX, out bool useToleranceY, out Point3d? xPoint, out Point3d? yPoint)
 	{
 		xBase = null;
 		yBase = null;
 		useToleranceX = false;
 		useToleranceY = false;
+		xPoint = null;
+		yPoint = null;
 		PromptPointOptions options = new PromptPointOptions("\n请选择基准孔 X 轴方向上的基准点: ");
 		PromptPointResult point = _editor.GetPoint(options);
 		if (point.Status != PromptStatus.OK)
 		{
 			return false;
 		}
+		xPoint = point.Value;
 		xBase = point.Value.X;
 		if (!PromptForDatumHoleToleranceMode(config, "X", out useToleranceX))
 		{
@@ -420,12 +424,107 @@ public sealed class GeometryCollector
 		{
 			return false;
 		}
+		yPoint = point2.Value;
 		yBase = point2.Value.Y;
 		if (!PromptForDatumHoleToleranceMode(config, "Y", out useToleranceY))
 		{
 			return false;
 		}
 		return true;
+	}
+
+	public IList<Segment2D> CollectCenterLayerSegments(Transaction tr)
+	{
+		List<Segment2D> list = new List<Segment2D>();
+		if (tr == null)
+		{
+			return list;
+		}
+		Database database = _editor?.Document?.Database ?? HostApplicationServices.WorkingDatabase;
+		if (database == null)
+		{
+			return list;
+		}
+		BlockTableRecord space = (BlockTableRecord)tr.GetObject(database.CurrentSpaceId, OpenMode.ForRead);
+		foreach (ObjectId objectId in space)
+		{
+			Entity entity = tr.GetObject(objectId, OpenMode.ForRead) as Entity;
+			if (entity == null || entity.IsErased || !IsCenterMarkEntity(entity, tr))
+			{
+				continue;
+			}
+			AppendCenterLayerSegments(entity, list);
+		}
+		return list;
+	}
+
+	private static bool IsCenterMarkEntity(Entity entity, Transaction tr)
+	{
+		if (IsCenterName(entity.Layer))
+		{
+			return true;
+		}
+		string linetypeName = entity.Linetype ?? string.Empty;
+		if (string.Equals(linetypeName, "ByLayer", StringComparison.OrdinalIgnoreCase)
+			|| string.Equals(linetypeName, "ByBlock", StringComparison.OrdinalIgnoreCase)
+			|| linetypeName.Length == 0)
+		{
+			linetypeName = GetLayerLinetypeName(entity, tr) ?? string.Empty;
+		}
+		return IsCenterName(linetypeName);
+	}
+
+	private static string GetLayerLinetypeName(Entity entity, Transaction tr)
+	{
+		if (entity == null || entity.LayerId.IsNull)
+		{
+			return string.Empty;
+		}
+		LayerTableRecord layer = tr.GetObject(entity.LayerId, OpenMode.ForRead) as LayerTableRecord;
+		if (layer == null || layer.LinetypeObjectId.IsNull)
+		{
+			return string.Empty;
+		}
+		LinetypeTableRecord linetype = tr.GetObject(layer.LinetypeObjectId, OpenMode.ForRead) as LinetypeTableRecord;
+		return linetype?.Name ?? string.Empty;
+	}
+
+	private static bool IsCenterName(string name)
+	{
+		string text = (name ?? string.Empty).Trim();
+		if (text.Length == 0)
+		{
+			return false;
+		}
+		return text.IndexOf("CENTER", StringComparison.OrdinalIgnoreCase) >= 0
+			|| text.IndexOf("中心", StringComparison.OrdinalIgnoreCase) >= 0;
+	}
+
+	private static void AppendCenterLayerSegments(Entity entity, IList<Segment2D> list)
+	{
+		Line line = entity as Line;
+		if (line != null)
+		{
+			list.Add(new Segment2D(new Point2D(line.StartPoint.X, line.StartPoint.Y), new Point2D(line.EndPoint.X, line.EndPoint.Y)));
+			return;
+		}
+		Polyline polyline = entity as Polyline;
+		if (polyline == null)
+		{
+			return;
+		}
+		int count = polyline.NumberOfVertices;
+		int last = polyline.Closed ? count : count - 1;
+		for (int i = 0; i < last; i++)
+		{
+			if (Math.Abs(polyline.GetBulgeAt(i)) > 1E-9)
+			{
+				continue;
+			}
+			Point2d start = polyline.GetPoint2dAt(i);
+			Point2d end = polyline.GetPoint2dAt((i + 1) % count);
+			list.Add(new Segment2D(new Point2D(start.X, start.Y), new Point2D(end.X, end.Y)));
+		}
 	}
 
 	private bool PromptForDatumHoleToleranceMode(DimensionRuleConfig config, string axisName, out bool useTolerance)

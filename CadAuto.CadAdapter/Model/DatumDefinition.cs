@@ -22,6 +22,10 @@ public sealed class DatumDefinition
 
 	public double? DatumHoleLocationBaseY { get; set; }
 
+	public Point3d? DatumHoleLocationBasePointX { get; set; }
+
+	public Point3d? DatumHoleLocationBasePointY { get; set; }
+
 	public bool DatumHoleLocationUseToleranceX { get; set; }
 
 	public bool DatumHoleLocationUseToleranceY { get; set; }

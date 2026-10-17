@@ -46,6 +46,8 @@ internal sealed class DimensionPlanCadMapper
 			ForceOuterLevel = dimension.ForceOuterLevel,
 			UseSegmentedExtensionLines = dimension.UseSegmentedExtensionLines,
 			ChainId = dimension.ChainId,
+			DatumFamilyKey = dimension.DatumFamilyKey,
+			ParallelStackKey = dimension.ParallelStackKey,
 			AlignmentKey = dimension.AlignmentKey,
 			AlignmentPriority = dimension.AlignmentPriority,
 			PreserveAlignmentLevel = dimension.PreserveAlignmentLevel,

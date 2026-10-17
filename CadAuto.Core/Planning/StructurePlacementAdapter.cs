@@ -36,7 +36,7 @@ public sealed class StructurePlacementAdapter
 				dims.Add(PlaceOverall(f, outline));
 				continue;
 			}
-			dims.Add(PlaceStructure(f));
+			dims.Add(CreateStructureCandidate(f));
 		}
 		return dims;
 	}
@@ -74,8 +74,9 @@ public sealed class StructurePlacementAdapter
 		};
 	}
 
-	private PlannedDimension PlaceStructure(StructureFeature f)
+	public PlannedDimension CreateStructureCandidate(StructureFeature f)
 	{
+		if (f == null) { throw new ArgumentNullException(nameof(f)); }
 		bool horizontal = f.Axis == StructureFeatureAxis.Horizontal;
 		string role = horizontal
 			? (f.PreferredSide == DimensionSide.Top ? "TopStructWidth" : "BottomStructWidth")
@@ -104,6 +105,11 @@ public sealed class StructurePlacementAdapter
 			SecondPoint = f.SecondPoint,
 			DebugRole = role,
 			SourceKey = f.SourceKey,
+			SourceGeometryIds = new List<string>(f.SupportSourceKeys),
+			TopologyEvidence = f.BoundaryEvidence,
+			RequiresOuterBoundarySupport = f.RequiresOuterBoundarySupport,
+			AttachmentValidity = f.BoundaryAttachmentValidity,
+			AttachmentKind = f.RequiresOuterBoundarySupport ? "ExteriorBoundary" : null,
 			Role = DimensionCandidateRole.Structure,
 			ReadingLevel = DimensionReadingLevel.LocalSpacing,
 			AlignmentKey = align,

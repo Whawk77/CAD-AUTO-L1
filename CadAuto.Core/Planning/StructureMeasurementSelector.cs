@@ -21,13 +21,22 @@ public sealed partial class StructureMeasurementSelector
 
 	public IList<StructureFeature> Select(IList<StructureFeature> features, OutlineFeature2D outline)
 	{
+		return Select(features, outline, null);
+	}
+
+	public IList<StructureFeature> Select(IList<StructureFeature> features, OutlineFeature2D outline,
+		StructureBoundaryEvidence boundaryEvidence)
+	{
 		if (features == null || features.Count == 0 || outline == null)
 		{
 			return new List<StructureFeature>();
 		}
 		double tol = _config.GeometryTolerance;
 		double microGap = Math.Max(5.0, Math.Max(outline.Width, outline.Height) * 0.025);
-		List<StructureFeature> list = features.ToList();
+		// Unsupported outer-edge candidates cannot influence balancing or be restored by a later heuristic.
+		StructureBoundaryEvidence.EnforceSelection(features);
+		List<StructureFeature> list = features.Where(f => !f.RequiresOuterBoundarySupport
+			|| (f.BoundaryMembership == "Boundary" && f.BoundaryAttachmentValidity == true)).ToList();
 		HashSet<StructureFeature> balancedSteps = CollectBalancedStepChains(list, outline, microGap, tol);
 		HashSet<StructureFeature> stairOpenRings = TakeStairOpenRings(balancedSteps, outline, microGap, tol);
 
@@ -43,6 +52,8 @@ public sealed partial class StructureMeasurementSelector
 		RestoreStairTreadsAndOpenRings(list, balancedSteps, stairOpenRings);
 		ApplyEnvelopeEndAndCoveringRules(list, outline, microGap, tol);
 
+		boundaryEvidence?.ApplyAttachmentEvidence(features);
+		StructureBoundaryEvidence.EnforceSelection(features);
 		return list.Where(f => f.Keep).ToList();
 	}
 

@@ -32,6 +32,18 @@ public sealed class DimensionCandidateDiagnostic
 
 	public string ReadingLevel { get; set; }
 
+	public string DatumFamilyKey { get; set; }
+
+	public string ParallelStackKey { get; set; }
+
+	public string DatumFamilySideDecision { get; set; } = "Unknown";
+
+	public bool? FamilySpacingValid { get; set; }
+
+	public string CompactionDecision { get; set; }
+
+	public string ExtensionLineDecision { get; set; } = "Unknown";
+
 	public string AlignmentKey { get; set; }
 
 	public int AlignmentPriority { get; set; }
@@ -76,7 +88,10 @@ public sealed class DimensionCandidateDiagnostic
 
 	public bool IsSelected { get; set; }
 
-	public bool IsAttachmentValid { get; set; }
+	public bool? IsAttachmentValid { get; set; }
+
+	public string AttachmentValidationStatus => !IsAttachmentValid.HasValue ? "Unknown"
+		: IsAttachmentValid.Value ? "Valid" : "Invalid";
 
 	public string AttachmentKind { get; set; }
 

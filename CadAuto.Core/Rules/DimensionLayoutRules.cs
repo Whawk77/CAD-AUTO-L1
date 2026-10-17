@@ -8,7 +8,7 @@ using CadAuto.Core.Planning;
 
 namespace CadAuto.Core.Rules;
 
-public sealed class DimensionLayoutRules
+public sealed partial class DimensionLayoutRules
 {
 	private sealed class StackingLayerItem
 	{
@@ -93,9 +93,9 @@ public sealed class DimensionLayoutRules
 				|| (kind == DimensionKind.DatumHoleLocationY && datum.DatumHoleLocationUseToleranceY));
 	}
 
-	public const string DatumRoughnessBlockName = "CadAider_国标粗糙度32";
+	public const string DatumRoughnessBlockName = "CadAider_日标2个角";
 
-	public const string DatumRoughnessDownBlockName = "CadAider_国标粗糙度32下";
+	public const string DatumRoughnessDownBlockName = "CadAider_日标2个角";
 
 	public static bool TryGetDatumRoughnessPlacement(Point2D datumPoint, double dimensionRotation, IEnumerable<Segment2D> renderedLines,
 		double tolerance, out Point2D insertionPoint, out double blockRotation)
@@ -364,6 +364,7 @@ public sealed class DimensionLayoutRules
 		HashSet<string> unifiedLaneKeys = CaptureUnifiedAlignmentLaneKeys(placements, dimensions, side, outline);
 		EnsureLayoutBlockPhysicalOutwardOrder(placements, dimensions, layoutBlocks, side, outline, perLevelSpacing, isHorizontal);
 		RestoreSplitAlignmentLanes(placements, dimensions, side, outline, unifiedLaneKeys);
+		CompactParallelDatumStacks(placements, dimensions, layoutBlocks, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
 		EnsureOverallPhysicalOutermostOffset(placements, dimensions, side, outline, perLevelSpacing);
 		UpdatePhysicalOrderDiagnostics(placements, dimensions, layoutBlocks, side, outline, isHorizontal);
 		return placements;
@@ -2589,6 +2590,7 @@ public sealed class DimensionLayoutRules
 
 	private void AlignDimensionsBySharedExtensionLines(List<List<StackingLayerItem>> layers, DimensionSide side, OutlineFeature2D outline, double textHeight, double gap, double firstOffset, double perLevelSpacing, bool isHorizontal)
 	{
+		if (_config.DisabledExperimentRule == DimensionExperimentRule.SharedExtensionAlignment) { return; }
 		for (int i = 0; i < layers.Count - 1; i++)
 		{
 			for (int num = layers[i].Count - 1; num >= 0; num--)

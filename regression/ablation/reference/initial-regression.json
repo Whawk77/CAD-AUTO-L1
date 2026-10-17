@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "head": "37c16787008014ad907b6b4ff358334bce80e5be",
+  "branch": "codex/non-occluding-centerline-rule",
+  "registeredCount": 245,
+  "executedCount": 7,
+  "passedCount": 6,
+  "failedCount": 1,
+  "notExecutedCount": 238,
+  "stdout": "START P0 count=11\nPASS P0 RectangularOutlineKeepsOverallDimensions\nPASS P0 ChamferedEnvelopeDropsSplitStructureFragments\nPASS P0 OverallDimensionsUseBoundaryGripPoints\nPASS P0 DuplicateSegmentsAreSuppressedWithDiagnostic\nPASS P0 ZeroAndMicroSegmentsDoNotEmitDimensions\nPASS P0 GeometryToleranceControlsMicroSegments\nFAIL P0 ConcaveHoleDatumUsesRealOutlineIntersections :: vertical datum should preserve its Y datum and use the real bottom outline intersection\nTIER FAIL P0 aborting remaining tiers.\nTIER NOT RUN P1 count=104 blocked by P0\nTIER NOT RUN P2 count=70 blocked by P0\nTIER NOT RUN P3 count=60 blocked by P0\nCadAuto.Core.Tests: 6/11 passed.\nFAILED ConcaveHoleDatumUsesRealOutlineIntersections :: vertical datum should preserve its Y datum and use the real bottom outline intersection\n",
+  "process": {
+    "command": [
+      "CadAuto.Core.Tests/bin/Debug/CadAuto.Core.Tests.exe"
+    ],
+    "exitCode": 1,
+    "elapsedSeconds": 0.24861009999949601,
+    "wrapperIssue": "run-core-tests.ps1 built successfully but falsely reports null Process.ExitCode; used existing compiled test executable directly",
+    "priorPreflightIssue": "Get-FileHash unavailable in this PowerShell session; fingerprints use .NET SHA256",
+    "generatedAt": "2026-10-17T05:52:31.963656+00:00"
+  },
+  "workingTreeStatePath": "regression/ablation/runs/20261017-135210499-initial/worktree-before.json"
+}

@@ -21,6 +21,8 @@ Desktop.ini
 diagnostics/last-run.json
 diagnostics/*.json
 regression/asd-repair/runs/
+# Local, isolated ablation binaries / full diagnostics; portable reference stays tracked.
+regression/ablation/runs/
 
 # graphify: keep query graph + report + labels + manifest; ignore caches/viz/local paths/backups
 graphify-out/cache/

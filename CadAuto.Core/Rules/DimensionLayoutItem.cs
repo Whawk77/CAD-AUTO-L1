@@ -17,6 +17,10 @@ public sealed class DimensionLayoutItem
 
 	public int LooseChainId { get; set; }
 
+	public string DatumFamilyKey { get; set; }
+
+	public string ParallelStackKey { get; set; }
+
 	public string AlignmentKey { get; set; }
 
 	public int AlignmentPriority { get; set; }

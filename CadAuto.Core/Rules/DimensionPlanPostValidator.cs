@@ -34,8 +34,24 @@ public sealed class DimensionPlanPostValidator
 		ValidateStoredEnvelope(plan, outline, envelope);
 		ValidateOverallDimension(plan, outline, DimensionKind.OverallWidth, DimensionOrientation.Horizontal, DimensionSide.Bottom, envelope.MinX, envelope.MaxX);
 		ValidateOverallDimension(plan, outline, DimensionKind.OverallHeight, DimensionOrientation.Vertical, DimensionSide.Left, envelope.MinY, envelope.MaxY);
+		ValidateExteriorStructureAttachments(plan);
 		ValidateNoZeroLengthLinearDimensions(plan.Dimensions);
 		ValidateRequiredOutlineAttachments(plan.Dimensions, outline);
+	}
+
+	private void ValidateExteriorStructureAttachments(DimensionPlan plan)
+	{
+		var evidence = new StructureBoundaryEvidence(plan.Diagnostics.OutlineTopology, _config.GeometryTolerance);
+		foreach (var dimension in plan.Dimensions.Where(d => d.RequiresOuterBoundarySupport).ToList())
+		{
+			bool? valid = evidence.ValidateBoundaryAttachments(dimension.FirstPoint, dimension.SecondPoint);
+			plan.SetAttachmentValidity(dimension, valid);
+			if (valid == true) { continue; }
+			string reason = valid == false ? "StructureAttachmentNotOnExteriorBoundary" : "StructureBoundaryEvidenceInsufficient";
+			plan.MarkSuppressed(dimension, reason);
+			plan.Dimensions.Remove(dimension);
+			plan.Diagnostics.Warnings.Add("StructureBoundary.PendingConfirmation|CandidateId=" + dimension.DiagnosticId + "|Reason=" + reason);
+		}
 	}
 
 	private void ValidateNoZeroLengthLinearDimensions(IEnumerable<PlannedDimension> dimensions)
@@ -122,6 +138,7 @@ public sealed class DimensionPlanPostValidator
 		{
 			throw new InvalidOperationException(kind + " does not preserve the real outline envelope and attachment rules.");
 		}
+		plan.SetAttachmentValidity(dimension2, true);
 	}
 
 	private void ValidateRequiredOutlineAttachments(IEnumerable<PlannedDimension> dimensions, OutlineFeature2D outline)

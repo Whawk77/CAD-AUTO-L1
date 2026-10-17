@@ -47,6 +47,18 @@ public sealed class DimensionExtensionLineRenderer
 		AddLineSegment(fixedCoord, num, max, vertical, tolerance);
 	}
 
+	public void AddWorldSegment(Point3d first, Point3d second, Autodesk.AutoCAD.Colors.Color color,
+		LineWeight lineWeight, ObjectId lineTypeId)
+	{
+		Line line = new Line(first, second);
+		line.SetDatabaseDefaults(_database);
+		line.Layer = _annotationLayer;
+		line.Color = color;
+		line.LineWeight = lineWeight;
+		if (!lineTypeId.IsNull) { line.LinetypeId = lineTypeId; }
+		_writer.Append(line);
+	}
+
 	private void AddLineSegment(double fixedCoord, double a, double b, bool vertical, double tolerance)
 	{
 		if (!(b - a <= tolerance))

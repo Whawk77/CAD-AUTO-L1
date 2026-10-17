@@ -44,18 +44,15 @@ public sealed class CadEntityWriter
 		AnnotationMetadata.EnsureRegApp(database, transaction);
 	}
 
-	public void AddRotatedDimension(double rotation, Point3d xLine1, Point3d xLine2, Point3d dimLinePoint, string overrideText, bool useSegmentedExtensionLines, bool useCustomTextPosition = false, Point3d customTextPosition = default(Point3d), bool addDatumRoughness = false, IList<Segment2D> outlineSegments = null)
+	public void AddRotatedDimension(double rotation, Point3d xLine1, Point3d xLine2, Point3d dimLinePoint, string overrideText, bool useCustomTextPosition = false, Point3d customTextPosition = default(Point3d), bool addDatumRoughness = false, IList<Segment2D> outlineSegments = null, bool suppressFirstExtension = false, bool suppressSecondExtension = false)
 	{
 		RotatedDimension rotatedDimension = new RotatedDimension(rotation, xLine1, xLine2, dimLinePoint, overrideText ?? string.Empty, _dimStyleId);
 		rotatedDimension.SetDatabaseDefaults(_database);
 		rotatedDimension.Layer = _annotationLayer;
 		rotatedDimension.DimensionStyle = _dimStyleId;
-		DimStyleManager.ApplyGeneratedDimensionColors(rotatedDimension);
-		if (useSegmentedExtensionLines)
-		{
-			rotatedDimension.Dimse1 = true;
-			rotatedDimension.Dimse2 = true;
-		}
+		// Never turn a style-suppressed extension back on.
+		if (suppressFirstExtension) { rotatedDimension.Dimse1 = true; }
+		if (suppressSecondExtension) { rotatedDimension.Dimse2 = true; }
 		Append(rotatedDimension);
 		if (useCustomTextPosition)
 		{

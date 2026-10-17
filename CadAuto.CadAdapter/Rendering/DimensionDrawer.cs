@@ -6,6 +6,7 @@ using Autodesk.AutoCAD.Colors;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
+using CadAuto.CadAdapter.Environment;
 using CadAuto.CadAdapter.Mapping;
 using CadAuto.CadAdapter.Model;
 using CadAuto.Core.Geometry;
@@ -48,6 +49,10 @@ public sealed class DimensionDrawer
 		public bool ForceOuterLevel;
 
 		public int LooseChainId;
+
+		public string DatumFamilyKey;
+
+		public string ParallelStackKey;
 
 		public string AlignmentKey;
 
@@ -111,6 +116,8 @@ public sealed class DimensionDrawer
 		public double PhysicalOutwardDistance;
 
 		public bool PhysicalOrderValidated;
+
+		public string CompactionDecision;
 	}
 
 	private struct TextBounds
@@ -170,7 +177,7 @@ public sealed class DimensionDrawer
 
 	private CoordinateFrame2D _coordinateFrame = CoordinateFrame2D.Identity;
 
-	private void AddRotatedDimension(double rotation, Point3d xLine1, Point3d xLine2, Point3d dimLinePoint, string overrideText, bool useSegmentedExtensionLines, bool useCustomTextPosition = false, Point3d customTextPosition = default(Point3d), bool addDatumRoughness = false, IList<Segment2D> worldOutlineSegments = null)
+	private void AddRotatedDimension(double rotation, Point3d xLine1, Point3d xLine2, Point3d dimLinePoint, string overrideText, bool useCustomTextPosition = false, Point3d customTextPosition = default(Point3d), bool addDatumRoughness = false, IList<Segment2D> worldOutlineSegments = null, bool suppressFirstExtension = false, bool suppressSecondExtension = false)
 	{
 		Point3d worldXLine1 = ToWorld(xLine1);
 		Point3d worldXLine2 = ToWorld(xLine2);
@@ -182,11 +189,12 @@ public sealed class DimensionDrawer
 			worldXLine2,
 			worldDimLinePoint,
 			overrideText,
-			useSegmentedExtensionLines,
 			useCustomTextPosition,
 			worldCustomTextPosition,
 			addDatumRoughness,
-			worldOutlineSegments);
+			worldOutlineSegments,
+			suppressFirstExtension,
+			suppressSecondExtension);
 	}
 
 	private Point3d ToWorld(Point3d local)
@@ -650,7 +658,6 @@ public sealed class DimensionDrawer
 		bool isHorizontal = side == DimSide.Bottom || side == DimSide.Top;
 		IList<DimensionStackingPlacement> placements = CreateSideStackingPlacements(dims, side, outline, dimStyleTextHeight, gap, perLevelSpacing, isHorizontal);
 		List<PlacedDim> list = BuildPlacedDimensions(dims, side, outline, placements, isHorizontal, dimStyleTextHeight);
-		RecordFinalPlacementDiagnostics(list, isHorizontal);
 		if (_diagnosticsEnabled)
 		{
 			AssignDebugIndexes(list);
@@ -660,7 +667,10 @@ public sealed class DimensionDrawer
 		{
 			_linearDimTextObstacles.Add(item.TextBounds);
 		}
+		// Record after final text slides, before extension geometry is planned from those exact bounds.
+		RecordFinalPlacementDiagnostics(list, isHorizontal);
 		RenderPlacedDimensions(list, isHorizontal, dimStyleTextHeight, outline);
+		_dimensionDiagnosticReport?.ValidateDatumFamilyLayout(perLevelSpacing, _config.GeometryTolerance);
 	}
 
 	private IList<DimensionStackingPlacement> CreateSideStackingPlacements(List<DeferredDim> dims, DimSide side, OutlineFeature outline, double textHeight, double gap, double perLevelSpacing, bool isHorizontal)
@@ -798,7 +808,8 @@ public sealed class DimensionDrawer
 				OrderingReason = placement.OrderingReason ?? string.Empty,
 				PromotedByConflictWith = placement.PromotedByConflictWith ?? string.Empty,
 				PhysicalOutwardDistance = placement.PhysicalOutwardDistance,
-				PhysicalOrderValidated = placement.PhysicalOrderValidated
+				PhysicalOrderValidated = placement.PhysicalOrderValidated,
+				CompactionDecision = placement.CompactionDecision
 			});
 		}
 		return list;
@@ -850,15 +861,15 @@ public sealed class DimensionDrawer
 		{
 			return "NotRequested";
 		}
+		if (placed.AlignmentLaneMemberCount < 2)
+		{
+			return "SingleMemberNoAlignmentProof";
+		}
 		if (placed.HasAlignmentCoordinateOverride && string.Equals(placed.LayoutBlockType, "RootedAlignmentLane", StringComparison.Ordinal))
 		{
 			return rootedBlockCoordinates.TryGetValue(GetRootedAlignmentGroupKey(placed), out var sharesFinalCoordinate) && sharesFinalCoordinate
 				? "AlignedRootedLayoutBlock"
 				: "UnalignedNoSafeCoordinate";
-		}
-		if (placed.AlignmentLaneMemberCount < 2)
-		{
-			return placed.Dim.PreserveAlignmentLevel ? "PreservedOriginalLevelNoSafePeer" : "NoConnectedAlignmentPeer";
 		}
 		if (placed.HasAlignmentCoordinateOverride)
 		{
@@ -870,9 +881,25 @@ public sealed class DimensionDrawer
 	private void RenderPlacedDimensions(IList<PlacedDim> placedDims, bool isHorizontal, double textHeight, OutlineFeature outline)
 	{
 		IList<Segment2D> worldOutlineSegments = ToWorldOutlineSegments(outline);
-		foreach (PlacedDim placedDim in placedDims)
+		// User policy: retain complete native extension lines, even for legacy segmentation flags.
+		var extensions = DimensionExtensionLineRules.CreateContinuous(placedDims.Select(p =>
+			new ExtensionLineLayoutItem { DiagnosticId = p.Dim.DiagnosticId }).ToList());
+		for (int index = 0; index < placedDims.Count; index++)
 		{
-			AddRotatedDimension(placedDim.Dim.Rotation, placedDim.Dim.XLine1, placedDim.Dim.XLine2, placedDim.DimLinePoint, placedDim.Dim.OverrideText, useSegmentedExtensionLines: false, placedDim.HasCustomTextPosition, placedDim.TextPosition, placedDim.Dim.AddDatumRoughness, worldOutlineSegments);
+			PlacedDim placedDim = placedDims[index];
+			ExtensionLineRenderPlan extensionPlan = extensions[index];
+			AddRotatedDimension(
+				placedDim.Dim.Rotation,
+				placedDim.Dim.XLine1,
+				placedDim.Dim.XLine2,
+				placedDim.DimLinePoint,
+				placedDim.Dim.OverrideText,
+				placedDim.HasCustomTextPosition,
+				placedDim.TextPosition,
+				placedDim.Dim.AddDatumRoughness,
+				worldOutlineSegments);
+			_dimensionDiagnosticReport?.RecordLayoutGeometry(placedDim.Dim.DiagnosticId, placedDim.CompactionDecision,
+				extensionPlan.Decision);
 			if (_diagnosticsEnabled)
 			{
 				AddDimensionDebugLabel(placedDim, isHorizontal, textHeight);
@@ -937,7 +964,7 @@ public sealed class DimensionDrawer
 		_dimensionDiagnosticReport = diagnostics ?? plan.Diagnostics;
 		foreach (DimensionPlanCadItem item in _dimensionPlanMapper.Map(plan))
 		{
-			AddPlannedDimension(item, DimensionLayoutRules.ShouldAddDatumRoughness(datum, ToDimensionKind(item.DimensionType)));
+			AddPlannedDimension(item, addDatumRoughness: false);
 		}
 	}
 
@@ -958,6 +985,8 @@ public sealed class DimensionDrawer
 				ForceOuterLevel = dimension.ForceOuterLevel,
 				UseSegmentedExtensionLines = dimension.UseSegmentedExtensionLines,
 				LooseChainId = dimension.ChainId,
+				DatumFamilyKey = dimension.DatumFamilyKey,
+				ParallelStackKey = dimension.ParallelStackKey,
 				AlignmentKey = dimension.AlignmentKey,
 				AlignmentPriority = dimension.AlignmentPriority,
 				PreserveAlignmentLevel = dimension.PreserveAlignmentLevel,
@@ -1273,6 +1302,8 @@ public sealed class DimensionDrawer
 			Span = dim.Span,
 			Kind = ToDimensionKind(dim.DimType),
 			LooseChainId = dim.LooseChainId,
+			DatumFamilyKey = dim.DatumFamilyKey,
+			ParallelStackKey = dim.ParallelStackKey,
 			AlignmentKey = dim.AlignmentKey,
 			AlignmentPriority = dim.AlignmentPriority,
 			PreserveAlignmentLevel = dim.PreserveAlignmentLevel,

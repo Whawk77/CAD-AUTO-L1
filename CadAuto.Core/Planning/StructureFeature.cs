@@ -61,6 +61,14 @@ public sealed class StructureFeature
 
 	public string SourceKey { get; set; }
 
+	public bool RequiresOuterBoundarySupport { get; set; }
+
+	public string BoundaryMembership { get; set; } = "Unknown";
+
+	public string BoundaryEvidence { get; set; }
+
+	public bool? BoundaryAttachmentValidity { get; set; }
+
 	public bool Keep { get; set; } = true;
 
 	public string SuppressReason { get; set; }

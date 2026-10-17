@@ -155,7 +155,6 @@ public sealed class CornerCalloutRenderer
 		radialDimension.SetDatabaseDefaults(_database);
 		radialDimension.Layer = _annotationLayer;
 		radialDimension.DimensionStyle = _diameterCalloutDimStyleId;
-		DimStyleManager.ApplyGeneratedDimensionColors(radialDimension);
 		radialDimension.DimensionText = text;
 		if (useCustomTextPosition)
 		{

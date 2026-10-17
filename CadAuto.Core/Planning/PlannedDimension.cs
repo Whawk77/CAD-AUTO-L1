@@ -25,6 +25,8 @@ public sealed class PlannedDimension
 
 	public bool FirstPointMustLieOnOutline { get; set; }
 
+	public bool RequiresOuterBoundarySupport { get; set; }
+
 	public double? RequiredOutlineReferenceCoordinate { get; set; }
 
 	public bool UseSegmentedExtensionLines { get; set; }
@@ -36,6 +38,11 @@ public sealed class PlannedDimension
 	public bool PreservePreferredSide { get; set; }
 
 	public int ChainId { get; set; }
+
+	// Relationship identity is independent of the lane that can physically share a dimension line.
+	public string DatumFamilyKey { get; set; }
+
+	public string ParallelStackKey { get; set; }
 
 	public string AlignmentKey { get; set; }
 

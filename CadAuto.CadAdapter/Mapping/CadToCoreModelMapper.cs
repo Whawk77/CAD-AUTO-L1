@@ -86,6 +86,8 @@ public static class CadToCoreModelMapper
 			BaseX = source.BaseX,
 			BaseY = source.BaseY,
 			DatumHole = ((source.DatumHole == null) ? null : ToCoreHole(source.DatumHole)),
+			PinGroupVerticalLayout = source.PinGroupVerticalLayout,
+			PinGroupHorizontalLayout = source.PinGroupHorizontalLayout,
 			DatumHoleLocationBaseX = source.DatumHoleLocationBaseX,
 			DatumHoleLocationBaseY = source.DatumHoleLocationBaseY,
 			DatumHoleLocationUseToleranceX = source.DatumHoleLocationUseToleranceX,

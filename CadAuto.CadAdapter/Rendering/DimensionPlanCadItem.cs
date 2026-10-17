@@ -26,6 +26,10 @@ internal sealed class DimensionPlanCadItem
 
 	public int ChainId { get; set; }
 
+	public string DatumFamilyKey { get; set; }
+
+	public string ParallelStackKey { get; set; }
+
 	public string AlignmentKey { get; set; }
 
 	public int AlignmentPriority { get; set; }

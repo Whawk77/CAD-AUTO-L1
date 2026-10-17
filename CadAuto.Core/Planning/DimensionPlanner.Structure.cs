@@ -48,10 +48,32 @@ public sealed partial class DimensionPlanner
 
 	private void AddLinearSegmentDimensions(DimensionPlan plan, OutlineFeature2D outline)
 	{
+		bool informationPlanning = HasBodyObliqueBoundary(plan, outline);
+		var boundaryOwnership = new StructureBoundaryEvidence(plan.Diagnostics.OutlineTopology, _config.GeometryTolerance);
 		foreach (Segment2D segment in outline.Segments)
 		{
 			if (segment == null || segment.Length <= _config.GeometryTolerance || segment.IsArcChord || IsOverallBoundarySegment(segment, outline))
 			{
+				continue;
+			}
+			if (informationPlanning && boundaryOwnership.GetMembership(segment) == "Boundary"
+				&& (segment.IsHorizontal(_config.GeometryTolerance) || segment.IsVertical(_config.GeometryTolerance)))
+			{
+				// Keep real originals until the information pass proves a live replacement.
+				bool horizontal = segment.IsHorizontal(_config.GeometryTolerance);
+				var original = new PlannedDimension { Kind = DimensionKind.Normal, Role = DimensionCandidateRole.Structure,
+					OwnerKind = DimensionCandidateOwnerKind.Outline,
+					Orientation = horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical,
+					Side = horizontal ? ResolveHorizontalOutlineSegmentSide(segment, outline) : ResolveVerticalOutlineSegmentSide(segment, outline),
+					FirstPoint = segment.Start, SecondPoint = segment.End, SourceKey = segment.SourceKey,
+					SourceGeometryIds = new List<string> { segment.SourceKey }, DebugRole = BoundaryRawEdgeRole,
+					RequiresOuterBoundarySupport = true, AttachmentValidity = true, AttachmentKind = "ExteriorBoundary",
+					AlignmentKey = "Structure:" + (horizontal ? "H:" : "V:")
+						+ (horizontal ? ResolveHorizontalOutlineSegmentSide(segment, outline) : ResolveVerticalOutlineSegmentSide(segment, outline)),
+					AlignmentPriority = 70, ReadingLevel = DimensionReadingLevel.LocalSpacing, PreservePreferredSide = true,
+					TopologyEvidence = "BoundaryInformation|OriginalRealEdge|ReplacementRequiredBeforeSuppression" };
+				plan.Add(original);
+				plan.BoundaryInformationRequirements.Add(original);
 				continue;
 			}
 			if (segment.IsHorizontal(_config.GeometryTolerance))

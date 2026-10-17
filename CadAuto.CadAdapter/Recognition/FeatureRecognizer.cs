@@ -1695,7 +1695,9 @@ public sealed class FeatureRecognizer
 
 	private static bool IsDrawingLayer(string layerName)
 	{
-		return string.Equals((layerName ?? string.Empty).Trim(), "DRAWING", StringComparison.OrdinalIgnoreCase);
+		string text = (layerName ?? string.Empty).Trim();
+		return string.Equals(text, "DRAWING", StringComparison.OrdinalIgnoreCase)
+			|| string.Equals(text, "0", StringComparison.OrdinalIgnoreCase);
 	}
 
 	internal static bool IsPinMarkerBlock(BlockReference blockReference, Transaction tr)

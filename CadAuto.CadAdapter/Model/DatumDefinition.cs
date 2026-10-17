@@ -18,6 +18,10 @@ public sealed class DatumDefinition
 
 	public HoleFeature DatumHole { get; set; }
 
+	public CadAuto.Core.Model.PinGroupVerticalLayoutPreference PinGroupVerticalLayout { get; set; }
+
+	public CadAuto.Core.Model.PinGroupHorizontalLayoutPreference PinGroupHorizontalLayout { get; set; }
+
 	public double? DatumHoleLocationBaseX { get; set; }
 
 	public double? DatumHoleLocationBaseY { get; set; }

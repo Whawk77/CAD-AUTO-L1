@@ -18,6 +18,10 @@ public sealed class Datum2D
 
 	public HoleFeature2D DatumHole { get; set; }
 
+	public PinGroupVerticalLayoutPreference PinGroupVerticalLayout { get; set; }
+
+	public PinGroupHorizontalLayoutPreference PinGroupHorizontalLayout { get; set; }
+
 	public double? DatumHoleLocationBaseX { get; set; }
 
 	public double? DatumHoleLocationBaseY { get; set; }

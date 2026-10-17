@@ -76,6 +76,8 @@ public sealed partial class DimensionPlanner
 			SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Left, horizontal: false);
 			SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Right, horizontal: false);
 			SuppressLocalGeometryOnOverallEnvelope(plan, localGeometryOnEnvelope);
+			SuppressCollinearExteriorBranchFragments(plan, outline);
+			ApplyBoundaryInformationPlanning(plan, outline);
 			return;
 		}
 		// Side heights are useful only when they describe a real outer-profile step (or
@@ -172,6 +174,8 @@ public sealed partial class DimensionPlanner
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Left, horizontal: false);
 		SuppressDuplicateMeasuredDimensions(plan, DimensionSide.Right, horizontal: false);
 		SuppressLocalGeometryOnOverallEnvelope(plan, localGeometryOnEnvelope);
+		SuppressCollinearExteriorBranchFragments(plan, outline);
+		ApplyBoundaryInformationPlanning(plan, outline);
 	}
 
 	private void SuppressNonProfileBackedSideStructureHeights(DimensionPlan plan, OutlineFeature2D outline)
@@ -680,10 +684,11 @@ public sealed partial class DimensionPlanner
 		return Math.Abs(start.X - edgeCoordinate) <= tol || Math.Abs(end.X - edgeCoordinate) <= tol;
 	}
 
-	private static void SuppressLocalGeometryOnOverallEnvelope(
+	private void SuppressLocalGeometryOnOverallEnvelope(
 		DimensionPlan plan,
 		IEnumerable<PlannedDimension> dimensions)
 	{
+		if (_config.DisabledExperimentRule == DimensionExperimentRule.LocalEnvelopeSuppression) { return; }
 		if (plan == null || dimensions == null)
 		{
 			return;
@@ -2696,6 +2701,7 @@ public sealed partial class DimensionPlanner
 	/// </summary>
 	private void SuppressOutlineSegmentsThatPartitionOverall(DimensionPlan plan, OutlineFeature2D outline, DimensionSide side, bool horizontal)
 	{
+		if (_config.DisabledExperimentRule == DimensionExperimentRule.OutlineOverallPartition) { return; }
 		PlannedDimension overall = plan.Dimensions.FirstOrDefault((PlannedDimension d) => horizontal ? (d.Kind == DimensionKind.OverallWidth) : (d.Kind == DimensionKind.OverallHeight));
 		if (overall == null)
 		{
@@ -2894,7 +2900,7 @@ public sealed partial class DimensionPlanner
 		{
 			return;
 		}
-		double band = OuterEnvelopeBand(outline, _config.GeometryTolerance);
+		var ownership = new StructureBoundaryEvidence(plan.Diagnostics.OutlineTopology, _config.GeometryTolerance);
 		for (int i = plan.Dimensions.Count - 1; i >= 0; i--)
 		{
 			PlannedDimension d = plan.Dimensions[i];
@@ -2904,19 +2910,14 @@ public sealed partial class DimensionPlanner
 			{
 				continue;
 			}
-			bool interior;
-			if (d.Orientation == DimensionOrientation.Horizontal)
+			string membership = ownership.GetMembership(new Segment2D(d.FirstPoint, d.SecondPoint));
+			if (membership != "NonBoundary")
 			{
-				double y = (d.FirstPoint.Y + d.SecondPoint.Y) * 0.5;
-				interior = Math.Abs(y - outline.MinY) > band && Math.Abs(y - outline.MaxY) > band;
-			}
-			else
-			{
-				double x = (d.FirstPoint.X + d.SecondPoint.X) * 0.5;
-				interior = Math.Abs(x - outline.MinX) > band && Math.Abs(x - outline.MaxX) > band;
-			}
-			if (!interior)
-			{
+				if (membership == "Unknown")
+				{
+					string warning = "StructureBoundary.PendingConfirmation|CandidateId=" + d.DiagnosticId + "|Reason=InteriorOwnershipUnknown";
+					if (!plan.Diagnostics.Warnings.Contains(warning)) { plan.Diagnostics.Warnings.Add(warning); }
+				}
 				continue;
 			}
 			plan.MarkSuppressed(d, "InteriorOutlineSegment");
@@ -3858,6 +3859,7 @@ public sealed partial class DimensionPlanner
 
 	private void SuppressMirroredDuplicates(DimensionPlan plan, DimensionSide primarySide, DimensionSide secondarySide, bool horizontal, OutlineFeature2D outline)
 	{
+		if (_config.DisabledExperimentRule == DimensionExperimentRule.MirroredDeduplication) { return; }
 		List<PlannedDimension> source = plan.Dimensions.Where((PlannedDimension d) => d.Side == primarySide).ToList();
 		List<PlannedDimension> source2 = plan.Dimensions.Where((PlannedDimension d) => d.Side == secondarySide).ToList();
 		foreach (PlannedDimension item in source2.ToList())
@@ -3936,6 +3938,7 @@ public sealed partial class DimensionPlanner
 
 	private void SuppressDuplicateMeasuredDimensions(DimensionPlan plan, DimensionSide side, bool horizontal)
 	{
+		if (_config.DisabledExperimentRule == DimensionExperimentRule.MeasuredDeduplication) { return; }
 		List<PlannedDimension> list = plan.Dimensions.Where((PlannedDimension d) => d.Side == side).ToList();
 		for (int num = 0; num < list.Count; num++)
 		{

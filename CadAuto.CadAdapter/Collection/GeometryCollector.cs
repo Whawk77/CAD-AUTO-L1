@@ -5,6 +5,8 @@ using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
 using CadAuto.CadAdapter.Model;
+using CadAuto.CadAdapter.Mapping;
+using CadAuto.Core.Planning;
 using CadAuto.CadAdapter.Recognition;
 using CadAuto.Core.Rules;
 
@@ -42,7 +44,7 @@ public sealed class GeometryCollector
 	{
 		PromptSelectionOptions options = new PromptSelectionOptions
 		{
-			MessageForAdding = "\n请选择 DRAWING 图层上的零件外轮廓，可点选或框选: ",
+			MessageForAdding = "\n请选择 DRAWING 或 0 图层上的零件外轮廓，可点选或框选: ",
 			SingleOnly = false
 		};
 		PromptSelectionResult selection = _editor.GetSelection(options);
@@ -108,7 +110,7 @@ public sealed class GeometryCollector
 		if (list2.Count > 0)
 		{
 			List<OutlineEntityCandidate> list4 = SelectMainOutlineComponent(list2);
-			_editor.WriteMessage("\n未找到闭合 Polyline，已改用 DRAWING 图层上的 {0} 个线/圆弧轮廓对象计算外包围盒。", list4.Count);
+			_editor.WriteMessage("\n未找到闭合 Polyline，已改用 DRAWING 或 0 图层上的 {0} 个线/圆弧轮廓对象计算外包围盒。", list4.Count);
 			OutlineSelection outlineSelection2 = new OutlineSelection();
 			foreach (ObjectId item3 in list4.Select((OutlineEntityCandidate c) => c.ObjectId))
 			{
@@ -120,8 +122,222 @@ public sealed class GeometryCollector
 			}
 			return outlineSelection2;
 		}
-		_editor.WriteMessage("\n外轮廓筛选结果: 已选 {0} 个对象，DRAWING 图层 {1} 个，多段线 {2} 个，闭合多段线 {3} 个，可用线/圆弧轮廓对象 {4} 个。", num, num2, num3, num4, num5);
-		throw new InvalidOperationException("选择集中没有 DRAWING 图层上的可用外轮廓对象。");
+		_editor.WriteMessage("\n外轮廓筛选结果: 已选 {0} 个对象，DRAWING/0 图层 {1} 个，多段线 {2} 个，闭合多段线 {3} 个，可用线/圆弧轮廓对象 {4} 个。", num, num2, num3, num4, num5);
+		throw new InvalidOperationException("选择集中没有 DRAWING 或 0 图层上的可用外轮廓对象。");
+	}
+
+	public IList<ClosedViewOutline> PromptForClosedViewOutlines(Transaction tr)
+	{
+		PromptSelectionOptions options = new PromptSelectionOptions
+		{
+			MessageForAdding = "\n请框选同一零件的主视、俯视、左视。每个视图一条闭合多段线，或一组首尾相接的 DRAWING/0 轮廓线: ",
+			SingleOnly = false
+		};
+		PromptSelectionResult selection = _editor.GetSelection(options);
+		if (selection.Status != PromptStatus.OK)
+		{
+			throw new OperationCanceledException("用户取消选择视图外轮廓。");
+		}
+		List<ObjectId> selectedIds = new List<ObjectId>();
+		List<OutlineEntityCandidate> closedPolylines = new List<OutlineEntityCandidate>();
+		List<OutlineEntityCandidate> outlineEntities = new List<OutlineEntityCandidate>();
+		int selectedCount = 0;
+		foreach (SelectedObject item in selection.Value)
+		{
+			if (item == null || item.ObjectId.IsNull)
+			{
+				continue;
+			}
+			selectedCount++;
+			selectedIds.Add(item.ObjectId);
+			Entity entity = tr.GetObject(item.ObjectId, OpenMode.ForRead) as Entity;
+			if (entity == null || !IsDrawingLayer(entity.Layer) || !HasOutlineLayerLinetype(entity, tr))
+			{
+				continue;
+			}
+			if (IsSupportedPolyline(entity) && IsClosedPolyline(entity))
+			{
+				closedPolylines.Add(BuildOutlineEntityCandidate(item.ObjectId, entity, tr));
+			}
+			if (IsFallbackOutlineEntity(entity))
+			{
+				outlineEntities.Add(BuildOutlineEntityCandidate(item.ObjectId, entity, tr));
+			}
+		}
+		List<List<OutlineEntityCandidate>> connected = GroupConnectedComponents(outlineEntities);
+		List<List<OutlineEntityCandidate>> merged = MergeOverlappingComponents(connected, 0.01)
+			.Where(HasViewExtent)
+			.ToList();
+		List<List<OutlineEntityCandidate>> views = merged
+			.Where((List<OutlineEntityCandidate> component) => !IsContainedByLargerComponent(component, merged))
+			.ToList();
+		_editor.WriteMessage(
+			"\nASD3V 视图线框: 已选 {0} 个对象，DRAWING/0 轮廓对象 {1} 个，端点连通 {2} 组，重叠合并后 {3} 个视图。",
+			selectedCount,
+			outlineEntities.Count,
+			connected.Count,
+			views.Count);
+		List<ClosedViewOutline> outlines = new List<ClosedViewOutline>();
+		foreach (List<OutlineEntityCandidate> component in views)
+		{
+			ClosedViewOutline outline = CreateViewOutline(component, closedPolylines);
+			outline.SelectedIds.AddRange(selectedIds);
+			outlines.Add(outline);
+		}
+		return outlines;
+	}
+
+	private static ClosedViewOutline CreateViewOutline(List<OutlineEntityCandidate> component, IList<OutlineEntityCandidate> closedPolylines)
+	{
+		double minX = double.MaxValue;
+		double minY = double.MaxValue;
+		double maxX = double.MinValue;
+		double maxY = double.MinValue;
+		foreach (OutlineEntityCandidate candidate in component)
+		{
+			foreach (Point2d point in candidate.ContinuityPoints)
+			{
+				minX = Math.Min(minX, point.X);
+				minY = Math.Min(minY, point.Y);
+				maxX = Math.Max(maxX, point.X);
+				maxY = Math.Max(maxY, point.Y);
+			}
+		}
+		ClosedViewOutline outline = new ClosedViewOutline
+		{
+			MinX = minX,
+			MinY = minY,
+			MaxX = maxX,
+			MaxY = maxY,
+			ViewId = component.Select((OutlineEntityCandidate candidate) => candidate.ObjectId.Handle.ToString()).OrderBy((string handle) => handle, StringComparer.Ordinal).First()
+		};
+		OutlineEntityCandidate solePolyline = component.Count == 1
+			? closedPolylines.FirstOrDefault((OutlineEntityCandidate candidate) => candidate.ObjectId == component[0].ObjectId)
+			: null;
+		if (solePolyline != null)
+		{
+			outline.PolylineId = solePolyline.ObjectId;
+		}
+		else
+		{
+			foreach (OutlineEntityCandidate candidate in component)
+			{
+				outline.EntityIds.Add(candidate.ObjectId);
+			}
+		}
+		return outline;
+	}
+
+	private static bool HasViewExtent(IList<OutlineEntityCandidate> component)
+	{
+		GetComponentBounds(component, out double minX, out double minY, out double maxX, out double maxY);
+		return maxX - minX > 0.5 && maxY - minY > 0.5;
+	}
+
+	private static bool IsContainedByLargerComponent(List<OutlineEntityCandidate> component, IList<List<OutlineEntityCandidate>> views)
+	{
+		GetComponentBounds(component, out double minX, out double minY, out double maxX, out double maxY);
+		double area = (maxX - minX) * (maxY - minY);
+		foreach (List<OutlineEntityCandidate> other in views)
+		{
+			if (ReferenceEquals(other, component))
+			{
+				continue;
+			}
+			GetComponentBounds(other, out double otherMinX, out double otherMinY, out double otherMaxX, out double otherMaxY);
+			double otherArea = (otherMaxX - otherMinX) * (otherMaxY - otherMinY);
+			if (otherArea <= area + 0.01)
+			{
+				continue;
+			}
+			if (minX >= otherMinX - 0.01 && minY >= otherMinY - 0.01 && maxX <= otherMaxX + 0.01 && maxY <= otherMaxY + 0.01)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static List<List<OutlineEntityCandidate>> MergeOverlappingComponents(List<List<OutlineEntityCandidate>> components, double gap)
+	{
+		int count = components.Count;
+		int[] parent = new int[count];
+		double[] minX = new double[count];
+		double[] minY = new double[count];
+		double[] maxX = new double[count];
+		double[] maxY = new double[count];
+		for (int i = 0; i < count; i++)
+		{
+			parent[i] = i;
+			GetComponentBounds(components[i], out minX[i], out minY[i], out maxX[i], out maxY[i]);
+		}
+		bool changed = true;
+		while (changed)
+		{
+			changed = false;
+			for (int i = 0; i < count; i++)
+			{
+				for (int j = i + 1; j < count; j++)
+				{
+					int left = FindComponent(parent, i);
+					int right = FindComponent(parent, j);
+					if (left == right || !BoundsOverlap(minX[left], minY[left], maxX[left], maxY[left], minX[right], minY[right], maxX[right], maxY[right], gap))
+					{
+						continue;
+					}
+					parent[right] = left;
+					minX[left] = Math.Min(minX[left], minX[right]);
+					minY[left] = Math.Min(minY[left], minY[right]);
+					maxX[left] = Math.Max(maxX[left], maxX[right]);
+					maxY[left] = Math.Max(maxY[left], maxY[right]);
+					changed = true;
+				}
+			}
+		}
+		List<List<OutlineEntityCandidate>> merged = new List<List<OutlineEntityCandidate>>();
+		foreach (IGrouping<int, int> group in Enumerable.Range(0, count).GroupBy((int index) => FindComponent(parent, index)))
+		{
+			List<OutlineEntityCandidate> component = new List<OutlineEntityCandidate>();
+			foreach (int index in group)
+			{
+				component.AddRange(components[index]);
+			}
+			merged.Add(component);
+		}
+		return merged;
+	}
+
+	private static int FindComponent(int[] parent, int index)
+	{
+		while (parent[index] != index)
+		{
+			parent[index] = parent[parent[index]];
+			index = parent[index];
+		}
+		return index;
+	}
+
+	private static bool BoundsOverlap(double minX, double minY, double maxX, double maxY, double otherMinX, double otherMinY, double otherMaxX, double otherMaxY, double gap)
+	{
+		return minX <= otherMaxX + gap && maxX + gap >= otherMinX && minY <= otherMaxY + gap && maxY + gap >= otherMinY;
+	}
+
+	private static void GetComponentBounds(IList<OutlineEntityCandidate> component, out double minX, out double minY, out double maxX, out double maxY)
+	{
+		minX = double.MaxValue;
+		minY = double.MaxValue;
+		maxX = double.MinValue;
+		maxY = double.MinValue;
+		foreach (OutlineEntityCandidate candidate in component)
+		{
+			foreach (Point2d point in candidate.ContinuityPoints)
+			{
+				minX = Math.Min(minX, point.X);
+				minY = Math.Min(minY, point.Y);
+				maxX = Math.Max(maxX, point.X);
+				maxY = Math.Max(maxY, point.Y);
+			}
+		}
 	}
 
 	public IList<CenterlineEndpointDefinition> CollectHoleCenterlineEndpoints(Transaction tr, OutlineSelection outlineSelection, double tolerance)
@@ -135,7 +351,7 @@ public sealed class GeometryCollector
 		foreach (ObjectId selectedId in outlineSelection.SelectedIds)
 		{
 			Line line = tr.GetObject(selectedId, OpenMode.ForRead) as Line;
-			if (line == null || !string.Equals(line.Layer, "CENTER", StringComparison.OrdinalIgnoreCase))
+			if (line == null || !IsCenterlineLayer(line.Layer))
 			{
 				continue;
 			}
@@ -428,6 +644,50 @@ public sealed class GeometryCollector
 		return true;
 	}
 
+	public bool PromptForDatumPinGroupLayout(OutlineFeature outline, IEnumerable<HoleFeature> holes, HoleFeature datumPin,
+		DimensionRuleConfig config, out CadAuto.Core.Model.PinGroupVerticalLayoutPreference vertical,
+		out CadAuto.Core.Model.PinGroupHorizontalLayoutPreference horizontal)
+	{
+		vertical = CadAuto.Core.Model.PinGroupVerticalLayoutPreference.Automatic;
+		horizontal = CadAuto.Core.Model.PinGroupHorizontalLayoutPreference.Automatic;
+		var orientation = new DimensionPlanner(config).GetSelectedPinGroupLayoutOrientation(
+			CadToCoreModelMapper.ToCoreOutline(outline), CadToCoreModelMapper.ToCoreHoles(holes),
+			datumPin == null ? null : CadToCoreModelMapper.ToCoreHoles(new[] { datumPin }).Single());
+		string message = orientation == DimensionOrientation.Horizontal
+			? "\n基准孔所在组的水平尺寸布局 [W=上侧/S=下侧] <自动>: "
+			: orientation == DimensionOrientation.Vertical
+				? "\n基准孔所在组的竖向尺寸布局 [A=左侧/D=右侧] <自动>: "
+				: "\n基准孔所在组的尺寸布局 [A=左侧/D=右侧/W=上侧/S=下侧] <自动>: ";
+		var options = new PromptKeywordOptions(message);
+		if (orientation != DimensionOrientation.Horizontal) { options.Keywords.Add("A"); options.Keywords.Add("D"); }
+		if (orientation != DimensionOrientation.Vertical) { options.Keywords.Add("W"); options.Keywords.Add("S"); }
+		options.AllowNone = true;
+		PromptResult result = _editor.GetKeywords(options);
+		if (result.Status == PromptStatus.None) { return true; }
+		if (result.Status != PromptStatus.OK) { return false; }
+		if (orientation != DimensionOrientation.Horizontal && string.Equals(result.StringResult, "A", StringComparison.OrdinalIgnoreCase))
+		{
+			vertical = CadAuto.Core.Model.PinGroupVerticalLayoutPreference.Left;
+			return true;
+		}
+		if (orientation != DimensionOrientation.Horizontal && string.Equals(result.StringResult, "D", StringComparison.OrdinalIgnoreCase))
+		{
+			vertical = CadAuto.Core.Model.PinGroupVerticalLayoutPreference.Right;
+			return true;
+		}
+		if (orientation != DimensionOrientation.Vertical && string.Equals(result.StringResult, "W", StringComparison.OrdinalIgnoreCase))
+		{
+			horizontal = CadAuto.Core.Model.PinGroupHorizontalLayoutPreference.Top;
+			return true;
+		}
+		if (orientation != DimensionOrientation.Vertical && string.Equals(result.StringResult, "S", StringComparison.OrdinalIgnoreCase))
+		{
+			horizontal = CadAuto.Core.Model.PinGroupHorizontalLayoutPreference.Bottom;
+			return true;
+		}
+		return false;
+	}
+
 	private bool PromptForDatumHoleToleranceMode(DimensionRuleConfig config, string axisName, out bool useTolerance)
 	{
 		useTolerance = config?.DatumHoleLocationDefaultUseTolerance ?? false;
@@ -500,6 +760,11 @@ public sealed class GeometryCollector
 
 	private static List<OutlineEntityCandidate> SelectMainOutlineComponent(IList<OutlineEntityCandidate> candidates)
 	{
+		return GroupConnectedComponents(candidates).OrderByDescending(GetComponentScore).First();
+	}
+
+	private static List<List<OutlineEntityCandidate>> GroupConnectedComponents(IList<OutlineEntityCandidate> candidates)
+	{
 		HashSet<OutlineEntityCandidate> hashSet = new HashSet<OutlineEntityCandidate>(candidates);
 		List<List<OutlineEntityCandidate>> list = new List<List<OutlineEntityCandidate>>();
 		while (hashSet.Count > 0)
@@ -524,7 +789,7 @@ public sealed class GeometryCollector
 			}
 			list.Add(list2);
 		}
-		return list.OrderByDescending(GetComponentScore).First();
+		return list;
 	}
 
 	private static double GetComponentScore(IList<OutlineEntityCandidate> component)
@@ -677,6 +942,10 @@ public sealed class GeometryCollector
 		{
 			return 100.0;
 		}
+		if (string.Equals(text, "0", StringComparison.OrdinalIgnoreCase))
+		{
+			return 90.0;
+		}
 		return (text.IndexOf("OUTLINE", StringComparison.OrdinalIgnoreCase) >= 0 || text.IndexOf("CONTOUR", StringComparison.OrdinalIgnoreCase) >= 0) ? 80.0 : 0.0;
 	}
 
@@ -728,7 +997,16 @@ public sealed class GeometryCollector
 
 	private static bool IsDrawingLayer(string layerName)
 	{
-		return string.Equals((layerName ?? string.Empty).Trim(), "DRAWING", StringComparison.OrdinalIgnoreCase);
+		string text = (layerName ?? string.Empty).Trim();
+		return string.Equals(text, "DRAWING", StringComparison.OrdinalIgnoreCase)
+			|| string.Equals(text, "0", StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static bool IsCenterlineLayer(string layerName)
+	{
+		string text = (layerName ?? string.Empty).Trim();
+		return string.Equals(text, "CENTER", StringComparison.OrdinalIgnoreCase)
+			|| string.Equals(text, "CEN", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static bool IsSupportedPolyline(Entity entity)

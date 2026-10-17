@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CadAuto.Core.Geometry;
 
 namespace CadAuto.Core.Planning;
@@ -9,6 +10,9 @@ public sealed class DimensionPlan
 	private int _nextDiagnosticId;
 
 	private readonly Dictionary<PlannedDimension, DimensionCandidateDiagnostic> _diagnosticByDimension;
+
+	private readonly Dictionary<PlannedDimension, List<PlannedDimension>> _coverageDependencies
+		= new Dictionary<PlannedDimension, List<PlannedDimension>>();
 
 	public List<PlannedDimension> Dimensions { get; private set; }
 
@@ -24,6 +28,15 @@ public sealed class DimensionPlan
 	public DimensionDiagnosticReport Diagnostics { get; private set; }
 
 	public AnnotationCaseSnapshot AnnotationCaseSnapshot { get; set; }
+
+	internal List<PlannedDimension> BoundaryInformationRequirements { get; } = new List<PlannedDimension>();
+
+	internal void RestoreInformationDimension(PlannedDimension dimension)
+	{
+		if (Dimensions.Contains(dimension)) { return; }
+		_coverageDependencies.Remove(dimension);
+		Add(dimension);
+	}
 
 	public DimensionPlan()
 	{
@@ -70,7 +83,7 @@ public sealed class DimensionPlan
 		value.Decision = DimensionCandidateDecision.Skipped;
 	}
 
-	public void SetAttachmentValidity(PlannedDimension dimension, bool isValid)
+	public void SetAttachmentValidity(PlannedDimension dimension, bool? isValid)
 	{
 		if (dimension == null)
 		{
@@ -132,7 +145,9 @@ public sealed class DimensionPlan
 				dimension.OwnerKind,
 				dimension.SourceGeometryIds,
 				dimension.TopologyEvidence,
-				dimension.RuleId);
+				dimension.RuleId,
+				dimension.AttachmentValidity,
+				dimension.SourceKey);
 		}
 	}
 
@@ -149,7 +164,9 @@ public sealed class DimensionPlan
 		DimensionCandidateOwnerKind ownerKind = DimensionCandidateOwnerKind.Unknown,
 		IEnumerable<string> sourceGeometryIds = null,
 		string topologyEvidence = null,
-		string ruleId = null)
+		string ruleId = null,
+		bool? attachmentValidity = false,
+		string sourceFeatureId = null)
 	{
 		string text = reason ?? string.Empty;
 		if (role == DimensionCandidateRole.Unknown)
@@ -164,7 +181,7 @@ public sealed class DimensionPlan
 		{
 			Id = _nextDiagnosticId++,
 			Kind = kind.ToString(),
-			SourceFeatureId = debugOwner ?? debugRole ?? string.Empty,
+			SourceFeatureId = sourceFeatureId ?? debugOwner ?? debugRole ?? string.Empty,
 			Value = GetDiagnosticValue(orientation, requestedFirstPoint, secondPoint),
 			FirstPointX = requestedFirstPoint.X,
 			FirstPointY = requestedFirstPoint.Y,
@@ -177,7 +194,7 @@ public sealed class DimensionPlan
 			Priority = GetDiagnosticPriority(kind),
 			IsSuppressed = false,
 			IsSelected = false,
-			IsAttachmentValid = false,
+			IsAttachmentValid = attachmentValidity,
 			DecisionStatus = "Skipped",
 			DecisionReason = text,
 			SuppressedReason = string.Empty,
@@ -193,8 +210,67 @@ public sealed class DimensionPlan
 		});
 	}
 
+	/// <summary>
+	/// Applies a topology-proven structure suppression and remembers its live information providers.
+	/// This method does not infer topology; callers must supply their checked proof.
+	/// </summary>
+	public bool IsCoverageProvider(PlannedDimension dimension) => _coverageDependencies.Values.Any(providers => providers.Contains(dimension));
+
+	public bool TrySuppressCoveredStructure(PlannedDimension residual, string ruleId,
+		IEnumerable<PlannedDimension> coveringDimensions, IEnumerable<string> sourceGeometryIds,
+		string topologyEvidence, string replaceableRuleId = null)
+	{
+		List<PlannedDimension> covering = (coveringDimensions ?? new PlannedDimension[0]).Distinct().ToList();
+		string failure = StructureCoveragePolicy.GetIneligibilityReason(residual, replaceableRuleId);
+		if (failure == null && (!Dimensions.Contains(residual) || string.IsNullOrWhiteSpace(ruleId)
+			|| string.IsNullOrWhiteSpace(topologyEvidence)))
+		{
+			failure = "MissingCandidateOrTopologyProof";
+		}
+		if (failure == null && (covering.Count == 0 || covering.Any(d => d == null
+			|| ReferenceEquals(d, residual) || !Dimensions.Contains(d) || d.AttachmentValidity == false)))
+		{
+			failure = "MissingCoveringDimension";
+		}
+		string evidence = (topologyEvidence ?? string.Empty)
+			+ "|CandidateId=" + (residual?.DiagnosticId ?? 0)
+			+ "|CoveredByIds=" + string.Join(",", covering.Where(d => d != null).Select(d => d.DiagnosticId))
+			+ "|CoverageDecision=" + (failure ?? "Suppressed");
+		if (failure != null)
+		{
+			Diagnostics.Warnings.Add("StructureCoverage.PendingConfirmation|Rule=" + ruleId + "|" + evidence);
+			return false;
+		}
+		// Reviewed coverage does not reassign the candidate's creation rule.
+		// Keep that identity and its original proof; the suppression reason
+		// records the coverage rule independently.
+		string candidateRuleId = string.IsNullOrEmpty(residual.RuleId) ? ruleId : residual.RuleId;
+		if (!string.IsNullOrEmpty(residual.TopologyEvidence))
+		{
+			evidence = residual.TopologyEvidence + "|" + evidence;
+		}
+		MarkSuppressed(residual, ruleId, candidateRuleId, sourceGeometryIds, evidence);
+		Dimensions.Remove(residual);
+		_coverageDependencies[residual] = covering;
+		return true;
+	}
+
 	public void CaptureFinalDimensions()
 	{
+		// A legal attachment is not proof of completeness. Do not invent replacements
+		// when a subsequent suppression removes a provider of previously covered information.
+		Diagnostics.Warnings.RemoveAll(w => w.StartsWith("StructureCoverage.Incomplete|", StringComparison.Ordinal));
+		foreach (var dependency in _coverageDependencies)
+		{
+			List<PlannedDimension> missing = dependency.Value
+				.Where(d => !Dimensions.Contains(d) || d.AttachmentValidity == false).ToList();
+			if (missing.Count > 0)
+			{
+				Diagnostics.Warnings.Add("StructureCoverage.Incomplete|Status=PendingConfirmation|CandidateId="
+					+ dependency.Key.DiagnosticId + "|MissingCoveredByIds="
+					+ string.Join(",", missing.Select(d => d.DiagnosticId)));
+			}
+		}
 		Diagnostics.FinalDimensions.Clear();
 		foreach (DimensionCandidateDiagnostic candidate in Diagnostics.DimensionCandidates)
 		{
@@ -260,6 +336,8 @@ public sealed class DimensionPlan
 			RequestedPlacementSide = dimension.Side.ToString(),
 			Priority = GetDiagnosticPriority(dimension),
 			ReadingLevel = dimension.ReadingLevel.ToString(),
+			DatumFamilyKey = dimension.DatumFamilyKey,
+			ParallelStackKey = dimension.ParallelStackKey,
 			AlignmentKey = dimension.AlignmentKey ?? string.Empty,
 			AlignmentPriority = dimension.AlignmentPriority,
 			PreserveAlignmentLevel = dimension.PreserveAlignmentLevel,
@@ -271,7 +349,7 @@ public sealed class DimensionPlan
 			PromotedByConflictWith = string.Empty,
 			IsSuppressed = false,
 			IsSelected = false,
-			IsAttachmentValid = dimension.AttachmentValidity ?? true,
+			IsAttachmentValid = dimension.AttachmentValidity,
 			AttachmentKind = dimension.AttachmentKind ?? string.Empty,
 			DecisionStatus = "Candidate",
 			DecisionReason = "Generated",
@@ -309,6 +387,12 @@ public sealed class DimensionPlan
 			RequestedPlacementSide = source.RequestedPlacementSide,
 			Priority = source.Priority,
 			ReadingLevel = source.ReadingLevel,
+			DatumFamilyKey = source.DatumFamilyKey,
+			ParallelStackKey = source.ParallelStackKey,
+			DatumFamilySideDecision = source.DatumFamilySideDecision,
+			FamilySpacingValid = source.FamilySpacingValid,
+			CompactionDecision = source.CompactionDecision,
+			ExtensionLineDecision = source.ExtensionLineDecision,
 			AlignmentKey = source.AlignmentKey,
 			AlignmentPriority = source.AlignmentPriority,
 			PreserveAlignmentLevel = source.PreserveAlignmentLevel,

@@ -1,0 +1,454 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Compatibility fingerprint ONLY. Frozen from pre-switch existing system; NOT annotation correctness expectations.",
+  "head": "37c16787008014ad907b6b4ff358334bce80e5be",
+  "branch": "codex/non-occluding-centerline-rule",
+  "originalSnapshotPath": "regression/ablation/runs/20261017-135210499-initial/core-snapshots-before-switch.json",
+  "originalSnapshotSha256": "30c09b9ae8bf9fd5d8b38cc00e13a34ee2444ff9731a1a2eae427f6021788dc2",
+  "preexistingWorkingFiles": [
+    {
+      "path": "AutoFixtureDim.csproj",
+      "sha256": "209532CC847426E61F749253325759EB5546900F8D2D5A4D9A0DB0ED7F1D7C31"
+    },
+    {
+      "path": "CadAuto.CadAdapter/Collection/GeometryCollector.cs",
+      "sha256": "A477A405F4520321068D3F4EADED9C919C75B0CA86E8AF11CBC9E45F9B8DFFA0"
+    },
+    {
+      "path": "CadAuto.CadAdapter/Environment/DimStyleManager.cs",
+      "sha256": "D4043EE849A4FD111E1C0858518D5FEA379F6506510C1037A15B08D3237146F9"
+    },
+    {
+      "path": "CadAuto.CadAdapter/Mapping/CadToCoreModelMapper.cs",
+      "sha256": "91B23BA4B8675712D18DFACC60116797CABDE2664FEEBF746DBF3E6E59085D35"
+    },
+    {
+      "path": "CadAuto.CadAdapter/Model/DatumDefinition.cs",
+      "sha256": "BB3AE2646412BD595D61AD13C76C2E7A32E07FC5FEFE37363E7AB79695F607F0"
+    },
+    {
+      "path": "CadAuto.CadAdapter/Recognition/FeatureRecognizer.cs",
+      "sha256": "6DAA1A31B89C07E41130E9F3BC62DA1FDC75FCFBE78B8A87021741C75A634449"
+    },
+    {
+      "path": "CadAuto.CadAdapter/Rendering/CadEntityWriter.cs",
+      "sha256": "B0EC163E3A7AB6D2067DA20548A99A8F44740824BEAF10CE748A5A6DF5E3ED72"
+    },
+    {
+      "path": "CadAuto.CadAdapter/Rendering/CornerCalloutRenderer.cs",
+      "sha256": "1AB22F573358C9EF9D3110CBA80873B2B73568C738E3E5DE6AE099A57822469B"
+    },
+    {
+      "path": "CadAuto.CadAdapter/Rendering/DimensionDrawer.cs",
+      "sha256": "F0613D847374C4B86FC0D5E1D1649732078F8C6A1E67AAF588DDC6AE3D29B0F0"
+    },
+    {
+      "path": "CadAuto.CadAdapter/Rendering/DimensionExtensionLineRenderer.cs",
+      "sha256": "E53B7BB5AE3DF1477EAE551223CE866F39A2DD48B7CBABE39BD6377FF4D90765"
+    },
+    {
+      "path": "CadAuto.CadAdapter/Rendering/DimensionPlanCadItem.cs",
+      "sha256": "F6FF128B2C403961638FCD8B5D9F7D031A2903062CB532929103F6E788520332"
+    },
+    {
+      "path": "CadAuto.CadAdapter/Rendering/DimensionPlanCadMapper.cs",
+      "sha256": "9ECFF04127F588B55D444E22CDD6CED21A0200B136DFAD2DAA29DDDBB7898BC5"
+    },
+    {
+      "path": "CadAuto.CadAdapter/Rendering/NativeDiameterDimensioner.cs",
+      "sha256": "6F43B49E2335DABF847D039113B9919569FBAFF6CF73F649CB8B4E97CB9CB6FC"
+    },
+    {
+      "path": "CadAuto.Core.Tests/Program.cs",
+      "sha256": "97B9E3BCE94E5468DB65DDCAB36DBB6EF1CC0702487B300F94D65E1B736603EB"
+    },
+    {
+      "path": "CadAuto.Core/Model/CoordinateFrameModelTransform.cs",
+      "sha256": "8A3EADB95746678AB0595A6643766B0E8EA4ABA5A8F014480A3275F24E59A45D"
+    },
+    {
+      "path": "CadAuto.Core/Model/Datum2D.cs",
+      "sha256": "D5D1334AA75D86313933585BBA07FAEAD6AC96F53AD45D9AFD31C3DE6B00EC93"
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionCandidateDiagnostic.cs",
+      "sha256": "57BD5460A30F7F94D984F7D3DC91A5F2BAD142D7170C5AD419D5C8B06285F50C"
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionDiagnosticReport.cs",
+      "sha256": "2D2216BDC2469420521ABB1EFBD765F4DF01C326EC4AD4CA3C9DC2A7B5CECB44"
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlan.cs",
+      "sha256": "6A16C1E084DCD60EA896537891277E0FD2111E4F885FD6422E53943E7B14C458"
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlanner.Features.cs",
+      "sha256": "2CBBFDFB08510B0FE768AD2010146AEE187C130B2618554BC5CC2F6D135692A9"
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlanner.LProfile.cs",
+      "sha256": "A4CAEBBF5A64A60F025FB0D2B9C8BC8333FFB050840937B74459C3FEB52B314A"
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlanner.Structure.cs",
+      "sha256": "9DEBCA7CB932414E7FDC8A2F51D1C3FC11EBAF11D2B24094B67EDFD6CCEC9EC7"
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlanner.Suppression.cs",
+      "sha256": "5F68203166BB6EA57C7EB302C395AE94C859B29F25794D50371482A9E1900F92"
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlanner.cs",
+      "sha256": "21995BDEE7CC0020C45EC99455136919B92F7B60D2F5236A1676E80C235DB91A"
+    },
+    {
+      "path": "CadAuto.Core/Planning/PlannedDimension.cs",
+      "sha256": "FA9A3FDDA1A64CBCFCFABCDF2356D3952DB595CCAE6D5D3A5F2482808BDEA063"
+    },
+    {
+      "path": "CadAuto.Core/Planning/StructureFeature.cs",
+      "sha256": "E6AAB0DEA22A81C91BA596209D1FBC6B0F0FAD722ED63E7F6FDFA7186ED00DBA"
+    },
+    {
+      "path": "CadAuto.Core/Planning/StructureFeatureExtractor.cs",
+      "sha256": "A73B3E21285E4DDF390034E7788A4703630BD866E9D8CCC59A15BA6770D5DB4B"
+    },
+    {
+      "path": "CadAuto.Core/Planning/StructureMeasurementSelector.cs",
+      "sha256": "B07D3B56BB3D6D15AE881B0776F70ABC03F930B9D38F2AE1DFD38A1DE6F0CD77"
+    },
+    {
+      "path": "CadAuto.Core/Planning/StructurePlacementAdapter.cs",
+      "sha256": "1BEFB867F3056D44EAF2DBEB3F631519E691392B3329798ECAA7F0C7DFFB223E"
+    },
+    {
+      "path": "CadAuto.Core/Rules/DimensionLayoutItem.cs",
+      "sha256": "C0F3DEF7207EE3E9E6FF4765F44EA6C63D14249C0147E12CC660B111AF5C9BEC"
+    },
+    {
+      "path": "CadAuto.Core/Rules/DimensionLayoutRules.cs",
+      "sha256": "E87E0EB57EFF07AF41C7E6093D35D684AD344772C200404D2BC27BF6FE9D450E"
+    },
+    {
+      "path": "CadAuto.Core/Rules/DimensionPlanPostValidator.cs",
+      "sha256": "0AAC66BFFB53E2E7FC1B44BFADE4845F48C98EEE04D02540CB68012BFB929931"
+    },
+    {
+      "path": "CadAuto.Core/Rules/DimensionStackingPlacement.cs",
+      "sha256": "DAD4B58799E9418710BA7A99B520DE4366800F4B4CA49A20D2A4304815D8B51E"
+    },
+    {
+      "path": "Commands.cs",
+      "sha256": "509F34A169EECBD8DA1BF74B06019CB64A989E78CA45125B246C37506093AE39"
+    },
+    {
+      "path": "PluginEntry.cs",
+      "sha256": "6D7CAFBD8B8A2D3E5B84F66850FE723481C82F2E1C76DD40078CD076931B99F2"
+    },
+    {
+      "path": "graphify-out/.graphify_labels.json",
+      "sha256": "97691E9FC5F422B554D499A77B41FBBDDBC77C0D56F9E76DEACABABA1501928C"
+    },
+    {
+      "path": "graphify-out/GRAPH_REPORT.md",
+      "sha256": "3968236362CBA00EACA3D70CE975E4DBD3C394268FF8EBE25E7871ABA8284DE4"
+    },
+    {
+      "path": "graphify-out/graph.json",
+      "sha256": "D3B3F4B320D2DEF286EFF1FABC532FF473829C67FB9BB4D8E54A13A9FDB691AE"
+    },
+    {
+      "path": "graphify-out/manifest.json",
+      "sha256": "77A0D53D8D2117633A5B80DA87965621FA2F6E88B86ECC1D446B7B5CC079A4D8"
+    },
+    {
+      "path": "CadAuto.CadAdapter/Model/ClosedViewOutline.cs",
+      "sha256": "DA6FB3348975DC868E84C1A879BF8F05319A15A75C97E99271E279287362D806"
+    },
+    {
+      "path": "CadAuto.Core/Model/PinGroupHorizontalLayoutPreference.cs",
+      "sha256": "FB1FB4C6B1BE26A0F3736AB16608BE77BD4A0E18279F64FE971756C087BB17D4"
+    },
+    {
+      "path": "CadAuto.Core/Model/PinGroupVerticalLayoutPreference.cs",
+      "sha256": "BB0AD2041734DA73B5954CAD20E84C473773B688ACBF7554A0A4DC31A4C25150"
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlanner.BoundaryFragments.cs",
+      "sha256": "EEE3FC868533539AC3589979AF34C05FE147D8A4E59B0EEFB11C30BE4D98AC33"
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlanner.BoundaryInformation.cs",
+      "sha256": "1E71599BA9AAB12F4E96ECF7070016981588F64A69DB4EF3F896B85A44027E4C"
+    },
+    {
+      "path": "CadAuto.Core/Planning/OrthographicViewSetAssigner.cs",
+      "sha256": "26B0088F31301F28BA119135138DEA585ED7A35F5267A8D97270E0508FAE3533"
+    },
+    {
+      "path": "CadAuto.Core/Planning/OutlineTopologyDiagnostic.cs",
+      "sha256": "A0A8271B3CD9EE03FE61E661B0A8420532E2C5ADCEC14F6527707FD3D438265E"
+    },
+    {
+      "path": "CadAuto.Core/Planning/OutlineTopologyExporter.cs",
+      "sha256": "28BCBBACB466FE292C0F2CDEBBA29E70A000034D37A05FC038774AF0DB88FB95"
+    },
+    {
+      "path": "CadAuto.Core/Planning/StructureBoundaryEvidence.cs",
+      "sha256": "C90518E04A540211C60C35D6B62033CC26A4EFBADAC7752565FDC521E8A6F2A5"
+    },
+    {
+      "path": "CadAuto.Core/Planning/StructureCoveragePolicy.cs",
+      "sha256": "3507F5C50B1A4F999681A8E0CB007A3D620A2CFF5154F201339A53DF68018427"
+    },
+    {
+      "path": "CadAuto.Core/Rules/DimensionExtensionLineRules.cs",
+      "sha256": "CAC69EA9F38F556A354B8E4AC1D4B987AC18DF4C0E86BE0308D059AF4811523C"
+    },
+    {
+      "path": "CadAuto.Core/Rules/DimensionLayoutRules.DatumStacks.cs",
+      "sha256": "EE7FC8D24D646A175822A6E5A3B523344550B6A850AB0465FACC4F08CAD4B4EF"
+    },
+    {
+      "path": "HANDOFF-2026-09-10-outer-contour-dimension-analysis.md",
+      "sha256": "292DD446905B95DEAD83BDA1C828140F51A5E30D16FE3B968C52AF63D6C538CB"
+    },
+    {
+      "path": "ThreeViewTrialCommand.cs",
+      "sha256": "D7F2F2511DDB7CDF3B9FEFEA1A6E8FB629C0FBA576BB55ADEAE353FD29C7092A"
+    },
+    {
+      "path": "diagnostics/last-run.outline.svg",
+      "sha256": "8D30CAEDB005BF1D00CA77C3C384357595A6F186636C6B527DF077A5CDCC894C"
+    },
+    {
+      "path": "regression/asd4-correctness/L01-13/dwg-extract.json",
+      "sha256": "BF2064F24AB994459FC3D6B9C214867C52BCBD3A4CFCAED8FB2FCF81D1536A65"
+    },
+    {
+      "path": "regression/asd4-correctness/L01-13/expectations.json",
+      "sha256": "2723855FA2FF8936F2DEBFAE697EA44BA1F6235DA27F36E2A38B91C5AE751BB4"
+    },
+    {
+      "path": "regression/asd4-correctness/L01-13/geometry.json",
+      "sha256": "55208796DD789D3E6A853327BBABA30377D2E02B75AF732BE0B996DD34A5D59C"
+    },
+    {
+      "path": "regression/asd4-correctness/L01-13/geometry.svg",
+      "sha256": "94C36711AF6DCC32AF8A86648F75B04148D6A2B417DCD641D1EE5E21DA08D2E3"
+    },
+    {
+      "path": "regression/asd4-correctness/L01-13/round1-expectations.json",
+      "sha256": "4A12A90ABDDD340FA0524ADB1D4FBE431675F15346B105ADBDAB3A2D108F12DA"
+    },
+    {
+      "path": "regression/asd4-correctness/L01-13/round1-report.md",
+      "sha256": "E10904676DECE00D8B08CCF69734D4EFB5598AE39BF4666E4CEE00F2C2DA5A7B"
+    },
+    {
+      "path": "regression/asd4-correctness/L01-13/source.dwg",
+      "sha256": "AE4EF04B486ABFC4624D804A9B63CE4D9E78979C8B672657232117BBA41DBFF1"
+    },
+    {
+      "path": "scripts/cad-increment-brush.lsp",
+      "sha256": "598D4EF5CFCEDD32078377299AC6F07B3A40628F461FAE64B47E6F569616129A"
+    },
+    {
+      "path": "scripts/test-deploy-next-version.ps1",
+      "sha256": "B09369B3A9D18B95CC53C3D8424FC8CD067A2BD7A0C2F857EEB16EDDBEF0DF59"
+    }
+  ],
+  "records": {
+    "legacy-default/rectangle": {
+      "inputSha256": "8a7ca323ce16a0d405ea285b77ef3066d2cda23639ab5da8ea7468edb9ae83c8",
+      "behaviorSha256": "534b7b1a5e500f44b6036fcae24dfe2d497a52e0e6f6088dd555101de375fe53",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/duplicate-segments": {
+      "inputSha256": "e2e9ad5a386c4437bd375c4a8b7cf16bf5fb25a78052a85661cca1016c00ce33",
+      "behaviorSha256": "2b1ea0261e1a61e694258d134af8d72cc6c054ec7f2447437b81bf02a140decb",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/concave-datum": {
+      "inputSha256": "ecd0407fff963b02e4b9519fe262af15668548554a2f1f945dd786796a5955cc",
+      "behaviorSha256": "9b476e08dd0ab9e13d123039d0e5dfdc4dfe3eda843a49c6ae307eff4e143b62",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/outer-step": {
+      "inputSha256": "8bf5196b541a74279c531b228060398d6f3f27eb8e2482fda4d3ba0310d1b5bc",
+      "behaviorSha256": "4131950e9a7e99f913774129eb55308f58d18feec972fe3d1e92185fc9870557",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/stepped-plate": {
+      "inputSha256": "0a7e31edeca456c29b7b3fe6e4d4b9bd1fe1e7dbb3ca9c119a43944631529c08",
+      "behaviorSha256": "31877ac79216229ea349af93fd6b11fb768390976b6e932e2839598873d602ae",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/c-notch": {
+      "inputSha256": "009145e7fb8623f23bf4fc2030d7574a148373a965cfec250d23cae55984b82a",
+      "behaviorSha256": "5067039931ceefaec9da08adc1c1a3ebf8849b50e085492786b85e6c0a7c2852",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/oblique-0": {
+      "inputSha256": "0b1aed6554c0cc003e12be71d9e0f9801fa3c46cf6dafcc10fef0bbf5b79f84d",
+      "behaviorSha256": "dfa0a7af62c0843fde3d3ef7b6215781b232cc44b5fe579945a4ec4b104a9ff1",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/oblique-90": {
+      "inputSha256": "04cd23d2513441d193deef5e2ec0da295a36e6ce99517496fb83861c8c92a482",
+      "behaviorSha256": "68517f1f448c47d455910a7ac423726232aa01087d29eec17a6977fd26f53882",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/oblique-180": {
+      "inputSha256": "361a91ac1745dace56bc18abae099a9cffc27ab6277758e70064c73a5b4cbb97",
+      "behaviorSha256": "9a54a364d618e0a9c77fa23a17fb1861407ad2947621c94f5b964ae292b38160",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/oblique-270": {
+      "inputSha256": "2e228cd2c577da6930bbb813c8c82a715202b47e3f2ac65a0b33704535cb0047",
+      "behaviorSha256": "942903ecfbc4b2425d192a656f2e102d282c644bf63feb59caebfc62640f7731",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/pin-family-v": {
+      "inputSha256": "0a70de8dd76495abb0bb59af2dd44b4a03f7e873c6147338e57811723a595079",
+      "behaviorSha256": "6cf71fc03168a707ac14c2fee8514e430b65a434dcb615ad2c31101fdc14e015",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/pin-family-v-reverse": {
+      "inputSha256": "cb88e08bb20a7a70e35f8d37f1aac1c061f7fedb5f77c6958d89993452aa8499",
+      "behaviorSha256": "6844522547c5a203d00107aae010364281d6726995dbebb1aa75e47f4b559ff3",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/pin-family-h": {
+      "inputSha256": "95a037ed1c07b23c3a718d11ad057b7e39299717de68f8e3d7c8bf58e6878486",
+      "behaviorSha256": "91d8086aa5486e9ece2844adeceaef0127627f18ff4fa8b2171ee3da244c852a",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/pin-family-h-reverse": {
+      "inputSha256": "45bfd55a7488c8630a02486581f98da4c5e5dfa414718ddd390b9129c476e49f",
+      "behaviorSha256": "d3b969ad92329726b18ec77ba47f6111a63cb134fc7d5dfd872581e3429abbee",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/separate-pin-groups": {
+      "inputSha256": "9028eaddee597a0a853af6572ea8a49b47a7f3b6bb27df7e6824904fbcee5160",
+      "behaviorSha256": "cf6382402736539c95f1729fdd064d3731c74b658aa0951bd42f79ea2083cc02",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/normal-two": {
+      "inputSha256": "ac72e8c49c67ca6ac820e3126c9a605bf581a0f14f2b6706ab3a242fe245dcfa",
+      "behaviorSha256": "51825920d7d6e624136ca7f5e99ef001d33fcf27b644ed918594f1b3851f1b91",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/normal-grid": {
+      "inputSha256": "204857e54d74e09cf55c891cf83cc80b03d4918f5f308f427b1a5a9de696f35d",
+      "behaviorSha256": "b3da50072abebcb7a707f3c370c212a36cc3b262b4e0ffecec0364db6a17a409",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/selected-pin-grid": {
+      "inputSha256": "80de1baa2a6fff3bfba7255df343e3bddf12ecbc09feb3ee914fa54362210ff6",
+      "behaviorSha256": "2ef5c56850965609cc5bf7f2a6b02a10056d4513854af086d42e7c323b483c5a",
+      "exceptionFirstLine": null
+    },
+    "legacy-default/slots-without-pins": {
+      "inputSha256": "3654362a1a5aec9ae79ed633973345487069b777c4c979995219687ba704110d",
+      "behaviorSha256": "44f225dcb90575ea78ee6cd70224c0d0c41128be4d35193fdeeabfff28241b4a",
+      "exceptionFirstLine": null
+    },
+    "asd-feature-first/rectangle": {
+      "inputSha256": "8a7ca323ce16a0d405ea285b77ef3066d2cda23639ab5da8ea7468edb9ae83c8",
+      "behaviorSha256": "9d71f8165d945c92f7972daa2239c9539018ef3e09136194270d4cdf5dfad343",
+      "exceptionFirstLine": null
+    },
+    "asd-feature-first/duplicate-segments": {
+      "inputSha256": "e2e9ad5a386c4437bd375c4a8b7cf16bf5fb25a78052a85661cca1016c00ce33",
+      "behaviorSha256": "9d4c8b00e5c8a0ae4e66e799eb07de64191f552eb65466f91ea2851c86b3a0a6",
+      "exceptionFirstLine": null
+    },
+    "asd-feature-first/concave-datum": {
+      "inputSha256": "ecd0407fff963b02e4b9519fe262af15668548554a2f1f945dd786796a5955cc",
+      "behaviorSha256": "600d23e62f1f2a01d497d17e389046100f2963c4eca5b2581da8c7a585019186",
+      "exceptionFirstLine": null
+    },
+    "asd-feature-first/outer-step": {
+      "inputSha256": "8bf5196b541a74279c531b228060398d6f3f27eb8e2482fda4d3ba0310d1b5bc",
+      "behaviorSha256": "922cd90043f5fdaf52547163a7284309092849d006c2bfbefdb6897827b3dbfa",
+      "exceptionFirstLine": "System.InvalidOperationException: Dimension candidate 15 already has RuleId 'BoundaryInformation.ObliqueProjection' and cannot be reassigned to 'BoundaryInformation.Covered'."
+    },
+    "asd-feature-first/stepped-plate": {
+      "inputSha256": "0a7e31edeca456c29b7b3fe6e4d4b9bd1fe1e7dbb3ca9c119a43944631529c08",
+      "behaviorSha256": "736716215451d9ec4e49672c7800f741a6cdedbd94e80720c61a8120b0ea4b31",
+      "exceptionFirstLine": null
+    },
+    "asd-feature-first/c-notch": {
+      "inputSha256": "009145e7fb8623f23bf4fc2030d7574a148373a965cfec250d23cae55984b82a",
+      "behaviorSha256": "52d1ef8c4a47342f0022e3dd3f3961675475ea496cb3b20c43eab396fecd9949",
+      "exceptionFirstLine": "System.InvalidOperationException: Dimension candidate 13 already has RuleId 'BoundaryInformation.ObliqueProjection' and cannot be reassigned to 'BoundaryInformation.Covered'."
+    },
+    "asd-feature-first/oblique-0": {
+      "inputSha256": "0b1aed6554c0cc003e12be71d9e0f9801fa3c46cf6dafcc10fef0bbf5b79f84d",
+      "behaviorSha256": "7bf8ec00fe0c0dbc9282ca7c532b27e8c179308f79e102b09bffe04ac1d669a5",
+      "exceptionFirstLine": "System.InvalidOperationException: Dimension candidate 19 already has RuleId 'BoundaryInformation.ObliqueProjection' and cannot be reassigned to 'BoundaryInformation.Covered'."
+    },
+    "asd-feature-first/oblique-90": {
+      "inputSha256": "04cd23d2513441d193deef5e2ec0da295a36e6ce99517496fb83861c8c92a482",
+      "behaviorSha256": "1803b9f08b4f2b473c20132fb837d5b104834594a4e0e192a50f6be07c665f5c",
+      "exceptionFirstLine": "System.InvalidOperationException: Dimension candidate 20 already has RuleId 'BoundaryInformation.ObliqueProjection' and cannot be reassigned to 'BoundaryInformation.Covered'."
+    },
+    "asd-feature-first/oblique-180": {
+      "inputSha256": "361a91ac1745dace56bc18abae099a9cffc27ab6277758e70064c73a5b4cbb97",
+      "behaviorSha256": "42985474e7bdb10149be5429204d2c09ea4be83d7a59faaf91b66029acc99e3e",
+      "exceptionFirstLine": "System.InvalidOperationException: Dimension candidate 19 already has RuleId 'BoundaryInformation.ObliqueProjection' and cannot be reassigned to 'BoundaryInformation.Covered'."
+    },
+    "asd-feature-first/oblique-270": {
+      "inputSha256": "2e228cd2c577da6930bbb813c8c82a715202b47e3f2ac65a0b33704535cb0047",
+      "behaviorSha256": "a8287200f9f7e3a0c0a23e4c7136bf2c7432a697bfe819cadb9116d969d9f955",
+      "exceptionFirstLine": "System.InvalidOperationException: Dimension candidate 20 already has RuleId 'BoundaryInformation.ObliqueProjection' and cannot be reassigned to 'BoundaryInformation.Covered'."
+    },
+    "asd-feature-first/pin-family-v": {
+      "inputSha256": "0a70de8dd76495abb0bb59af2dd44b4a03f7e873c6147338e57811723a595079",
+      "behaviorSha256": "256362140f38766ca882307bedda7f4dcabf09bb8d9511dff6a1b08bf29a96c0",
+      "exceptionFirstLine": null
+    },
+    "asd-feature-first/pin-family-v-reverse": {
+      "inputSha256": "cb88e08bb20a7a70e35f8d37f1aac1c061f7fedb5f77c6958d89993452aa8499",
+      "behaviorSha256": "859d5e69b695a531e393e2a5ef861b616a0d4dfee96d96bc37f98f264b201b3a",
+      "exceptionFirstLine": null
+    },
+    "asd-feature-first/pin-family-h": {
+      "inputSha256": "95a037ed1c07b23c3a718d11ad057b7e39299717de68f8e3d7c8bf58e6878486",
+      "behaviorSha256": "8933b55b04486a5445d424e88ae333a03928871c80932b9e602dc783d460b9c8",
+      "exceptionFirstLine": null
+    },
+    "asd-feature-first/pin-family-h-reverse": {
+      "inputSha256": "45bfd55a7488c8630a02486581f98da4c5e5dfa414718ddd390b9129c476e49f",
+      "behaviorSha256": "61f2541cc3d2ca1b559971cd6a5430f57cdd947791c60030817bb96eb8589fce",
+      "exceptionFirstLine": null
+    },
+    "asd-feature-first/separate-pin-groups": {
+      "inputSha256": "9028eaddee597a0a853af6572ea8a49b47a7f3b6bb27df7e6824904fbcee5160",
+      "behaviorSha256": "d59abe3b30e70557ecd987b1563562695328d81aca5bf2d20701141ea45331a4",
+      "exceptionFirstLine": null
+    },
+    "asd-feature-first/normal-two": {
+      "inputSha256": "ac72e8c49c67ca6ac820e3126c9a605bf581a0f14f2b6706ab3a242fe245dcfa",
+      "behaviorSha256": "6791a2bb7501490cff779df5d8213ff0ae6e36c28c18015467c6ac247daa410f",
+      "exceptionFirstLine": null
+    },
+    "asd-feature-first/normal-grid": {
+      "inputSha256": "204857e54d74e09cf55c891cf83cc80b03d4918f5f308f427b1a5a9de696f35d",
+      "behaviorSha256": "793c0714fbceb9fc9b9fd6a27b2ec9cc4868c7d046a7b4f44ff493052ce0c07a",
+      "exceptionFirstLine": null
+    },
+    "asd-feature-first/selected-pin-grid": {
+      "inputSha256": "80de1baa2a6fff3bfba7255df343e3bddf12ecbc09feb3ee914fa54362210ff6",
+      "behaviorSha256": "c16b52f84a7b5e979f24545a2ceadc520add4f69bf9ee303ca7b7b343c2457ec",
+      "exceptionFirstLine": null
+    },
+    "asd-feature-first/slots-without-pins": {
+      "inputSha256": "3654362a1a5aec9ae79ed633973345487069b777c4c979995219687ba704110d",
+      "behaviorSha256": "b9455f8af7c066fed91b95a424297db78f0c49e0a845d3435e46502e7c0e8166",
+      "exceptionFirstLine": null
+    }
+  }
+}

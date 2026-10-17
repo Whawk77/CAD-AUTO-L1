@@ -29,4 +29,6 @@ public sealed class DimensionStackingPlacement
 	public double PhysicalOutwardDistance { get; set; }
 
 	public bool PhysicalOrderValidated { get; set; }
+
+	public string CompactionDecision { get; set; }
 }

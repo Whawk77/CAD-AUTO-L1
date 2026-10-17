@@ -114,6 +114,10 @@ public sealed class Commands
 
 		public bool DatumHoleLocationUseToleranceY { get; set; }
 
+		public string PinGroupVerticalLayoutPreference { get; set; }
+
+		public string PinGroupHorizontalLayoutPreference { get; set; }
+
 		public string AutoCadVersion { get; set; }
 
 		public string InsUnits { get; set; }
@@ -243,6 +247,12 @@ public sealed class Commands
 	public void AsdCoreDebug()
 	{
 		RunCoreDebug();
+	}
+
+	[CommandMethod("ASD3V")]
+	public void Asd3v()
+	{
+		ThreeViewTrialCommand.Execute(Application.DocumentManager.MdiActiveDocument);
 	}
 
 	[CommandMethod("ASD3")]
@@ -694,6 +704,14 @@ public sealed class Commands
 							editor.WriteMessage("\nASDCOREDBG: datum-hole base selection cancelled.");
 							return;
 						}
+						if (!geometryCollector.PromptForDatumPinGroupLayout(outlineFeature, list5, holeFeature, dimensionRuleConfig,
+							out var pinGroupVerticalLayout, out var pinGroupHorizontalLayout))
+						{
+							editor.WriteMessage("\nASDCOREDBG: pin-group layout selection cancelled.");
+							return;
+						}
+						datumDefinition.PinGroupVerticalLayout = pinGroupVerticalLayout;
+						datumDefinition.PinGroupHorizontalLayout = pinGroupHorizontalLayout;
 						datumDefinition.DatumHoleLocationBaseX = xBase;
 						datumDefinition.DatumHoleLocationBaseY = yBase;
 						datumDefinition.DatumHoleLocationUseToleranceX = useToleranceX;
@@ -856,6 +874,14 @@ public sealed class Commands
 								editor.WriteMessage("\n用户取消基准点选择，命令结束。");
 								return;
 							}
+							if (!geometryCollector.PromptForDatumPinGroupLayout(outlineFeature, list8, holeFeature, config,
+								out var pinGroupVerticalLayout, out var pinGroupHorizontalLayout))
+							{
+								editor.WriteMessage("\n用户取消孔组布局选择，命令结束。");
+								return;
+							}
+							datumDefinition.PinGroupVerticalLayout = pinGroupVerticalLayout;
+							datumDefinition.PinGroupHorizontalLayout = pinGroupHorizontalLayout;
 							datumDefinition.DatumHoleLocationBaseX = xBase;
 							datumDefinition.DatumHoleLocationBaseY = yBase;
 							datumDefinition.DatumHoleLocationUseToleranceX = useToleranceX;
@@ -1257,6 +1283,8 @@ public sealed class Commands
 			DatumHoleLocationBaseY = datum?.DatumHoleLocationBaseY,
 			DatumHoleLocationUseToleranceX = datum?.DatumHoleLocationUseToleranceX ?? false,
 			DatumHoleLocationUseToleranceY = datum?.DatumHoleLocationUseToleranceY ?? false,
+			PinGroupVerticalLayoutPreference = (datum?.PinGroupVerticalLayout ?? CadAuto.Core.Model.PinGroupVerticalLayoutPreference.Automatic).ToString(),
+			PinGroupHorizontalLayoutPreference = (datum?.PinGroupHorizontalLayout ?? CadAuto.Core.Model.PinGroupHorizontalLayoutPreference.Automatic).ToString(),
 			AutoCadVersion = GetSystemVariableText("ACADVER"),
 			InsUnits = GetSystemVariableText("INSUNITS"),
 			UcsName = GetSystemVariableText("UCSNAME"),
@@ -1474,6 +1502,43 @@ public sealed class Commands
 			text2 = Path.GetFullPath(text2);
 			Directory.CreateDirectory(Path.GetDirectoryName(text2));
 		}
+		diagnostics.OutlineTopologySvgPath = null;
+		if (diagnostics.OutlineTopology != null)
+		{
+			// Resolve stable CAD handles without changing the planner's existing source keys.
+			var handles = new Dictionary<string, string>(StringComparer.Ordinal);
+			Action<ObjectId> rememberHandle = id =>
+			{
+				try
+				{
+					if (!id.IsNull && id.IsValid) { handles[id.ToString()] = id.Handle.ToString(); }
+				}
+				catch (System.Exception)
+				{
+					// Missing provenance must not prevent the geometry report from being saved.
+				}
+			};
+			if (outline != null)
+			{
+				foreach (var segment in outline.Segments) { rememberHandle(segment.SourceId); }
+				foreach (var arc in outline.Arcs) { rememberHandle(arc.SourceId); }
+			}
+			foreach (OutlineTopologyEdge edge in diagnostics.OutlineTopology.Edges)
+			{
+				string handle;
+				if (handles.TryGetValue(edge.SourceKey ?? string.Empty, out handle)) { edge.SourceHandle = handle; }
+			}
+			try
+			{
+				string svgPath = Path.ChangeExtension(text2, ".outline.svg");
+				File.WriteAllText(svgPath, OutlineTopologyExporter.ToSvg(diagnostics.OutlineTopology, context?.RunId), Encoding.UTF8);
+				diagnostics.OutlineTopologySvgPath = svgPath;
+			}
+			catch (System.Exception svgError)
+			{
+				diagnostics.Warnings.Add("OutlineTopology.SvgExportFailed|" + svgError.Message);
+			}
+		}
 		File.WriteAllText(text2, SerializeDimensionDiagnosticReport(diagnostics, outputScope, diagnosticsEnabled, diagnosticSide, context, coordinateFrame, error), Encoding.UTF8);
 		return text2;
 	}
@@ -1537,8 +1602,17 @@ public sealed class Commands
 		AppendDiagnosticDatum(stringBuilder, context, comma: true);
 		AppendDiagnosticEnvironment(stringBuilder, context, comma: true);
 		AppendFeatureCounts(stringBuilder, report.Features, comma: true);
+		AppendJsonProperty(stringBuilder, 1, "outlineTopologySvgPath", report.OutlineTopologySvgPath ?? string.Empty, comma: true);
+		AppendIndent(stringBuilder, 1);
+		stringBuilder.Append("\"outlineTopology\": ").Append(OutlineTopologyExporter.ToJson(report.OutlineTopology)).AppendLine(",");
 		AppendDimensionDiagnostics(stringBuilder, 1, "dimensionCandidates", report.DimensionCandidates, comma: true);
 		AppendDimensionDiagnostics(stringBuilder, 1, "finalDimensions", report.FinalDimensions, comma: true);
+		AppendJsonProperty(stringBuilder, 1, "structureCoverageStatus", report.StructureCoverageStatus, comma: true);
+		AppendJsonProperty(stringBuilder, 1, "outlineInformationStatus", report.OutlineInformationStatus, comma: true);
+		AppendJsonProperty(stringBuilder, 1, "outlineInformationScope", "RecognizedBoundaryRequirements_PlanningOnly_NotCadVerification", comma: true);
+		AppendIndent(stringBuilder, 1);
+		stringBuilder.Append("\"outlineInformationDecisions\": [")
+			.Append(string.Join(",", report.OutlineInformationDecisions.Select(d => "\"" + JsonEscape(d) + "\""))).AppendLine("],");
 		AppendJsonProperty(stringBuilder, 1, "nonFiniteValueCount", _nonFiniteJsonValueCount, comma: true);
 		AppendIndent(stringBuilder, 1);
 		stringBuilder.AppendLine("\"warnings\": [");
@@ -1622,7 +1696,11 @@ public sealed class Commands
 		AppendNullableJsonProperty(builder, 2, "xBaseCoordinate", context.DatumHoleLocationBaseX, comma: true);
 		AppendNullableJsonProperty(builder, 2, "yBaseCoordinate", context.DatumHoleLocationBaseY, comma: true);
 		AppendJsonProperty(builder, 2, "useToleranceX", context.DatumHoleLocationUseToleranceX, comma: true);
-		AppendJsonProperty(builder, 2, "useToleranceY", context.DatumHoleLocationUseToleranceY, comma: false);
+		AppendJsonProperty(builder, 2, "useToleranceY", context.DatumHoleLocationUseToleranceY, comma: true);
+		AppendJsonProperty(builder, 2, "pinGroupVerticalLayoutPreference", context.PinGroupVerticalLayoutPreference, comma: true);
+		AppendJsonProperty(builder, 2, "pinGroupVerticalLayoutScope", "SelectedDatumHoleGroupOnly", comma: true);
+		AppendJsonProperty(builder, 2, "pinGroupHorizontalLayoutPreference", context.PinGroupHorizontalLayoutPreference, comma: true);
+		AppendJsonProperty(builder, 2, "pinGroupLayoutScope", "SelectedDatumHoleGroupOnly", comma: false);
 		AppendIndent(builder, 1);
 		builder.Append("}");
 		builder.AppendLine(comma ? "," : string.Empty);
@@ -1757,6 +1835,12 @@ public sealed class Commands
 			AppendJsonProperty(builder, indent + 2, "requestedPlacementSide", dimensionCandidateDiagnostic.RequestedPlacementSide, comma: true);
 			AppendJsonProperty(builder, indent + 2, "priority", dimensionCandidateDiagnostic.Priority, comma: true);
 			AppendJsonProperty(builder, indent + 2, "readingLevel", dimensionCandidateDiagnostic.ReadingLevel, comma: true);
+			AppendJsonProperty(builder, indent + 2, "datumFamilyKey", dimensionCandidateDiagnostic.DatumFamilyKey, comma: true);
+			AppendJsonProperty(builder, indent + 2, "parallelStackKey", dimensionCandidateDiagnostic.ParallelStackKey, comma: true);
+			AppendJsonProperty(builder, indent + 2, "datumFamilySideDecision", dimensionCandidateDiagnostic.DatumFamilySideDecision, comma: true);
+			AppendNullableJsonProperty(builder, indent + 2, "familySpacingValid", dimensionCandidateDiagnostic.FamilySpacingValid, comma: true);
+			AppendJsonProperty(builder, indent + 2, "compactionDecision", dimensionCandidateDiagnostic.CompactionDecision, comma: true);
+			AppendJsonProperty(builder, indent + 2, "extensionLineDecision", dimensionCandidateDiagnostic.ExtensionLineDecision, comma: true);
 			AppendJsonProperty(builder, indent + 2, "alignmentKey", dimensionCandidateDiagnostic.AlignmentKey, comma: true);
 			AppendJsonProperty(builder, indent + 2, "alignmentPriority", dimensionCandidateDiagnostic.AlignmentPriority, comma: true);
 			AppendJsonProperty(builder, indent + 2, "preserveAlignmentLevel", dimensionCandidateDiagnostic.PreserveAlignmentLevel, comma: true);
@@ -1779,7 +1863,8 @@ public sealed class Commands
 			AppendJsonProperty(builder, indent + 2, "physicalOrderValidated", dimensionCandidateDiagnostic.PhysicalOrderValidated, comma: true);
 			AppendJsonProperty(builder, indent + 2, "isSuppressed", dimensionCandidateDiagnostic.IsSuppressed, comma: true);
 			AppendJsonProperty(builder, indent + 2, "isSelected", dimensionCandidateDiagnostic.IsSelected, comma: true);
-			AppendJsonProperty(builder, indent + 2, "isAttachmentValid", dimensionCandidateDiagnostic.IsAttachmentValid, comma: true);
+			AppendNullableJsonProperty(builder, indent + 2, "isAttachmentValid", dimensionCandidateDiagnostic.IsAttachmentValid, comma: true);
+			AppendJsonProperty(builder, indent + 2, "attachmentValidationStatus", dimensionCandidateDiagnostic.AttachmentValidationStatus, comma: true);
 			AppendJsonProperty(builder, indent + 2, "attachmentKind", dimensionCandidateDiagnostic.AttachmentKind, comma: true);
 			AppendJsonProperty(builder, indent + 2, "decisionStatus", dimensionCandidateDiagnostic.DecisionStatus, comma: true);
 			AppendJsonProperty(builder, indent + 2, "decisionReason", dimensionCandidateDiagnostic.DecisionReason, comma: true);

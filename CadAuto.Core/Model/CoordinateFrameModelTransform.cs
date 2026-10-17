@@ -156,6 +156,8 @@ public static class CoordinateFrameModelTransform
 			BaseX = localBase.X,
 			BaseY = localBase.Y,
 			DatumHole = ToLocal(source.DatumHole, effectiveFrame),
+			PinGroupVerticalLayout = source.PinGroupVerticalLayout,
+			PinGroupHorizontalLayout = source.PinGroupHorizontalLayout,
 			DatumHoleLocationUseToleranceX = source.DatumHoleLocationUseToleranceX,
 			DatumHoleLocationUseToleranceY = source.DatumHoleLocationUseToleranceY
 		};

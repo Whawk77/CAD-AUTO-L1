@@ -10,6 +10,14 @@ namespace CadAuto.Core.Planning;
 
 public sealed partial class DimensionPlanner
 {
+	public static OutlineTopologyDiagnostic InspectOutlineTopology(OutlineFeature2D outline, double tolerance)
+	{
+		if (outline == null) { return new OutlineTopologyDiagnostic { Reason = "NullOutline", Tolerance = tolerance }; }
+		OutlineTopologyDiagnostic diagnostic;
+		LProfileBoundaryGraph.TryCreate(outline, tolerance, out diagnostic);
+		return diagnostic;
+	}
+
 	private const string LProfileVerticalArmWidthRuleId = "LProfile.VerticalArmWidth";
 
 	private const string LProfileHorizontalArmHeightRuleId = "LProfile.HorizontalArmHeight";
@@ -33,6 +41,8 @@ public sealed partial class DimensionPlanner
 	private const string LProfileLocalAnchorRepairRuleId = "LProfile.LocalAnchorRepair";
 
 	private const string LProfileCoveredStepWidthRuleId = "LProfile.CoveredStepWidth";
+
+	private const string LProfileChamferedArmResidualRuleId = "LProfile.ChamferedArmResidual";
 
 	private const string LProfileCoveredStepHeightRuleId = "LProfile.CoveredStepHeight";
 
@@ -172,10 +182,99 @@ public sealed partial class DimensionPlanner
 		}
 		SuppressInternalChordEndpointCandidates(plan, match);
 		SuppressDerivedOuterContourSegments(plan, match);
+		ApplyLProfileChamferedArmResidualCoverage(plan, match, verticalArmWidth);
+		ApplyLProfileChamferedArmResidualCoverage(plan, match, horizontalArmHeight);
 		ApplyLProfileStepCoverageRules(plan, match, outerContour, verticalArmWidth, horizontalArmHeight);
 		ApplyLProfileSpecificCandidateCleanup(plan, match, outerContour);
 		plan.Diagnostics.Warnings.Add("LProfile.Applied|Strategy=" + match.AnnotationTopology
 			+ "|" + match.TopologyEvidence);
+	}
+
+	/// <summary>
+	/// Proves a short arm edge through the actual four-edge boundary sequence:
+	/// inner parallel face -> recognized chamfer -> short edge -> outer parallel face.
+	/// Unlike step-riser coverage, this does not require the short edge to touch the inner face directly.
+	/// </summary>
+	private void ApplyLProfileChamferedArmResidualCoverage(DimensionPlan plan, LProfileMatch match,
+		PlannedDimension armWidth)
+	{
+		if (plan == null || match?.Graph?.BoundaryPath == null || match.CommonVertical == null
+			|| armWidth == null || !plan.Dimensions.Contains(armWidth)) { return; }
+		var graph = match.Graph;
+		var path = graph.BoundaryPath;
+		DimensionOrientation orientation = CanonicalOrientation(armWidth, match);
+		bool horizontal = orientation == DimensionOrientation.Horizontal;
+		LProfileAxisChain innerChain = horizontal ? match.CommonVertical : match.InnerHorizontal;
+		if (innerChain == null) { return; }
+		Func<Point2D, double> axis = p => horizontal ? p.X : p.Y;
+		double tolerance = Math.Max(match.Tolerance, _config.GeometryTolerance);
+		if (path.Count < 4 || path.Select(h => h.Edge.Id).Distinct().Count() != path.Count) { return; }
+		Point2D widthFirst = ToCanonicalPoint(armWidth.FirstPoint, match);
+		Point2D widthSecond = ToCanonicalPoint(armWidth.SecondPoint, match);
+		var widthInterval = GetCanonicalInterval(widthFirst, widthSecond, orientation);
+		foreach (PlannedDimension residual in plan.Dimensions.ToList())
+		{
+			if (StructureCoveragePolicy.GetIneligibilityReason(residual) != null
+				|| CanonicalOrientation(residual, match) != orientation
+				|| CanonicalSide(residual, match) != CanonicalSide(armWidth, match)) { continue; }
+			Point2D first = ToCanonicalPoint(residual.FirstPoint, match);
+			Point2D second = ToCanonicalPoint(residual.SecondPoint, match);
+			var matchingEdges = path.Where(h => h.Edge.Segment != null
+				&& (horizontal ? h.Edge.Segment.IsHorizontal(tolerance) : h.Edge.Segment.IsVertical(tolerance))
+				&& SameLProfileEndpointPair(first, second, h.FromPoint, h.ToPoint, tolerance)).ToList();
+			if (matchingEdges.Count != 1) { continue; }
+			int index = path.IndexOf(matchingEdges[0]);
+			LProfileHalfEdge previous = path[(index + path.Count - 1) % path.Count];
+			LProfileHalfEdge next = path[(index + 1) % path.Count];
+			bool chamferBefore = IsLProfileChamferEdge(previous.Edge, graph, horizontal, tolerance);
+			bool chamferAfter = IsLProfileChamferEdge(next.Edge, graph, horizontal, tolerance);
+			if (chamferBefore == chamferAfter) { continue; }
+			LProfileHalfEdge chamfer = chamferBefore ? previous : next;
+			LProfileHalfEdge outer = chamferBefore ? next : previous;
+			LProfileHalfEdge inner = path[(index + (chamferBefore ? path.Count - 2 : 2)) % path.Count];
+			if (inner.Edge.Segment == null || outer.Edge.Segment == null
+				|| !(horizontal ? inner.Edge.Segment.IsVertical(tolerance) : inner.Edge.Segment.IsHorizontal(tolerance))
+				|| !(horizontal ? outer.Edge.Segment.IsVertical(tolerance) : outer.Edge.Segment.IsHorizontal(tolerance))
+				|| !innerChain.Edges.Contains(inner.Edge)) { continue; }
+			double innerX = axis(inner.Edge.Segment.Start), outerX = axis(outer.Edge.Segment.Start);
+			if (Math.Abs(Math.Min(innerX, outerX) - widthInterval.Item1) > tolerance
+				|| Math.Abs(Math.Max(innerX, outerX) - widthInterval.Item2) > tolerance) { continue; }
+			// Keep the continuous, real sequence as the proof; an equal numerical sum alone is insufficient.
+			var sequence = chamferBefore
+				? new[] { inner, chamfer, matchingEdges[0], outer }
+				: new[] { outer, matchingEdges[0], chamfer, inner };
+			if (sequence.Take(3).Where((h, i) => h.ToPoint.DistanceTo(sequence[i + 1].FromPoint) > tolerance).Any()) { continue; }
+			Segment2D cut = chamfer.Edge.Segment;
+			double dx = Math.Abs(cut.End.X - cut.Start.X), dy = Math.Abs(cut.End.Y - cut.Start.Y);
+			// Suppression requires an available recognized C-size definition, not just an inclined line.
+			if (dx <= tolerance || Math.Abs(dx - dy) > tolerance
+				|| !match.Outline.Chamfers.Any(c => c.Value > tolerance && Math.Abs(c.Value - dx) <= tolerance
+					&& SameLProfileEndpointPair(c.StartPoint, c.EndPoint, cut.Start, cut.End, tolerance))) { continue; }
+			var shortInterval = GetCanonicalInterval(first, second, orientation);
+			double span = shortInterval.Item2 - shortInterval.Item1;
+			double expected = widthInterval.Item2 - widthInterval.Item1;
+			if (span <= tolerance || span >= expected - tolerance || Math.Abs(span + dx - expected) > tolerance
+				|| Math.Abs((innerX < outerX ? shortInterval.Item2 : shortInterval.Item1) - outerX) > tolerance) { continue; }
+			string evidence = "LProfile.ChamferedArmResidual|Relation=InnerFaceChamferShortEdgeOuterFace"
+				+ "|Axis=" + orientation
+				+ "|BoundaryEdges=" + string.Join(",", sequence.Select(h => h.Edge.SourceKey))
+				+ "|ArmWidth=" + expected.ToString("0.########", CultureInfo.InvariantCulture)
+				+ "|ResidualSpan=" + span.ToString("0.########", CultureInfo.InvariantCulture)
+				+ "|ChamferProjection=" + dx.ToString("0.########", CultureInfo.InvariantCulture)
+				+ "|ChamferDefinition=Recognized45Degree|RealBoundary=True|TopologyClosed=True";
+			if (plan.TrySuppressCoveredStructure(residual, LProfileChamferedArmResidualRuleId,
+				new[] { armWidth }, GetLProfileStepCoverageSourceIds(match, new[] { armWidth, residual }, sequence.Select(h => h.Edge)), evidence))
+			{
+				plan.Diagnostics.Warnings.Add(evidence + "|CandidateId=" + residual.DiagnosticId + "|Decision=Suppressed");
+			}
+		}
+	}
+
+	private static bool SameLProfileEndpointPair(Point2D first, Point2D second,
+		Point2D expectedFirst, Point2D expectedSecond, double tolerance)
+	{
+		return (first.DistanceTo(expectedFirst) <= tolerance && second.DistanceTo(expectedSecond) <= tolerance)
+			|| (first.DistanceTo(expectedSecond) <= tolerance && second.DistanceTo(expectedFirst) <= tolerance);
 	}
 
 	private void ApplyLProfileStepCoverageRules(
@@ -198,22 +297,20 @@ public sealed partial class DimensionPlanner
 		if (widthCoverage != null)
 		{
 			string suppressionEvidence = widthCoverage.TopologyEvidence
-				+ "|Stage=PostGeneration|Decision=Suppressed|Reason=CoveredByVerticalArmWidth";
-			SuppressLProfileDimension(
-				plan,
+				+ "|Stage=PostGeneration|Reason=CoveredByVerticalArmWidth";
+			plan.TrySuppressCoveredStructure(
 				widthCoverage.Residual,
 				LProfileCoveredStepWidthRuleId,
-				match,
-				extraEdges: widthCoverage.EvidenceEdges,
-					topologyEvidence: suppressionEvidence);
-			plan.Diagnostics.Warnings.Add(suppressionEvidence);
+				widthCoverage.CoveringDimensions,
+				widthCoverage.SourceGeometryIds,
+				suppressionEvidence);
 		}
 		else
 		{
 			plan.Diagnostics.Warnings.Add(
 				(match.TopologyEvidence ?? string.Empty)
 				+ "|LProfile.StepCoverage.NotApplied|Axis=Horizontal"
-				+ "|Stage=PostGeneration|Decision=Retained|Reason=NoClosedTopologyProof"
+				+ "|Stage=PostGeneration|Decision=PendingConfirmation|Reason=TopologyEvidenceInsufficient"
 				+ "|Total=" + (verticalArmWidth?.RuleId ?? string.Empty));
 		}
 
@@ -223,6 +320,8 @@ public sealed partial class DimensionPlanner
 			horizontalArmHeight);
 		if (heightCoverage == null)
 		{
+			plan.Diagnostics.Warnings.Add("LProfile.StepCoverage.NotApplied|Axis=Vertical"
+				+ "|Stage=PostGeneration|Decision=PendingConfirmation|Reason=TopologyEvidenceInsufficient");
 			return;
 		}
 
@@ -244,15 +343,13 @@ public sealed partial class DimensionPlanner
 		}
 
 		string heightSuppressionEvidence = heightCoverage.TopologyEvidence
-			+ "|Stage=PostGeneration|Decision=Suppressed|Reason=CoveredByTotalArmHeight";
-		SuppressLProfileDimension(
-			plan,
+			+ "|Stage=PostGeneration|Reason=CoveredByTotalArmHeight";
+		plan.TrySuppressCoveredStructure(
 			heightCoverage.Residual,
 			LProfileCoveredStepHeightRuleId,
-			match,
-			extraEdges: heightCoverage.EvidenceEdges,
-			topologyEvidence: heightSuppressionEvidence);
-		plan.Diagnostics.Warnings.Add(heightSuppressionEvidence);
+			new[] { totalHeight, horizontalArmHeight },
+			heightCoverage.SourceGeometryIds,
+			heightSuppressionEvidence);
 	}
 
 	private LProfileStepCoverageEvidence TryBuildLProfileHorizontalStepCoverage(
@@ -289,9 +386,8 @@ public sealed partial class DimensionPlanner
 			return null;
 		}
 
-		List<PlannedDimension> residuals = plan.Dimensions
-			.Where(d => IsLProfileStepRiserCandidate(d, match, DimensionOrientation.Horizontal))
-			.ToList();
+		List<PlannedDimension> residuals = GetLProfileStepCoverageCandidates(
+			plan, match, DimensionOrientation.Horizontal);
 		foreach (PlannedDimension residual in residuals)
 		{
 			Point2D residualFirst = ToCanonicalPoint(residual.FirstPoint, match);
@@ -299,6 +395,7 @@ public sealed partial class DimensionPlanner
 			if (!OutlineGeometryQuery.IsPointOnBoundary(residualFirst, boundary, tolerance)
 				|| !OutlineGeometryQuery.IsPointOnBoundary(residualSecond, boundary, tolerance))
 			{
+				RecordLProfileCoverageUnproven(plan, residual, "EndpointsNotOnRealBoundary");
 				continue;
 			}
 
@@ -311,12 +408,14 @@ public sealed partial class DimensionPlanner
 				tolerance,
 				out attachedToCommon))
 			{
+				RecordLProfileCoverageUnproven(plan, residual, "CommonBoundaryEndpointUnproven");
 				continue;
 			}
 			bool stepAtMaximum = Math.Abs(attachedToCommon.X - widthInterval.Item2) <= tolerance;
 			bool stepAtMinimum = Math.Abs(attachedToCommon.X - widthInterval.Item1) <= tolerance;
 			if (stepAtMaximum == stepAtMinimum)
 			{
+				RecordLProfileCoverageUnproven(plan, residual, "ArmIntervalEndpointMismatch");
 				continue;
 			}
 			Tuple<double, double> residualInterval = GetCanonicalInterval(
@@ -328,6 +427,7 @@ public sealed partial class DimensionPlanner
 					? Math.Abs(residualInterval.Item2 - widthInterval.Item2) > tolerance
 					: Math.Abs(residualInterval.Item1 - widthInterval.Item1) > tolerance))
 			{
+				RecordLProfileCoverageUnproven(plan, residual, "ResidualIntervalMismatch");
 				continue;
 			}
 
@@ -352,6 +452,7 @@ public sealed partial class DimensionPlanner
 				.ToList();
 			if (partials.Count != 1)
 			{
+				RecordLProfileCoverageUnproven(plan, residual, "PartialCandidateCount=" + partials.Count);
 				continue;
 			}
 
@@ -378,6 +479,7 @@ public sealed partial class DimensionPlanner
 				out transitionPath);
 			if (!transitionFound)
 			{
+				RecordLProfileCoverageUnproven(plan, residual, "RealTransitionPathUnproven");
 				continue;
 			}
 
@@ -391,6 +493,7 @@ public sealed partial class DimensionPlanner
 			double closureActual = partialSpan + transitionProjection + residualSpan;
 			if (Math.Abs(closureActual - (widthInterval.Item2 - widthInterval.Item1)) > tolerance)
 			{
+				RecordLProfileCoverageUnproven(plan, residual, "MeasuredClosureMismatch");
 				continue;
 			}
 
@@ -402,6 +505,7 @@ public sealed partial class DimensionPlanner
 			return new LProfileStepCoverageEvidence
 			{
 				Residual = residual,
+				CoveringDimensions = new List<PlannedDimension> { verticalArmWidth, partial },
 				EvidenceEdges = evidenceEdges,
 				SourceGeometryIds = GetLProfileStepCoverageSourceIds(
 					match,
@@ -664,12 +768,16 @@ public sealed partial class DimensionPlanner
 
 		OutlineFeature2D boundary = match.Graph?.BoundaryOutline;
 		double tolerance = Math.Max(match.Tolerance, _config.GeometryTolerance);
-		List<PlannedDimension> residuals = plan.Dimensions
-			.Where(d => IsLProfileStepRiserCandidate(d, match, DimensionOrientation.Vertical))
+		List<PlannedDimension> residuals = GetLProfileStepCoverageCandidates(
+			plan, match, DimensionOrientation.Vertical)
 			.Where(d => IsCanonicalChainSpan(d, match, match.CommonVertical))
 			.ToList();
 		if (residuals.Count != 1)
 		{
+			foreach (PlannedDimension candidate in residuals)
+			{
+				RecordLProfileCoverageUnproven(plan, candidate, "CommonChainCandidateCount=" + residuals.Count);
+			}
 			return null;
 		}
 
@@ -862,15 +970,37 @@ public sealed partial class DimensionPlanner
 		return dimension;
 	}
 
-	private static bool IsLProfileStepRiserCandidate(
-		PlannedDimension dimension,
+	private static void RecordLProfileCoverageUnproven(DimensionPlan plan, PlannedDimension dimension, string reason)
+	{
+		plan.Diagnostics.Warnings.Add("LProfile.StepCoverage.Topology|CandidateId=" + dimension.DiagnosticId
+			+ "|Decision=PendingConfirmation|Reason=" + reason);
+	}
+
+	private static List<PlannedDimension> GetLProfileStepCoverageCandidates(
+		DimensionPlan plan,
 		LProfileMatch match,
 		DimensionOrientation orientation)
 	{
-		return IsStructureDimension(dimension)
-			&& match != null
-			&& CanonicalOrientation(dimension, match) == orientation
-			&& (dimension.SourceKey ?? string.Empty).StartsWith("StepRiser:", StringComparison.Ordinal);
+		var candidates = new List<PlannedDimension>();
+		foreach (PlannedDimension dimension in plan.Dimensions.Where(d => IsStructureDimension(d)
+			&& CanonicalOrientation(d, match) == orientation))
+		{
+			string reason = StructureCoveragePolicy.GetIneligibilityReason(dimension);
+			if (reason == null && IsLProfileOwnedDimension(dimension))
+			{
+				reason = "ProtectedLProfileDefinition";
+			}
+			plan.Diagnostics.Warnings.Add("LProfile.StepCoverage.Eligibility|Axis=" + orientation
+				+ "|CandidateId=" + dimension.DiagnosticId
+				+ "|Source=" + (dimension.SourceKey ?? string.Empty)
+				+ "|Stage=Eligibility|Decision=" + (reason == null ? "Entered" : "NotEntered")
+				+ "|Reason=" + (reason ?? "SemanticStructureCandidate"));
+			if (reason == null)
+			{
+				candidates.Add(dimension);
+			}
+		}
+		return candidates;
 	}
 
 	private static bool TryGetLProfileCommonEndpoint(
@@ -3459,6 +3589,16 @@ public sealed partial class DimensionPlanner
 				SourceKey = arc.SourceKey
 			});
 		}
+		foreach (ChamferFeature2D chamfer in source.Chamfers)
+		{
+			target.Chamfers.Add(new ChamferFeature2D
+			{
+				StartPoint = new Point2D(chamfer.StartPoint.Y, chamfer.StartPoint.X),
+				EndPoint = new Point2D(chamfer.EndPoint.Y, chamfer.EndPoint.X),
+				Length = chamfer.Length, DeltaX = chamfer.DeltaY, DeltaY = chamfer.DeltaX,
+				Value = chamfer.Value, Text = chamfer.Text, Confidence = chamfer.Confidence
+			});
+		}
 		return target;
 	}
 
@@ -3484,13 +3624,21 @@ public sealed partial class DimensionPlanner
 
 		public static LProfileOuterContour TryCreate(OutlineFeature2D outline, double tolerance, out string failureReason)
 		{
+			OutlineTopologyDiagnostic ignored;
+			return TryCreate(outline, tolerance, out failureReason, out ignored);
+		}
+
+		public static LProfileOuterContour TryCreate(OutlineFeature2D outline, double tolerance,
+			out string failureReason, out OutlineTopologyDiagnostic diagnostic)
+		{
 			failureReason = string.Empty;
+			diagnostic = new OutlineTopologyDiagnostic { Reason = "NullOutline", Tolerance = tolerance };
 			if (outline == null)
 			{
 				failureReason = "NullOutline";
 				return null;
 			}
-			LProfileBoundaryGraph graph = LProfileBoundaryGraph.TryCreate(outline, tolerance);
+			LProfileBoundaryGraph graph = LProfileBoundaryGraph.TryCreate(outline, tolerance, out diagnostic);
 			if (graph == null)
 			{
 				failureReason = "BoundaryGraphUnavailable";
@@ -4523,6 +4671,8 @@ public sealed partial class DimensionPlanner
 	{
 		public PlannedDimension Residual { get; set; }
 
+		public List<PlannedDimension> CoveringDimensions { get; set; }
+
 		public Point2D FirstPoint { get; set; }
 
 		public Point2D SecondPoint { get; set; }
@@ -4805,6 +4955,13 @@ public sealed partial class DimensionPlanner
 
 		public static LProfileBoundaryGraph TryCreate(OutlineFeature2D outline, double tolerance)
 		{
+			OutlineTopologyDiagnostic ignored;
+			return TryCreate(outline, tolerance, out ignored);
+		}
+
+		public static LProfileBoundaryGraph TryCreate(OutlineFeature2D outline, double tolerance,
+			out OutlineTopologyDiagnostic diagnostic)
+		{
 			LProfileBoundaryGraph graph = new LProfileBoundaryGraph();
 			foreach (Segment2D segment in outline.Segments.Where(segment => segment != null && !segment.IsArcChord && segment.Length > tolerance))
 			{
@@ -4816,6 +4973,7 @@ public sealed partial class DimensionPlanner
 			}
 			if (graph.AllEdges.Count == 0)
 			{
+				diagnostic = graph.CreateDiagnostic(outline, tolerance, 0, "Unavailable", "NoUsableEdges");
 				return null;
 			}
 			Dictionary<int, List<LProfileHalfEdge>> adjacency = graph.BuildHalfEdges(tolerance);
@@ -4825,6 +4983,9 @@ public sealed partial class DimensionPlanner
 				.ToList();
 			if (exteriorFaces.Count != 1)
 			{
+				diagnostic = graph.CreateDiagnostic(outline, tolerance, exteriorFaces.Count,
+					exteriorFaces.Count == 0 ? "Unavailable" : "Ambiguous",
+					exteriorFaces.Count == 0 ? "NoExteriorFace" : "MultipleExteriorFaces");
 				return null;
 			}
 			graph.BoundaryPath = exteriorFaces[0];
@@ -4842,9 +5003,11 @@ public sealed partial class DimensionPlanner
 			}
 			if (graph.BoundaryEdges.Count < 4)
 			{
+				diagnostic = graph.CreateDiagnostic(outline, tolerance, 1, "Unavailable", "PlannerRequiresFourBoundaryEdges");
 				return null;
 			}
 			graph.BoundaryOutline = graph.CreateBoundaryOutline(outline);
+			diagnostic = graph.CreateDiagnostic(outline, tolerance, 1, "UniqueExteriorWalk", "SelectedByPlannerBoundaryGraph");
 			return graph;
 		}
 
@@ -4953,6 +5116,66 @@ public sealed partial class DimensionPlanner
 		public bool IsBoundaryEdge(LProfileEdge edge)
 		{
 			return edge != null && ExteriorEdgeIds.Contains(edge.Id);
+		}
+
+		private OutlineTopologyDiagnostic CreateDiagnostic(OutlineFeature2D outline, double tolerance,
+			int exteriorFaceCount, string status, string reason)
+		{
+			var result = new OutlineTopologyDiagnostic
+			{
+				Status = status, Reason = reason, Tolerance = tolerance,
+				MinX = outline.MinX, MinY = outline.MinY, MaxX = outline.MaxX, MaxY = outline.MaxY,
+				ExteriorFaceCount = exteriorFaceCount,
+				IgnoredGeometryCount = outline.Segments.Count + outline.Arcs.Count - AllEdges.Count,
+				IsClosedWalk = BoundaryPath.Count > 0
+					&& BoundaryPath.Last().ToNode == BoundaryPath[0].FromNode
+					&& BoundaryPath.Select((step, i) => step.ToNode == BoundaryPath[(i + 1) % BoundaryPath.Count].FromNode).All(v => v),
+				HasRepeatedBoundaryEdges = BoundaryPath.Select(step => step.Edge.Id).Distinct().Count() != BoundaryPath.Count
+			};
+			foreach (LProfileEdge edge in AllEdges)
+			{
+				result.Edges.Add(new OutlineTopologyEdge
+				{
+					Id = edge.Id, StartNode = edge.StartNode, EndNode = edge.EndNode,
+					Kind = edge.Arc == null ? "Line" : "Arc", SourceKey = edge.SourceKey,
+					Start = edge.Segment != null ? edge.Segment.Start : edge.Arc.Start,
+					End = edge.Segment != null ? edge.Segment.End : edge.Arc.End,
+					Center = edge.Arc?.Center ?? default(Point2D), Radius = edge.Arc?.Radius ?? 0.0,
+					Bulge = edge.Arc?.Bulge ?? 0.0, IsBoundary = edge.IsBoundary
+				});
+			}
+			for (int i = 0; i < _nodes.Count; i++)
+			{
+				List<LProfileEdge> incident = AllEdges.Where(e => e.StartNode == i || e.EndNode == i).ToList();
+				int degree = incident.Sum(e => (e.StartNode == i ? 1 : 0) + (e.EndNode == i ? 1 : 0));
+				string kind = degree == 1 ? "Dangling" : degree > 2 ? "Branch" : "Join";
+				if (degree == 2 && incident.Count == 2 && incident.All(e => e.Segment != null))
+				{
+					Point2D a = incident[0].StartNode == i ? incident[0].Segment.End : incident[0].Segment.Start;
+					Point2D b = incident[1].StartNode == i ? incident[1].Segment.End : incident[1].Segment.Start;
+					Point2D p = _nodes[i];
+					double ax = a.X - p.X, ay = a.Y - p.Y, bx = b.X - p.X, by = b.Y - p.Y;
+					double length = Math.Max(Math.Sqrt(ax * ax + ay * ay), Math.Sqrt(bx * bx + by * by));
+					kind = ax * bx + ay * by < 0 && Math.Abs(ax * by - ay * bx) <= tolerance * length
+						? "CollinearJoin" : "Corner";
+				}
+				else if (degree == 2 && incident.Any(e => e.Arc != null)) { kind = "CurveJoin"; }
+				result.Nodes.Add(new OutlineTopologyNode
+				{
+					Id = i, Point = _nodes[i], Degree = degree, Kind = kind,
+					IsBoundary = incident.Any(e => e.IsBoundary)
+				});
+			}
+			for (int i = 0; i < BoundaryPath.Count; i++)
+			{
+				LProfileHalfEdge step = BoundaryPath[i];
+				result.BoundaryPath.Add(new OutlineTopologyStep
+				{
+					Order = i + 1, EdgeId = step.Edge.Id, FromNode = step.FromNode,
+					ToNode = step.ToNode, Forward = step.Forward
+				});
+			}
+			return result;
 		}
 
 		private void AddEdge(LProfileEdge edge, Point2D start, Point2D end, double tolerance)

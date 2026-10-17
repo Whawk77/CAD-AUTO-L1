@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "epsilon": 0.001,
+  "scope": "Existing Core regression inputs; partial assertion contracts, not complete human annotation truth",
+  "truthPolicy": "No output is used as ground truth. P0/P1 membership is historical evidence only: the current Program.cs hash no longer matches the approved matrix. Metrics prefixed contract are limited to the assertions below. Unlisted dimensions are unknown, not wrong.",
+  "profiles": ["legacy-default", "asd-feature-first"],
+  "rules": [
+    {"id":"NonPinNearestDatum","entry":"DimensionPlanner.Features.cs:ChooseNonPinBaseHole","fallback":"Disable nearest-distance ranking only; retain normal-before-thread preference and deterministic X/Y ordering. Never override a selected datum pin."},
+    {"id":"PinPairGrouping","entry":"DimensionPlanner.Features.cs:CreatePinPairGroup","fallback":"Singleton pin groups; retain every pin, chosen datum, group transfers, functional processing and validators."},
+    {"id":"FunctionalHoleAssignment","entry":"DimensionPlanner.Features.cs:AssignNonPinHolesToNearestPinPair","fallback":"Skip initial non-pin assignment; downstream functional-grid and loose-hole rules remain active. Not an ablation of ALL functional-hole recognition."},
+    {"id":"SelectedCenterlineAttachment","entry":"DimensionPlanner.cs:ApplyCenterlineEndpointAttachments","fallback":"Keep pre-attachment real feature grips; never generate centerlines."},
+    {"id":"MirroredDeduplication","entry":"DimensionPlanner.Suppression.cs:SuppressMirroredDuplicates","fallback":"Skip only this pass on both axes and both planner invocations; other duplicate/coverage rules remain."},
+    {"id":"MeasuredDeduplication","entry":"DimensionPlanner.Suppression.cs:SuppressDuplicateMeasuredDimensions","fallback":"Skip only same-side measured duplicate pass on all four sides and both planner invocations."},
+    {"id":"OutlineOverallPartition","entry":"DimensionPlanner.Suppression.cs:SuppressOutlineSegmentsThatPartitionOverall","fallback":"Skip raw OutlineSegment overall partition pass; structure partition, envelope and validation rules remain."},
+    {"id":"LocalEnvelopeSuppression","entry":"DimensionPlanner.Suppression.cs:SuppressLocalGeometryOnOverallEnvelope","fallback":"Skip deferred envelope snapshot suppression; other envelope cleanup remains."},
+    {"id":"BoundaryInformationCompletion","entry":"DimensionPlanner.BoundaryInformation.cs:ApplyBoundaryInformationPlanning","fallback":"Skip this coupled projection/chamfer completion, restoration and proof-based coverage stage. Do not split provider generation from its coverage consumers. Separate final audit remains enabled."},
+    {"id":"SharedExtensionAlignment","entry":"DimensionLayoutRules.cs:AlignDimensionsBySharedExtensionLines","fallback":"Skip shared-extension alignment only; rooted lanes, stacking, conflict checks and final ordering remain."},
+    {"id":"ParallelDatumCompaction","entry":"DimensionLayoutRules.DatumStacks.cs:CompactParallelDatumStacks","fallback":"Skip final safe compaction only; grouping, spacing, contour and physical-order checks remain."}
+  ],
+  "cases": [
+    {"id":"rectangle","sourceTest":"RectangularOutlineKeepsOverallDimensions","tier":"P0","overall":[100,50]},
+    {"id":"duplicate-segments","sourceTest":"DuplicateSegmentsAreSuppressedWithDiagnostic","tier":"P0","overall":[100,50],"required":[
+      {"id":"unique-local-interval","identity":{"Orientation":"Vertical","MeasurementMinimum":10,"MeasurementMaximum":30},"min":1,"max":1}
+    ]},
+    {"id":"concave-datum","sourceTest":"ConcaveHoleDatumUsesRealOutlineIntersections","tier":"P0","overall":[100,100],"required":[
+      {"id":"datum-x","identity":{"DebugRole":"HoleDatumX","Orientation":"Horizontal","Value":80},"check":{"FirstPointX":100,"FirstPointY":140},"min":1,"max":1},
+      {"id":"datum-y","identity":{"DebugRole":"HoleDatumY","Orientation":"Vertical","Value":70},"check":{"FirstPointX":180,"FirstPointY":100},"min":1,"max":1}
+    ]},
+    {"id":"outer-step","sourceTest":"BottomOuterContourStepKeeps20AndSuppresses70Body","tier":"P1","overall":[90,28.26],"relatedConfirmedFixture":"OC01-bottom-outer-step-partition (Core counterpart only; not a new DWG run)","required":[
+      {"id":"bottom-step","identity":{"DebugRole":"BottomStructWidth","Orientation":"Horizontal","Value":20},"min":1,"max":1},
+      {"id":"left-face","identity":{"DebugRole":"LeftStructHeight","Orientation":"Vertical","Value":20},"min":1,"max":1}
+    ],"forbidden":[
+      {"id":"horizontal-body-70","identity":{"Orientation":"Horizontal","Value":70}},
+      {"id":"vertical-residual","identity":{"Orientation":"Vertical","Value":8.26}}
+    ]},
+    {"id":"stepped-plate","sourceTest":"SteppedPlateReplacesThinStepRisersWithComplement53","tier":"P1","overall":[102.5,55],"requirementsProfile":"asd-feature-first","required":[
+      {"id":"left-complement-53","identity":{"DebugRole":"LeftStructHeight","Orientation":"Vertical","Value":53},"check":{"PlacementSide":"Left"},"min":1,"max":1},
+      {"id":"left-wall-50","identity":{"DebugRole":"LeftStructHeight","Orientation":"Vertical","Value":50},"check":{"PlacementSide":"Left"},"min":1,"max":1},
+      {"id":"top-pad-50","identity":{"DebugRole":"TopStructWidth","Orientation":"Horizontal","Value":50},"check":{"PlacementSide":"Top"},"min":1,"max":1}
+    ],"forbiddenProfile":"asd-feature-first","forbidden":[
+      {"id":"thin-top-riser","identity":{"Orientation":"Vertical","Value":2}},
+      {"id":"thin-bottom-riser","identity":{"Orientation":"Vertical","Value":3}},
+      {"id":"inner-top-52.5","identity":{"DebugRole":"TopStructWidth","Value":52.5}},
+      {"id":"bottom-pad-50","identity":{"DebugRole":"BottomStructWidth","Value":50}}
+    ]},
+    {"id":"c-notch","sourceTest":"CNotchPlateKeepsTopEnvelopeBodyWidth120","tier":"P1","overall":[180,100],"requirementsProfile":"asd-feature-first","required":[
+      {"id":"top-body-120","identity":{"DebugRole":"TopStructWidth","Orientation":"Horizontal","Value":120},"check":{"PlacementSide":"Top"},"min":1,"max":1},
+      {"id":"opening-50","identity":{"DebugRole":"LeftStructHeight","Orientation":"Vertical","Value":50},"check":{"PlacementSide":"Left"},"min":1,"max":1},
+      {"id":"opening-location-15","identity":{"DebugRole":"LeftStructHeight","Orientation":"Vertical","Value":15},"check":{"PlacementSide":"Left"},"min":1,"max":1}
+    ],"forbiddenProfile":"asd-feature-first","forbidden":[
+      {"id":"bottom-body-120","identity":{"DebugRole":"BottomStructWidth","Value":120}},
+      {"id":"top-inner-50","identity":{"DebugRole":"TopStructWidth","Value":50}},
+      {"id":"top-residual-35","identity":{"DebugRole":"LeftStructHeight","Value":35}}
+    ]},
+    {"id":"oblique-0","sourceTest":"ObliqueBoundaryInformationMatchesUserScheme","tier":"P1","overall":[89,62.022],"requirementsProfile":"asd-feature-first","required":[
+      {"id":"inner-slope-x","identity":{"DebugRole":"BoundaryObliqueProjection","Orientation":"Horizontal","Value":15,"sourceContains":"B87"},"min":1,"max":1},
+      {"id":"inner-slope-y","identity":{"DebugRole":"BoundaryObliqueProjection","Orientation":"Vertical","Value":25,"sourceContains":"B87"},"min":1,"max":1},
+      {"id":"outer-slope-y","identity":{"DebugRole":"BoundaryObliqueProjection","Orientation":"Vertical","Value":50,"sourceContains":"B89"},"min":1,"max":1},
+      {"id":"foot-face","identity":{"DebugRole":"BoundaryChamferSpan","Orientation":"Horizontal","Value":20,"sourceContains":"B91"},"min":1,"max":1}
+    ]},
+    {"id":"oblique-90","sourceTest":"ObliqueBoundaryInformationMatchesUserScheme","tier":"P1","overall":[62.022,89]},
+    {"id":"oblique-180","sourceTest":"ObliqueBoundaryInformationMatchesUserScheme","tier":"P1","overall":[89,62.022]},
+    {"id":"oblique-270","sourceTest":"ObliqueBoundaryInformationMatchesUserScheme","tier":"P1","overall":[62.022,89]},
+    {"id":"pin-family-v","sourceTest":"PinDatumSideIsInheritedOnAllFourSides","tier":"P1","overall":[20,65],"pinFamily":{"orientation":"Vertical","side":"Right","secondCrossCoordinate":15}},
+    {"id":"pin-family-v-reverse","sourceTest":"PinDatumSideIsInheritedOnAllFourSides","tier":"P1","overall":[20,65],"pinFamily":{"orientation":"Vertical","side":"Left","secondCrossCoordinate":5}},
+    {"id":"pin-family-h","sourceTest":"PinDatumSideIsInheritedOnAllFourSides","tier":"P1","overall":[65,20],"pinFamily":{"orientation":"Horizontal","side":"Top","secondCrossCoordinate":15}},
+    {"id":"pin-family-h-reverse","sourceTest":"PinDatumSideIsInheritedOnAllFourSides","tier":"P1","overall":[65,20],"pinFamily":{"orientation":"Horizontal","side":"Bottom","secondCrossCoordinate":5}},
+    {"id":"separate-pin-groups","sourceTest":"SeparatePinGroupsKeepIndependentSides","tier":"P1","overall":[100,100],"required":[
+      {"id":"first-pair","identity":{"DebugRole":"PinDistance","Orientation":"Vertical","MeasurementMinimum":10,"MeasurementMaximum":20},"check":{"PlacementSide":"Left"},"min":1,"max":1},
+      {"id":"second-pair","identity":{"DebugRole":"PinDistance","Orientation":"Vertical","MeasurementMinimum":80,"MeasurementMaximum":90},"check":{"PlacementSide":"Right"},"min":1,"max":1}
+    ]},
+    {"id":"normal-two","sourceTest":"HoleAndPinChainsUseSideFacingCenterlineEndpoints","tier":"P1","overall":[100,100],"required":[
+      {"id":"normal-x","identity":{"DebugRole":"HoleDatumX","Orientation":"Horizontal","Value":20},"check":{"PlacementSide":"Bottom","SecondPointX":20,"SecondPointY":15},"min":1,"max":1},
+      {"id":"normal-y","identity":{"DebugRole":"HoleDatumY","Orientation":"Vertical","Value":20},"check":{"PlacementSide":"Left","SecondPointX":15,"SecondPointY":20},"min":1,"max":1},
+      {"id":"normal-chain-x","identity":{"DebugRole":"HoleChainH","Orientation":"Horizontal","Value":30},"check":{"PlacementSide":"Bottom","FirstPointX":20,"FirstPointY":15,"SecondPointX":50,"SecondPointY":35},"min":1,"max":1},
+      {"id":"normal-chain-y","identity":{"DebugRole":"HoleChainV","Orientation":"Vertical","Value":20},"check":{"PlacementSide":"Left","FirstPointX":15,"FirstPointY":20,"SecondPointX":45,"SecondPointY":40},"min":1,"max":1}
+    ]},
+    {"id":"normal-grid","sourceTest":"HoleAndPinChainsUseSideFacingCenterlineEndpoints","tier":"P1","overall":[100,100],"required":[
+      {"id":"row-chain","identity":{"DebugRole":"HoleChainH","Orientation":"Horizontal","Value":20},"check":{"FirstPointX":20,"FirstPointY":15,"SecondPointX":40,"SecondPointY":15},"min":1,"max":1},
+      {"id":"column-chain","identity":{"DebugRole":"HoleChainV","Orientation":"Vertical","Value":20},"check":{"FirstPointX":15,"FirstPointY":20,"SecondPointX":15,"SecondPointY":40},"min":1,"max":1}
+    ]},
+    {"id":"selected-pin-grid","sourceTest":"HoleAndPinChainsUseSideFacingCenterlineEndpoints","tier":"P1","overall":[100,100],"required":[
+      {"id":"selected-pin-x","identity":{"Kind":"DatumHoleLocationX","Orientation":"Horizontal","Value":80},"check":{"PlacementSide":"Top","FirstPointX":0,"FirstPointY":100,"AttachmentKind":"SelectedCenterlineEndpoint"},"min":1,"max":1},
+      {"id":"selected-pin-y","identity":{"Kind":"DatumHoleLocationY","Orientation":"Vertical","Value":80},"check":{"PlacementSide":"Right","FirstPointX":100,"FirstPointY":0,"AttachmentKind":"SelectedCenterlineEndpoint"},"min":1,"max":1}
+    ]},
+    {"id":"slots-without-pins","sourceTest":"SlotDimensionsUseCenterAndDatumChainsWithoutPins","tier":"P2","overall":[100,50],"required":[
+      {"id":"horizontal-slot","identity":{"DebugRole":"SlotCenter","Orientation":"Horizontal","Value":40},"check":{"PlacementSide":"Bottom","FirstPointY":15,"SecondPointY":15},"min":1,"max":1},
+      {"id":"vertical-slot","identity":{"DebugRole":"SlotCenter","Orientation":"Vertical","Value":10},"check":{"PlacementSide":"Right","FirstPointX":85,"SecondPointX":85},"min":1,"max":1}
+    ]}
+  ],
+  "notEvaluated": [
+    {"rule":"CenterlineGeneration","reason":"Explicitly prohibited by AGENTS.md; no such production generation rule may be introduced."},
+    {"rule":"SelectedPinDatumAndManualBase","reason":"User-selected datum is an input contract, not an optional heuristic. No ablation may silently override it."},
+    {"rule":"ZeroLengthRealAttachmentAndPostValidation","reason":"Safety/product invariants remain active; disabling them could manufacture invalid annotation results."},
+    {"rule":"RemainingLegacyAndLProfileSuppressionPasses","reason":"Multiple ordered candidate/provider dependencies; not independently isolated in this initial suite. No wholesale pipeline deletion."},
+    {"rule":"CadRecognitionRenderingAndCollisionResolution","reason":"Core P0 gate fails before changes. Existing GUI AutoCAD is open; no plugin build, CAD launch, last-run overwrite or real rendered text/arrow/extension-line measurement performed."}
+  ]
+}

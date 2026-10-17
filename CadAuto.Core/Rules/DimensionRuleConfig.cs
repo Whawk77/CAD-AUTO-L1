@@ -6,6 +6,22 @@ namespace CadAuto.Core.Rules;
 
 public sealed class DimensionRuleConfig
 {
+	private DimensionExperimentRule _disabledExperimentRule;
+
+	/// <summary>Explicit per-instance experiment only; never read from global state or environment.</summary>
+	public DimensionExperimentRule DisabledExperimentRule
+	{
+		get => _disabledExperimentRule;
+		set
+		{
+			if (!Enum.IsDefined(typeof(DimensionExperimentRule), value))
+			{
+				throw new ArgumentOutOfRangeException(nameof(value), "Unknown single-rule ablation.");
+			}
+			_disabledExperimentRule = value;
+		}
+	}
+
 	public Dictionary<double, string> HoleFitTolerance { get; private set; }
 
 	public Dictionary<double, string> CenterDistanceTolerance { get; private set; }

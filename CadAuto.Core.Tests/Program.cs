@@ -10,7 +10,7 @@ using CadAuto.Core.Rules;
 
 namespace CadAuto.Core.Tests
 {
-    internal static class Program
+    internal static partial class Program
     {
         private static int _passedTests;
         private static int _selectedTests;
@@ -90,6 +90,31 @@ namespace CadAuto.Core.Tests
             nameof(ThreeStructureWidthsThatPartitionOverallAreSuppressed),
             nameof(LocalTopStructureWidthIsKeptWhenNotPartitioningOverall),
             nameof(RightArmHeightOnOverallMaxXIsSuppressed),
+            nameof(StructureCoverageEligibilityIgnoresSourceLabels),
+            nameof(StructureCoverageProtectsIndependentRequirements),
+            nameof(StructureCoverageRequiresLiveProvidersAndEvidence),
+            nameof(StructureCoverageTracksMissingProviders),
+            nameof(PinDatumFamilyKeepsOneSide),
+            nameof(PinDatumSideIsInheritedOnAllFourSides),
+            nameof(FirstPinDatumAlignmentRejectsOverlappingIntervals),
+            nameof(DatumPinVerticalPreferenceOnlyChangesSelectedGroup),
+            nameof(DatumPinVerticalPreferenceDefaultsToAutomatic),
+            nameof(DatumPinHorizontalPreferenceOnlyChangesSelectedGroup),
+            nameof(DatumPinLayoutOrientationUsesSelectedGroup),
+            nameof(HorizontalPreferenceKeepsContinuousDatumChain),
+            nameof(CollinearExteriorBranchFragmentsUseTopology),
+            nameof(CollinearExteriorBranchFragmentsProtectRequirements),
+            nameof(OutlineTopologyNonExteriorEntitiesUseYellowArrows),
+            nameof(ObliqueBoundaryInformationMatchesUserScheme),
+            nameof(ObliqueBoundaryInformationProtectsEqualProjections),
+            nameof(ObliqueBoundaryInformationFallsBackAndAuditsMissingProviders),
+            nameof(SeparatePinGroupsKeepIndependentSides),
+            nameof(OuterBoundaryOwnershipRejectsInternalTopFrame),
+            nameof(ChamferComplementRequiresBoundaryWalk),
+            nameof(BoundarySelectionCannotRestoreInternalEdges),
+            nameof(UnverifiedAttachmentRemainsUnknown),
+            nameof(LProfileChamferedArmResidualUsesBoundarySequence),
+            nameof(LProfileChamferedArmResidualRequiresChamferDefinition),
             nameof(LProfileAnnotationRulesUseTopology),
             nameof(LProfileFarEndCornerUsesAdjacentVerticalChain),
             nameof(LProfileOuterContourAnnotationRulesUseTopology),
@@ -114,6 +139,15 @@ namespace CadAuto.Core.Tests
 		};
         private static readonly HashSet<string> P3Tests = new HashSet<string>
         {
+            nameof(ParallelDatumStacksKeepNestedDimensionsSeparated),
+            nameof(ContinuousExtensionPolicyNeverBreaksOrDeduplicates),
+            nameof(ExtensionGeometrySegmentsAllFourSides),
+            nameof(ExtensionSharingRequiresFamilyAndRealPoint),
+            nameof(SingletonAlignmentIsNotProof),
+            nameof(OutlineTopologyCapturesActualBoundaryWalk),
+            nameof(OutlineTopologyDoesNotCloseGaps),
+            nameof(OutlineTopologyReportsAmbiguousComponents),
+            nameof(OutlineTopologyExportsArcsAndEscapesText),
             nameof(DatumRoughnessFollowsToleranceAndVisibleExtensionLine),
             nameof(OverallRemainsOutermostAfterLayoutAlignment),
             nameof(OverallCompactsToOnePhysicalSpacing),
@@ -175,9 +209,30 @@ namespace CadAuto.Core.Tests
                 if (filter == "--runner-self-check")
                 {
                     CheckRunner();
-                    Console.WriteLine("Runner self-check passed.");
+                    CheckDetailedRunner();
+                    Console.WriteLine("Runner self-check passed (legacy gate, diagnostic continuation, per-test status and report safety).");
                     return 0;
                 }
+                if (filter == "--ablation-snapshot")
+                {
+                    return WriteAblationSnapshot(args[1]);
+                }
+                if (filter == "--ablation")
+                {
+                    return RunAblation(args[1], args[2]);
+                }
+                if (filter == "--ablation-self-check")
+                {
+                    return CheckAblation();
+                }
+                if (filter == "--datum-reference-self-check")
+                {
+                    CheckDatumReferenceRecovery();
+                    return 0;
+                }
+                bool diagnosticContinuation;
+                string regressionReportPath;
+                ParseRegressionArguments(args, out filter, out diagnosticContinuation, out regressionReportPath);
                 RunTest(nameof(RectangularOutlineKeepsOverallDimensions), RectangularOutlineKeepsOverallDimensions);
                 RunTest(nameof(ChamferedEnvelopeDropsSplitStructureFragments), ChamferedEnvelopeDropsSplitStructureFragments);
                 RunTest(nameof(DatumRoughnessFollowsToleranceAndVisibleExtensionLine), DatumRoughnessFollowsToleranceAndVisibleExtensionLine);
@@ -239,6 +294,10 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(OverlappingDatumAndPinIntervalsSplitIntoSeparateBlocks), OverlappingDatumAndPinIntervalsSplitIntoSeparateBlocks);
 				RunTest(nameof(IndependentLocalAndGlobalDimensionsMayShareLogicalLevel), IndependentLocalAndGlobalDimensionsMayShareLogicalLevel);
 				RunTest(nameof(IsolatedShortPinGroupTransferUsesInnerSpanOrder), IsolatedShortPinGroupTransferUsesInnerSpanOrder);
+				RunTest(nameof(OutlineTopologyCapturesActualBoundaryWalk), OutlineTopologyCapturesActualBoundaryWalk);
+				RunTest(nameof(OutlineTopologyDoesNotCloseGaps), OutlineTopologyDoesNotCloseGaps);
+				RunTest(nameof(OutlineTopologyReportsAmbiguousComponents), OutlineTopologyReportsAmbiguousComponents);
+				RunTest(nameof(OutlineTopologyExportsArcsAndEscapesText), OutlineTopologyExportsArcsAndEscapesText);
 				RunTest(nameof(DimensionDiagnosticsRecordFinalPlacement), DimensionDiagnosticsRecordFinalPlacement);
 				RunTest(nameof(PreferredSideLooseChainCanRebalance), PreferredSideLooseChainCanRebalance);
 				RunTest(nameof(PinGroupAnchoredLooseHolePreservesPreferredSide), PinGroupAnchoredLooseHolePreservesPreferredSide);
@@ -317,6 +376,41 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(ThreeStructureWidthsThatPartitionOverallAreSuppressed), ThreeStructureWidthsThatPartitionOverallAreSuppressed);
                 RunTest(nameof(LocalTopStructureWidthIsKeptWhenNotPartitioningOverall), LocalTopStructureWidthIsKeptWhenNotPartitioningOverall);
                 RunTest(nameof(RightArmHeightOnOverallMaxXIsSuppressed), RightArmHeightOnOverallMaxXIsSuppressed);
+                RunTest(nameof(StructureCoverageEligibilityIgnoresSourceLabels), StructureCoverageEligibilityIgnoresSourceLabels);
+                RunTest(nameof(StructureCoverageProtectsIndependentRequirements), StructureCoverageProtectsIndependentRequirements);
+                RunTest(nameof(StructureCoverageRequiresLiveProvidersAndEvidence), StructureCoverageRequiresLiveProvidersAndEvidence);
+                RunTest(nameof(StructureCoverageTracksMissingProviders), StructureCoverageTracksMissingProviders);
+                RunTest(nameof(ReviewedStructureCoveragePreservesGenerationRuleAndEvidence), ReviewedStructureCoveragePreservesGenerationRuleAndEvidence);
+                RunTest(nameof(ReviewedStructureCoverageStillRequiresReviewAndLiveProof), ReviewedStructureCoverageStillRequiresReviewAndLiveProof);
+                RunTest(nameof(ReviewedStructureCoverageStillTracksMissingProviders), ReviewedStructureCoverageStillTracksMissingProviders);
+                RunTest(nameof(StructureCoverageWithoutGenerationRuleKeepsLegacyIdentity), StructureCoverageWithoutGenerationRuleKeepsLegacyIdentity);
+                RunTest(nameof(PinDatumFamilyKeepsOneSide), PinDatumFamilyKeepsOneSide);
+                RunTest(nameof(PinDatumSideIsInheritedOnAllFourSides), PinDatumSideIsInheritedOnAllFourSides);
+                RunTest(nameof(FirstPinDatumAlignmentRejectsOverlappingIntervals), FirstPinDatumAlignmentRejectsOverlappingIntervals);
+                RunTest(nameof(DatumPinVerticalPreferenceOnlyChangesSelectedGroup), DatumPinVerticalPreferenceOnlyChangesSelectedGroup);
+                RunTest(nameof(DatumPinVerticalPreferenceDefaultsToAutomatic), DatumPinVerticalPreferenceDefaultsToAutomatic);
+                RunTest(nameof(DatumPinVerticalPreferenceSurvivesFrameTransform), DatumPinVerticalPreferenceSurvivesFrameTransform);
+                RunTest(nameof(DatumPinHorizontalPreferenceOnlyChangesSelectedGroup), DatumPinHorizontalPreferenceOnlyChangesSelectedGroup);
+                RunTest(nameof(DatumPinLayoutOrientationUsesSelectedGroup), DatumPinLayoutOrientationUsesSelectedGroup);
+                RunTest(nameof(HorizontalPreferenceKeepsContinuousDatumChain), HorizontalPreferenceKeepsContinuousDatumChain);
+                RunTest(nameof(CollinearExteriorBranchFragmentsUseTopology), CollinearExteriorBranchFragmentsUseTopology);
+                RunTest(nameof(CollinearExteriorBranchFragmentsProtectRequirements), CollinearExteriorBranchFragmentsProtectRequirements);
+                RunTest(nameof(OutlineTopologyNonExteriorEntitiesUseYellowArrows), OutlineTopologyNonExteriorEntitiesUseYellowArrows);
+                RunTest(nameof(ObliqueBoundaryInformationMatchesUserScheme), ObliqueBoundaryInformationMatchesUserScheme);
+                RunTest(nameof(ObliqueBoundaryInformationProtectsEqualProjections), ObliqueBoundaryInformationProtectsEqualProjections);
+                RunTest(nameof(ObliqueBoundaryInformationFallsBackAndAuditsMissingProviders), ObliqueBoundaryInformationFallsBackAndAuditsMissingProviders);
+                RunTest(nameof(SeparatePinGroupsKeepIndependentSides), SeparatePinGroupsKeepIndependentSides);
+                RunTest(nameof(ParallelDatumStacksKeepNestedDimensionsSeparated), ParallelDatumStacksKeepNestedDimensionsSeparated);
+                RunTest(nameof(ContinuousExtensionPolicyNeverBreaksOrDeduplicates), ContinuousExtensionPolicyNeverBreaksOrDeduplicates);
+                RunTest(nameof(ExtensionGeometrySegmentsAllFourSides), ExtensionGeometrySegmentsAllFourSides);
+                RunTest(nameof(ExtensionSharingRequiresFamilyAndRealPoint), ExtensionSharingRequiresFamilyAndRealPoint);
+                RunTest(nameof(SingletonAlignmentIsNotProof), SingletonAlignmentIsNotProof);
+                RunTest(nameof(OuterBoundaryOwnershipRejectsInternalTopFrame), OuterBoundaryOwnershipRejectsInternalTopFrame);
+                RunTest(nameof(ChamferComplementRequiresBoundaryWalk), ChamferComplementRequiresBoundaryWalk);
+                RunTest(nameof(BoundarySelectionCannotRestoreInternalEdges), BoundarySelectionCannotRestoreInternalEdges);
+                RunTest(nameof(UnverifiedAttachmentRemainsUnknown), UnverifiedAttachmentRemainsUnknown);
+                RunTest(nameof(LProfileChamferedArmResidualUsesBoundarySequence), LProfileChamferedArmResidualUsesBoundarySequence);
+                RunTest(nameof(LProfileChamferedArmResidualRequiresChamferDefinition), LProfileChamferedArmResidualRequiresChamferDefinition);
                 RunTest(nameof(LProfileAnnotationRulesUseTopology), LProfileAnnotationRulesUseTopology);
                 RunTest(nameof(LProfileFarEndCornerUsesAdjacentVerticalChain), LProfileFarEndCornerUsesAdjacentVerticalChain);
                 RunTest(nameof(LProfileOuterContourAnnotationRulesUseTopology), LProfileOuterContourAnnotationRulesUseTopology);
@@ -353,6 +447,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(TopLeftRightHoleGripsUsePlacementSideHoleCenterline), TopLeftRightHoleGripsUsePlacementSideHoleCenterline);
 				RunTest(nameof(DoubleArcSlotDatumUsesCenterlineAndOutlineEndpoints), DoubleArcSlotDatumUsesCenterlineAndOutlineEndpoints);
 				RunTest(nameof(MultipleSlotGroupsFormContinuousChains), MultipleSlotGroupsFormContinuousChains);
+				RunTest(nameof(ChamferSideSlotChainUsesChamferSideDatum), ChamferSideSlotChainUsesChamferSideDatum);
 				RunTest(nameof(LowerChamferSlotChainUsesBottomPlacement), LowerChamferSlotChainUsesBottomPlacement);
 				RunTest(nameof(VerticalSlotDatumUsesLayoutFacingChamferPoint), VerticalSlotDatumUsesLayoutFacingChamferPoint);
 				RunTest(nameof(FilletedOuterDatumUsesLayoutFacingFilletEndpoint), FilletedOuterDatumUsesLayoutFacingFilletEndpoint);
@@ -383,9 +478,14 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(HoleLocationDimensionsUseSegmentedExtensionLines), HoleLocationDimensionsUseSegmentedExtensionLines);
                 RunTest(nameof(HoleCalloutsGroupByRowsWithoutPins), HoleCalloutsGroupByRowsWithoutPins);
                 RunTest(nameof(HoleCalloutsUsePinClustersAndFitText), HoleCalloutsUsePinClustersAndFitText);
+                RunTest(nameof(ThreeViewFirstAngleKeepsLengthAndHeightOnFrontAndWidthOnTop), ThreeViewFirstAngleKeepsLengthAndHeightOnFrontAndWidthOnTop);
+                RunTest(nameof(ThreeViewPinChainStaysOnTheViewThatShowsThePins), ThreeViewPinChainStaysOnTheViewThatShowsThePins);
+                RunTest(nameof(TwoViewTopAndLeftSplitLengthHeightAndWidth), TwoViewTopAndLeftSplitLengthHeightAndWidth);
+                RunTest(nameof(MismatchedViewEnvelopesDoNotAssign), MismatchedViewEnvelopesDoNotAssign);
                 ValidateTestRegistration();
-                RunRegisteredTests(filter);
-                Console.WriteLine("CadAuto.Core.Tests: " + _passedTests + "/" + _selectedTests + " passed.");
+                RunRegisteredTests(filter, diagnosticContinuation);
+                WriteRegressionReport(regressionReportPath);
+                PrintRegressionSummary();
                 foreach (Tuple<string, string> failure in FailedTests)
                 {
                     Console.WriteLine("FAILED " + failure.Item1 + " :: " + failure.Item2);
@@ -443,7 +543,7 @@ namespace CadAuto.Core.Tests
             }
         }
 
-        private static void RunRegisteredTests(string filter)
+        private static void RunRegisteredTests(string filter, bool diagnosticContinuation = false)
         {
             if (!string.IsNullOrEmpty(filter)
                 && !RegisteredTests.Any(test => MatchesFilter(test.Item1, GetTestPriority(test.Item1), filter)))
@@ -451,6 +551,9 @@ namespace CadAuto.Core.Tests
                 throw new InvalidOperationException("No registered tests matched filter: " + filter);
             }
 
+            InitializeTestExecutions(filter, diagnosticContinuation);
+            if (diagnosticContinuation)
+                Console.WriteLine("DIAGNOSTIC CONTINUATION: all selected Core tests run; failures still return exit 1.");
             for (int priority = 0; priority <= 3; priority++)
             {
                 List<Tuple<string, Action>> tests = RegisteredTests
@@ -461,11 +564,12 @@ namespace CadAuto.Core.Tests
                 {
                     continue;
                 }
-                _selectedTests += tests.Count;
                 Console.WriteLine("START P" + priority + " count=" + tests.Count);
                 int failedInTier = 0;
                 foreach (Tuple<string, Action> test in tests)
                 {
+                    TestExecutionRecord record = TestExecutions.Single(t => t.Name == test.Item1);
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
                     try
                     {
                         test.Item2();
@@ -473,17 +577,29 @@ namespace CadAuto.Core.Tests
                     catch (Exception ex)
                     {
                         failedInTier++;
+                        record.Status = "Failed";
+                        record.Reason = "TestThrew";
+                        record.Error = ex.ToString();
                         FailedTests.Add(Tuple.Create(test.Item1, ex.Message));
                         Console.WriteLine("FAIL P" + priority + " " + test.Item1 + " :: " + ex.Message);
-                        if (priority == 0)
+                        Console.WriteLine(ex.ToString());
+                        if (priority == 0 && !diagnosticContinuation)
                         {
                             // P0 invariants are prerequisites for every later tier; abort the run.
                             Console.WriteLine("TIER FAIL P0 aborting remaining tiers.");
+                            MarkBlockedTests(priority, test.Item1);
                             ReportUnexecutedTiers(priority, filter);
                             return;
                         }
                         continue;
                     }
+                    finally
+                    {
+                        watch.Stop();
+                        record.ElapsedMilliseconds = watch.Elapsed.TotalMilliseconds;
+                    }
+                    record.Status = "Passed";
+                    record.Reason = "Completed";
                     _passedTests++;
                     Console.WriteLine("PASS P" + priority + " " + test.Item1);
                 }
@@ -494,8 +610,12 @@ namespace CadAuto.Core.Tests
                 else
                 {
                     Console.WriteLine("TIER FAIL P" + priority + " failed=" + failedInTier);
-                    ReportUnexecutedTiers(priority, filter);
-                    return;
+                    if (!diagnosticContinuation)
+                    {
+                        MarkBlockedTests(priority, TestExecutions.First(t => t.Priority == priority && t.Status == "Failed").Name);
+                        ReportUnexecutedTiers(priority, filter);
+                        return;
+                    }
                 }
             }
         }
@@ -3430,7 +3550,7 @@ namespace CadAuto.Core.Tests
 			var skipped = plan.Diagnostics.DimensionCandidates.Single(candidate => candidate.DebugRole == "DatumX"
 				&& candidate.DecisionStatus == "Skipped");
 
-			Assert(!skipped.IsAttachmentValid && !skipped.IsSelected && !skipped.IsSuppressed,
+			Assert(skipped.IsAttachmentValid == false && !skipped.IsSelected && !skipped.IsSuppressed,
 				"an invalid datum coordinate must be skipped without pretending it was selected or suppressed");
 			Assert(skipped.DecisionReason.StartsWith("NoRealOutlineAttachment:XDatum=", StringComparison.Ordinal),
 				"an invalid datum coordinate must retain a machine-readable skip reason");
@@ -3461,7 +3581,7 @@ namespace CadAuto.Core.Tests
 
 			Assert(skipped.Any(candidate => candidate.DebugRole == "SlotDatumH" || candidate.DebugRole == "SlotChainH"),
 				"an invalid slot datum must create an explicit skipped diagnostic");
-			Assert(skipped.All(candidate => !candidate.IsAttachmentValid
+			Assert(skipped.All(candidate => candidate.IsAttachmentValid == false
 				&& candidate.DecisionReason.StartsWith("NoRealOutlineAttachment:", StringComparison.Ordinal)),
 				"every skipped slot datum must report an invalid real-outline attachment");
 			Assert(plan.Dimensions.Any(d => d.DebugRole == "SlotCenter" && Math.Abs(GetSpan(d) - 40.0) <= 0.001),
@@ -6545,6 +6665,1000 @@ namespace CadAuto.Core.Tests
 		/// L profile regression: topology derives the two 25 dimensions, removes 22/15,
 		/// and suppresses the redundant inner edge 52 under rotations and mirror.
 		/// </summary>
+		private static void OutlineTopologyCapturesActualBoundaryWalk()
+		{
+			var graph = new DimensionPlanner(DimensionRuleConfig.CreateDefault()).CreateOutlinePlan(CreateRectangle(145, 65)).Diagnostics.OutlineTopology;
+			Assert(graph != null && graph.Status == "UniqueExteriorWalk" && graph.IsClosedWalk,
+				"a non-L rectangle must still expose its actual boundary graph");
+			Assert(graph.Nodes.Count == 4 && graph.Edges.Count == 4 && graph.BoundaryPath.Count == 4,
+				"the snapshot must retain every actual rectangle edge and node");
+			Assert(graph.Edges.All(e => e.IsBoundary) && !graph.HasRepeatedBoundaryEdges,
+				"rectangle traversal must not repeat an edge or substitute a hull");
+			for (int i = 0; i < graph.BoundaryPath.Count; i++)
+			{
+				var step = graph.BoundaryPath[i];
+				Assert(step.Order == i + 1 && step.ToNode == graph.BoundaryPath[(i + 1) % graph.BoundaryPath.Count].FromNode,
+					"boundary order must be the connected traversal order");
+			}
+		}
+
+		private static void OutlineTopologyDoesNotCloseGaps()
+		{
+			var outline = CreateRectangle(145, 65);
+			outline.Segments.RemoveAt(3);
+			var graph = new DimensionPlanner(DimensionRuleConfig.CreateDefault()).CreateOutlinePlan(outline).Diagnostics.OutlineTopology;
+			Assert(graph != null && graph.Status == "Unavailable" && graph.Reason == "NoExteriorFace",
+				"an open outline must explain the missing exterior face");
+			Assert(graph.Edges.Count == 3 && graph.Nodes.Count(n => n.Kind == "Dangling") == 2
+				&& graph.BoundaryPath.Count == 0 && !graph.IsClosedWalk,
+				"open geometry must remain visible without an invented closing edge");
+			Assert(OutlineTopologyExporter.ToSvg(graph, "open-test").Contains("NoExteriorFace"),
+				"failed recognition must still produce a viewable diagnostic");
+		}
+
+		private static void OutlineTopologyReportsAmbiguousComponents()
+		{
+			var outline = CreateRectangle(20, 10);
+			foreach (var segment in CreateRectangleAt(40, 0, 20, 10).Segments) { outline.Segments.Add(segment); }
+			outline.MaxX = 60;
+			var graph = new DimensionPlanner(DimensionRuleConfig.CreateDefault()).CreateOutlinePlan(outline).Diagnostics.OutlineTopology;
+			Assert(graph.Status == "Ambiguous" && graph.Reason == "MultipleExteriorFaces" && graph.ExteriorFaceCount == 2,
+				"disjoint loops must not silently become one contour");
+			Assert(graph.Edges.Count == 8 && graph.BoundaryPath.Count == 0,
+				"ambiguous geometry must be shown without selecting a guessed exterior path");
+		}
+
+		private static void OutlineTopologyExportsArcsAndEscapesText()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateLProfileAnnotationFixture();
+			new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+			var graph = new DimensionPlanner(config).CreateOutlinePlan(outline).Diagnostics.OutlineTopology;
+			Assert(graph.Edges.Any(e => e.Kind == "Arc" && e.Radius > 0 && e.Bulge != 0),
+				"the actual snapshot must preserve circular geometry, not replace it by chords");
+			graph.Edges[0].SourceKey = "edge\"\\\n<&";
+			string json = OutlineTopologyExporter.ToJson(graph);
+			Assert(json.Contains("edge\\\"\\\\\\u000a<&") && json.Contains("\"boundaryPath\""),
+				"JSON must escape control characters and include the ordered path");
+			string svg = OutlineTopologyExporter.ToSvg(graph, "run<&");
+			Assert(svg.Contains(" A ") && svg.Contains("run&lt;&amp;") && svg.Contains("edge&quot;"),
+				"SVG must render true arcs and escape embedded source text");
+			Assert(svg.Contains("intersections are NOT split"), "the view must expose the endpoint-only limitation");
+		}
+
+		private static PlannedDimension CreateCoverageTestDimension(string source, double span = 20.0)
+		{
+			return new PlannedDimension
+			{
+				Kind = DimensionKind.Normal,
+				Role = DimensionCandidateRole.Structure,
+				OwnerKind = DimensionCandidateOwnerKind.Outline,
+				Orientation = DimensionOrientation.Horizontal,
+				FirstPoint = new Point2D(0.0, 0.0),
+				SecondPoint = new Point2D(span, 0.0),
+				SourceKey = source,
+				SourceGeometryIds = new List<string> { "real-edge-a" }
+			};
+		}
+
+		private static void StructureCoverageEligibilityIgnoresSourceLabels()
+		{
+			foreach (string source in new[] { "StepRiser:edge-a", "OtherGenerator:edge-a", "", null })
+			{
+				Assert(StructureCoveragePolicy.GetIneligibilityReason(CreateCoverageTestDimension(source)) == null,
+					"typed outline structure eligibility must not depend on source labels");
+			}
+			var unsupported = CreateCoverageTestDimension("StepRiser:edge-a");
+			unsupported.SourceGeometryIds.Clear();
+			Assert(StructureCoveragePolicy.GetIneligibilityReason(unsupported) == "MissingSourceGeometry",
+				"a familiar source prefix alone is not real geometry evidence");
+		}
+
+		private static void StructureCoverageProtectsIndependentRequirements()
+		{
+			var candidate = CreateCoverageTestDimension("StepRiser:edge-a");
+			candidate.OverrideText = "<> ±0.02";
+			Assert(StructureCoveragePolicy.GetIneligibilityReason(candidate) == "IndependentAnnotationRequirement",
+				"coverage must not discard explicit tolerance text");
+			candidate.OverrideText = null;
+			candidate.ForceOuterLevel = true;
+			Assert(StructureCoveragePolicy.GetIneligibilityReason(candidate) == "IndependentAnnotationRequirement",
+				"forced rule-significant dimensions need independent review");
+			candidate.ForceOuterLevel = false;
+			candidate.OwnerKind = DimensionCandidateOwnerKind.PinGroup;
+			Assert(StructureCoveragePolicy.GetIneligibilityReason(candidate) == "ProtectedSemanticIdentity",
+				"outline coverage must not consume a pin-group candidate even at the same value");
+			candidate.OwnerKind = DimensionCandidateOwnerKind.Outline;
+			candidate.RuleId = "OtherRule.DefinesFeature";
+			Assert(StructureCoveragePolicy.GetIneligibilityReason(candidate) == "ExistingRuleRequiresReview",
+				"coverage must not overwrite an existing rule identity");
+			candidate.RuleId = null;
+			candidate.AttachmentValidity = false;
+			Assert(StructureCoveragePolicy.GetIneligibilityReason(candidate) == "InvalidAttachment",
+				"invalid attachments cannot support coverage eligibility");
+			candidate.AttachmentValidity = null;
+			candidate.Role = DimensionCandidateRole.Hole;
+			Assert(StructureCoveragePolicy.GetIneligibilityReason(candidate) == "ProtectedSemanticIdentity",
+				"outline coverage must not consume functional-hole dimensions");
+		}
+
+		private static void StructureCoverageRequiresLiveProvidersAndEvidence()
+		{
+			var plan = new DimensionPlan();
+			var residual = CreateCoverageTestDimension("OtherGenerator:residual");
+			var sameValue = CreateCoverageTestDimension("OtherFeature:legal", 20.0);
+			var width = CreateCoverageTestDimension("ArmWidth", 25.0);
+			var height = CreateCoverageTestDimension("ArmHeight", 25.0);
+			height.Orientation = DimensionOrientation.Vertical;
+			height.SecondPoint = new Point2D(0.0, 25.0);
+			plan.Add(residual);
+			plan.Add(sameValue);
+			plan.Add(width);
+			plan.Add(height);
+			Assert(!plan.TrySuppressCoveredStructure(residual, "Test.Coverage", new[] { width },
+				new[] { "real-edge-a" }, null), "missing topology proof must not suppress a residual");
+			Assert(!plan.TrySuppressCoveredStructure(residual, "Test.Coverage", new PlannedDimension[0],
+				new[] { "real-edge-a" }, "TopologyClosed=True"), "missing providers must not suppress a residual");
+			Assert(!plan.TrySuppressCoveredStructure(residual, "Test.Coverage", new[] { residual },
+				new[] { "real-edge-a" }, "TopologyClosed=True"), "a candidate cannot cover itself");
+			Assert(!plan.TrySuppressCoveredStructure(residual, "Test.Coverage",
+				new[] { CreateCoverageTestDimension("AbsentProvider", 25.0) },
+				new[] { "real-edge-a" }, "TopologyClosed=True"), "a provider outside the plan cannot justify suppression");
+			Assert(plan.Dimensions.Contains(residual), "unproven candidates must be retained");
+			Assert(plan.TrySuppressCoveredStructure(residual, "Test.Coverage", new[] { width },
+				new[] { "real-edge-a" }, "TopologyClosed=True"), "checked proof and a live provider permit suppression");
+			plan.CaptureFinalDimensions();
+			Assert(plan.Dimensions.Contains(sameValue) && plan.Dimensions.Contains(width) && plan.Dimensions.Contains(height),
+				"suppression must preserve a same-valued unrelated feature and two distinct 25 dimensions");
+			var diagnostic = plan.Diagnostics.DimensionCandidates.Single(d => d.Id == residual.DiagnosticId);
+			Assert(diagnostic.IsSuppressed && diagnostic.TopologyEvidence.Contains("CoveredByIds=" + width.DiagnosticId),
+				"the suppressed candidate must identify its actual information provider");
+			Assert(!plan.Diagnostics.Warnings.Any(w => w.StartsWith("StructureCoverage.Incomplete|", StringComparison.Ordinal)),
+				"live coverage dependencies must remain complete");
+		}
+
+		private static void StructureCoverageTracksMissingProviders()
+		{
+			var plan = new DimensionPlan();
+			var residual = CreateCoverageTestDimension("Residual", 15.0);
+			var provider = CreateCoverageTestDimension("Total", 25.0);
+			plan.Add(residual);
+			plan.Add(provider);
+			Assert(plan.TrySuppressCoveredStructure(residual, "Test.Coverage", new[] { provider },
+				new[] { "real-edge-a" }, "TopologyClosed=True"), "coverage setup must succeed");
+			plan.Dimensions.Remove(provider);
+			plan.CaptureFinalDimensions();
+			string warning = plan.Diagnostics.Warnings.Single(w => w.StartsWith("StructureCoverage.Incomplete|", StringComparison.Ordinal));
+			Assert(warning.Contains("Status=PendingConfirmation")
+				&& warning.Contains("MissingCoveredByIds=" + provider.DiagnosticId),
+				"later removal of a provider must expose the completeness gap");
+			Assert(plan.Diagnostics.StructureCoverageStatus == "PendingConfirmation",
+				"unresolved coverage must be exposed as a machine-readable non-pass status");
+			Assert(!plan.Dimensions.Contains(residual), "completeness validation must not invent replacement dimensions");
+			plan.CaptureFinalDimensions();
+			Assert(plan.Diagnostics.Warnings.Count(w => w.StartsWith("StructureCoverage.Incomplete|", StringComparison.Ordinal)) == 1,
+				"repeat finalization must not duplicate completeness warnings");
+		}
+
+		private static void PinDatumFamilyKeepsOneSide()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(20, 65);
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, Datum2D.FromOutline(outline), new[] {
+				CreateHole(10, 10, 8, HoleKind2D.Pin), CreateHole(10, 40, 8, HoleKind2D.Pin),
+				CreateHole(10, 25, 6, HoleKind2D.Thread), CreateHole(10, 55, 6, HoleKind2D.Thread) });
+			var datum = plan.Dimensions.Single(d => d.Kind == DimensionKind.DatumHoleLocationY);
+			var pin = plan.Dimensions.Single(d => d.Kind == DimensionKind.PinDistance);
+			Assert(datum.Side == DimensionSide.Right && pin.Side == datum.Side,
+				"pin spacing must inherit its group's datum side rather than independently selecting the opposite side");
+			Assert(!string.IsNullOrEmpty(datum.DatumFamilyKey) && datum.DatumFamilyKey == pin.DatumFamilyKey
+				&& datum.AlignmentKey == pin.AlignmentKey, "first-group datum location and pin spacing must request the same rooted alignment chain");
+			var functional = plan.Dimensions.Where(d => d.DebugRole == "FunctionalHole" && d.Orientation == DimensionOrientation.Vertical).ToList();
+			Assert(functional.Count == 2 && functional.All(d => d.DatumFamilyKey == datum.DatumFamilyKey
+				&& !string.IsNullOrEmpty(d.ParallelStackKey) && d.Side == datum.Side && d.PreservePreferredSide),
+				"both functional dimensions must retain their shared datum side and independent parallel-stack ownership");
+			Assert(!string.IsNullOrEmpty(pin.OverrideText), "family grouping must retain pin-spacing tolerance text");
+		}
+
+		private static void PinDatumSideIsInheritedOnAllFourSides()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			foreach (bool horizontal in new[] { false, true })
+			{
+				foreach (bool reverseDatum in new[] { false, true })
+				{
+					var outline = CreateRectangle(horizontal ? 65 : 20, horizontal ? 20 : 65);
+					var datum = Datum2D.FromOutline(outline);
+					if (reverseDatum) { if (horizontal) { datum.BaseY = outline.MaxY; } else { datum.BaseX = outline.MaxX; } }
+					var holes = new[] {
+						CreateHole(10, 10, 8, HoleKind2D.Pin),
+						CreateHole(horizontal ? 40 : 10, horizontal ? 10 : 40, 8, HoleKind2D.Pin),
+						CreateHole(horizontal ? 25 : 10, horizontal ? 10 : 25, 6, HoleKind2D.Thread),
+						CreateHole(horizontal ? 55 : 10, horizontal ? 10 : 55, 6, HoleKind2D.Thread) };
+					for (int i = 0; i < holes.Length; i++) { AddCenterlineCross(datum, holes[i].Center, "same-side:" + i); }
+					var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, holes);
+					var expected = horizontal ? (reverseDatum ? DimensionSide.Bottom : DimensionSide.Top)
+						: (reverseDatum ? DimensionSide.Left : DimensionSide.Right);
+					var orientation = horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical;
+					var family = plan.Dimensions.Where(d => d.Orientation == orientation
+						&& (d.Kind == DimensionKind.DatumHoleLocationX || d.Kind == DimensionKind.DatumHoleLocationY
+							|| d.Kind == DimensionKind.PinDistance || d.DebugRole == "FunctionalHole")).ToList();
+					Assert(family.Count == 4 && family.All(d => d.Side == expected && d.PreservePreferredSide),
+						"one datum-side decision must govern all same-orientation members, expected=" + expected);
+					Assert(family.All(d => d.AttachmentKind == "SelectedCenterlineEndpoint"), "side inheritance must happen before centerline-endpoint selection");
+					double endpoint = reverseDatum ? 5 : 15;
+					Assert(family.All(d => Math.Abs((horizontal ? d.SecondPoint.Y : d.SecondPoint.X) - endpoint) <= config.GeometryTolerance),
+						"all target grips must use the inherited side's real centerline endpoint");
+					var pin = family.Single(d => d.Kind == DimensionKind.PinDistance);
+					Assert(Math.Abs(GetSpan(pin) - 30) <= config.GeometryTolerance && !string.IsNullOrEmpty(pin.OverrideText),
+						"changing placement side must preserve pin pair, measured span and tolerance text");
+					var items = CreatePinDatumAlignmentLayout(family);
+					var placements = new DimensionLayoutRules(config).CreateStackingPlan(items, expected, outline, 3, 1.5, 10, 5.5, horizontal);
+					var datumIndex = family.FindIndex(d => d.Kind == DimensionKind.DatumHoleLocationX || d.Kind == DimensionKind.DatumHoleLocationY);
+					var pinIndex = family.IndexOf(pin);
+					var datumPlacement = placements.Single(p => p.Index == datumIndex);
+					var pinPlacement = placements.Single(p => p.Index == pinIndex);
+					Assert(datumPlacement.LayoutBlockId == pinPlacement.LayoutBlockId && datumPlacement.AlignmentLaneMemberCount == 2
+						&& datumPlacement.DimLineCoordinateOverride.HasValue && pinPlacement.DimLineCoordinateOverride.HasValue
+						&& Math.Abs(datumPlacement.DimLineCoordinateOverride.Value - pinPlacement.DimLineCoordinateOverride.Value) <= config.GeometryTolerance,
+						"the real 10-to-30 chain must resolve to one dimension-line coordinate, not merely share a key, side=" + expected);
+					Assert(placements.Where(p => family[p.Index].DebugRole == "FunctionalHole")
+						.All(p => p.LayoutBlockId != datumPlacement.LayoutBlockId
+							&& family[p.Index].AlignmentKey != pin.AlignmentKey),
+						"15/45 functional dimensions must retain independent alignment lanes");
+				}
+			}
+		}
+
+		private static List<DimensionLayoutItem> CreatePinDatumAlignmentLayout(IEnumerable<PlannedDimension> dimensions)
+		{
+			return dimensions.Select(d => new DimensionLayoutItem { FirstPoint = d.FirstPoint, SecondPoint = d.SecondPoint,
+				Kind = d.Kind, Span = GetSpan(d), SourceFeatureId = d.DebugOwner, AlignmentKey = d.AlignmentKey,
+				DatumFamilyKey = d.DatumFamilyKey, ParallelStackKey = d.ParallelStackKey,
+				AlignmentPriority = d.AlignmentPriority, PreserveAlignmentLevel = d.PreserveAlignmentLevel,
+				ReadingLevel = d.ReadingLevel, OverrideText = d.OverrideText, PreferLocalBoundary = d.PreferLocalBoundary,
+				ForceOuterLevel = d.ForceOuterLevel, PreferFeatureLocalPlacement = d.PreferFeatureLocalPlacement,
+				PreservePreferredSide = d.PreservePreferredSide, LooseChainId = d.ChainId }).ToList();
+		}
+
+		private static void FirstPinDatumAlignmentRejectsOverlappingIntervals()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(20, 65);
+			var datum = Datum2D.FromOutline(outline);
+			datum.BaseY = 25;
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new[] {
+				CreateHole(10, 10, 8, HoleKind2D.Pin), CreateHole(10, 40, 8, HoleKind2D.Pin) });
+			var pair = plan.Dimensions.Where(d => d.Kind == DimensionKind.DatumHoleLocationY || d.Kind == DimensionKind.PinDistance).ToList();
+			Assert(pair.Count == 2 && pair[0].AlignmentKey == pair[1].AlignmentKey,
+				"first-group dimensions may request one chain even when geometry later prevents alignment");
+			var items = CreatePinDatumAlignmentLayout(pair);
+			var rules = new DimensionLayoutRules(config);
+			var placements = rules.CreateStackingPlan(items, DimensionSide.Right, outline, 3, 1.5, 10, 5.5, false);
+			var a = placements[0]; var b = placements[1];
+			double first = a.DimLineCoordinateOverride ?? rules.GetDimLineCoordinate(items[a.Index], DimensionSide.Right, outline, a.Offset);
+			double second = b.DimLineCoordinateOverride ?? rules.GetDimLineCoordinate(items[b.Index], DimensionSide.Right, outline, b.Offset);
+			Assert(a.LayoutBlockId != b.LayoutBlockId && Math.Abs(first - second) > config.GeometryTolerance,
+				"nested [10,25] and [10,40] intervals must not be forced onto one line just because their keys match");
+		}
+
+		private static Datum2D CreateVerticalPreferenceDatum(OutlineFeature2D outline, HoleFeature2D[] holes,
+			HoleFeature2D selected, PinGroupVerticalLayoutPreference preference)
+		{
+			var datum = Datum2D.FromOutline(outline);
+			datum.DatumHole = selected;
+			datum.PinGroupVerticalLayout = preference;
+			for (int i = 0; i < holes.Length; i++) { AddCenterlineCross(datum, holes[i].Center, "preference:" + i); }
+			return datum;
+		}
+
+		private static void DatumPinVerticalPreferenceOnlyChangesSelectedGroup()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100, 100);
+			var holes = new[] { CreateHole(10, 10, 6, HoleKind2D.Pin), CreateHole(10, 30, 6, HoleKind2D.Pin),
+				CreateHole(90, 70, 6, HoleKind2D.Pin), CreateHole(90, 90, 6, HoleKind2D.Pin),
+				CreateHole(10, 20, 8, HoleKind2D.Thread), CreateHole(90, 80, 8, HoleKind2D.Thread) };
+			foreach (int selectedIndex in new[] { 0, 2 })
+			{
+				var selected = holes[selectedIndex];
+				var automatic = new DimensionPlanner(config).CreateDimensionPlan(outline,
+					CreateVerticalPreferenceDatum(outline, holes, selected, PinGroupVerticalLayoutPreference.Automatic), holes);
+				foreach (var preference in new[] { PinGroupVerticalLayoutPreference.Left, PinGroupVerticalLayoutPreference.Right })
+				{
+					var plan = new DimensionPlanner(config).CreateDimensionPlan(outline,
+						CreateVerticalPreferenceDatum(outline, holes, selected, preference), holes);
+					Assert(plan.PinGroups.Count == 2, "side preference must not change pin grouping");
+					foreach (var group in plan.PinGroups)
+					{
+						var original = automatic.PinGroups.Single(g => g.GroupIndex == group.GroupIndex);
+						bool ownsSelected = group.Pins.Any(p => p.Center.Equals(selected.Center));
+						var expected = ownsSelected ? (preference == PinGroupVerticalLayoutPreference.Left ? DimensionSide.Left : DimensionSide.Right)
+							: original.VerticalSide;
+						Assert(group.VerticalSide == expected && group.HorizontalSide == original.HorizontalSide,
+							"A/D affects only selected-pin group vertical placement, not other groups or horizontal decisions");
+						var vertical = plan.Dimensions.Where(d => d.DebugOwner == "PG" + group.GroupIndex
+							&& d.Orientation == DimensionOrientation.Vertical).ToList();
+						Assert(vertical.Any(d => d.Kind == DimensionKind.PinDistance) && vertical.All(d => d.Side == expected && d.PreservePreferredSide),
+							"all owned vertical dimensions, including functional holes/transfers, must follow their own group's decision");
+						if (ownsSelected)
+						{
+							Assert(vertical.Any(d => d.DebugRole == "FunctionalHole"), "fixture must exercise functional-hole inheritance");
+							double endpointX = selected.Center.X + (expected == DimensionSide.Left ? -5 : 5);
+							Assert(vertical.All(d => d.AttachmentKind == "SelectedCenterlineEndpoint"
+								&& Math.Abs(d.SecondPoint.X - endpointX) <= config.GeometryTolerance),
+								"endpoint selection must use the requested side, not retain automatic-side grips");
+						}
+						var pin = vertical.Single(d => d.Kind == DimensionKind.PinDistance);
+						var originalPin = automatic.Dimensions.Single(d => d.DebugOwner == pin.DebugOwner && d.Kind == DimensionKind.PinDistance);
+						Assert(Math.Abs(GetSpan(pin) - GetSpan(originalPin)) <= config.GeometryTolerance && pin.OverrideText == originalPin.OverrideText,
+							"side choice must preserve pin-pair span and tolerance");
+					}
+					var before = automatic.Dimensions.Where(d => d.Orientation == DimensionOrientation.Horizontal).ToList();
+					var after = plan.Dimensions.Where(d => d.Orientation == DimensionOrientation.Horizontal).ToList();
+					Assert(before.Count == after.Count && before.Zip(after, (a, b) => a.Side == b.Side
+						&& a.FirstPoint.Equals(b.FirstPoint) && a.SecondPoint.Equals(b.SecondPoint)).All(equal => equal),
+						"vertical preference must not move horizontal dimensions or their attachments");
+				}
+			}
+		}
+
+		private static void DatumPinVerticalPreferenceDefaultsToAutomatic()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(20, 65);
+			var holes = new[] { CreateHole(10, 10, 8, HoleKind2D.Pin), CreateHole(10, 40, 8, HoleKind2D.Pin) };
+			var forced = CreateVerticalPreferenceDatum(outline, holes, holes[0], PinGroupVerticalLayoutPreference.Left);
+			new DimensionPlanner(config).CreateDimensionPlan(outline, forced, holes);
+			var fresh = Datum2D.FromOutline(outline);
+			fresh.DatumHole = holes[0];
+			Assert(fresh.PinGroupVerticalLayout == PinGroupVerticalLayoutPreference.Automatic
+				&& fresh.PinGroupHorizontalLayout == PinGroupHorizontalLayoutPreference.Automatic,
+				"new runs must never inherit the preceding A/D/W/S choice");
+			var automatic = new DimensionPlanner(config).CreateDimensionPlan(outline, fresh, holes);
+			Assert(automatic.PinGroups.Single().VerticalSide == DimensionSide.Right, "empty input must retain the existing automatic centered-hole rule");
+			fresh.DatumHole = null;
+			fresh.PinGroupVerticalLayout = PinGroupVerticalLayoutPreference.Left;
+			var unowned = new DimensionPlanner(config).CreateDimensionPlan(outline, fresh, holes);
+			Assert(unowned.PinGroups.Single().VerticalSide == DimensionSide.Right
+				&& unowned.Diagnostics.Warnings.Any(w => w.StartsWith("PinGroup.VerticalLayoutPreference.NotApplied|", StringComparison.Ordinal)),
+				"an unscoped preference must not silently target the first or every group");
+		}
+
+		private static void DatumPinVerticalPreferenceSurvivesFrameTransform()
+		{
+			var datum = new Datum2D { BaseX = 100, BaseY = 200, DatumHole = CreateHole(110, 210, 6, HoleKind2D.Pin),
+				PinGroupVerticalLayout = PinGroupVerticalLayoutPreference.Left, PinGroupHorizontalLayout = PinGroupHorizontalLayoutPreference.Bottom };
+			var frame = new CoordinateFrame2D(new Point2D(100, 200), new Point2D(0, 1));
+			var local = CoordinateFrameModelTransform.ToLocal(datum, frame);
+			Assert(local.PinGroupVerticalLayout == PinGroupVerticalLayoutPreference.Left
+				&& local.PinGroupHorizontalLayout == PinGroupHorizontalLayoutPreference.Bottom && local.DatumHole != null
+				&& local.DatumHole.Center.Equals(frame.ToLocal(datum.DatumHole.Center)),
+				"frame conversion must retain the preference and the selected pin identity together");
+		}
+
+		private static void DatumPinHorizontalPreferenceOnlyChangesSelectedGroup()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100, 100);
+			var holes = new[] { CreateHole(10, 10, 6, HoleKind2D.Pin), CreateHole(30, 10, 6, HoleKind2D.Pin),
+				CreateHole(70, 90, 6, HoleKind2D.Pin), CreateHole(90, 90, 6, HoleKind2D.Pin),
+				CreateHole(20, 10, 8, HoleKind2D.Thread), CreateHole(80, 90, 8, HoleKind2D.Thread) };
+			foreach (int selectedIndex in new[] { 0, 2 })
+			{
+				var selected = holes[selectedIndex];
+				var automatic = new DimensionPlanner(config).CreateDimensionPlan(outline,
+					CreateVerticalPreferenceDatum(outline, holes, selected, PinGroupVerticalLayoutPreference.Automatic), holes);
+				foreach (var preference in new[] { PinGroupHorizontalLayoutPreference.Top, PinGroupHorizontalLayoutPreference.Bottom })
+				{
+					var datum = CreateVerticalPreferenceDatum(outline, holes, selected, PinGroupVerticalLayoutPreference.Automatic);
+					datum.PinGroupHorizontalLayout = preference;
+					var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, holes);
+					Assert(plan.PinGroups.Count == 2, "W/S must not regroup pins");
+					foreach (var group in plan.PinGroups)
+					{
+						var original = automatic.PinGroups.Single(g => g.GroupIndex == group.GroupIndex);
+						bool ownsSelected = group.Pins.Any(p => p.Center.Equals(selected.Center));
+						var expected = ownsSelected ? (preference == PinGroupHorizontalLayoutPreference.Top ? DimensionSide.Top : DimensionSide.Bottom)
+							: original.HorizontalSide;
+						Assert(group.HorizontalSide == expected && group.VerticalSide == original.VerticalSide,
+							"W/S affects only selected group horizontal placement, not another group or vertical decisions");
+						var horizontal = plan.Dimensions.Where(d => d.DebugOwner == "PG" + group.GroupIndex
+							&& d.Orientation == DimensionOrientation.Horizontal).ToList();
+						Assert(horizontal.Any(d => d.Kind == DimensionKind.PinDistance)
+							&& horizontal.All(d => d.Side == expected && d.PreservePreferredSide), "horizontal dimensions must inherit their own group's side");
+						if (ownsSelected)
+						{
+							Assert(horizontal.Any(d => d.DebugRole == "FunctionalHole"), "fixture must exercise functional-hole ownership");
+							double endpointY = selected.Center.Y + (expected == DimensionSide.Top ? 5 : -5);
+							Assert(horizontal.All(d => d.AttachmentKind == "SelectedCenterlineEndpoint"
+								&& Math.Abs(d.SecondPoint.Y - endpointY) <= config.GeometryTolerance), "W/S must select existing endpoints on the requested side");
+						}
+						var pin = horizontal.Single(d => d.Kind == DimensionKind.PinDistance);
+						var originalPin = automatic.Dimensions.Single(d => d.DebugOwner == pin.DebugOwner && d.Kind == DimensionKind.PinDistance);
+						Assert(Math.Abs(GetSpan(pin) - GetSpan(originalPin)) <= config.GeometryTolerance && pin.OverrideText == originalPin.OverrideText,
+							"W/S must preserve the real pin-pair span and tolerance");
+					}
+					var before = automatic.Dimensions.Where(d => d.Orientation == DimensionOrientation.Vertical).ToList();
+					var after = plan.Dimensions.Where(d => d.Orientation == DimensionOrientation.Vertical).ToList();
+					Assert(before.Count == after.Count && before.Zip(after, (a, b) => a.Side == b.Side
+						&& a.FirstPoint.Equals(b.FirstPoint) && a.SecondPoint.Equals(b.SecondPoint)).All(equal => equal),
+						"W/S must not move vertical dimension grips");
+				}
+			}
+		}
+
+		private static void DatumPinLayoutOrientationUsesSelectedGroup()
+		{
+			var planner = new DimensionPlanner(DimensionRuleConfig.CreateDefault());
+			// Both axes exist in the selection; the wide outline alone must not decide the prompt.
+			var outline = CreateRectangle(200, 100);
+			var holes = new[] { CreateHole(10, 10, 6, HoleKind2D.Pin), CreateHole(30, 10, 6, HoleKind2D.Pin),
+				CreateHole(150, 70, 6, HoleKind2D.Pin), CreateHole(150, 90, 6, HoleKind2D.Pin) };
+			Assert(planner.GetSelectedPinGroupLayoutOrientation(outline, holes, holes[0]) == DimensionOrientation.Horizontal,
+				"horizontal selected pin pair must offer W/S");
+			Assert(planner.GetSelectedPinGroupLayoutOrientation(outline, holes, holes[2]) == DimensionOrientation.Vertical,
+				"vertical selected pair must offer A/D even inside a wide outline");
+			Assert(planner.GetSelectedPinGroupLayoutOrientation(outline, new[] { holes[0] }, holes[0]) == null
+				&& planner.GetSelectedPinGroupLayoutOrientation(outline, holes, CreateHole(999, 999, 6, HoleKind2D.Pin)) == null,
+				"singletons and unselected datum pins must not receive an invented axis");
+			var oblique = new[] { CreateHole(10, 10, 6, HoleKind2D.Pin), CreateHole(30, 30, 6, HoleKind2D.Pin) };
+			Assert(planner.GetSelectedPinGroupLayoutOrientation(outline, oblique, oblique[0]) == null,
+				"two-axis pin pair must retain the explicit four-key fallback");
+			double angle = Math.PI / 6;
+			var rotatedOutline = RotateOutline(outline, angle);
+			var rotatedHoles = holes.Select(h => { var p = RotatePoint(h.Center, angle); return CreateHole(p.X, p.Y, h.Diameter, HoleKind2D.Pin); }).ToArray();
+			Assert(planner.GetSelectedPinGroupLayoutOrientation(rotatedOutline, rotatedHoles, rotatedHoles[0]) == DimensionOrientation.Horizontal,
+				"prompt classification must follow the final planner's inferred frame");
+		}
+
+		private static void HorizontalPreferenceKeepsContinuousDatumChain()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(65, 20);
+			var holes = new[] { CreateHole(55, 10, 8, HoleKind2D.Pin), CreateHole(25, 10, 8, HoleKind2D.Pin),
+				CreateHole(40, 10, 6, HoleKind2D.Thread), CreateHole(10, 10, 6, HoleKind2D.Thread) };
+			foreach (var preference in new[] { PinGroupHorizontalLayoutPreference.Top, PinGroupHorizontalLayoutPreference.Bottom })
+			{
+				var datum = CreateVerticalPreferenceDatum(outline, holes, holes[0], PinGroupVerticalLayoutPreference.Automatic);
+				datum.DatumHoleLocationBaseX = 65;
+				datum.DatumHoleLocationBaseY = 20;
+				datum.PinGroupHorizontalLayout = preference;
+				var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, holes);
+				var horizontal = plan.Dimensions.Where(d => d.DebugOwner == "PG1" && d.Orientation == DimensionOrientation.Horizontal).ToList();
+				var location = horizontal.Single(d => d.Kind == DimensionKind.DatumHoleLocationX);
+				var pin = horizontal.Single(d => d.Kind == DimensionKind.PinDistance);
+				var side = preference == PinGroupHorizontalLayoutPreference.Top ? DimensionSide.Top : DimensionSide.Bottom;
+				Assert(horizontal.All(d => d.Side == side) && Math.Abs(GetSpan(location) - 10) <= config.GeometryTolerance
+					&& Math.Abs(GetSpan(pin) - 30) <= config.GeometryTolerance, "W/S must preserve the 10 + 30 horizontal chain");
+				Assert(horizontal.Count(d => d.DebugRole == "FunctionalHole") == 2
+					&& horizontal.Where(d => d.DebugRole == "FunctionalHole").All(d => d.AlignmentKey != location.AlignmentKey),
+					"functional 15/45 must retain independent alignment lanes");
+				var items = CreatePinDatumAlignmentLayout(horizontal);
+				var placements = new DimensionLayoutRules(config).CreateStackingPlan(items, side, outline, 3, 1.5, 10, 5.5, false);
+				var a = placements.Single(p => p.Index == horizontal.IndexOf(location));
+				var b = placements.Single(p => p.Index == horizontal.IndexOf(pin));
+				Assert(a.LayoutBlockId == b.LayoutBlockId && a.AlignmentLaneMemberCount == 2,
+					"W/S should preserve the proven contiguous datum/pin alignment block");
+			}
+			var unownedDatum = Datum2D.FromOutline(outline);
+			unownedDatum.PinGroupHorizontalLayout = PinGroupHorizontalLayoutPreference.Bottom;
+			var unowned = new DimensionPlanner(config).CreateDimensionPlan(outline, unownedDatum, holes);
+			Assert(unowned.PinGroups.Single().HorizontalSide == DimensionSide.Top
+				&& unowned.Diagnostics.Warnings.Any(w => w.StartsWith("PinGroup.HorizontalLayoutPreference.NotApplied|", StringComparison.Ordinal)),
+				"W/S without a selected datum pin must not silently target a group");
+		}
+
+		private static void SeparatePinGroupsKeepIndependentSides()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100, 100);
+			var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, Datum2D.FromOutline(outline), new[] {
+				CreateHole(10, 10, 6, HoleKind2D.Pin), CreateHole(10, 20, 6, HoleKind2D.Pin),
+				CreateHole(90, 80, 6, HoleKind2D.Pin), CreateHole(90, 90, 6, HoleKind2D.Pin) });
+			Assert(plan.PinGroups.Count == 2 && plan.PinGroups[0].VerticalSide == DimensionSide.Left
+				&& plan.PinGroups[1].VerticalSide == DimensionSide.Right, "different groups must retain independently chosen datum sides");
+			foreach (var group in plan.PinGroups)
+			{
+				var owned = plan.Dimensions.Where(d => d.DebugOwner == "PG" + group.GroupIndex
+					&& d.Orientation == DimensionOrientation.Vertical && (d.Kind == DimensionKind.PinDistance || d.Kind == DimensionKind.PinGroupDistance)).ToList();
+				Assert(owned.Any(d => d.Kind == DimensionKind.PinDistance) && owned.All(d => d.Side == group.VerticalSide && d.PreservePreferredSide),
+					"pair and incoming transfer dimensions must follow their own group, not the first group's side");
+			}
+		}
+
+		private static void ParallelDatumStacksKeepNestedDimensionsSeparated()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var rules = new DimensionLayoutRules(config);
+			foreach (bool horizontal in new[] { false, true })
+			{
+				foreach (bool negative in new[] { false, true })
+				{
+					var outline = CreateRectangle(horizontal ? 65 : 20, horizontal ? 20 : 65);
+					var side = horizontal ? (negative ? DimensionSide.Bottom : DimensionSide.Top)
+						: (negative ? DimensionSide.Left : DimensionSide.Right);
+					var items = new List<DimensionLayoutItem>();
+					foreach (double end in new[] { 10.0, 25.0, 55.0 })
+					{
+						double start = end == 10 ? 0 : 10;
+						items.Add(new DimensionLayoutItem { FirstPoint = horizontal ? new Point2D(start, 10) : new Point2D(10, start),
+							SecondPoint = horizontal ? new Point2D(end, 10) : new Point2D(10, end), Span = end - start,
+							Kind = end == 10 ? (horizontal ? DimensionKind.DatumHoleLocationX : DimensionKind.DatumHoleLocationY) : DimensionKind.HoleLocation,
+							AlignmentKey = end == 10 ? "datum" : "functional", AlignmentPriority = end == 10 ? 120 : 90,
+							PreserveAlignmentLevel = end != 10, DatumFamilyKey = "real-base", ParallelStackKey = end == 10 ? null : "parallel",
+							SourceFeatureId = "PG1", PreferLocalBoundary = end != 10 });
+					}
+					var compact = rules.CreateStackingPlan(items, side, outline, 3, 1.5, 10, 5.5, horizontal);
+					foreach (var item in items) { item.ParallelStackKey = null; }
+					var legacy = rules.CreateStackingPlan(items, side, outline, 3, 1.5, 10, 5.5, horizontal);
+					var small = compact.Single(p => p.Index == 1); var large = compact.Single(p => p.Index == 2);
+					Assert(large.PhysicalOutwardDistance - small.PhysicalOutwardDistance >= 5.5 - config.GeometryTolerance,
+						"nested spans sharing a base must remain separated by physical spacing on every side");
+					Assert(large.PhysicalOutwardDistance <= legacy.Single(p => p.Index == 2).PhysicalOutwardDistance + config.GeometryTolerance,
+						"safe compaction must never move the family farther outward");
+					Assert(compact.All(p => p.PhysicalOrderValidated), "compaction must preserve the existing physical ordering constraints");
+				}
+			}
+		}
+
+		private static Point2D MapExtensionFixture(Point2D point, DimensionSide side)
+		{
+			if (side == DimensionSide.Left) { return new Point2D(-point.X, point.Y); }
+			if (side == DimensionSide.Top) { return new Point2D(point.Y, point.X); }
+			if (side == DimensionSide.Bottom) { return new Point2D(point.Y, -point.X); }
+			return point;
+		}
+
+		private static void ContinuousExtensionPolicyNeverBreaksOrDeduplicates()
+		{
+			foreach (var side in new[] { DimensionSide.Right, DimensionSide.Left, DimensionSide.Top, DimensionSide.Bottom })
+			{
+				var items = new[] {
+					new ExtensionLineLayoutItem { DiagnosticId = 1, Side = side, Enabled = true, DatumFamilyKey = "base",
+						FirstPoint = new Point2D(0, 0), SecondPoint = new Point2D(0, 15), DimLineCoordinate = 10,
+						TextBounds = new TextBounds2D { MinX = 3, MaxX = 5, MinY = -1, MaxY = 20 } },
+					new ExtensionLineLayoutItem { DiagnosticId = 2, Side = side, Enabled = true, DatumFamilyKey = "base",
+						FirstPoint = new Point2D(0, 0), SecondPoint = new Point2D(0, 45), DimLineCoordinate = 20,
+						NativeFirstSuppressed = true } };
+				var result = DimensionExtensionLineRules.CreateContinuous(items);
+				Assert(result.Count == items.Length && result.All(p => !p.SuppressFirst && !p.SuppressSecond
+					&& p.FirstSegments.Count == 0 && p.SecondSegments.Count == 0),
+					"production continuous policy must ignore old segmentation flags, overlaps and common-baseline deduplication");
+				Assert(result.All(p => p.Decision == "NativeContinuous_NoAutomaticBreaks|PendingCadVerification")
+					&& items[1].NativeFirstSuppressed, "native style suppression must remain untouched, with no claim of CAD verification");
+			}
+		}
+
+		private static void ExtensionGeometrySegmentsAllFourSides()
+		{
+			foreach (var side in new[] { DimensionSide.Right, DimensionSide.Left, DimensionSide.Top, DimensionSide.Bottom })
+			{
+				Func<Point2D, Point2D> map = p => MapExtensionFixture(p, side);
+				var box = new[] { map(new Point2D(3, -1)), map(new Point2D(5, -1)), map(new Point2D(3, 1)), map(new Point2D(5, 1)) };
+				double sign = side == DimensionSide.Left || side == DimensionSide.Bottom ? -1 : 1;
+				var source = new ExtensionLineLayoutItem { DiagnosticId = 1, Side = side, Enabled = true,
+					FirstPoint = map(new Point2D(0, 0)), SecondPoint = map(new Point2D(0, 5)), DimLineCoordinate = sign * 10 };
+				var obstacle = new ExtensionLineLayoutItem { DiagnosticId = 2, Side = side, Enabled = false,
+					FirstPoint = map(new Point2D(0, 50)), SecondPoint = map(new Point2D(0, 55)), DimLineCoordinate = sign * 20,
+					TextBounds = new TextBounds2D { MinX = box.Min(p => p.X), MaxX = box.Max(p => p.X), MinY = box.Min(p => p.Y), MaxY = box.Max(p => p.Y) } };
+				var edge = new Segment2D(map(new Point2D(7, -2)), map(new Point2D(7, 2)));
+				var plan = DimensionExtensionLineRules.Create(new[] { source, obstacle }, new[] { edge }, 1, 1, 0.5, 0.001)[0];
+				Assert(plan.SuppressFirst && !plan.SuppressSecond && plan.FirstSegments.Count == 3,
+					"only the affected native extension is replaced, with text/outline gaps, side=" + side);
+				Assert(plan.FirstSegments.All(s => s.Start.DistanceTo(s.End) > 0.001), "segmentation must not emit zero-length lines");
+				Assert(source.FirstPoint.DistanceTo(map(new Point2D(0, 0))) < 0.001
+					&& source.SecondPoint.DistanceTo(map(new Point2D(0, 5))) < 0.001, "extension planning must never move real definition points");
+				Assert(plan.Decision.Contains("PendingCadVerification"), "a geometry plan must not claim CAD rendering passed");
+			}
+		}
+
+		private static void ExtensionSharingRequiresFamilyAndRealPoint()
+		{
+			var first = new ExtensionLineLayoutItem { DiagnosticId = 1, Side = DimensionSide.Right, Enabled = true,
+				DatumFamilyKey = "base", FirstPoint = new Point2D(0, 0), SecondPoint = new Point2D(0, 5), DimLineCoordinate = 10 };
+			var second = new ExtensionLineLayoutItem { DiagnosticId = 2, Side = DimensionSide.Right, Enabled = true,
+				DatumFamilyKey = "base", FirstPoint = new Point2D(0, 0), SecondPoint = new Point2D(0, 8), DimLineCoordinate = 20 };
+			var plan = DimensionExtensionLineRules.Create(new[] { first, second }, null, 1, 1, 0.5, 0.001);
+			Assert(plan[0].SuppressFirst && plan[0].FirstSegments.Count == 0 && !plan[1].SuppressFirst
+				&& plan[0].Decision.Contains("SharedExtensionOwnedBy:2"), "the longest proven common baseline owns the extension");
+			second.DatumFamilyKey = "unrelated";
+			plan = DimensionExtensionLineRules.Create(new[] { first, second }, null, 1, 1, 0.5, 0.001);
+			Assert(plan.All(p => !p.Decision.Contains("SharedExtensionOwnedBy")), "coincident coordinates alone cannot prove a shared extension");
+			second.DatumFamilyKey = "base";
+			second.FirstPoint = new Point2D(2, 0);
+			plan = DimensionExtensionLineRules.Create(new[] { first, second }, null, 1, 1, 0.5, 0.001);
+			Assert(plan.All(p => !p.Decision.Contains("SharedExtensionOwnedBy")), "a family label alone cannot replace proof of the same real point");
+			first.NativeFirstSuppressed = true;
+			plan = DimensionExtensionLineRules.Create(new[] { first }, null, 1, 1, 0.5, 0.001);
+			Assert(!plan[0].SuppressFirst && plan[0].FirstSegments.Count == 0, "native style suppression must not cause a replacement line to be created");
+			first.NativeFirstSuppressed = false;
+			plan = DimensionExtensionLineRules.Create(new[] { first }, new[] {
+				new Segment2D(new Point2D(10, -1), new Point2D(10, 1)) }, 1, 1, 0.5, 0.001);
+			Assert(!plan[0].SuppressFirst && plan[0].Decision.Contains("UnresolvedExtensionConflict"),
+				"a cut that would disconnect the dimension's own arrow must retain native geometry and remain pending");
+		}
+
+		private static void SingletonAlignmentIsNotProof()
+		{
+			var plan = new DimensionPlan();
+			var dimension = new PlannedDimension { Kind = DimensionKind.HoleLocation, Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right, FirstPoint = new Point2D(0, 0), SecondPoint = new Point2D(0, 15),
+				DatumFamilyKey = "base", ParallelStackKey = "parallel", AlignmentKey = "lane" };
+			plan.Add(dimension);
+			plan.CaptureFinalDimensions();
+			plan.Diagnostics.RecordFinalPlacement(dimension.DiagnosticId, "Right", 0, 10, 30, false, true, "lane#1", 1,
+				"AlignedRootedLayoutBlock", "block", "RootedAlignmentLane", 15, 0, "", "", 10, true);
+			plan.Diagnostics.ValidateDatumFamilyLayout(5.5, 0.001);
+			var diagnostic = plan.Diagnostics.FinalDimensions.Single();
+			Assert(diagnostic.AlignmentDecision == "SingleMemberNoAlignmentProof" && diagnostic.FamilySpacingValid == null,
+				"singleton alignment and missing spacing comparisons must not be reported as passed");
+			Assert(diagnostic.ExtensionLineDecision == "Unknown", "unrendered extension geometry must remain unknown");
+			var nested = new PlannedDimension { Kind = DimensionKind.HoleLocation, Orientation = DimensionOrientation.Vertical,
+				Side = DimensionSide.Right, FirstPoint = new Point2D(0, 0), SecondPoint = new Point2D(0, 45), DatumFamilyKey = "base" };
+			plan.Add(nested);
+			plan.CaptureFinalDimensions();
+			plan.Diagnostics.ValidateDatumFamilyLayout(5.5, 0.001);
+			Assert(plan.Diagnostics.FinalDimensions.All(d => d.FamilySpacingValid == null && d.DatumFamilySideDecision == "PendingPlacement"),
+				"a partly unplaced family cannot pass a group check");
+			plan.Diagnostics.RecordFinalPlacement(nested.DiagnosticId, "Right", 0, 10, 30, false, false, "", 0,
+				"NotRequested", "other", "SingleDimension", 45, 1, "", "", 10, true);
+			plan.Diagnostics.ValidateDatumFamilyLayout(5.5, 0.001);
+			Assert(plan.Diagnostics.FinalDimensions.All(d => d.FamilySpacingValid == false),
+				"physical-order success alone must not conceal overlapping nested family dimensions");
+		}
+
+		// Normalized outline from OP20-1-4: the 18-wide frame is internal to the 20 x 65 boundary.
+		private static OutlineFeature2D CreateInternalTopFrameFixture()
+		{
+			var o = new OutlineFeature2D { MinX = 0, MinY = 0, MaxX = 20, MaxY = 65 };
+			AddSegment(o, new Point2D(0, 0), new Point2D(20, 0), "outer-bottom");
+			AddSegment(o, new Point2D(20, 0), new Point2D(20, 30), "outer-right-low");
+			AddSegment(o, new Point2D(20, 30), new Point2D(20, 45), "outer-right-mid");
+			AddSegment(o, new Point2D(20, 45), new Point2D(20, 65), "outer-right-high");
+			AddSegment(o, new Point2D(20, 65), new Point2D(0, 65), "outer-top");
+			AddSegment(o, new Point2D(0, 65), new Point2D(0, 45), "outer-left-high");
+			AddSegment(o, new Point2D(0, 45), new Point2D(0, 30), "outer-left-mid");
+			AddSegment(o, new Point2D(0, 30), new Point2D(0, 0), "outer-left-low");
+			AddSegment(o, new Point2D(1, 64), new Point2D(19, 64), "inner-top18");
+			AddSegment(o, new Point2D(19, 64), new Point2D(19, 46), "inner-right");
+			AddSegment(o, new Point2D(19, 46), new Point2D(1, 46), "inner-bottom");
+			AddSegment(o, new Point2D(1, 46), new Point2D(1, 64), "inner-left");
+			AddSegment(o, new Point2D(0, 65), new Point2D(1, 64), "inner-cut-tl");
+			AddSegment(o, new Point2D(20, 65), new Point2D(19, 64), "inner-cut-tr");
+			AddSegment(o, new Point2D(20, 45), new Point2D(19, 46), "inner-cut-br");
+			AddSegment(o, new Point2D(0, 45), new Point2D(1, 46), "inner-cut-bl");
+			AddSegment(o, new Point2D(0, 45), new Point2D(20, 45), "inner-cross45");
+			AddSegment(o, new Point2D(0, 30), new Point2D(20, 30), "inner-cross30");
+			return o;
+		}
+
+		private static void OuterBoundaryOwnershipRejectsInternalTopFrame()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			foreach (double angle in new[] { 0.0, 90.0, 180.0, 270.0 })
+			{
+				var outline = TransformLProfileFixture(CreateInternalTopFrameFixture(), angle, false);
+				new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+				var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+				Assert(!plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Structure
+					&& (Math.Abs(GetSpan(d) - 18) <= config.GeometryTolerance || Math.Abs(GetSpan(d) - 19) <= config.GeometryTolerance)),
+					"internal frame and its coordinate-only complement must not become outer structure dimensions, rotation=" + angle);
+				Assert(plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Overall && Math.Abs(GetSpan(d) - 20) <= config.GeometryTolerance)
+					&& plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Overall && Math.Abs(GetSpan(d) - 65) <= config.GeometryTolerance),
+					"rejecting internal frame dimensions must retain both real overall dimensions");
+				Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.SourceFeatureId == "inner-top18"
+					&& !c.IsSelected && c.DecisionReason == "StructureSourceNotOnExteriorBoundary"),
+					"the rejected raw internal edge must carry its ownership reason");
+				Assert(outline.Segments.Count == 18, "ownership filtering must not delete source geometry");
+			}
+		}
+
+		private static void ChamferComplementRequiresBoundaryWalk()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = new OutlineFeature2D { MinX = 0, MinY = 0, MaxX = 10, MaxY = 10 };
+			AddSegment(outline, new Point2D(0, 0), new Point2D(9, 0), "seed");
+			AddSegment(outline, new Point2D(9, 0), new Point2D(10, 1), "cut");
+			AddSegment(outline, new Point2D(10, 1), new Point2D(10, 10), "right");
+			AddSegment(outline, new Point2D(10, 10), new Point2D(0, 10), "top");
+			AddSegment(outline, new Point2D(0, 10), new Point2D(0, 0), "left");
+			outline.Chamfers.Add(new ChamferFeature2D { StartPoint = new Point2D(9, 0), EndPoint = new Point2D(10, 1), Value = 1 });
+			var boundary = new StructureBoundaryEvidence(DimensionPlanner.InspectOutlineTopology(outline, config.GeometryTolerance), config.GeometryTolerance);
+			var seed = new StructureFeature { Axis = StructureFeatureAxis.Horizontal, FirstPoint = new Point2D(0, 0),
+				SecondPoint = new Point2D(9, 0), CrossPosition = 0, BoundaryMembership = boundary.GetMembership(outline.Segments[0]) };
+			string proof;
+			List<string> sources;
+			Assert(boundary.TryProveChamferComplement(seed, new Point2D(0, 0), new Point2D(10, 1), outline, 8, out proof, out sources)
+				&& sources.Contains("seed") && sources.Contains("cut"), "real connected endpoints must admit a traceable boundary proof");
+			Assert(!boundary.TryProveChamferComplement(seed, new Point2D(0, 0), new Point2D(10, 0), outline, 8, out proof, out sources),
+				"the same numeric span with a theoretical corner must not be emitted");
+			outline.Chamfers.Clear();
+			Assert(!boundary.TryProveChamferComplement(seed, new Point2D(0, 0), new Point2D(10, 1), outline, 8, out proof, out sources),
+				"a coordinate difference and inclined edge cannot replace a recognized chamfer definition");
+		}
+
+		private static void BoundarySelectionCannotRestoreInternalEdges()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateInternalTopFrameFixture();
+			var boundary = new StructureBoundaryEvidence(DimensionPlanner.InspectOutlineTopology(outline, config.GeometryTolerance), config.GeometryTolerance);
+			var features = new StructureFeatureExtractor(config).Extract(outline, boundary);
+			var inner = features.Single(f => f.SourceKey == "inner-top18");
+			inner.Keep = true;
+			inner.IsInset = false;
+			inner.SourceKey = "OuterTip:MisleadingLabel";
+			new StructureMeasurementSelector(config).Select(features, outline, boundary);
+			Assert(!inner.Keep && inner.BoundaryMembership == "NonBoundary", "neither proximity, restoration nor a source label may override real ownership");
+			var independent = new StructureFeature { Kind = StructureFeatureKind.NotchOpening, Keep = true, IsInset = true };
+			StructureBoundaryEvidence.EnforceSelection(new[] { independent });
+			Assert(independent.Keep, "the outer-edge guard must not blanket-delete independent feature paths");
+			var unknown = new StructureFeature { Kind = StructureFeatureKind.RealStep, Keep = true, RequiresOuterBoundarySupport = true };
+			StructureBoundaryEvidence.EnforceSelection(new[] { unknown });
+			Assert(!unknown.Keep && unknown.SuppressReason == "StructureBoundaryEvidenceInsufficient", "missing ownership must remain unproven, not default to outer structure");
+		}
+
+		private static void UnverifiedAttachmentRemainsUnknown()
+		{
+			var plan = new DimensionPlan();
+			var candidate = CreateCoverageTestDimension("unverified");
+			plan.Add(candidate);
+			plan.CaptureFinalDimensions();
+			Assert(plan.Diagnostics.FinalDimensions.Single().IsAttachmentValid == null
+				&& plan.Diagnostics.FinalDimensions.Single().AttachmentValidationStatus == "Unknown",
+				"unverified attachment must not default to true in either candidate or final diagnostics");
+			plan.SetAttachmentValidity(candidate, true);
+			plan.CaptureFinalDimensions();
+			Assert(plan.Diagnostics.FinalDimensions.Single().IsAttachmentValid == true, "an actual positive validation must remain distinguishable");
+			plan.SetAttachmentValidity(candidate, false);
+			plan.CaptureFinalDimensions();
+			Assert(plan.Diagnostics.FinalDimensions.Single().AttachmentValidationStatus == "Invalid", "a failed validation must not be confused with unknown");
+		}
+
+		// Normalized real L01-13 geometry, including the internal branch and the split right edge.
+		private static OutlineFeature2D CreateL01ChamferResidualFixture(double armWidth, double topChamfer, double splitHeight = 15)
+		{
+			var outline = new OutlineFeature2D { MinX = 0, MinY = 0, MaxX = 145, MaxY = 65 };
+			double innerX = 145 - armWidth;
+			AddSegment(outline, new Point2D(145, splitHeight), new Point2D(145, 0), "4EF");
+			AddSegment(outline, new Point2D(145, 0), new Point2D(100, 0), "4EE");
+			AddSegment(outline, new Point2D(145, splitHeight), new Point2D(105, splitHeight), "4DB");
+			AddSegment(outline, new Point2D(145, 65), new Point2D(145, splitHeight), "4DA");
+			AddSegment(outline, new Point2D(100, 0), new Point2D(0, 0), "4D2");
+			AddSegment(outline, new Point2D(100, 0), new Point2D(100, splitHeight - 5), "4D1");
+			AddSegment(outline, new Point2D(innerX + topChamfer, 65), new Point2D(145, 65), "4D9");
+			AddSegment(outline, new Point2D(0, 0), new Point2D(0, 20), "4D3");
+			AddSegment(outline, new Point2D(innerX + topChamfer, 65), new Point2D(innerX, 65 - topChamfer), "4D8");
+			AddSegment(outline, new Point2D(0, 20), new Point2D(5, 25), "4D4");
+			AddSegment(outline, new Point2D(innerX, 30), new Point2D(innerX, 65 - topChamfer), "4D7");
+			AddSegment(outline, new Point2D(5, 25), new Point2D(innerX - 5, 25), "4D5");
+			outline.Arcs.Add(new Arc2D { Start = new Point2D(105, splitHeight), End = new Point2D(100, splitHeight - 5),
+				Center = new Point2D(105, splitHeight - 5), Radius = 5, Bulge = Math.Tan(Math.PI / 8), SourceKey = "4D0" });
+			outline.Arcs.Add(new Arc2D { Start = new Point2D(innerX - 5, 25), End = new Point2D(innerX, 30),
+				Center = new Point2D(innerX - 5, 30), Radius = 5, Bulge = Math.Tan(Math.PI / 8), SourceKey = "4D6" });
+			return outline;
+		}
+
+		private static void CollinearExteriorBranchFragmentsUseTopology()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			foreach (double split in new[] { 13.0, 15.0, 17.0 })
+			foreach (double rotation in new[] { 0.0, 90.0, 180.0, 270.0 })
+			foreach (bool mirror in new[] { false, true })
+			{
+				var outline = TransformLProfileFixture(CreateL01ChamferResidualFixture(25, 5, split), rotation, mirror);
+				new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+				var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+				var removed = plan.Diagnostics.DimensionCandidates.Where(c => c.RuleId == "Structure.CollinearBoundaryBranchFragment").ToList();
+				Assert(removed.Any(c => c.IsSuppressed && Math.Abs(c.Value - split) <= config.GeometryTolerance
+					&& c.TopologyEvidence.Contains("InternalBranchOnContinuousExterior") && c.TopologyEvidence.Contains("CoveredByIds=")),
+					"split exterior fragment needs real branch/continuation/provider proof, independent of value, rotation and mirror");
+				Assert(!plan.Dimensions.Any(d => d.SourceGeometryIds.Contains("4EF") && d.SourceKey == "OuterTip:4EF"),
+					"the pseudo outer tip must not survive through its alternate generation path");
+				Assert(plan.Dimensions.Count(d => d.Role == DimensionCandidateRole.Overall) == 2
+					&& plan.Dimensions.Count(d => d.RuleId == "LProfile.VerticalArmWidth" || d.RuleId == "LProfile.HorizontalArmHeight") == 2,
+					"both overall dimensions and real arm thicknesses must survive");
+				Assert(!plan.Diagnostics.Warnings.Any(w => w.StartsWith("StructureCoverage.Incomplete|", StringComparison.Ordinal)),
+					"the full-side provider must remain live");
+			}
+		}
+
+		private static void InvokeExteriorFragmentPass(DimensionPlan plan, OutlineFeature2D outline)
+		{
+			typeof(DimensionPlanner).GetMethod("SuppressCollinearExteriorBranchFragments",
+				System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+				.Invoke(new DimensionPlanner(DimensionRuleConfig.CreateDefault()), new object[] { plan, outline });
+		}
+
+		private static void CollinearExteriorBranchFragmentsProtectRequirements()
+		{
+			foreach (string variant in new[] { "plain", "raw", "tolerance", "functional", "feature", "outerLevel", "rule", "unknown", "noProvider", "wrongProvider", "noBranch", "corner" })
+			{
+				var outline = CreateL01ChamferResidualFixture(25, 5);
+				if (variant == "noBranch")
+				{
+					outline.Segments.RemoveAll(s => s.SourceKey == "4DB" || s.SourceKey == "4D1");
+					outline.Arcs.RemoveAll(a => a.SourceKey == "4D0");
+				}
+				if (variant == "corner")
+				{
+					outline = new OutlineFeature2D { MinX = 0, MinY = 0, MaxX = 145, MaxY = 65 };
+					var points = new[] { new Point2D(145, 0), new Point2D(145, 15), new Point2D(135, 15),
+						new Point2D(135, 65), new Point2D(0, 65), new Point2D(0, 0) };
+					for (int i = 0; i < points.Length; i++) { AddSegment(outline, points[i], points[(i + 1) % points.Length], i == 0 ? "4EF" : "corner" + i); }
+				}
+				var plan = new DimensionPlan();
+				plan.Diagnostics.OutlineTopology = DimensionPlanner.InspectOutlineTopology(outline, 0.001);
+				if (variant == "unknown") { plan.Diagnostics.OutlineTopology.Status = "Unavailable"; }
+				var candidate = CreateCoverageTestDimension("OuterTip:4EF", 15);
+				candidate.Orientation = DimensionOrientation.Vertical;
+				candidate.Side = DimensionSide.Right;
+				candidate.RequiresOuterBoundarySupport = true;
+				candidate.FirstPoint = new Point2D(145, 0); candidate.SecondPoint = new Point2D(145, 15);
+				candidate.SourceGeometryIds = new List<string> { "4EF" };
+				if (variant == "raw") { candidate.SourceKey = "4EF"; }
+				if (variant == "feature") { candidate.SourceKey = "StepGroove:4EF"; }
+				if (variant == "tolerance") { candidate.OverrideText = "15±0.02"; }
+				if (variant == "functional") { candidate.Kind = DimensionKind.HoleLocation; }
+				if (variant == "outerLevel") { candidate.ForceOuterLevel = true; }
+				if (variant == "rule") { candidate.RuleId = "IndependentFeatureRequirement"; }
+				plan.Add(candidate);
+				var provider = new PlannedDimension { Kind = DimensionKind.OverallHeight, Role = DimensionCandidateRole.Overall,
+					Orientation = DimensionOrientation.Vertical, FirstPoint = new Point2D(145, 0),
+					SecondPoint = new Point2D(145, variant == "wrongProvider" ? 60 : 65) };
+				if (variant != "noProvider") { plan.Add(provider); }
+				InvokeExteriorFragmentPass(plan, outline);
+				Assert(plan.Dimensions.Contains(candidate) == (variant != "plain" && variant != "raw"),
+					"only the proven unannotated fragment is removable; protected/unknown/real-corner case=" + variant);
+			}
+		}
+
+		private static void OutlineTopologyNonExteriorEntitiesUseYellowArrows()
+		{
+			var graph = DimensionPlanner.InspectOutlineTopology(CreateL01ChamferResidualFixture(25, 5), 0.001);
+			string svg = OutlineTopologyExporter.ToSvg(graph, "yellow-arrows");
+			Assert(svg.Contains("data-membership=\"NonBoundary\"") && svg.Contains("marker-end=\"url(#nonExteriorArrow)\"")
+				&& svg.Contains("stroke=\"#e6b800\"") && svg.Contains("非外轮廓实体") && svg.Contains("marker-end=\"url(#arrow)\""),
+				"confirmed non-exterior lines/arcs need yellow source-direction arrows while exterior traversal stays green");
+			Assert(OutlineTopologyExporter.ToJson(graph).Contains("\"boundaryMembership\":\"NonBoundary\""),
+				"JSON must expose the same explicit non-exterior ownership");
+			graph.Status = "Unavailable";
+			string unknown = OutlineTopologyExporter.ToSvg(graph, "unknown");
+			Assert(!unknown.Contains("marker-end=\"url(#nonExteriorArrow)\"") && unknown.Contains("data-membership=\"Unknown\"")
+				&& !OutlineTopologyExporter.ToJson(graph).Contains("\"boundaryMembership\":\"NonBoundary\""),
+				"unresolved topology must remain gray/unknown, never relabeled as non-exterior");
+		}
+
+		private static OutlineFeature2D CreateObliqueBoundaryInformationFixture(double scale = 1, bool equalProjections = false)
+		{
+			var outline = new OutlineFeature2D { MinX = 0, MinY = 0, MaxX = 89 * scale, MaxY = 62.022 * scale };
+			double innerX = equalProjections ? 79 : 69;
+			var points = new[] { new Point2D(innerX, 1), new Point2D(innerX, 17.022), new Point2D(54, 42.022),
+				new Point2D(0, 42.022), new Point2D(0, 62.022), new Point2D(65, 62.022),
+				new Point2D(89, 12.022), new Point2D(89, 1), new Point2D(88, 0), new Point2D(innerX + 1, 0) };
+			string[] sources = { "B8F", "B87", "B85", "B88", "B86", "B89", "B8E", "B92", "B91", "B93" };
+			for (int i = 0; i < points.Length; i++)
+			{
+				var a = points[i]; var b = points[(i + 1) % points.Length];
+				AddSegment(outline, new Point2D(a.X * scale, a.Y * scale), new Point2D(b.X * scale, b.Y * scale), sources[i]);
+			}
+			AddSegment(outline, new Point2D(innerX * scale, scale), new Point2D(89 * scale, scale), "B90");
+			return outline;
+		}
+
+		private static void ObliqueBoundaryInformationMatchesUserScheme()
+		{
+			var config = DimensionRuleConfig.CreateDefault(); config.UseFeatureFirstStructurePipeline = true;
+			foreach (double scale in new[] { 1.0, 1.3 })
+			foreach (double rotation in new[] { 0.0, 90.0, 180.0, 270.0 })
+			foreach (bool mirror in new[] { false, true })
+			{
+				var outline = TransformLProfileFixture(CreateObliqueBoundaryInformationFixture(scale), rotation, mirror);
+				new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+				var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+				var values = plan.Dimensions.Select(GetSpan).OrderBy(v => v).ToList();
+				var expected = new[] { 15, 20, 20, 25, 50, 62.022, 65, 89 }.Select(v => v * scale).OrderBy(v => v).ToList();
+				Assert(values.Count == expected.Count && values.Zip(expected, (a, b) => Math.Abs(a - b) <= config.GeometryTolerance).All(equal => equal),
+					"the user scheme needs the eight independent boundary dimensions, not raw 54/18/short walls; scale=" + scale + " rotation=" + rotation + " mirror=" + mirror);
+				Assert(plan.Diagnostics.OutlineInformationStatus == "CompleteForRecognizedBoundaryRequirements"
+					&& plan.Diagnostics.OutlineInformationDecisions.All(d => !d.Contains("PendingConfirmation")), "every recognized real-edge/projection requirement needs a live explanation");
+				var face = plan.Dimensions.Single(d => d.DebugRole == "BoundaryChamferSpan");
+				Assert(!face.SourceGeometryIds.Contains("B90") && face.AttachmentValidity == true,
+					"the foot span must use the real exterior chamfer route, never the internal chord or missing sharp corners");
+				Assert(plan.Diagnostics.DimensionCandidates.Any(d => d.RuleId == "BoundaryInformation.Covered" && d.TopologyEvidence.Contains("ConnectedProjectedConstraintPath")),
+					"remainder suppression requires connected station identities and live providers");
+				if (rotation == 0 && !mirror)
+				{
+					Assert(plan.Dimensions.Single(d => d.DebugRole == "BoundaryObliqueProjection" && Math.Abs(GetSpan(d) - 15 * scale) < config.GeometryTolerance).Side == DimensionSide.Bottom,
+						"inner horizontal slope projection belongs below the contour");
+					Assert(plan.Dimensions.Single(d => d.DebugRole == "BoundaryObliqueProjection" && Math.Abs(GetSpan(d) - 25 * scale) < config.GeometryTolerance).Side == DimensionSide.Left,
+						"inner vertical slope projection follows the empty left side, not the nearest bounding-box side");
+					Assert(plan.Dimensions.Single(d => d.DebugRole == "BoundaryObliqueProjection" && Math.Abs(GetSpan(d) - 50 * scale) < config.GeometryTolerance).Side == DimensionSide.Right,
+						"outer vertical slope projection belongs on the right");
+				}
+			}
+		}
+
+		private static void ObliqueBoundaryInformationProtectsEqualProjections()
+		{
+			var config = DimensionRuleConfig.CreateDefault(); config.UseFeatureFirstStructurePipeline = true;
+			var outline = CreateObliqueBoundaryInformationFixture(1, equalProjections: true);
+			new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			var projections = plan.Dimensions.Where(d => d.DebugRole == "BoundaryObliqueProjection" && d.SourceGeometryIds.Contains("B87")).ToList();
+			Assert(projections.Count == 2 && projections.Select(d => d.Orientation).Distinct().Count() == 2
+				&& projections.All(d => Math.Abs(GetSpan(d) - 25) <= config.GeometryTolerance),
+				"a body 45-degree edge needs both independent projections unless one is proved covered; equal values are not duplicates");
+			Assert(plan.Dimensions.Where(d => d.DebugRole == "BoundaryObliqueProjection").All(d => !d.SourceGeometryIds.Contains("B92") && !d.SourceGeometryIds.Contains("B93")),
+				"recognized C1 edges must remain chamfer definitions rather than body-slope candidates");
+		}
+
+		private static void ObliqueBoundaryInformationFallsBackAndAuditsMissingProviders()
+		{
+			var config = DimensionRuleConfig.CreateDefault(); config.UseFeatureFirstStructurePipeline = true;
+			var outline = CreateObliqueBoundaryInformationFixture();
+			var fallback = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			Assert(!fallback.Dimensions.Any(d => d.DebugRole == "BoundaryChamferSpan")
+				&& fallback.Dimensions.Any(d => d.SourceKey == "B91" && Math.Abs(GetSpan(d) - 18) <= config.GeometryTolerance),
+				"without recognized chamfer replacements, the real original foot edge must remain available");
+			new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			var provider = plan.Dimensions.Single(d => d.DebugRole == "BoundaryObliqueProjection" && d.Orientation == DimensionOrientation.Horizontal && d.SourceGeometryIds.Contains("B87"));
+			plan.Dimensions.Remove(provider);
+			typeof(DimensionPlanner).GetMethod("AuditBoundaryInformationPlan", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+				.Invoke(new DimensionPlanner(config), new object[] { plan, outline });
+			Assert(plan.Diagnostics.OutlineInformationStatus == "PendingConfirmation", "provider loss must invalidate the scoped completeness claim");
+		}
+
+		private static void LProfileChamferedArmResidualUsesBoundarySequence()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			foreach (var sizes in new[] { new[] { 25.0, 5.0 }, new[] { 32.0, 7.0 } })
+			foreach (double rotation in new[] { 0.0, 90.0, 180.0, 270.0 })
+			foreach (bool mirror in new[] { false, true })
+			{
+				var outline = TransformLProfileFixture(CreateL01ChamferResidualFixture(sizes[0], sizes[1]), rotation, mirror);
+				new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+				var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+				string context = " width=" + sizes[0] + " chamfer=" + sizes[1] + " rotation=" + rotation + " mirror=" + mirror;
+				var suppressed = plan.Diagnostics.DimensionCandidates.Where(c => c.RuleId == "LProfile.ChamferedArmResidual").ToList();
+				Assert(suppressed.Count == 1 && suppressed[0].IsSuppressed
+					&& Math.Abs(suppressed[0].Value - (sizes[0] - sizes[1])) <= config.GeometryTolerance,
+					"the real short edge must be suppressed by boundary topology, not a fixed numeric value" + context);
+				Assert(suppressed[0].TopologyEvidence.Contains("InnerFaceChamferShortEdgeOuterFace")
+					&& suppressed[0].TopologyEvidence.Contains("CoveredByIds="),
+					"coverage must identify the actual boundary relation and provider" + context);
+				Assert(plan.Dimensions.Any(d => (d.RuleId == "LProfile.VerticalArmWidth" || d.RuleId == "LProfile.HorizontalArmHeight")
+					&& Math.Abs(GetSpan(d) - sizes[0]) <= config.GeometryTolerance),
+					"the defining arm width must survive" + context);
+				Assert(plan.Dimensions.Any(d => (d.RuleId == "LProfile.VerticalArmWidth" || d.RuleId == "LProfile.HorizontalArmHeight")
+					&& Math.Abs(GetSpan(d) - 25) <= config.GeometryTolerance),
+					"the independent horizontal-arm thickness must survive, including the same-valued residual variant" + context);
+				Assert(plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Overall && Math.Abs(GetSpan(d) - 145) <= config.GeometryTolerance)
+					&& plan.Dimensions.Any(d => d.Role == DimensionCandidateRole.Overall && Math.Abs(GetSpan(d) - 65) <= config.GeometryTolerance),
+					"both overall dimensions must survive" + context);
+				Assert(!plan.Diagnostics.Warnings.Any(w => w.StartsWith("StructureCoverage.Incomplete|", StringComparison.Ordinal)),
+					"the defining width must remain available after later suppression" + context);
+			}
+		}
+
+		private static void LProfileChamferedArmResidualRequiresChamferDefinition()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var outline = CreateL01ChamferResidualFixture(25, 5);
+			new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+			outline.Chamfers.Clear();
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+			Assert(!plan.Diagnostics.DimensionCandidates.Any(c => c.RuleId == "LProfile.ChamferedArmResidual"),
+				"an inclined boundary alone must not stand in for a recognized chamfer definition");
+			Assert(plan.Dimensions.Any(d => d.SourceKey == "4D9" && Math.Abs(GetSpan(d) - 20) <= config.GeometryTolerance),
+				"without a chamfer definition the short-edge information must not be discarded");
+		}
+
 		private static void LProfileAnnotationRulesUseTopology()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -6583,7 +7697,7 @@ namespace CadAuto.Core.Tests
 				"L profile must remove 15, 22 and derived 52, case=" + caseIndex
 				+ " selected=" + string.Join(",", selected.Select(d => d.DebugRole + ":" + GetSpan(d) + ":" + d.RuleId)));
 			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.RuleId == "LProfile.VerticalArmWidth"
-				&& c.IsSelected && Math.Abs(c.Value - 25.0) <= config.GeometryTolerance && c.IsAttachmentValid),
+				&& c.IsSelected && Math.Abs(c.Value - 25.0) <= config.GeometryTolerance && c.IsAttachmentValid == true),
 				"top 25 replacement must retain an attachment-valid rule diagnostic");
 			Assert(plan.Diagnostics.DimensionCandidates.Any(c => c.RuleId == "LProfile.HorizontalArmHeight"
 				&& c.IsSelected && Math.Abs(c.Value - 25.0) <= config.GeometryTolerance),
@@ -9724,6 +10838,151 @@ namespace CadAuto.Core.Tests
                 SecondPoint = secondPoint,
                 DebugRole = debugRole
             };
+        }
+
+        private static void ThreeViewFirstAngleKeepsLengthAndHeightOnFrontAndWidthOnTop()
+        {
+            var frames = new[]
+            {
+                ViewFrame("front", 0, 80, 100, 120, 2),
+                ViewFrame("top", 0, 0, 100, 30, 0),
+                ViewFrame("left", 130, 80, 160, 120, 0)
+            };
+            OrthographicViewSetAssignment assignment = OrthographicViewSetAssigner.Assign(frames, 0.5);
+            Assert(assignment.LengthOwnerViewId == "front", "length stays on the front view");
+            Assert(assignment.HeightOwnerViewId == "front", "height stays on the front view");
+            Assert(assignment.WidthOwnerViewId == "top", "width stays on the top view");
+            Assert(assignment.PinOwnerViewId == "front", "pin chain stays on the front view");
+            AssertOwnership(assignment, "front", keepHorizontal: true, keepVertical: true, keepPins: true);
+            AssertOwnership(assignment, "top", keepHorizontal: false, keepVertical: true, keepPins: false);
+            AssertOwnership(assignment, "left", keepHorizontal: false, keepVertical: false, keepPins: false);
+
+            var config = DimensionRuleConfig.CreateDefault();
+            DimensionPlan frontPlan = PlanRectangle(config, 0, 80, 100, 120);
+            DimensionPlan topPlan = PlanRectangle(config, 0, 0, 100, 30);
+            DimensionPlan leftPlan = PlanRectangle(config, 130, 80, 160, 120);
+            OrthographicViewSetAssigner.Apply(frontPlan, assignment.Find("front"));
+            OrthographicViewSetAssigner.Apply(topPlan, assignment.Find("top"));
+            OrthographicViewSetAssigner.Apply(leftPlan, assignment.Find("left"));
+            AssertHasDimension(frontPlan, DimensionKind.OverallWidth, DimensionOrientation.Horizontal, 100.0, "front length");
+            AssertHasDimension(frontPlan, DimensionKind.OverallHeight, DimensionOrientation.Vertical, 40.0, "front height");
+            Assert(!HasDimension(topPlan, DimensionKind.OverallWidth, DimensionOrientation.Horizontal, 100.0), "top view must not repeat the length");
+            AssertHasDimension(topPlan, DimensionKind.OverallHeight, DimensionOrientation.Vertical, 30.0, "top width");
+            Assert(!HasDimension(leftPlan, DimensionKind.OverallWidth, DimensionOrientation.Horizontal, 30.0), "left view must not repeat the width");
+            Assert(!HasDimension(leftPlan, DimensionKind.OverallHeight, DimensionOrientation.Vertical, 40.0), "left view must not repeat the height");
+        }
+
+        private static void ThreeViewPinChainStaysOnTheViewThatShowsThePins()
+        {
+            var frames = new[]
+            {
+                ViewFrame("front", 0, 80, 100, 120, 0),
+                ViewFrame("top", 0, 0, 100, 30, 0),
+                ViewFrame("left", 130, 80, 160, 120, 2)
+            };
+            OrthographicViewSetAssignment assignment = OrthographicViewSetAssigner.Assign(frames, 0.5);
+            Assert(assignment.PinOwnerViewId == "left", "pins visible only on the left view stay there");
+            DimensionPlan frontPlan = new DimensionPlan();
+            frontPlan.Add(new PlannedDimension
+            {
+                Kind = DimensionKind.PinDistance,
+                Orientation = DimensionOrientation.Horizontal,
+                Role = DimensionCandidateRole.Pin,
+                FirstPoint = new Point2D(0, 0),
+                SecondPoint = new Point2D(20, 0)
+            });
+            frontPlan.Add(new PlannedDimension
+            {
+                Kind = DimensionKind.HoleLocation,
+                Orientation = DimensionOrientation.Horizontal,
+                Role = DimensionCandidateRole.Hole,
+                FirstPoint = new Point2D(0, 0),
+                SecondPoint = new Point2D(15, 0)
+            });
+            frontPlan.CaptureFinalDimensions();
+            int removed = OrthographicViewSetAssigner.Apply(frontPlan, assignment.Find("front"));
+            Assert(removed == 1, "only the pin chain leaves the view that does not own the pins");
+            Assert(frontPlan.Dimensions.Count == 1 && frontPlan.Dimensions[0].Kind == DimensionKind.HoleLocation, "hole location on that view remains");
+        }
+
+        private static void TwoViewTopAndLeftSplitLengthHeightAndWidth()
+        {
+            var frames = new[]
+            {
+                ViewFrame("lower", 0, 0, 100, 30, 0),
+                ViewFrame("side", 130, 80, 160, 120, 0)
+            };
+            OrthographicViewSetAssignment assignment = OrthographicViewSetAssigner.Assign(frames, 0.5);
+            ViewExtentOwnership top = assignment.Find("lower");
+            ViewExtentOwnership left = assignment.Find("side");
+            Assert(top.Role == OrthographicViewRole.Top, "the 100 by 30 view is the top view");
+            Assert(left.Role == OrthographicViewRole.Left, "the 30 by 40 view is the left view");
+            Assert(top.KeepHorizontalOverall && top.HorizontalExtent == PartExtentKind.Length, "length is kept on the top view");
+            Assert(top.KeepVerticalOverall && top.VerticalExtent == PartExtentKind.Width, "width is kept on the top view");
+            Assert(!left.KeepHorizontalOverall, "left view does not repeat the width");
+            Assert(left.KeepVerticalOverall && left.VerticalExtent == PartExtentKind.Height, "height is kept on the left view");
+        }
+
+        private static void MismatchedViewEnvelopesDoNotAssign()
+        {
+            var frames = new[]
+            {
+                ViewFrame("a", 0, 0, 80, 40, 0),
+                ViewFrame("b", 0, 60, 50, 90, 0),
+                ViewFrame("c", 120, 0, 150, 20, 0)
+            };
+            bool rejected = false;
+            try
+            {
+                OrthographicViewSetAssigner.Assign(frames, 0.5);
+            }
+            catch (InvalidOperationException)
+            {
+                rejected = true;
+            }
+            Assert(rejected, "unrelated envelopes must not be treated as one part");
+        }
+
+        private static OrthographicViewFrame ViewFrame(string id, double minX, double minY, double maxX, double maxY, int pinHoleCount)
+        {
+            return new OrthographicViewFrame
+            {
+                Id = id,
+                MinX = minX,
+                MinY = minY,
+                MaxX = maxX,
+                MaxY = maxY,
+                PinHoleCount = pinHoleCount
+            };
+        }
+
+        private static DimensionPlan PlanRectangle(DimensionRuleConfig config, double minX, double minY, double maxX, double maxY)
+        {
+            var outline = new FeatureRecognizer2D(config).RecognizeOutlineFromClosedPath(new[]
+            {
+                new Point2D(minX, minY),
+                new Point2D(maxX, minY),
+                new Point2D(maxX, maxY),
+                new Point2D(minX, maxY)
+            });
+            return new DimensionPlanner(config).CreateOutlinePlan(outline);
+        }
+
+        private static void AssertOwnership(OrthographicViewSetAssignment assignment, string viewId, bool keepHorizontal, bool keepVertical, bool keepPins)
+        {
+            ViewExtentOwnership ownership = assignment.Find(viewId);
+            Assert(ownership != null, "missing ownership for " + viewId);
+            Assert(ownership.KeepHorizontalOverall == keepHorizontal, viewId + " horizontal overall ownership");
+            Assert(ownership.KeepVerticalOverall == keepVertical, viewId + " vertical overall ownership");
+            Assert(ownership.KeepPinDimensions == keepPins, viewId + " pin ownership");
+        }
+
+        private static bool HasDimension(DimensionPlan plan, DimensionKind kind, DimensionOrientation orientation, double expectedSpan)
+        {
+            return plan.Dimensions.Any(d =>
+                d.Kind == kind
+                && d.Orientation == orientation
+                && Math.Abs(GetSpan(d) - expectedSpan) <= 0.001);
         }
 
         private static void AssertHasDimension(

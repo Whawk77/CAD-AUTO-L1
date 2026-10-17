@@ -220,10 +220,13 @@ public sealed partial class DimensionPlanner
 		DimensionPlan dimensionPlan = new DimensionPlan();
 		LProfileOuterContour lProfileOuterContour = null;
 		string lProfileOuterContourFailure = string.Empty;
+		OutlineTopologyDiagnostic outlineTopology;
 		lProfileOuterContour = LProfileOuterContour.TryCreate(
 			outline,
 			_config.GeometryTolerance,
-			out lProfileOuterContourFailure);
+			out lProfileOuterContourFailure,
+			out outlineTopology);
+		dimensionPlan.Diagnostics.OutlineTopology = outlineTopology;
 		AddOverallWidth(dimensionPlan, outline);
 		AddOverallHeight(dimensionPlan, outline);
 		if (_config.UseFeatureFirstStructurePipeline)
@@ -248,6 +251,7 @@ public sealed partial class DimensionPlanner
 		ApplyLProfileOverallSplitByFilletRule(dimensionPlan, outline, lProfileOuterContour);
 		SuppressDuplicateDimensions(dimensionPlan, outline);
 		_postValidator.Validate(dimensionPlan, outline);
+		AuditBoundaryInformationPlan(dimensionPlan, outline);
 		dimensionPlan.CaptureFinalDimensions();
 		return dimensionPlan;
 	}
@@ -260,13 +264,27 @@ public sealed partial class DimensionPlanner
 		var extractor = new StructureFeatureExtractor(_config);
 		var selector = new StructureMeasurementSelector(_config);
 		var adapter = new StructurePlacementAdapter(_config);
-		IList<StructureFeature> features = extractor.Extract(outline);
-		selector.Select(features, outline);
+		var boundaryEvidence = new StructureBoundaryEvidence(plan.Diagnostics.OutlineTopology, _config.GeometryTolerance);
+		IList<StructureFeature> features = extractor.Extract(outline, boundaryEvidence);
+		selector.Select(features, outline, boundaryEvidence);
 		string matchedCaseId = string.Empty;
 		if (!string.IsNullOrEmpty(_config.AnnotationCaseStorePath))
 		{
 			AnnotationCaseStore store = AnnotationCaseStore.Load(_config.AnnotationCaseStorePath);
 			matchedCaseId = new AnnotationCaseOverlay(store).Apply(features, outline);
+		}
+		// A case overlay cannot turn an unsupported internal edge back into an outer contour dimension.
+		boundaryEvidence.ApplyAttachmentEvidence(features);
+		StructureBoundaryEvidence.EnforceSelection(features);
+		foreach (var rejected in features.Where(f => f.RequiresOuterBoundarySupport && !f.Keep
+			&& (f.BoundaryMembership != "Boundary" || f.BoundaryAttachmentValidity != true)))
+		{
+			plan.AddDiscardedCandidate(adapter.CreateStructureCandidate(rejected), rejected.SuppressReason);
+			if (rejected.BoundaryMembership == "Unknown")
+			{
+				plan.Diagnostics.Warnings.Add("StructureBoundary.PendingConfirmation|Source=" + rejected.SourceKey
+					+ "|Reason=" + rejected.SuppressReason);
+			}
 		}
 		plan.AnnotationCaseSnapshot = new AnnotationCaseSnapshot(features, outline, matchedCaseId);
 		IList<StructureFeature> kept = features
@@ -321,6 +339,7 @@ public sealed partial class DimensionPlanner
 		ApplyCenterlineEndpointAttachments(dimensionPlan, datum2);
 		SuppressDuplicateDimensions(dimensionPlan, localOutline);
 		_postValidator.Validate(dimensionPlan, localOutline);
+		AuditBoundaryInformationPlan(dimensionPlan, localOutline);
 		dimensionPlan.CaptureFinalDimensions();
 		dimensionPlan.CoordinateFrame = frame;
 		return dimensionPlan;
@@ -328,6 +347,7 @@ public sealed partial class DimensionPlanner
 
 	private void ApplyCenterlineEndpointAttachments(DimensionPlan plan, Datum2D datum)
 	{
+		if (_config.DisabledExperimentRule == DimensionExperimentRule.SelectedCenterlineAttachment) { return; }
 		if (plan == null || datum == null || datum.HoleCenterlineEndpoints == null)
 		{
 			return;
@@ -614,20 +634,23 @@ public sealed partial class DimensionPlanner
 		{
 			return;
 		}
+		var boundaryEvidence = new StructureBoundaryEvidence(plan.Diagnostics.OutlineTopology, _config.GeometryTolerance);
 		foreach (PlannedDimension dimension in plan.Dimensions)
 		{
 			if (dimension == null || !IsStructureWidthOrHeightRole(dimension.DebugRole))
 			{
 				continue;
 			}
-			if (!GripLiesOnOutline(outline, dimension.FirstPoint)
-				&& TrySnapGripKeepingMeasuredAxis(outline, dimension, dimension.FirstPoint, out Point2D first)
+			OutlineFeature2D attachmentScope = dimension.RequiresOuterBoundarySupport ? boundaryEvidence.BoundaryOutline : outline;
+			if (attachmentScope == null) { continue; }
+			if (!GripLiesOnOutline(attachmentScope, dimension.FirstPoint)
+				&& TrySnapGripKeepingMeasuredAxis(attachmentScope, dimension, dimension.FirstPoint, out Point2D first)
 				&& HasSpan(dimension, first, dimension.SecondPoint))
 			{
 				dimension.FirstPoint = first;
 			}
-			if (!GripLiesOnOutline(outline, dimension.SecondPoint)
-				&& TrySnapGripKeepingMeasuredAxis(outline, dimension, dimension.SecondPoint, out Point2D second)
+			if (!GripLiesOnOutline(attachmentScope, dimension.SecondPoint)
+				&& TrySnapGripKeepingMeasuredAxis(attachmentScope, dimension, dimension.SecondPoint, out Point2D second)
 				&& HasSpan(dimension, dimension.FirstPoint, second))
 			{
 				dimension.SecondPoint = second;
@@ -788,7 +811,7 @@ public sealed partial class DimensionPlanner
 		return _structureEndpointRules.GetBoundaryPoint(outline, DimensionSide.Top);
 	}
 
-	private bool AddHorizontalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredX, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing, string skippedDebugRole = null, Point2D? explicitAttachment = null)
+	private bool AddHorizontalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredX, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing, string skippedDebugRole = null, Point2D? explicitAttachment = null, bool preferSideFacingOutlineEndpoint = true)
 	{
 		bool usingExplicitAttachment = explicitAttachment.HasValue
 			&& OutlineGeometryQuery.IsPointOnBoundary(explicitAttachment.Value, outline, _config.GeometryTolerance);
@@ -802,7 +825,7 @@ public sealed partial class DimensionPlanner
 			plan.AddSkippedDimension(kind, DimensionOrientation.Horizontal, side, new Point2D(preferredX, target.Y), target, "NoRealOutlineAttachment:XDatum=" + preferredX.ToString("0.########", CultureInfo.InvariantCulture), skippedDebugRole ?? debugRole, debugOwner);
 			return false;
 		}
-		if (!usingExplicitAttachment && (kind == DimensionKind.HoleLocation
+		if (!usingExplicitAttachment && preferSideFacingOutlineEndpoint && (kind == DimensionKind.HoleLocation
 			|| kind == DimensionKind.DatumHoleLocationX
 			|| string.Equals(debugRole, "DoubleArcSlotHorizontalDatum", StringComparison.Ordinal)))
 		{
@@ -813,7 +836,7 @@ public sealed partial class DimensionPlanner
 		return true;
 	}
 
-	private bool AddVerticalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredY, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing, bool preservePreferredSide = false, string skippedDebugRole = null, Point2D? explicitAttachment = null)
+	private bool AddVerticalOutlineReferenceDimension(DimensionPlan plan, OutlineFeature2D outline, double preferredY, Point2D target, DimensionKind kind, DimensionSide side, string overrideText, string debugRole, string debugOwner = null, bool preferFeatureLocalPlacement = false, string alignmentKey = null, int alignmentPriority = 0, DimensionReadingLevel readingLevel = DimensionReadingLevel.LocalSpacing, bool preservePreferredSide = false, string skippedDebugRole = null, Point2D? explicitAttachment = null, bool preferSideFacingOutlineEndpoint = true)
 	{
 		bool usingExplicitAttachment = explicitAttachment.HasValue
 			&& OutlineGeometryQuery.IsPointOnBoundary(explicitAttachment.Value, outline, _config.GeometryTolerance);
@@ -827,7 +850,7 @@ public sealed partial class DimensionPlanner
 			plan.AddSkippedDimension(kind, DimensionOrientation.Vertical, side, new Point2D(target.X, preferredY), target, "NoRealOutlineAttachment:YDatum=" + preferredY.ToString("0.########", CultureInfo.InvariantCulture), skippedDebugRole ?? debugRole, debugOwner);
 			return false;
 		}
-		if (!usingExplicitAttachment && (kind == DimensionKind.HoleLocation
+		if (!usingExplicitAttachment && preferSideFacingOutlineEndpoint && (kind == DimensionKind.HoleLocation
 			|| kind == DimensionKind.DatumHoleLocationY
 			|| string.Equals(debugRole, "SingleArcSlotVerticalDatum", StringComparison.Ordinal)
 			|| string.Equals(debugRole, "DoubleArcSlotVerticalDatum", StringComparison.Ordinal)))
@@ -899,8 +922,17 @@ public sealed partial class DimensionPlanner
 	{
 		if (!(GetSpan(firstPoint, secondPoint, orientation) <= _config.GeometryTolerance))
 		{
+			// Resolve ownership from a real planned pin group, never from an alignment-label prefix.
+			var ownerGroup = plan.PinGroups.FirstOrDefault(g => GetPinGroupDebugOwner(g) == debugOwner);
+			bool functional = kind == DimensionKind.HoleLocation && debugRole == "FunctionalHole";
+			bool baseRelated = functional || kind == DimensionKind.PinDistance
+				|| kind == DimensionKind.DatumHoleLocationX || kind == DimensionKind.DatumHoleLocationY;
+			string datumFamily = baseRelated && ownerGroup?.BasePin != null
+				? GetPinGroupDebugOwner(ownerGroup) + ":BasePin" : null;
 			plan.Add(new PlannedDimension
 			{
+				DatumFamilyKey = datumFamily,
+				ParallelStackKey = functional && datumFamily != null ? datumFamily + ":" + orientation : null,
 				Kind = kind,
 				Orientation = orientation,
 				Side = side,
@@ -916,7 +948,8 @@ public sealed partial class DimensionPlanner
 				ChainId = chainId,
 				PreferLocalBoundary = preferLocalBoundary,
 				PreferFeatureLocalPlacement = preferFeatureLocalPlacement,
-				PreservePreferredSide = preservePreferredSide,
+				PreservePreferredSide = preservePreferredSide || (ownerGroup?.BasePin != null
+					&& (baseRelated || kind == DimensionKind.PinGroupDistance)),
 				FirstPointMustLieOnOutline = firstPointMustLieOnOutline,
 				RequiredOutlineReferenceCoordinate = requiredOutlineReferenceCoordinate,
 				UseSegmentedExtensionLines = (kind != DimensionKind.OverallWidth && kind != DimensionKind.OverallHeight)

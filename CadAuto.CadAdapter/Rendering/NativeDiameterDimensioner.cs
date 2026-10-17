@@ -108,7 +108,7 @@ public static class NativeDiameterDimensioner
 		}
 	}
 
-	private static readonly string PinRoughnessBlockName = "CadAider_国标粗糙度16下";
+	private static readonly string PinRoughnessBlockName = "CadAider_日标3个角";
 
 	public static void PromptDiameterDimensions(Document document, IList<IList<HoleFeature>> diameterGroups, DimensionRuleConfig config, string annotationLayer, ObjectId diameterDimStyleId, string groupId)
 	{
@@ -299,7 +299,6 @@ public static class NativeDiameterDimensioner
 		diametricDimension.SetDatabaseDefaults(db);
 		diametricDimension.Layer = annotationLayer;
 		diametricDimension.DimensionStyle = dimStyleId;
-		DimStyleManager.ApplyGeneratedDimensionColors(diametricDimension);
 		diametricDimension.DimensionText = calloutText;
 		return diametricDimension;
 	}

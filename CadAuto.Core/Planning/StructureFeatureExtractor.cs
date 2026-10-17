@@ -24,11 +24,18 @@ public sealed class StructureFeatureExtractor
 
 	public IList<StructureFeature> Extract(OutlineFeature2D outline)
 	{
+		return Extract(outline, null);
+	}
+
+	public IList<StructureFeature> Extract(OutlineFeature2D outline, StructureBoundaryEvidence boundaryEvidence)
+	{
 		List<StructureFeature> features = new List<StructureFeature>();
 		if (outline == null)
 		{
 			return features;
 		}
+		boundaryEvidence = boundaryEvidence ?? new StructureBoundaryEvidence(
+			DimensionPlanner.InspectOutlineTopology(outline, _config.GeometryTolerance), _config.GeometryTolerance);
 		double tol = _config.GeometryTolerance;
 		double microGap = Math.Max(5.0, Math.Max(outline.Width, outline.Height) * 0.025);
 		double minSpan = Math.Max(tol * 4.0, _config.TextHeight * 2.0);
@@ -52,6 +59,7 @@ public sealed class StructureFeatureExtractor
 			{
 				continue;
 			}
+			string membership = boundaryEvidence?.GetMembership(segment) ?? "Unknown";
 			if (segment.IsHorizontal(tol))
 			{
 				double span = segment.LengthX;
@@ -62,13 +70,17 @@ public sealed class StructureFeatureExtractor
 				}
 				double y = (segment.Start.Y + segment.End.Y) * 0.5;
 				DimensionSide side = ResolveHorizontalFacing(segment, outline, tol);
-				bool inset = Math.Abs(y - outline.MinY) > insetBand && Math.Abs(y - outline.MaxY) > insetBand;
+				bool inset = membership == "NonBoundary"
+					|| (Math.Abs(y - outline.MinY) > insetBand && Math.Abs(y - outline.MaxY) > insetBand);
 				double maxSide = Math.Max(outline.Width, outline.Height);
 				bool outerTip = !inset && span + tol >= 12.0 && span <= maxSide * 0.12 + tol;
 				features.Add(new StructureFeature
 				{
 					Axis = StructureFeatureAxis.Horizontal,
 					Kind = StructureFeatureKind.RealStep,
+					RequiresOuterBoundarySupport = boundaryEvidence != null,
+					BoundaryMembership = membership,
+					BoundaryEvidence = "StructureBoundary|Membership=" + membership + "|Source=" + segment.SourceKey,
 					T0 = Math.Min(segment.Start.X, segment.End.X),
 					T1 = Math.Max(segment.Start.X, segment.End.X),
 					CrossPosition = y,
@@ -92,13 +104,17 @@ public sealed class StructureFeatureExtractor
 				}
 				double x = (segment.Start.X + segment.End.X) * 0.5;
 				DimensionSide side = ResolveVerticalFacing(segment, outline, tol);
-				bool inset = Math.Abs(x - outline.MinX) > insetBand && Math.Abs(x - outline.MaxX) > insetBand;
+				bool inset = membership == "NonBoundary"
+					|| (Math.Abs(x - outline.MinX) > insetBand && Math.Abs(x - outline.MaxX) > insetBand);
 				double maxSide = Math.Max(outline.Width, outline.Height);
 				bool outerTip = !inset && span + tol >= 12.0 && span <= maxSide * 0.12 + tol;
 				features.Add(new StructureFeature
 				{
 					Axis = StructureFeatureAxis.Vertical,
 					Kind = StructureFeatureKind.RealStep,
+					RequiresOuterBoundarySupport = boundaryEvidence != null,
+					BoundaryMembership = membership,
+					BoundaryEvidence = "StructureBoundary|Membership=" + membership + "|Source=" + segment.SourceKey,
 					T0 = Math.Min(segment.Start.Y, segment.End.Y),
 					T1 = Math.Max(segment.Start.Y, segment.End.Y),
 					CrossPosition = x,
@@ -115,11 +131,17 @@ public sealed class StructureFeatureExtractor
 			}
 		}
 
+		// Unsupported raw edges cannot seed outer merges, residuals or notch promotion.
+		// Keep them for diagnostics; independent groove/boss recovery still sees the original geometry.
+		var unsupported = features.Where(f => f.RequiresOuterBoundarySupport && f.BoundaryMembership != "Boundary").ToList();
+		foreach (var feature in unsupported) { features.Remove(feature); }
+		OutlineFeature2D outerGeometry = boundaryEvidence?.CreateOuterGeometryScope(outline) ?? outline;
+
 		// Real CAD: fillets are arc chords (skipped above) that eat 3–10mm off H/V runs
 		// (305→300, 73→63). Walk through short bridges to orthogonal walls / collinear peers
 		// and expand each RealStep to the synthetic outer span (grill-me 合成外轮廓边).
 		double maxBridge = Math.Max(microGap * 2.0, Math.Min(outline.Width, outline.Height) * 0.08);
-		ExpandFeaturesAcrossFilletBridges(features, outline, maxBridge, envelopeBand, tol);
+		ExpandFeaturesAcrossFilletBridges(features, outerGeometry, maxBridge, envelopeBand, tol);
 
 		// Composite outer edges: collinear H/V pieces separated by fillet/chamfer micro-gap
 		// (e.g. 150+2gap+155 → 305) merge into one RealStep.
@@ -160,16 +182,19 @@ public sealed class StructureFeatureExtractor
 
 		// Outer residual heights/widths from partial envelope ledges (e.g. F215 left tip 42
 		// = MaxY − platform Y on MinX-touching ledge).
-		AddEnvelopeLedgeResiduals(features, outline, minSpan, tol);
-		AddChamferComplementResiduals(features, outline, envelopeBand, minSpan, tol);
+		AddEnvelopeLedgeResiduals(features, outerGeometry, minSpan, tol);
+		AddChamferComplementResiduals(features, outline, envelopeBand, minSpan, tol, boundaryEvidence, unsupported);
 
 		// Outer envelope short tips (CAD foot tip ~20): promote to Structure even when OS
 		// would only see OutlineSegmentOnOverallEnvelope.
-		AddOuterEnvelopeTips(features, outline, envelopeBand, minSpan, tol);
+		AddOuterEnvelopeTips(features, outerGeometry, envelopeBand, minSpan, tol, boundaryEvidence);
 		RecoverInnerBossStack(features, outline, microGap, minSpan, envelopeBand, tol);
-		RecoverThinStepRisers(features, outline, envelopeBand, tol);
+		RecoverThinStepRisers(features, outerGeometry, envelopeBand, tol);
 
 		AssignChainsAndClassify(features, outline, microGap, tol);
+		features.AddRange(unsupported);
+		boundaryEvidence?.ApplyAttachmentEvidence(features);
+		StructureBoundaryEvidence.EnforceSelection(features);
 		return features;
 	}
 
@@ -181,7 +206,8 @@ public sealed class StructureFeatureExtractor
 		OutlineFeature2D outline,
 		double envelopeBand,
 		double minSpan,
-		double tol)
+		double tol,
+		StructureBoundaryEvidence boundaryEvidence)
 	{
 		if (outline?.Segments == null)
 		{
@@ -197,6 +223,7 @@ public sealed class StructureFeatureExtractor
 			{
 				continue;
 			}
+			if (boundaryEvidence != null && boundaryEvidence.GetMembership(s) != "Boundary") { continue; }
 			if (s.IsVertical(orthoTol))
 			{
 				double x = (s.Start.X + s.End.X) * 0.5;
@@ -2359,18 +2386,30 @@ public sealed class StructureFeatureExtractor
 				}
 			}
 		}
+		// Merging must not discard the ownership contract attached to original supporting edges.
+		foreach (var feature in features.Where(f => f.Axis == axis && f.Kind != StructureFeatureKind.Overall))
+		{
+			var supports = members.Where(m => m.RequiresOuterBoundarySupport
+				&& m.SupportSourceKeys.Intersect(feature.SupportSourceKeys).Any()).ToList();
+			if (supports.Count == 0) { continue; }
+			feature.RequiresOuterBoundarySupport = true;
+			feature.BoundaryMembership = supports.All(m => m.BoundaryMembership == "Boundary") ? "Boundary" : "Unknown";
+			feature.BoundaryEvidence = "StructureBoundary|Relation=MergedSupportingEdges|Membership=" + feature.BoundaryMembership;
+		}
 	}
 
 	/// <summary>
-	/// C10 leaves a 32 envelope stub (58–90). Emit the complementary residual to the
-	/// AABB (58–100 = 42) without mutating the stub, then nested-interval drops 32.
+	/// Propose a complementary span, but emit it only with a connected real exterior/chamfer proof.
+	/// Coordinate differences alone do not establish a structure dimension.
 	/// </summary>
 	private static void AddChamferComplementResiduals(
 		List<StructureFeature> features,
 		OutlineFeature2D outline,
 		double envelopeBand,
 		double minSpan,
-		double tol)
+		double tol,
+		StructureBoundaryEvidence boundaryEvidence,
+		List<StructureFeature> unsupported)
 	{
 		if (features == null || outline == null)
 		{
@@ -2398,7 +2437,7 @@ public sealed class StructureFeatureExtractor
 						f.CrossPosition, t0, outline.MaxY,
 						Math.Abs(f.CrossPosition - outline.MinX) <= envelopeBand
 							? DimensionSide.Left : DimensionSide.Right,
-						minSpan, envelopeBand, tol, "ChamferComplement:");
+						minSpan, envelopeBand, tol, "ChamferComplement:", f, boundaryEvidence, unsupported);
 				}
 				if (gapMin > tol && gapMin <= chamferBand)
 				{
@@ -2406,7 +2445,7 @@ public sealed class StructureFeatureExtractor
 						f.CrossPosition, outline.MinY, t1,
 						Math.Abs(f.CrossPosition - outline.MinX) <= envelopeBand
 							? DimensionSide.Left : DimensionSide.Right,
-						minSpan, envelopeBand, tol, "ChamferComplement:");
+						minSpan, envelopeBand, tol, "ChamferComplement:", f, boundaryEvidence, unsupported);
 				}
 			}
 			else
@@ -2425,7 +2464,7 @@ public sealed class StructureFeatureExtractor
 						f.CrossPosition, t0, outline.MaxX,
 						Math.Abs(f.CrossPosition - outline.MinY) <= envelopeBand
 							? DimensionSide.Bottom : DimensionSide.Top,
-						minSpan, envelopeBand, tol, "ChamferComplement:");
+						minSpan, envelopeBand, tol, "ChamferComplement:", f, boundaryEvidence, unsupported);
 				}
 				if (gapMin > tol && gapMin <= chamferBand)
 				{
@@ -2433,7 +2472,7 @@ public sealed class StructureFeatureExtractor
 						f.CrossPosition, outline.MinX, t1,
 						Math.Abs(f.CrossPosition - outline.MinY) <= envelopeBand
 							? DimensionSide.Bottom : DimensionSide.Top,
-						minSpan, envelopeBand, tol, "ChamferComplement:");
+						minSpan, envelopeBand, tol, "ChamferComplement:", f, boundaryEvidence, unsupported);
 				}
 			}
 		}
@@ -2450,7 +2489,10 @@ public sealed class StructureFeatureExtractor
 		double minSpan,
 		double envelopeBand,
 		double tol,
-		string keyPrefix)
+		string keyPrefix,
+		StructureFeature seed,
+		StructureBoundaryEvidence boundaryEvidence,
+		List<StructureFeature> unsupported)
 	{
 		double a0 = Math.Min(t0, t1);
 		double a1 = Math.Max(t0, t1);
@@ -2495,6 +2537,23 @@ public sealed class StructureFeatureExtractor
 		{
 			r.FirstPoint = new Point2D(a0, cross);
 			r.SecondPoint = new Point2D(a1, cross);
+		}
+		r.RequiresOuterBoundarySupport = true;
+		string proof = null;
+		List<string> sourceKeys = null;
+		bool proven = boundaryEvidence != null && boundaryEvidence.TryProveChamferComplement(seed,
+			r.FirstPoint, r.SecondPoint, outline, Math.Max(8.0, Math.Min(outline.Width, outline.Height) * 0.12),
+			out proof, out sourceKeys);
+		r.BoundaryMembership = proven ? "Boundary" : "Unknown";
+		r.BoundaryEvidence = proof ?? "StructureBoundary|Relation=ChamferComplement|Decision=PendingConfirmation|Reason=ConnectedBoundaryProofMissing";
+		r.BoundaryAttachmentValidity = boundaryEvidence?.ValidateBoundaryAttachments(r.FirstPoint, r.SecondPoint);
+		if (sourceKeys != null) { r.SupportSourceKeys.AddRange(sourceKeys); }
+		if (!proven)
+		{
+			r.Keep = false;
+			r.SuppressReason = "ChamferComplementBoundaryUnproven";
+			unsupported.Add(r);
+			return;
 		}
 		features.Add(r);
 	}

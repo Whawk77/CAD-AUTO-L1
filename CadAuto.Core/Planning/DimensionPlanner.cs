@@ -214,7 +214,7 @@ public sealed partial class DimensionPlanner
 		return dimensionPlan;
 	}
 
-	private DimensionPlan CreateOutlinePlanLocal(OutlineFeature2D outline)
+	private DimensionPlan CreateOutlinePlanLocal(OutlineFeature2D outline, Datum2D structureDatum = null)
 	{
 		_nextLooseChainId = 1;
 		DimensionPlan dimensionPlan = new DimensionPlan();
@@ -250,6 +250,9 @@ public sealed partial class DimensionPlanner
 		ApplyLProfileOverallDimensionRules(dimensionPlan, outline, lProfileOuterContour);
 		ApplyLProfileOverallSplitByFilletRule(dimensionPlan, outline, lProfileOuterContour);
 		SuppressDuplicateDimensions(dimensionPlan, outline);
+		ApplyVerticalStepDatumDimensions(dimensionPlan, outline, structureDatum ?? Datum2D.FromOutline(outline));
+		ApplyHorizontalStepDatumDimensions(dimensionPlan, outline, structureDatum ?? Datum2D.FromOutline(outline));
+		ResolveStructureExtensionAttachments(dimensionPlan, outline);
 		_postValidator.Validate(dimensionPlan, outline);
 		AuditBoundaryInformationPlan(dimensionPlan, outline);
 		dimensionPlan.CaptureFinalDimensions();
@@ -332,12 +335,13 @@ public sealed partial class DimensionPlanner
 		List<SlotFeature2D> localSlots = frame.IsIdentity
 			? (slots ?? new SlotFeature2D[0]).Where((SlotFeature2D s) => s != null).ToList()
 			: CoordinateFrameModelTransform.ToLocal(slots, frame);
-		DimensionPlan dimensionPlan = CreateOutlinePlanLocal(localOutline);
 		Datum2D datum2 = localDatum ?? Datum2D.FromOutline(localOutline);
+		DimensionPlan dimensionPlan = CreateOutlinePlanLocal(localOutline, datum2);
 		AddHolePositionDimensions(dimensionPlan, localOutline, datum2, localHoles);
 		AddSlotDimensions(dimensionPlan, localOutline, datum2, localHoles, localSlots);
-		ApplyCenterlineEndpointAttachments(dimensionPlan, datum2);
+		ApplyCenterlineEndpointAttachments(dimensionPlan, datum2, localOutline);
 		SuppressDuplicateDimensions(dimensionPlan, localOutline);
+		ResolveStructureExtensionAttachments(dimensionPlan, localOutline);
 		_postValidator.Validate(dimensionPlan, localOutline);
 		AuditBoundaryInformationPlan(dimensionPlan, localOutline);
 		dimensionPlan.CaptureFinalDimensions();
@@ -345,7 +349,7 @@ public sealed partial class DimensionPlanner
 		return dimensionPlan;
 	}
 
-	private void ApplyCenterlineEndpointAttachments(DimensionPlan plan, Datum2D datum)
+	private void ApplyCenterlineEndpointAttachments(DimensionPlan plan, Datum2D datum, OutlineFeature2D outline)
 	{
 		if (_config.DisabledExperimentRule == DimensionExperimentRule.SelectedCenterlineAttachment) { return; }
 		if (plan == null || datum == null || datum.HoleCenterlineEndpoints == null)
@@ -375,6 +379,7 @@ public sealed partial class DimensionPlanner
 				CenterlineEndpointMatch firstMatch = linkedSlotDimension || sideFacingHoleEndpoint || sideFacingSlotEndpoint
 					? FindSideFacingCenterlineEndpoint(datum, beforePoint, dimension.Side)
 					: FindCenterlineEndpoint(datum, beforePoint);
+				if (sideFacingHoleEndpoint) { firstMatch = PreferClearHoleAxisEndpoint(datum, beforePoint, dimension, outline, firstMatch); }
 				if (firstMatch.IsMatched && HasSpan(dimension, firstMatch.Endpoint.Point, dimension.SecondPoint))
 				{
 					dimension.FirstPoint = firstMatch.Endpoint.Point;
@@ -399,6 +404,7 @@ public sealed partial class DimensionPlanner
 			CenterlineEndpointMatch secondMatch = arcSlotDatum || sideFacingHoleEndpoint || sideFacingSlotEndpoint
 				? FindSideFacingCenterlineEndpoint(datum, beforeSecondPoint, dimension.Side)
 				: FindCenterlineEndpoint(datum, beforeSecondPoint);
+			if (sideFacingHoleEndpoint) { secondMatch = PreferClearHoleAxisEndpoint(datum, beforeSecondPoint, dimension, outline, secondMatch); }
 			if (secondMatch.IsMatched && HasSpan(dimension, dimension.FirstPoint, secondMatch.Endpoint.Point))
 			{
 				dimension.SecondPoint = secondMatch.Endpoint.Point;
@@ -470,6 +476,36 @@ public sealed partial class DimensionPlanner
 		return exactMatch.IsMatched || string.Equals(exactMatch.Status, "Ambiguous", StringComparison.Ordinal)
 			? exactMatch
 			: sideMatch;
+	}
+
+	private CenterlineEndpointMatch PreferClearHoleAxisEndpoint(Datum2D datum, Point2D target,
+		PlannedDimension dimension, OutlineFeature2D outline, CenterlineEndpointMatch current)
+	{
+		if (!current.IsMatched || !ExtensionCrossesOutline(current.Endpoint.Point, dimension.Orientation, dimension.Side, outline)) { return current; }
+		double tolerance = _config.GeometryTolerance;
+		bool vertical = dimension.Orientation == DimensionOrientation.Horizontal;
+		Func<Point2D, double> axis = p => vertical ? p.Y : p.X;
+		Func<Point2D, double> cross = p => vertical ? p.X : p.Y;
+		var original = datum.HoleCenterlineEndpoints.Where(e => e != null
+			&& e.SourceGeometryId == current.Endpoint.SourceGeometryId).ToList();
+		var alternatives = datum.HoleCenterlineEndpoints.Where(e => e != null && !string.IsNullOrEmpty(e.SourceGeometryId))
+			.GroupBy(e => e.SourceGeometryId).Where(g => g.Count() >= 2
+				&& g.All(e => Math.Abs(cross(e.Point) - cross(target)) <= tolerance)
+				&& g.Min(e => axis(e.Point)) <= Math.Min(axis(target), original.Min(e => axis(e.Point))) + tolerance
+				&& g.Max(e => axis(e.Point)) >= Math.Max(axis(target), original.Max(e => axis(e.Point))) - tolerance)
+			.Select(g => PickPlacementSideEndpoint(g, target, dimension.Side, tolerance))
+			.Where(e => e != null && !OutlineGeometryQuery.IsPointOnBoundary(e.Point, outline, tolerance)
+				&& !ExtensionCrossesOutline(e.Point, dimension.Orientation, dimension.Side, outline))
+			.OrderBy(e => e.Point.DistanceTo(target)).ToList();
+		// Keep the feature stub unless a selected, overlapping axis has an unambiguous free endpoint.
+		if (alternatives.Count == 0 || (alternatives.Count > 1
+			&& Math.Abs(alternatives[0].Point.DistanceTo(target) - alternatives[1].Point.DistanceTo(target)) <= tolerance))
+		{
+			current.MatchMode += ";ExtensionOverlapUnresolved";
+			return current;
+		}
+		return new CenterlineEndpointMatch { Endpoint = alternatives[0], Distance = alternatives[0].Point.DistanceTo(target),
+			Status = "Matched", MatchMode = current.MatchMode + ";ClearOverlappingSelectedAxis" };
 	}
 
 	private CenterlineEndpointMatch FindCenterlineEndpoint(Datum2D datum, Point2D target)

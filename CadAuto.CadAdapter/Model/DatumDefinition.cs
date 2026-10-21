@@ -12,6 +12,8 @@ public sealed class CenterlineEndpointDefinition
 
 public sealed class DatumDefinition
 {
+	public List<CadAuto.Core.Model.StructureDatumMarker2D> StructureDatumMarkers { get; } = new List<CadAuto.Core.Model.StructureDatumMarker2D>();
+
 	public double BaseX { get; set; }
 
 	public double BaseY { get; set; }

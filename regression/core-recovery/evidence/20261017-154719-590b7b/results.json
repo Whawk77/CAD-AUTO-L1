@@ -1,0 +1,967 @@
+{
+  "schemaVersion": 1,
+  "status": "TargetFixed_CompleteDiagnosticExecution_ExistingRegressionsRemain",
+  "scope": "Core only; no agent-run DWG/CAD validation",
+  "granularity": "Original registered methods; failing methods still stop internally at their assertion",
+  "generatedAt": "2026-10-17T08:32:35.601482+00:00",
+  "head": "37c16787008014ad907b6b4ff358334bce80e5be",
+  "branch": "codex/non-occluding-centerline-rule",
+  "rawRunDirectory": "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b",
+  "environment": {
+    "os": "Windows-10-10.0.19045-SP0",
+    "dotnetSdkVersion": "9.0.316",
+    "targetFramework": "v4.7.2",
+    "clrVersion": "4.0.30319.42000"
+  },
+  "originalRegisteredTests": 245,
+  "originalTestBodiesByteIdentical": true,
+  "originalTestBodiesSha256": "94b010baf82a0808eaf98be9d638b7ac71b5c93c614df38430e62e959e74e60d",
+  "beforeDefaultGate": {
+    "registeredCount": 245,
+    "selectedCount": 245,
+    "executedCount": 7,
+    "passedCount": 6,
+    "failedCount": 1,
+    "skippedCount": 238,
+    "blockedCount": 238,
+    "filteredOutCount": 0
+  },
+  "beforeFullDiagnostic": {
+    "registeredCount": 245,
+    "selectedCount": 245,
+    "executedCount": 245,
+    "passedCount": 217,
+    "failedCount": 28,
+    "skippedCount": 0,
+    "blockedCount": 0,
+    "filteredOutCount": 0
+  },
+  "afterDefaultGate": {
+    "registeredCount": 245,
+    "selectedCount": 245,
+    "executedCount": 115,
+    "passedCount": 93,
+    "failedCount": 22,
+    "skippedCount": 130,
+    "blockedCount": 130,
+    "filteredOutCount": 0
+  },
+  "afterFullDiagnostic": {
+    "registeredCount": 245,
+    "selectedCount": 245,
+    "executedCount": 245,
+    "passedCount": 218,
+    "failedCount": 27,
+    "skippedCount": 0,
+    "blockedCount": 0,
+    "filteredOutCount": 0
+  },
+  "byPriority": {
+    "0": {
+      "before": {
+        "Passed": 10,
+        "Failed": 1
+      },
+      "after": {
+        "Passed": 11
+      }
+    },
+    "1": {
+      "before": {
+        "Passed": 82,
+        "Failed": 22
+      },
+      "after": {
+        "Passed": 82,
+        "Failed": 22
+      }
+    },
+    "2": {
+      "before": {
+        "Passed": 67,
+        "Failed": 3
+      },
+      "after": {
+        "Passed": 67,
+        "Failed": 3
+      }
+    },
+    "3": {
+      "before": {
+        "Passed": 58,
+        "Failed": 2
+      },
+      "after": {
+        "Passed": 58,
+        "Failed": 2
+      }
+    }
+  },
+  "statusChanges": [
+    {
+      "name": "ConcaveHoleDatumUsesRealOutlineIntersections",
+      "before": "Failed",
+      "after": "Passed"
+    }
+  ],
+  "newRegressions": [],
+  "remainingFailures": [
+    {
+      "name": "RotationSignature_F215GoldenMultisetFourWayEqual",
+      "priority": 1,
+      "message": "System.InvalidOperationException: F215 @0° Signature must equal golden; got=[50,95,100,215] expected=[42,50,75,100,120,215]",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "RotationSignature_F215CadGoldenMultisetFourWayEqual",
+      "priority": 1,
+      "message": "System.InvalidOperationException: F215Cad @0° Signature must equal golden; got=[42,100,215] expected=[42,50,75,100,120,215]",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "F215CadRotatedKeeps42Drops32Stub",
+      "priority": 1,
+      "message": "System.InvalidOperationException: rotated F215 must keep arm 42; sig=[38,75,100,215]",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "RotationSignature_F338CadGoldenMultisetFourWayEqual",
+      "priority": 1,
+      "message": "System.InvalidOperationException: F338Cad @0° Signature must equal golden; got=[87.55,201.5,338] expected=[20,73,87.55,100,201.5,305,338]",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "CadLastRunGrooveSnapsToWallClearWidthFourWay",
+      "priority": 1,
+      "message": "System.InvalidOperationException: CAD-last-run @0° must keep foot tip 20; kept=[92.55]",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "RotationSignature_Stair3GoldenMultisetFourWayEqual",
+      "priority": 1,
+      "message": "System.InvalidOperationException: Stair3 @0° Signature must equal golden; got=[134.79,134.79,163.37,269.59,429.91,438.8] expected=[126.11,134.79,134.79,163.37,429.91,438.8]",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "RotationSignature_LBoss257GoldenMultisetFourWayEqual",
+      "priority": 1,
+      "message": "System.InvalidOperationException: LBoss257 @0° Signature must equal golden; got=[3,3,3,3,10,10,15,18,25,25,25,30,30,30,40,58,66,134,232,232,257] expected=[10,25,25,25,30,40,58,134,257]",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "SteppedPlateReplacesThinStepRisersWithComplement53",
+      "priority": 1,
+      "message": "System.InvalidOperationException: 53 (overall min to inner top ledge) must be kept; sig=[50,50,55,102.5]",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "CNotchPlateKeepsTopEnvelopeBodyWidth120",
+      "priority": 1,
+      "message": "System.InvalidOperationException: Dimension candidate 13 already has RuleId 'BoundaryInformation.ObliqueProjection' and cannot be reassigned to 'BoundaryInformation.Covered'.",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "StepGroovePlacesOnSameSideAsOuterStepFourWay",
+      "priority": 1,
+      "message": "System.InvalidOperationException: F338Cad @0° missing 73; sides=[87.55@Bottom]",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "CrossSideStructureWidthsThatCloseOverallChainAreSuppressed",
+      "priority": 1,
+      "message": "System.InvalidOperationException: full-path step length 20 must remain",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "DatumRootedBottomAndLeftOuterEnvelopeDimensionsAreSuppressed",
+      "priority": 1,
+      "message": "System.InvalidOperationException: bottom overall width 96 must remain",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "StructureWidthThatPartitionsOverallWithOutlineSegmentIsSuppressed",
+      "priority": 1,
+      "message": "System.InvalidOperationException: short structure step 20 must remain (decision A with overall 98)",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "ObliqueBoundaryInformationMatchesUserScheme",
+      "priority": 1,
+      "message": "System.InvalidOperationException: Dimension candidate 19 already has RuleId 'BoundaryInformation.ObliqueProjection' and cannot be reassigned to 'BoundaryInformation.Covered'.",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "ObliqueBoundaryInformationProtectsEqualProjections",
+      "priority": 1,
+      "message": "System.InvalidOperationException: Dimension candidate 20 already has RuleId 'BoundaryInformation.ObliqueProjection' and cannot be reassigned to 'BoundaryInformation.Covered'.",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "ObliqueBoundaryInformationFallsBackAndAuditsMissingProviders",
+      "priority": 1,
+      "message": "System.InvalidOperationException: Dimension candidate 19 already has RuleId 'BoundaryInformation.ObliqueProjection' and cannot be reassigned to 'BoundaryInformation.Covered'.",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "LProfileChamferedArmResidualUsesBoundarySequence",
+      "priority": 1,
+      "message": "System.InvalidOperationException: the real short edge must be suppressed by boundary topology, not a fixed numeric value width=32 chamfer=7 rotation=0 mirror=False",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "LProfileAnnotationRulesUseTopology",
+      "priority": 1,
+      "message": "System.InvalidOperationException: top 25 replacement must retain an attachment-valid rule diagnostic",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "LProfileFarEndCornerUsesAdjacentVerticalChain",
+      "priority": 1,
+      "message": "System.InvalidOperationException: Dimension candidate 19 already has RuleId 'BoundaryInformation.ObliqueProjection' and cannot be reassigned to 'BoundaryInformation.Covered'.",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "LProfileOuterContourAnnotationRulesUseTopology",
+      "priority": 1,
+      "message": "System.InvalidOperationException: outer-contour L must diagnose derived inner 52 suppression, case=1",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "BottomProtrusionSuppressesOuterWidthAndInnerLedge",
+      "priority": 1,
+      "message": "System.InvalidOperationException: bottom protrusion width 50 on partial MinY must be kept",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "HoleAndPinChainsUseSideFacingCenterlineEndpoints",
+      "priority": 1,
+      "message": "System.InvalidOperationException: pin horizontal distances must inherit the datum-pin top side and axis-endpoint chain",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "SlotDimensionsUseCenterAndDatumChainsWithoutPins",
+      "priority": 2,
+      "message": "System.InvalidOperationException: horizontal slot datum location should be planned without pins",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "CenterlineEndpointIsAllowedForHolePositioning",
+      "priority": 2,
+      "message": "System.InvalidOperationException: hole positioning may use a selected centerline endpoint",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "PinGroupsPlanBaseAndPairDistances",
+      "priority": 2,
+      "message": "System.InvalidOperationException: PG1 datum, PG1-to-PG2 transfer, and PG2 direct dimensions must share one rooted datum chain",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "SlotChainAlignmentKeyAlignsEdgeLocationAndCenterDistance",
+      "priority": 3,
+      "message": "System.InvalidOperationException: expected vertical slot chain segments (edge location + center distance)",
+      "sameBeforeFix": true
+    },
+    {
+      "name": "RootedLaneChoosesNearestSafeFiniteSegmentCoordinate",
+      "priority": 3,
+      "message": "System.InvalidOperationException: the block must choose the nearest candidate that is safe for every finite dimension segment",
+      "sameBeforeFix": true
+    }
+  ],
+  "fullReplayIdentical": true,
+  "defaultProductGatePassed": false,
+  "additionalChecks": {
+    "pythonMeasurementTestsPassed": 17,
+    "datumReferenceCasesPassed": 26,
+    "datumChecksBeforeFix": "First case failed; remaining 25 not reached",
+    "runnerSelfCheckPassed": true,
+    "ablationSelfCheckPassed": true,
+    "p0Passed": 11
+  },
+  "target": {
+    "scope": "Core model, not DWG",
+    "closed": true,
+    "outlineVertices": [
+      [
+        100,
+        100
+      ],
+      [
+        200,
+        100
+      ],
+      [
+        200,
+        200
+      ],
+      [
+        160,
+        200
+      ],
+      [
+        160,
+        140
+      ],
+      [
+        100,
+        140
+      ]
+    ],
+    "hole": {
+      "center": [
+        180,
+        170
+      ],
+      "diameter": 8,
+      "kind": "Normal"
+    },
+    "datum": {
+      "BaseX": 100,
+      "BaseY": 100,
+      "HoleCenterlineEndpoints": []
+    },
+    "expectedHorizontalFirstPoint": [
+      100,
+      140
+    ],
+    "expectedVerticalFirstPoint": [
+      180,
+      100
+    ],
+    "actualVerticalBefore": [
+      200,
+      100
+    ],
+    "actualVerticalAfter": [
+      180,
+      100
+    ],
+    "measurementBeforeAndAfter": 70,
+    "verticalSideBeforeAndAfter": "Right",
+    "testExpectationChanged": false,
+    "classification": "Algorithm eligibility defect: unconditional side-facing endpoint relocation overwrote the correct real-boundary query without matching selected-centerline evidence"
+  },
+  "defaultBehaviorAudit": {
+    "defaultSemanticDifferences": {
+      "legacy-default/concave-datum": [
+        {
+          "path": "/diagnostics/DimensionCandidates/15/FirstPointX",
+          "before": 200,
+          "after": 180
+        },
+        {
+          "path": "/diagnostics/FinalDimensions/5/FirstPointX",
+          "before": 200,
+          "after": 180
+        },
+        {
+          "path": "/dimensions/5/FirstPoint/X",
+          "before": 200,
+          "after": 180
+        }
+      ],
+      "asd-feature-first/concave-datum": [
+        {
+          "path": "/diagnostics/DimensionCandidates/11/FirstPointX",
+          "before": 200,
+          "after": 180
+        },
+        {
+          "path": "/diagnostics/FinalDimensions/5/FirstPointX",
+          "before": 200,
+          "after": 180
+        },
+        {
+          "path": "/dimensions/5/FirstPoint/X",
+          "before": 200,
+          "after": 180
+        }
+      ]
+    },
+    "unchangedDefaultSemanticRecords": 36,
+    "canonicalComparison": "ablation_metrics.behavior (excludes elapsed time, disabled-rule label and exception stack positions)",
+    "firstAblationGuardPassed": false,
+    "firstAblationChangedProtected": [
+      "diagnostics/last-run.json"
+    ],
+    "firstAblationChangedSources": [],
+    "confirmationGuardPassed": true,
+    "initialProtectedLiveChanges": [
+      {
+        "path": "diagnostics/last-run.json",
+        "beforeSha256": "e4aba7a15e07994237b9daf282585c013890b7ab53892195cfbd40b85e83fa12",
+        "afterSha256": "7ea3d9bc5bf49728c06fbb9b9a97828c3fe20d89a1c8c6129f97064c30740a21"
+      },
+      {
+        "path": "diagnostics/last-run.outline.svg",
+        "beforeSha256": "8d30caedb005bf1d00ca77c3c384357595a6f186636c6b527df077a5cdcc894c",
+        "afterSha256": "4672ca7b3e290f76b8d7bf9462df0a9b81a444d7adea784293375f5cf5501b4b"
+      }
+    ],
+    "sourceAssertionsUnmodified": true
+  },
+  "ablation": {
+    "firstExitCode": 1,
+    "firstProtectionPassed": false,
+    "confirmationExitCode": 1,
+    "confirmationProtectionPassed": true,
+    "oldReferenceStatus": "FAILED_DefaultBehaviorDrift",
+    "oldReferenceMismatches": [
+      {
+        "case": "legacy-default/concave-datum",
+        "reason": "PreSwitchReferenceMismatch"
+      },
+      {
+        "case": "asd-feature-first/concave-datum",
+        "reason": "PreSwitchReferenceMismatch"
+      }
+    ],
+    "historicalReferenceUnmodified": true,
+    "confirmationDefaultBaseline": {
+      "caseProfileCount": 38,
+      "evaluableCount": 32,
+      "exceptionCount": 6,
+      "contractPassCount": 31,
+      "contractFailureCount": 1,
+      "metrics": {
+        "contractRequired": 131,
+        "contractMissingRequired": 1,
+        "contractWrongDimensions": 0,
+        "contractDuplicateDimensions": 0,
+        "contractIncorrectlySuppressedRequired": 0,
+        "contractSuppressedRequiredAttachmentUnknown": 1,
+        "contractCorrectRetained": 130,
+        "finalDimensionCount": 186,
+        "coreDimensionLineOverlapPairs": 0,
+        "centeredTextConflictProxyPairs": 2,
+        "physicalOrderViolations": 0,
+        "datumFamilySpacingViolations": 0,
+        "contractRecall": 0.9923664122137404
+      }
+    },
+    "variants": 12,
+    "observations": 456
+  },
+  "modifiedExistingFiles": [
+    "CadAuto.Core.Tests/Program.cs",
+    "CadAuto.Core.Tests/CadAuto.Core.Tests.csproj",
+    "CadAuto.Core/Planning/DimensionPlanner.cs",
+    "CadAuto.Core/Planning/DimensionPlanner.Features.cs"
+  ],
+  "newSourceAndDocumentationFiles": [
+    "CadAuto.Core.Tests/Runner/RegressionReporting.cs",
+    "CadAuto.Core.Tests/Runner/DatumReferenceRecoveryChecks.cs",
+    "docs/CoreRegressionRecovery.md"
+  ],
+  "modifiedFilesSha256": {
+    "CadAuto.Core.Tests/Program.cs": {
+      "before": "9afafd80ef484df93ec101dc1e2d987fcbce2a8247aef061616352c35b3d964f",
+      "after": "d7437029469a821a8fa9cb885d53f6a61d93030e263973d4a8b4456fad01fd30"
+    },
+    "CadAuto.Core.Tests/CadAuto.Core.Tests.csproj": {
+      "before": "c82116415c04a20891eec85d103361d9c22eb87dd5f2c6fd5270e9469c8f5584",
+      "after": "3b352f6a39b91721734d4eb0959df79df0b1249d624c64963d3b7d1905aa5e47"
+    },
+    "CadAuto.Core/Planning/DimensionPlanner.cs": {
+      "before": "5f3bbf41b034169bff1c2ec95789a890ff1bac2a98be4a639ea51c153a2d542f",
+      "after": "0329dda5edd9ce1d92a19b2d3e299e3be7f048675cc1da62901a6b5c90028aa9"
+    },
+    "CadAuto.Core/Planning/DimensionPlanner.Features.cs": {
+      "before": "a6201199570fdb297bdc0ae02ea4d8bde84bab6c3deaa304599304ab316dbcaf",
+      "after": "9af720cb7d4e9de079d9e3a255039c836df86320731598058b9dfe8b6a4876b9"
+    }
+  },
+  "newSourceSha256": {
+    "CadAuto.Core.Tests/Runner/RegressionReporting.cs": "03849c4e130feb46902b5e7217279855f06af111a0f8c780ae4dec8fa7446eb7",
+    "CadAuto.Core.Tests/Runner/DatumReferenceRecoveryChecks.cs": "42770df69996c186074ce5e724425742b05cbfe6194ed853b38c93e228873dfb",
+    "docs/CoreRegressionRecovery.md": "e3503214fc96fcc2a9fd0d821dd49dfc4bb8602efe7dba1d047af344765963d6"
+  },
+  "binariesSha256": {
+    "initial-build/CadAuto.Core.Tests.exe": "33c60db8c59ede27e3ba852ed28e230dc7e26859da8cf50b3589a46ca6ec9c33",
+    "initial-build/CadAuto.Core.dll": "0e690c1cbcbd08a4b64771af15bb79aec11ca26c9125c7bac218837bbd52e43c",
+    "runner-build-before-algorithm/CadAuto.Core.Tests.exe": "a4594e2577c03c1dd51b47527ae01ab45ef668ffff174ca00b52ff1d45e2a247",
+    "runner-build-before-algorithm/CadAuto.Core.dll": "0e690c1cbcbd08a4b64771af15bb79aec11ca26c9125c7bac218837bbd52e43c",
+    "recovery-check-red-build/CadAuto.Core.Tests.exe": "b805487d306a751435bb256cd9e5b1b5f35320624a33bcf9d4df718730d656f9",
+    "recovery-check-red-build/CadAuto.Core.dll": "0e690c1cbcbd08a4b64771af15bb79aec11ca26c9125c7bac218837bbd52e43c",
+    "fixed-build/CadAuto.Core.Tests.exe": "b805487d306a751435bb256cd9e5b1b5f35320624a33bcf9d4df718730d656f9",
+    "fixed-build/CadAuto.Core.dll": "35ca7d5e6cbe2b65b9d32c44ffeae44700faf5fb7fcf2ebe008abf60acf6296f",
+    "ablation-confirmation/core-build/CadAuto.Core.Tests.exe": "b805487d306a751435bb256cd9e5b1b5f35320624a33bcf9d4df718730d656f9",
+    "ablation-confirmation/core-build/CadAuto.Core.dll": "35ca7d5e6cbe2b65b9d32c44ffeae44700faf5fb7fcf2ebe008abf60acf6296f"
+  },
+  "fixedHistoricalInputsAndEvidenceUnchangedExceptListedLiveDiagnostics": true,
+  "liveDiagnosticChanges": [
+    {
+      "path": "diagnostics/last-run.json",
+      "beforeSha256": "e4aba7a15e07994237b9daf282585c013890b7ab53892195cfbd40b85e83fa12",
+      "afterSha256": "42512d75e981bdc8781699a10d5a0f6c5407b4428a534f4fe521e2f65a14b1b1",
+      "classification": "ConcurrentLiveCadDiagnostic_NotRestored"
+    },
+    {
+      "path": "diagnostics/last-run.outline.svg",
+      "beforeSha256": "8d30caedb005bf1d00ca77c3c384357595a6f186636c6b527df077a5cdcc894c",
+      "afterSha256": "734cba7e11370a8d863f63889a5e41fef9ff3e8ecb7a0c47cc85baea0754dc11",
+      "classification": "ConcurrentLiveCadDiagnostic_NotRestored"
+    }
+  ],
+  "liveDiagnosticChangesWereNotReverted": true,
+  "sourceFilesOutsideDeclaredEditsUnchanged": true,
+  "noGitCommit": true,
+  "noAgentCadLaunchOrDwgWrite": true,
+  "gitDiffCheckExitCode": 0,
+  "commands": [
+    {
+      "command": [
+        "dotnet",
+        "msbuild",
+        "CadAuto.Core.Tests/CadAuto.Core.Tests.csproj",
+        "/t:Build",
+        "/p:Configuration=Debug",
+        "/p:OutDir=D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\initial-build/",
+        "/v:minimal"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 3.960686900001747,
+      "log": "initial-build.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\initial-build\\CadAuto.Core.Tests.exe",
+        "ConcaveHoleDatumUsesRealOutlineIntersections"
+      ],
+      "exitCode": 1,
+      "elapsedSeconds": 0.24822459999995772,
+      "log": "target-before.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\initial-build\\CadAuto.Core.Tests.exe"
+      ],
+      "exitCode": 1,
+      "elapsedSeconds": 0.24621619999743416,
+      "log": "gated-before.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\initial-build\\CadAuto.Core.Tests.exe",
+        "--ablation-snapshot",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\snapshots-before.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.7261311000002024,
+      "log": "snapshot-before.log"
+    },
+    {
+      "command": [
+        "dotnet",
+        "msbuild",
+        "CadAuto.Core.Tests/CadAuto.Core.Tests.csproj",
+        "/t:Build",
+        "/p:Configuration=Debug",
+        "/p:OutDir=D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\runner-build-before-algorithm/",
+        "/v:minimal"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 2.725518600000214,
+      "log": "runner-build-before-algorithm.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\runner-build-before-algorithm\\CadAuto.Core.Tests.exe",
+        "--runner-self-check"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.12654799999654642,
+      "log": "detailed-runner-self-check.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\runner-build-before-algorithm\\CadAuto.Core.Tests.exe",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\gated-before-fix.json"
+      ],
+      "exitCode": 1,
+      "elapsedSeconds": 0.3075907000020379,
+      "log": "gated-before-fix.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\runner-build-before-algorithm\\CadAuto.Core.Tests.exe",
+        "--continue-on-failure",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\full-before-fix.json"
+      ],
+      "exitCode": 1,
+      "elapsedSeconds": 1.0869743999974162,
+      "log": "full-before-fix.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\runner-build-before-algorithm\\CadAuto.Core.Tests.exe",
+        "--ablation-snapshot",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\runner-only-snapshots.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.6939458999986527,
+      "log": "runner-only-snapshot.log"
+    },
+    {
+      "command": [
+        "dotnet",
+        "msbuild",
+        "CadAuto.Core.Tests/CadAuto.Core.Tests.csproj",
+        "/t:Build",
+        "/p:Configuration=Debug",
+        "/p:OutDir=D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\recovery-check-red-build/",
+        "/v:minimal"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 1.6578761000018858,
+      "log": "recovery-check-red-build.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\recovery-check-red-build\\CadAuto.Core.Tests.exe",
+        "--datum-reference-self-check"
+      ],
+      "exitCode": 1,
+      "elapsedSeconds": 0.24418130000049132,
+      "log": "recovery-check-before.log"
+    },
+    {
+      "command": [
+        "dotnet",
+        "msbuild",
+        "CadAuto.Core.Tests/CadAuto.Core.Tests.csproj",
+        "/t:Build",
+        "/p:Configuration=Debug",
+        "/p:OutDir=D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build/",
+        "/v:minimal"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 2.566654100002779,
+      "log": "fixed-build.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "ConcaveHoleDatumUsesRealOutlineIntersections",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\target-after.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.2791183000008459,
+      "log": "target-after.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "--datum-reference-self-check"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.31589209999947343,
+      "log": "datum-reference-after.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "--runner-self-check"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.11143960000117659,
+      "log": "runner-self-check-after.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "NormalHolesLocateFromOutlineDatum",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\related-0.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.23943669999789563,
+      "log": "related-0-NormalHolesLocateFromOutlineDatum.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "InvalidDatumCoordinateIsSkippedWithDiagnostic",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\related-1.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.2533633999992162,
+      "log": "related-1-InvalidDatumCoordinateIsSkippedWithDiagnostic.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "InvalidSlotDatumIsSkippedWithDiagnostic",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\related-2.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.2432652000024973,
+      "log": "related-2-InvalidSlotDatumIsSkippedWithDiagnostic.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "HoleAndPinChainsUseSideFacingCenterlineEndpoints",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\related-3.json"
+      ],
+      "exitCode": 1,
+      "elapsedSeconds": 0.3135833000014827,
+      "log": "related-3-HoleAndPinChainsUseSideFacingCenterlineEndpoints.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "PinDatumSideIsInheritedOnAllFourSides",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\related-4.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.30242740000176127,
+      "log": "related-4-PinDatumSideIsInheritedOnAllFourSides.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "SeparatePinGroupsKeepIndependentSides",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\related-5.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.243235599999025,
+      "log": "related-5-SeparatePinGroupsKeepIndependentSides.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "HoleGripUsesNearCenterlineStubNotFarAxisEnd",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\related-6.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.23687710000012885,
+      "log": "related-6-HoleGripUsesNearCenterlineStubNotFarAxisEnd.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "TopLeftRightHoleGripsUsePlacementSideHoleCenterline",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\related-7.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.2414491999988968,
+      "log": "related-7-TopLeftRightHoleGripsUsePlacementSideHoleCenterline.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "ExplicitLocalLooseChainUsesNearbyConcaveBoundary",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\related-8.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.10100339999917196,
+      "log": "related-8-ExplicitLocalLooseChainUsesNearbyConcaveBoundary.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "ConcentricLooseHolesShareOneLocationDimension",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\related-9.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.24880320000011125,
+      "log": "related-9-ConcentricLooseHolesShareOneLocationDimension.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "OffsetColumnDoesNotStealLowerHoleCenterline",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\related-10.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.23643109999829903,
+      "log": "related-10-OffsetColumnDoesNotStealLowerHoleCenterline.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "BottomHoleGripUsesLowerHoleCenterlineInColumn",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\related-11.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.24291420000008657,
+      "log": "related-11-BottomHoleGripUsesLowerHoleCenterlineInColumn.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "CenterlineEndpointIsAllowedForHolePositioning",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\related-12.json"
+      ],
+      "exitCode": 1,
+      "elapsedSeconds": 0.25072110000110115,
+      "log": "related-12-CenterlineEndpointIsAllowedForHolePositioning.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "--continue-on-failure",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\full-after-fix.json"
+      ],
+      "exitCode": 1,
+      "elapsedSeconds": 1.00279810000211,
+      "log": "full-after-fix.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\gated-after-fix.json"
+      ],
+      "exitCode": 1,
+      "elapsedSeconds": 0.8277362000007997,
+      "log": "gated-after-fix.log"
+    },
+    {
+      "command": [
+        "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "scripts/run-ablation.py",
+        "--output",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\ablation-rerun"
+      ],
+      "exitCode": 1,
+      "elapsedSeconds": 14.413299899999402,
+      "log": "ablation-rerun.log"
+    },
+    {
+      "command": [
+        "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "scripts/run-ablation.py",
+        "--output",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\ablation-confirmation"
+      ],
+      "exitCode": 1,
+      "elapsedSeconds": 14.357911899998726,
+      "log": "ablation-confirmation.log"
+    },
+    {
+      "command": [
+        "cmd",
+        "/c",
+        "C:\\Users\\Administrator\\.local\\bin\\graphify.EXE",
+        "update",
+        ".",
+        "--no-cluster"
+      ],
+      "cwd": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\cad-core-recovery-graph-vueefw6k",
+      "exitCode": 0,
+      "elapsedSeconds": 13.306703900001594,
+      "log": "graphify-isolated.log"
+    },
+    {
+      "command": [
+        "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts",
+        "-p",
+        "test_ablation_metrics.py"
+      ],
+      "cwd": "D:\\work\\AI\\9.1 托压块版本",
+      "exitCode": 0,
+      "elapsedSeconds": 0.10942340000110562,
+      "log": "final-metric-tests.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "--runner-self-check"
+      ],
+      "cwd": "D:\\work\\AI\\9.1 托压块版本",
+      "exitCode": 0,
+      "elapsedSeconds": 0.11972939999759546,
+      "log": "final-runner-self-check.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "--datum-reference-self-check"
+      ],
+      "cwd": "D:\\work\\AI\\9.1 托压块版本",
+      "exitCode": 0,
+      "elapsedSeconds": 0.34836449999784236,
+      "log": "final-datum-reference-self-check.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "--ablation-self-check"
+      ],
+      "cwd": "D:\\work\\AI\\9.1 托压块版本",
+      "exitCode": 0,
+      "elapsedSeconds": 1.0428830999990168,
+      "log": "final-ablation-self-check.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "P0",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\p0-after.json"
+      ],
+      "cwd": "D:\\work\\AI\\9.1 托压块版本",
+      "exitCode": 0,
+      "elapsedSeconds": 0.3118231000007654,
+      "log": "final-p0.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "--continue-on-failure",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\full-after-repeat.json"
+      ],
+      "cwd": "D:\\work\\AI\\9.1 托压块版本",
+      "exitCode": 1,
+      "elapsedSeconds": 1.0460972999972,
+      "log": "final-full-diagnostic.log"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\fixed-build\\CadAuto.Core.Tests.exe",
+        "--report-json",
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-154719-core-recovery-590b7b\\gated-after-repeat.json"
+      ],
+      "cwd": "D:\\work\\AI\\9.1 托压块版本",
+      "exitCode": 1,
+      "elapsedSeconds": 0.8684900999978709,
+      "log": "final-default-gate.log"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "D:\\work\\AI\\9.1 托压块版本",
+      "exitCode": 0,
+      "elapsedSeconds": 0.36516430000119726,
+      "log": "final-git-diff-check.log"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "rawRunDirectory": "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-delivery",
+  "files": {
+    "build-artifacts.json": "ccb72a0407a9186520054fdf57a22d58a4c5ffa84cd7ea789e8ae1253d2d5135",
+    "commands.jsonl": "1f95cfb5c6125c75db943b332e4a8ebbebf4f8111a6e568d4551d99d6c559a1a",
+    "environment.json": "1344c94ae7200e7af273643741ce79c604883c7d84bcf7a4346fb49d93001acc",
+    "graphify-isolated.json": "6eb3cee2558c10d3b4502c83c5ebdadf5be09d636dae4a699db03721194cfb5e",
+    "graphify-isolated.log": "530a07d91c051ca71899175102ebf2a0db18f1bcf8524f785d9a5fdfbd8aee7b",
+    "preservation.json": "41e097ad7df79d83cd76bd4199df44e5f88452c3e8e3f346ff96f8731cb3153a",
+    "process-logs.json": "a1d4e7d702b57dc6a3d695a8693648585fe8494c60f673ffb51cddc9d6cc3f6e",
+    "README.md": "60eaff291ef96c2ed959eadc389495733454a6fa51d566ebac121c890b43db20",
+    "REPORT.md": "3768a0fcf57279fd423bb5c244242b255814697f0c8b23d8113e4f38d11a205d",
+    "results.json": "929087a175e08dafe23db3c718cd32d8cf0fd59c419a4fd0620590373d5d874d",
+    "snapshots/BoundaryInformationCompletion.json.gz": "af913cd21177dbe47242666158b47340ff4b80a34e99d9d03a501da1b16af06c",
+    "snapshots/FunctionalHoleAssignment.json.gz": "5d3c055f10c8667bf553e05970585291bec3225133ead929e1de7b3c7a20e2ee",
+    "snapshots/LocalEnvelopeSuppression.json.gz": "7eef9583cb81096b1575ab2fed7143562eae0753233a339d1330105674e3f1c3",
+    "snapshots/MeasuredDeduplication.json.gz": "5fadd9d7d7f66a0000358b40b5a09cc006e710969449b3bff7462a9adf7087f4",
+    "snapshots/MirroredDeduplication.json.gz": "cb4f597304ee828a2ea7451d8e80201f6253f63565378e45501ca58d92a4ca08",
+    "snapshots/None-repeat.json.gz": "f44de973042cc9ba52ae5982ccb08abdbea9eaf5b0924d64882b375669f09eb5",
+    "snapshots/None.json.gz": "e296d978a7ba451e5eedc57184f49d69eef8362db5f21d3ca7db5173ccd77bc8",
+    "snapshots/NonPinNearestDatum.json.gz": "bbcce20a36bb9a9dad5d5acbfdac2798c0fac3fc3bfaab986e487b10a770c198",
+    "snapshots/OutlineOverallPartition.json.gz": "332685025e32c11679b6d535a4b16fa9bf7d03f7433857073a617474f63277dd",
+    "snapshots/ParallelDatumCompaction.json.gz": "ada4744c4efc3123180059c4a3cb2fce77e5be149c2dcf81f05e72b09dc8510c",
+    "snapshots/PinPairGrouping.json.gz": "add1bac59979b5b101aca3731c638426126c9d0fb1d814152bd8b963f5acb4d0",
+    "snapshots/SelectedCenterlineAttachment.json.gz": "66f7386df1942bd1750f4eb22f165645b3e1700a8f9bb9a05888b22cbbe3239b",
+    "snapshots/SharedExtensionAlignment.json.gz": "970d65d2118794edaf3ffb34d14f250b182456ec86cc864341e30d22740d65ad"
+  }
+}

@@ -9,14 +9,15 @@ namespace CadAuto.Core.Planning;
 /// </summary>
 public static class StructureCoveragePolicy
 {
-	public static string GetIneligibilityReason(PlannedDimension dimension, string replaceableRuleId = null)
+	public static string GetIneligibilityReason(PlannedDimension dimension, string replaceableRuleId = null, bool allowOutlineSegment = false)
 	{
 		if (dimension == null)
 		{
 			return "MissingCandidate";
 		}
 		if (dimension.Kind != DimensionKind.Normal
-			|| dimension.Role != DimensionCandidateRole.Structure
+			|| (dimension.Role != DimensionCandidateRole.Structure
+				&& !(allowOutlineSegment && dimension.Role == DimensionCandidateRole.OutlineSegment && dimension.DebugRole == "OutlineSegment"))
 			|| dimension.OwnerKind != DimensionCandidateOwnerKind.Outline)
 		{
 			return "ProtectedSemanticIdentity";

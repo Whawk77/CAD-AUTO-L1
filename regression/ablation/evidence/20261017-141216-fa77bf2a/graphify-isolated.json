@@ -1,0 +1,13 @@
+{
+  "cwd": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\cad-ablation-final-graph-zvdhut9v",
+  "command": [
+    "cmd",
+    "/c",
+    "C:\\Users\\Administrator\\.local\\bin\\graphify.EXE",
+    "update",
+    ".",
+    "--no-cluster"
+  ],
+  "exitCode": 0,
+  "reason": "Preserve the preexisting dirty original graph; AST-only refresh in an isolated source/graph copy"
+}

@@ -17,8 +17,8 @@ High-priority rules for AI coding agents. Keep this file short.
 
 ## Development Workflow
 
-- Do not proactively compile, run tests, launch AutoCAD, or run CAD scripts.
-- Only run build, deployment, `cad-test`, AutoCAD, or `ASD` validation when the user explicitly asks.
+- After source or test code changes, delegate relevant ordinary build/tests to `build_runner`, then completed validation evidence to `report_summarizer`, following the global AGENTS.md workflow. Skip project compilation for documentation/configuration-only tasks.
+- Deployment, `cad-test`, launching AutoCAD, CAD scripts, and `ASD` validation still require an explicit user request.
 - Do not edit source code during documentation-only tasks.
 - Before changing behavior, read the relevant `docs/` pages and inspect the current source.
 - Prefer small, targeted changes that match existing code style.

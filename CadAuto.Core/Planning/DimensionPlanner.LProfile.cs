@@ -172,6 +172,7 @@ public sealed partial class DimensionPlanner
 			LProfileHorizontalArmHeightRuleId);
 		if (horizontalArmHeight == null)
 		{
+			SuppressInternalChordEndpointCandidates(plan, match);
 			plan.Diagnostics.Warnings.Add("LProfile.NotApplied|Reason=HorizontalArmHeightCandidateAmbiguous");
 			return;
 		}
@@ -2716,12 +2717,122 @@ public sealed partial class DimensionPlanner
 			return selected;
 		}
 
+		LProfileLocalAnchorPair clearExtensions = TryFindLProfileClearExtensionAnchorPair(
+			match,
+			originalFirst,
+			originalSecond,
+			canonicalOrientation,
+			canonicalSide,
+			envelope,
+			tolerance);
+		if (clearExtensions != null && (!requireCloser || clearExtensions.SideDistance <= originalSideDistance + tolerance))
+		{
+			return clearExtensions;
+		}
+
 		failureReason = parallelPairs.Count != 0
 			? "NoCloserEquivalentContour"
 			: (minimumCandidates.Count == 0 || maximumCandidates.Count == 0
 				? "NoEquivalentRealParallelContour"
 				: "NoEquivalentLineAndCornerPair");
 		return null;
+	}
+
+	private LProfileLocalAnchorPair TryFindLProfileClearExtensionAnchorPair(
+		LProfileMatch match,
+		Point2D originalFirst,
+		Point2D originalSecond,
+		DimensionOrientation orientation,
+		DimensionSide side,
+		OutlineEnvelope2D envelope,
+		double tolerance)
+	{
+		OutlineFeature2D boundary = match?.Graph?.BoundaryOutline;
+		if (boundary == null)
+		{
+			return null;
+		}
+		bool horizontal = orientation == DimensionOrientation.Horizontal;
+		bool firstCrosses = ExtensionCrossesOutline(originalFirst, orientation, side, boundary);
+		bool secondCrosses = ExtensionCrossesOutline(originalSecond, orientation, side, boundary);
+		if (!firstCrosses && !secondCrosses)
+		{
+			return null;
+		}
+
+		Point2D? firstAttachment = firstCrosses
+			? TryFindLProfileEquivalentAxisAttachment(match, originalFirst, orientation, side, tolerance)
+			: originalFirst;
+		Point2D? secondAttachment = secondCrosses
+			? TryFindLProfileEquivalentAxisAttachment(match, originalSecond, orientation, side, tolerance)
+			: originalSecond;
+		if (!firstAttachment.HasValue || !secondAttachment.HasValue)
+		{
+			return null;
+		}
+	Point2D first = firstAttachment.Value;
+	Point2D second = secondAttachment.Value;
+	if (!IsLProfileLocalDimensionLineSafe(first, second, side, boundary, horizontal, tolerance))
+		{
+			return null;
+		}
+
+		return new LProfileLocalAnchorPair
+		{
+			FirstPoint = first,
+			SecondPoint = second,
+			OriginalFirstPoint = originalFirst,
+			OriginalSecondPoint = originalSecond,
+			FirstKind = firstCrosses ? "EquivalentAxisSupport" : "OriginalBoundaryAttachment",
+			SecondKind = secondCrosses ? "EquivalentAxisSupport" : "OriginalBoundaryAttachment",
+			Mode = "EquivalentAxisSupport",
+			SideDistance = GetLProfileSideDistance(first, second, side, envelope, horizontal),
+			OriginalSideDistance = GetLProfileSideDistance(originalFirst, originalSecond, side, envelope, horizontal),
+			SupportSpan = Math.Abs((horizontal ? first.X : first.Y) - (horizontal ? second.X : second.Y))
+		};
+	}
+
+	private Point2D? TryFindLProfileEquivalentAxisAttachment(
+		LProfileMatch match,
+		Point2D original,
+		DimensionOrientation orientation,
+		DimensionSide side,
+		double tolerance)
+	{
+		bool horizontal = orientation == DimensionOrientation.Horizontal;
+		IEnumerable<Point2D> candidates = match.Graph.BoundaryEdges
+			.Where(edge => edge.Segment != null && !edge.Segment.IsArcChord
+				&& (horizontal ? edge.Segment.IsVertical(tolerance) : edge.Segment.IsHorizontal(tolerance))
+				&& IsPointOnLProfileAxisSupport(original, edge.Segment, horizontal, tolerance))
+			.SelectMany(edge => new[] { edge.Segment.Start, edge.Segment.End })
+			.Where(point => Math.Abs((horizontal ? point.X : point.Y) - (horizontal ? original.X : original.Y)) <= tolerance
+				&& MovesTowardDimensionLine(original, point, orientation, side, tolerance))
+			.OrderBy(point => side switch
+			{
+				DimensionSide.Bottom => point.Y,
+				DimensionSide.Top => -point.Y,
+				DimensionSide.Left => point.X,
+				_ => -point.X
+			});
+
+		foreach (Point2D candidate in candidates)
+		{
+			if (OutlineGeometryQuery.IsPointOnBoundary(candidate, match.Graph.BoundaryOutline, tolerance)
+				&& !ExtensionCrossesOutline(candidate, orientation, side, match.Graph.BoundaryOutline))
+			{
+				return candidate;
+			}
+		}
+		return null;
+	}
+
+	private static bool IsPointOnLProfileAxisSupport(Point2D point, Segment2D segment, bool horizontalMeasurement, double tolerance)
+	{
+		return horizontalMeasurement
+			? Math.Abs(segment.Start.X - point.X) <= tolerance
+				&& point.Y >= segment.MinY - tolerance && point.Y <= segment.MaxY + tolerance
+			: Math.Abs(segment.Start.Y - point.Y) <= tolerance
+				&& point.X >= segment.MinX - tolerance && point.X <= segment.MaxX + tolerance;
 	}
 
 	private LProfileLocalAnchorPair CreateLProfileParallelAnchorPair(
@@ -3217,6 +3328,67 @@ public sealed partial class DimensionPlanner
 					stepGrooveChord == null ? null : stepGrooveChord.Edges);
 				continue;
 			}
+			bool horizontal = orientation == DimensionOrientation.Horizontal;
+			if (horizontal ? Math.Abs(first.Y - second.Y) > _config.GeometryTolerance
+				: Math.Abs(first.X - second.X) > _config.GeometryTolerance)
+			{
+				continue;
+			}
+			double minimum = horizontal ? Math.Min(first.X, second.X) : Math.Min(first.Y, second.Y);
+			double maximum = horizontal ? Math.Max(first.X, second.X) : Math.Max(first.Y, second.Y);
+			double cross = horizontal ? (first.Y + second.Y) * 0.5 : (first.X + second.X) * 0.5;
+			List<LProfileAxisChain> boundaryChains = LProfileAxisChain.Build(
+				match.Graph.BoundaryEdges,
+				horizontal,
+				_config.GeometryTolerance)
+				.Where(chain => Math.Abs(chain.Cross - cross) <= _config.GeometryTolerance
+					&& Math.Abs(chain.MinT - minimum) <= _config.GeometryTolerance
+					&& Math.Abs(chain.MaxT - maximum) <= _config.GeometryTolerance)
+				.ToList();
+			if (boundaryChains.Count == 1)
+			{
+				LProfileAxisChain boundaryChain = boundaryChains[0];
+				foreach (LProfileAxisChain chord in openInteriorChords.Where(chain => chain.Horizontal == horizontal
+					&& chain.Span > boundaryChain.Span + _config.GeometryTolerance))
+				{
+					LProfileEdge minimumBridge = FindLProfileChamferBridge(
+						match.Graph,
+						boundaryChain.GetEndpoint(minimum: true),
+						chord.GetEndpoint(minimum: true),
+						horizontal,
+						_config.GeometryTolerance);
+					LProfileEdge maximumBridge = FindLProfileChamferBridge(
+						match.Graph,
+						boundaryChain.GetEndpoint(minimum: false),
+						chord.GetEndpoint(minimum: false),
+						horizontal,
+						_config.GeometryTolerance);
+					if (minimumBridge == null || maximumBridge == null)
+					{
+						continue;
+					}
+					LProfileEdge[] evidenceEdges = boundaryChain.Edges
+						.Concat(chord.Edges)
+						.Concat(new[] { minimumBridge, maximumBridge })
+						.ToArray();
+					string evidence = "Relation=ChamferBridgedBoundaryResidualOfInteriorChord"
+						+ "|BoundaryResidual=" + string.Join(",", boundaryChain.Edges.Select(edge => edge.SourceKey))
+						+ "|InteriorChord=" + string.Join(",", chord.Edges.Select(edge => edge.SourceKey))
+						+ "|Chamfers=" + minimumBridge.SourceKey + "," + maximumBridge.SourceKey;
+					SuppressLProfileDimension(
+						plan,
+						dimension,
+						LProfileInternalChordEndpointRuleId,
+						match,
+						evidenceEdges,
+						evidence);
+					break;
+				}
+				if (!plan.Dimensions.Contains(dimension))
+				{
+					continue;
+				}
+			}
 			foreach (LProfileAxisChain chord in openInteriorChords.Where(chain => chain.Horizontal == (orientation == DimensionOrientation.Vertical)))
 			{
 				if (!IsPointOnAxisChain(first, chord, _config.GeometryTolerance)
@@ -3228,6 +3400,20 @@ public sealed partial class DimensionPlanner
 				break;
 			}
 		}
+	}
+
+	private static LProfileEdge FindLProfileChamferBridge(
+		LProfileBoundaryGraph graph,
+		Point2D boundaryEndpoint,
+		Point2D chordEndpoint,
+		bool horizontal,
+		double tolerance)
+	{
+		List<LProfileEdge> matches = graph.BoundaryEdges
+			.Where(edge => IsLProfileChamferEdge(edge, graph, horizontal, tolerance)
+				&& SameLProfileEndpointPair(edge.Segment.Start, edge.Segment.End, boundaryEndpoint, chordEndpoint, tolerance))
+			.ToList();
+		return matches.Count == 1 ? matches[0] : null;
 	}
 
 	private LProfileAxisChain FindLProfileDerivedStepGrooveChord(
@@ -4895,6 +5081,8 @@ public sealed partial class DimensionPlanner
 
 		public string SourceKey => Segment?.SourceKey ?? Arc?.SourceKey ?? string.Empty;
 
+		public List<string> SourceKeys { get; } = new List<string>();
+
 		public bool IsBoundary { get; set; }
 
 		public bool Touches(Point2D point, double tolerance)
@@ -4963,10 +5151,7 @@ public sealed partial class DimensionPlanner
 			out OutlineTopologyDiagnostic diagnostic)
 		{
 			LProfileBoundaryGraph graph = new LProfileBoundaryGraph();
-			foreach (Segment2D segment in outline.Segments.Where(segment => segment != null && !segment.IsArcChord && segment.Length > tolerance))
-			{
-				graph.AddEdge(new LProfileEdge { Segment = segment }, segment.Start, segment.End, tolerance);
-			}
+			graph.AddLineEdges(outline, tolerance);
 			foreach (Arc2D arc in outline.Arcs.Where(arc => IsValidArc(arc, tolerance)))
 			{
 				graph.AddEdge(new LProfileEdge { Arc = arc }, arc.Start, arc.End, tolerance);
@@ -5007,6 +5192,16 @@ public sealed partial class DimensionPlanner
 				return null;
 			}
 			graph.BoundaryOutline = graph.CreateBoundaryOutline(outline);
+			if (!OutlineGeometryQuery.TryGetEnvelope(graph.BoundaryOutline, tolerance, out OutlineEnvelope2D boundaryEnvelope)
+				|| !OutlineGeometryQuery.TryGetEnvelope(outline, tolerance, out OutlineEnvelope2D sourceEnvelope)
+				|| Math.Abs(boundaryEnvelope.MinX - sourceEnvelope.MinX) > tolerance
+				|| Math.Abs(boundaryEnvelope.MaxX - sourceEnvelope.MaxX) > tolerance
+				|| Math.Abs(boundaryEnvelope.MinY - sourceEnvelope.MinY) > tolerance
+				|| Math.Abs(boundaryEnvelope.MaxY - sourceEnvelope.MaxY) > tolerance)
+			{
+				diagnostic = graph.CreateDiagnostic(outline, tolerance, 1, "Unavailable", "ExteriorWalkDoesNotCoverOutlineEnvelope");
+				return null;
+			}
 			diagnostic = graph.CreateDiagnostic(outline, tolerance, 1, "UniqueExteriorWalk", "SelectedByPlannerBoundaryGraph");
 			return graph;
 		}
@@ -5126,7 +5321,8 @@ public sealed partial class DimensionPlanner
 				Status = status, Reason = reason, Tolerance = tolerance,
 				MinX = outline.MinX, MinY = outline.MinY, MaxX = outline.MaxX, MaxY = outline.MaxY,
 				ExteriorFaceCount = exteriorFaceCount,
-				IgnoredGeometryCount = outline.Segments.Count + outline.Arcs.Count - AllEdges.Count,
+				IgnoredGeometryCount = outline.Segments.Count(s => s == null || s.IsArcChord || s.Length <= tolerance)
+					+ outline.Arcs.Count(a => !IsValidArc(a, tolerance)),
 				IsClosedWalk = BoundaryPath.Count > 0
 					&& BoundaryPath.Last().ToNode == BoundaryPath[0].FromNode
 					&& BoundaryPath.Select((step, i) => step.ToNode == BoundaryPath[(i + 1) % BoundaryPath.Count].FromNode).All(v => v),
@@ -5138,6 +5334,7 @@ public sealed partial class DimensionPlanner
 				{
 					Id = edge.Id, StartNode = edge.StartNode, EndNode = edge.EndNode,
 					Kind = edge.Arc == null ? "Line" : "Arc", SourceKey = edge.SourceKey,
+					SourceKeys = new List<string>(edge.SourceKeys),
 					Start = edge.Segment != null ? edge.Segment.Start : edge.Arc.Start,
 					End = edge.Segment != null ? edge.Segment.End : edge.Arc.End,
 					Center = edge.Arc?.Center ?? default(Point2D), Radius = edge.Arc?.Radius ?? 0.0,
@@ -5178,8 +5375,42 @@ public sealed partial class DimensionPlanner
 			return result;
 		}
 
+		private void AddLineEdges(OutlineFeature2D outline, double tolerance)
+		{
+			var segments = outline.Segments.Where(s => s != null && !s.IsArcChord && s.Length > tolerance).ToList();
+			var endpoints = segments.SelectMany(s => new[] { s.Start, s.End })
+				.Concat(outline.Arcs.Where(a => IsValidArc(a, tolerance)).SelectMany(a => new[] { a.Start, a.End })).ToList();
+			foreach (var segment in segments)
+			{
+				// Only existing real endpoints split analysis edges; never invent an intersection or edit source geometry.
+				var points = endpoints.Where(p => PointLiesOnSegment(p, segment, tolerance))
+					.OrderBy(p => (p.X - segment.Start.X) * (segment.End.X - segment.Start.X)
+						+ (p.Y - segment.Start.Y) * (segment.End.Y - segment.Start.Y)).ToList();
+				var distinct = new List<Point2D>();
+				foreach (var point in points)
+				{
+					if (distinct.Count == 0 || distinct.Last().DistanceTo(point) > tolerance) { distinct.Add(point); }
+				}
+				for (int i = 1; i < distinct.Count; i++)
+				{
+					Point2D start = distinct[i - 1], end = distinct[i];
+					var duplicate = AllEdges.FirstOrDefault(e => e.Segment != null
+						&& ((e.Segment.Start.DistanceTo(start) <= tolerance && e.Segment.End.DistanceTo(end) <= tolerance)
+							|| (e.Segment.Start.DistanceTo(end) <= tolerance && e.Segment.End.DistanceTo(start) <= tolerance)));
+					if (duplicate != null)
+					{
+						if (!duplicate.SourceKeys.Contains(segment.SourceKey)) { duplicate.SourceKeys.Add(segment.SourceKey); }
+						continue;
+					}
+					var part = distinct.Count == 2 ? segment : new Segment2D(start, end) { SourceKey = segment.SourceKey };
+					AddEdge(new LProfileEdge { Segment = part }, start, end, tolerance);
+				}
+			}
+		}
+
 		private void AddEdge(LProfileEdge edge, Point2D start, Point2D end, double tolerance)
 		{
+			edge.SourceKeys.Add(edge.SourceKey);
 			edge.Id = AllEdges.Count;
 			edge.StartNode = GetNode(start, tolerance);
 			edge.EndNode = GetNode(end, tolerance);

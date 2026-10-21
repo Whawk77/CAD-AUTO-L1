@@ -1,0 +1,30 @@
+{
+  "modifiedExistingFiles": [
+    ".gitignore",
+    "CadAuto.Core.Tests/CadAuto.Core.Tests.csproj",
+    "CadAuto.Core.Tests/Program.cs",
+    "CadAuto.Core/Rules/DimensionRuleConfig.cs",
+    "CadAuto.Core/Planning/DimensionPlanner.cs",
+    "CadAuto.Core/Planning/DimensionPlanner.Features.cs",
+    "CadAuto.Core/Planning/DimensionPlanner.Suppression.cs",
+    "CadAuto.Core/Planning/DimensionPlanner.BoundaryInformation.cs",
+    "CadAuto.Core/Rules/DimensionLayoutRules.cs",
+    "CadAuto.Core/Rules/DimensionLayoutRules.DatumStacks.cs"
+  ],
+  "newSourceDocumentationDataFiles": [
+    "CadAuto.Core/Rules/DimensionExperimentRule.cs",
+    "CadAuto.Core.Tests/Ablation/AblationSnapshots.cs",
+    "scripts/ablation_metrics.py",
+    "scripts/run-ablation.py",
+    "scripts/test_ablation_metrics.py",
+    "regression/ablation/dataset.json",
+    "regression/ablation/reference/default-behavior.json",
+    "regression/ablation/reference/initial-regression.json",
+    "docs/AblationExperiments.md"
+  ],
+  "generatedEvidenceDirectory": "regression/ablation/evidence/20261017-141216-fa77bf2a",
+  "rawOutputDirectory": "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-delivery",
+  "noGitCommit": true,
+  "noDwgOrManualExpectationChanges": true,
+  "originalGraphPreserved": true
+}

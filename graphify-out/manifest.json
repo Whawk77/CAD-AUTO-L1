@@ -1,7 +1,7 @@
 {
   "AutoFixtureDim.csproj": {
-    "mtime": 1788256962.383139,
-    "ast_hash": "d84034f89ccfa798e477adacf0b488e0",
+    "mtime": 1790219861.849025,
+    "ast_hash": "c1333ed7c88322eb5953144e96ddbb7b",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/AnnotationMetadata.cs": {
@@ -15,13 +15,13 @@
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Collection/GeometryCollector.cs": {
-    "mtime": 1788757787.021686,
-    "ast_hash": "11498b62314b121a1981d9f3d35a9860",
+    "mtime": 1792211938.9729087,
+    "ast_hash": "68a5ca62c0e822ab9c8fbcc72f09dd96",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Environment/DimStyleManager.cs": {
-    "mtime": 1788256962.3841372,
-    "ast_hash": "63346730159bb66f26132bfd92d6d285",
+    "mtime": 1791875689.64856,
+    "ast_hash": "c0c00817995309f5231336ea94fc6c2d",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Environment/LayerManager.cs": {
@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Mapping/CadToCoreModelMapper.cs": {
-    "mtime": 1788757787.0226874,
-    "ast_hash": "e5832d29bc9dd49fea5ef8255b431084",
+    "mtime": 1792474744.986654,
+    "ast_hash": "f8d5bcf9449ae5d1d648e16f5783f091",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Properties/AssemblyInfo.cs": {
@@ -40,18 +40,18 @@
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Recognition/FeatureRecognizer.cs": {
-    "mtime": 1788256962.3851366,
-    "ast_hash": "ba824d885b9b8479ad232d4819379e2c",
+    "mtime": 1792482648.1583607,
+    "ast_hash": "022e57e1c6757026dbacd6e2abe4c1ac",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Rendering/CadEntityWriter.cs": {
-    "mtime": 1790059575.1511028,
-    "ast_hash": "35bbee2df6fd3c91814af78b04abf71d",
+    "mtime": 1792141711.4790268,
+    "ast_hash": "cf4ea76a51cc26c76808dc24632de0c7",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Rendering/CornerCalloutRenderer.cs": {
-    "mtime": 1788256962.3851366,
-    "ast_hash": "ae7e42f2f5351e0ea229a7c1d7ae01b0",
+    "mtime": 1791875689.6498399,
+    "ast_hash": "8ad745e0e6290e9cdc008571aa0223ec",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Rendering/DebugAnnotationRenderer.cs": {
@@ -60,28 +60,28 @@
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Rendering/DimensionDrawer.cs": {
-    "mtime": 1790056664.2098665,
-    "ast_hash": "a916e4f7a0995a4424a6e1becde03930",
+    "mtime": 1792142688.7743995,
+    "ast_hash": "30245ad6c5a432685b986dfe53166886",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Rendering/DimensionExtensionLineRenderer.cs": {
-    "mtime": 1788256962.3861365,
-    "ast_hash": "ae1df5d1ea1150a5c30f94d3f9631196",
+    "mtime": 1792141704.2327888,
+    "ast_hash": "dccc58bca0f472e54e4045e0bb27e034",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Rendering/DimensionPlanCadMapper.cs": {
-    "mtime": 1788256961.8425646,
-    "ast_hash": "7dedf7c8775c375ab06fab2cb3126694",
+    "mtime": 1792141546.6527784,
+    "ast_hash": "a9cd63fa15fa5cb801871b1acc2839f2",
     "semantic_hash": ""
   },
   "CadAuto.Core.Tests/CadAuto.Core.Tests.csproj": {
-    "mtime": 1788256961.8435652,
-    "ast_hash": "aaca5f8aba68173f0befe79758d90350",
+    "mtime": 1792223457.7448,
+    "ast_hash": "1e93329b82ffbb1107776247e416bc20",
     "semantic_hash": ""
   },
   "CadAuto.Core.Tests/Program.cs": {
-    "mtime": 1790146033.0244012,
-    "ast_hash": "bc89366ccec1637ab21bd79fab20b0ff",
+    "mtime": 1792562192.9012616,
+    "ast_hash": "23e28a64ca1bee350173e062bab614a7",
     "semantic_hash": ""
   },
   "CadAuto.Core.Tests/Properties/AssemblyInfo.cs": {
@@ -120,8 +120,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Model/Datum2D.cs": {
-    "mtime": 1788757787.020686,
-    "ast_hash": "99a782eeb6f8be2d2a7cfbeb01fa5de1",
+    "mtime": 1792479462.2894511,
+    "ast_hash": "cfe512d1baa5d47a5c876524b98a2e5f",
     "semantic_hash": ""
   },
   "CadAuto.Core/Model/DrawingGeometry.cs": {
@@ -150,13 +150,13 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlan.cs": {
-    "mtime": 1789023376.9508722,
-    "ast_hash": "c567f417c3937270a76df97b757496a2",
+    "mtime": 1792480325.0587983,
+    "ast_hash": "7bb46f447a93c1a391a558caba36e470",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.cs": {
-    "mtime": 1790218102.3307226,
-    "ast_hash": "4d3cda3eeabec2ec39727b8002b3bf3a",
+    "mtime": 1792485974.1405914,
+    "ast_hash": "cca7c47ba794ec1316259fcc046dcc2f",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/HoleCalloutPlan.cs": {
@@ -180,18 +180,18 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/DimensionRuleConfig.cs": {
-    "mtime": 1788256962.4031365,
-    "ast_hash": "755151b693b17c5b9ecda28fbf43e2b9",
+    "mtime": 1792216523.173894,
+    "ast_hash": "5aa9d2c940faf696d41d981a3cc9f37d",
     "semantic_hash": ""
   },
   "Commands.cs": {
-    "mtime": 1790055081.1892195,
-    "ast_hash": "168ef9051632d3c2e36550f5c73dabcc",
+    "mtime": 1792479495.981931,
+    "ast_hash": "e1a4480a3d8cd97f1c8349b7bac31b03",
     "semantic_hash": ""
   },
   "PluginEntry.cs": {
-    "mtime": 1788256962.4051373,
-    "ast_hash": "90da44bd6a543b894afc73fdef405715",
+    "mtime": 1791881482.3646462,
+    "ast_hash": "5d29e325a99c348255dae1f5b58c9a3a",
     "semantic_hash": ""
   },
   "Properties/AssemblyInfo.cs": {
@@ -265,8 +265,8 @@
     "semantic_hash": ""
   },
   "AGENTS.md": {
-    "mtime": 1788756197.723484,
-    "ast_hash": "06aeff4dca656e68a44b69fb669a533b",
+    "mtime": 1792481982.1652894,
+    "ast_hash": "dc1c507d4186ac34b6e3f3f8076f3280",
     "semantic_hash": ""
   },
   "README.md": {
@@ -305,8 +305,8 @@
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Model/DatumDefinition.cs": {
-    "mtime": 1788757787.020686,
-    "ast_hash": "76650342bd75e980ff5db7a655e8a39a",
+    "mtime": 1792473456.7261987,
+    "ast_hash": "9676add371138f0b8e5ee1137074500a",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Model/DimensionType.cs": {
@@ -365,13 +365,13 @@
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Rendering/DimensionPlanCadItem.cs": {
-    "mtime": 1788256961.8425646,
-    "ast_hash": "24dc7019bfa49e610be836b457614ffa",
+    "mtime": 1792141543.3388038,
+    "ast_hash": "aa3720c828829696aa928376f9a9c1c1",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Rendering/NativeDiameterDimensioner.cs": {
-    "mtime": 1788256962.3871365,
-    "ast_hash": "f2830b60b19ac0d560189c82c527a03d",
+    "mtime": 1791875689.6508472,
+    "ast_hash": "63ebff5790217810a1af123a2b4ebbcd",
     "semantic_hash": ""
   },
   "CadAuto.Core/Model/HoleKind2D.cs": {
@@ -380,13 +380,13 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionCandidateDiagnostic.cs": {
-    "mtime": 1788757854.038255,
-    "ast_hash": "de4aca30f95bfcd046f79b6a06964142",
+    "mtime": 1792141756.0288258,
+    "ast_hash": "2a56fe4c460370be1269bafe2dab8ec6",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionDiagnosticReport.cs": {
-    "mtime": 1788256961.8505633,
-    "ast_hash": "9512b7765627d6da854849f1a664ff8d",
+    "mtime": 1792474925.8977406,
+    "ast_hash": "9cb77b63e2a754aaa18baa36f98aefe6",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionKind.cs": {
@@ -425,8 +425,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/PlannedDimension.cs": {
-    "mtime": 1788757854.038255,
-    "ast_hash": "8ccc2ba4661e894a70808ee08cd4e4e4",
+    "mtime": 1792141519.525271,
+    "ast_hash": "ae09d09ce32f542bcec5eca6f644b96a",
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/DimensionDeduplicationItem.cs": {
@@ -440,23 +440,23 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/DimensionLayoutItem.cs": {
-    "mtime": 1788256961.8592434,
-    "ast_hash": "f311a3e1ef64d0fbca23279f3d7aba4b",
+    "mtime": 1792141539.382665,
+    "ast_hash": "35583fbcc22294eaa1700a11af0c4890",
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/DimensionLayoutRules.cs": {
-    "mtime": 1790139891.8046122,
-    "ast_hash": "38c2ec43e3b6fd7ae3ea013bc0fa87fa",
+    "mtime": 1792216523.2018938,
+    "ast_hash": "ee09fa61569598630b2f81e5c0815283",
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/DimensionPlanPostValidator.cs": {
-    "mtime": 1788256962.4021366,
-    "ast_hash": "2f4de7d1b177603ac54712d14771b68d",
+    "mtime": 1792138942.5302455,
+    "ast_hash": "62761163b7e480ff13239d8fcf344297",
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/DimensionStackingPlacement.cs": {
-    "mtime": 1788256961.8612428,
-    "ast_hash": "a1276502f331dbfbcc07441014bb3408",
+    "mtime": 1792141574.643294,
+    "ast_hash": "18ab7f1b355fcc9c7c92f092f7f85202",
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/DimensionTextPlacementItem.cs": {
@@ -485,8 +485,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/StructureSuppressionRules.cs": {
-    "mtime": 1788256962.4041364,
-    "ast_hash": "54181d467aeb175208d2e89fa79f6d19",
+    "mtime": 1792474882.4678535,
+    "ast_hash": "00b237333a057225d52985f4af38ab9a",
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/TextBounds2D.cs": {
@@ -530,8 +530,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Model/CoordinateFrameModelTransform.cs": {
-    "mtime": 1788757787.0226874,
-    "ast_hash": "8a7a26f4c9b5852cd21d04cae412f564",
+    "mtime": 1792479462.2904506,
+    "ast_hash": "a919bf97d6ecd09d995f85e3e4cc4d65",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/AnnotationCase.cs": {
@@ -555,13 +555,13 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.Features.cs": {
-    "mtime": 1790218400.9433348,
-    "ast_hash": "5379bdbeb02e424f7c73fd78c80853cd",
+    "mtime": 1792223666.0628629,
+    "ast_hash": "b48599e32b89263a51cc9103fd45a40b",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.Structure.cs": {
-    "mtime": 1788256962.3951366,
-    "ast_hash": "872c35d95c1466edeec3f782b812b5f9",
+    "mtime": 1792215949.8797858,
+    "ast_hash": "c4c3b09cd04242284c7b9313a2b24374",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.StructureGeometry.cs": {
@@ -570,18 +570,18 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.Suppression.cs": {
-    "mtime": 1790064590.125922,
-    "ast_hash": "014d182c51ae4f3a7822614ea9ef18cb",
+    "mtime": 1792486560.2451344,
+    "ast_hash": "dabd2fa36048a20b3fc6f880fc0f93ec",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/StructureFeature.cs": {
-    "mtime": 1788256962.399137,
-    "ast_hash": "a72a6110fb42ad2816b01bc507caf0c1",
+    "mtime": 1792138649.1433227,
+    "ast_hash": "05a329ce525b7e922ab27193e7b5fccd",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/StructureFeatureExtractor.cs": {
-    "mtime": 1788256962.399137,
-    "ast_hash": "8844d74c02710e652b2fb0b0cf07ccab",
+    "mtime": 1792139321.3585367,
+    "ast_hash": "6d526b082c82c2918a32c8d48c68bfbd",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/StructureMeasurementSelector.Passes.cs": {
@@ -590,13 +590,13 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/StructureMeasurementSelector.cs": {
-    "mtime": 1788256962.4001367,
-    "ast_hash": "c10558d488657cf90341c3ae8d07503b",
+    "mtime": 1792486253.2292964,
+    "ast_hash": "b67440778dd1705efda2757e3fd8bef3",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/StructurePlacementAdapter.cs": {
-    "mtime": 1788256962.4001367,
-    "ast_hash": "3d56418e309ecff13cd3790b11b64d19",
+    "mtime": 1792138839.001684,
+    "ast_hash": "b1430fb01afc65f556e8ae86f53aad06",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/StructureSchemaEncoder.cs": {
@@ -735,13 +735,13 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.LProfile.cs": {
-    "mtime": 1788940306.9904327,
-    "ast_hash": "6c734e16ef33a53680e8845c4cd39ce9",
+    "mtime": 1792487057.1941402,
+    "ast_hash": "98da448053ae0edf9c616e85bf61457f",
     "semantic_hash": ""
   },
   "SupportBlockCommand.cs": {
-    "mtime": 1788257486.8650348,
-    "ast_hash": "7f3ca7119712d2437fd2bba51e7932f3",
+    "mtime": 1792059515.662943,
+    "ast_hash": "4e0b34724aaf90fa9ebce4a5c05fc762",
     "semantic_hash": ""
   },
   "docs/\u4e0d\u906e\u6321\u4e2d\u5fc3\u7ebf\u6807\u6ce8\u89c4\u5219.md": {
@@ -767,6 +767,1186 @@
   "docs/dimfix/cases/\u6c34\u5e73\u9500\u8ddd-\u672c\u7ec4\u8f6e\u5ed3\u4fa7\u4e0d\u5bf9\u9f50\u7ec4\u95f4\u5b9a\u4f4d.md": {
     "mtime": 1790218400.9463334,
     "ast_hash": "94cedbbb50aecd2a6c59694173e86584",
+    "semantic_hash": ""
+  },
+  "CadAuto.CadAdapter/Model/ClosedViewOutline.cs": {
+    "mtime": 1790220346.90906,
+    "ast_hash": "56cfb59ec3586ec159b97a9136233dc7",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Planning/OrthographicViewSetAssigner.cs": {
+    "mtime": 1790219816.4243894,
+    "ast_hash": "c707539f4f5a899a040f60d2eb835a90",
+    "semantic_hash": ""
+  },
+  "ThreeViewTrialCommand.cs": {
+    "mtime": 1791876779.2443411,
+    "ast_hash": "ecd454d14889cd745a5a12b7ed645b21",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Planning/StructureCoveragePolicy.cs": {
+    "mtime": 1792474744.9887452,
+    "ast_hash": "ce4af223aef3cb3d07219a60a708967a",
+    "semantic_hash": ""
+  },
+  "regression/asd4-correctness/L01-13/dwg-extract.json": {
+    "mtime": 1792072886.7006137,
+    "ast_hash": "da3d60c603eab8a2c7a1ac004543e7c7",
+    "semantic_hash": ""
+  },
+  "regression/asd4-correctness/L01-13/expectations.json": {
+    "mtime": 1792073012.106233,
+    "ast_hash": "d9b4f89edc43c4794093879ec74d3489",
+    "semantic_hash": ""
+  },
+  "regression/asd4-correctness/L01-13/geometry.json": {
+    "mtime": 1792073012.105232,
+    "ast_hash": "f9c2c2cb90c93838407eacc18f0a2a9e",
+    "semantic_hash": ""
+  },
+  "regression/asd4-correctness/L01-13/round1-expectations.json": {
+    "mtime": 1792111848.9054968,
+    "ast_hash": "9cc44971de73b12809161a6d2a900339",
+    "semantic_hash": ""
+  },
+  "docs/\u5f53\u524d\u6807\u6ce8\u89c4\u5219.md": {
+    "mtime": 1792071908.9725306,
+    "ast_hash": "8def05e10f3b87f4b147e24035376fa8",
+    "semantic_hash": ""
+  },
+  "regression/asd4-correctness/L01-13/round1-report.md": {
+    "mtime": 1792111866.5168078,
+    "ast_hash": "f37438a581282567a57fea100843ebb0",
+    "semantic_hash": ""
+  },
+  "regression/asd4-correctness/L01-13/geometry.svg": {
+    "mtime": 1792073012.1072323,
+    "ast_hash": "7655433d3079084044979a499e79f706",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Planning/OutlineTopologyDiagnostic.cs": {
+    "mtime": 1792485159.6032941,
+    "ast_hash": "be40f47a776c59c65e4d2841a807c98a",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Planning/OutlineTopologyExporter.cs": {
+    "mtime": 1792485159.6032941,
+    "ast_hash": "9ac8e4734fce2c471250fc18032e88d9",
+    "semantic_hash": ""
+  },
+  "diagnostics/last-run.outline.svg": {
+    "mtime": 1792561339.0205114,
+    "ast_hash": "cf9a7be6aa66e26586ff3e39d5780a8f",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Planning/StructureBoundaryEvidence.cs": {
+    "mtime": 1792485159.6043122,
+    "ast_hash": "9017e7e599b564293edef419525fbcb4",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Rules/DimensionExtensionLineRules.cs": {
+    "mtime": 1792142672.1995268,
+    "ast_hash": "6fc38c1974075e2b77ae4cbabe7b82ab",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Rules/DimensionLayoutRules.DatumStacks.cs": {
+    "mtime": 1792216523.2188938,
+    "ast_hash": "c37051730e9ccf37086058e742fd5e48",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Model/PinGroupVerticalLayoutPreference.cs": {
+    "mtime": 1792204622.3169186,
+    "ast_hash": "b261e43675105da25129c5fd0fbd0401",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Model/PinGroupHorizontalLayoutPreference.cs": {
+    "mtime": 1792211873.6944215,
+    "ast_hash": "17f3c7f8a57c5d37b1fa202a5a5ae846",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Planning/DimensionPlanner.BoundaryFragments.cs": {
+    "mtime": 1792487233.0315914,
+    "ast_hash": "6eeec9070ef5c610d7dac24fdf51d502",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Planning/DimensionPlanner.BoundaryInformation.cs": {
+    "mtime": 1792486058.862975,
+    "ast_hash": "57759f313dd2bbad918345c3f85ef057",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Ablation/AblationSnapshots.cs": {
+    "mtime": 1792217172.4759476,
+    "ast_hash": "704ffc7a94101d330b7d6f8ee39b8557",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/CoverageRuleRecoveryChecks.cs": {
+    "mtime": 1792228510.7512097,
+    "ast_hash": "5be68bb2aabc5925c0c7189106f0ba5f",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/DatumReferenceRecoveryChecks.cs": {
+    "mtime": 1792223629.1147387,
+    "ast_hash": "7614f99af7a9252894e368a9473c303b",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/RegressionReporting.cs": {
+    "mtime": 1792223440.9463637,
+    "ast_hash": "c2166777697aec08862030471566cc0a",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Rules/DimensionExperimentRule.cs": {
+    "mtime": 1792216505.0044763,
+    "ast_hash": "962f983c709b622de9c6be8ccdc64106",
+    "semantic_hash": ""
+  },
+  "regression/ablation/dataset.json": {
+    "mtime": 1792216959.9722586,
+    "ast_hash": "e7ad035fcdc675fecb9ec88e2bdc221c",
+    "semantic_hash": ""
+  },
+  "regression/ablation/evidence/20261017-141216-fa77bf2a/archive.json": {
+    "mtime": 1792217638.2747173,
+    "ast_hash": "5a53be75d883bf235ad55cbe8bcaed22",
+    "semantic_hash": ""
+  },
+  "regression/ablation/evidence/20261017-141216-fa77bf2a/build-artifacts.json": {
+    "mtime": 1792217562.9665391,
+    "ast_hash": "2c043e6e8763e61c133ed4bf4c9588cb",
+    "semantic_hash": ""
+  },
+  "regression/ablation/evidence/20261017-141216-fa77bf2a/changes.json": {
+    "mtime": 1792217813.5281982,
+    "ast_hash": "c0f5f27b52ce4c0f1d88dbe8f9e8d349",
+    "semantic_hash": ""
+  },
+  "regression/ablation/evidence/20261017-141216-fa77bf2a/environment.json": {
+    "mtime": 1792217562.9665391,
+    "ast_hash": "99dd9586fa31bb597d1075e54a44d33f",
+    "semantic_hash": ""
+  },
+  "regression/ablation/evidence/20261017-141216-fa77bf2a/final-verification.json": {
+    "mtime": 1792217721.6969795,
+    "ast_hash": "4264446463ef2894d1b092c081ae3d5f",
+    "semantic_hash": ""
+  },
+  "regression/ablation/evidence/20261017-141216-fa77bf2a/graphify-isolated.json": {
+    "mtime": 1792217638.2617154,
+    "ast_hash": "ef43eaff510a6a411447d0f8a3a2986d",
+    "semantic_hash": ""
+  },
+  "regression/ablation/evidence/20261017-141216-fa77bf2a/preservation.json": {
+    "mtime": 1792217562.9675422,
+    "ast_hash": "e4c3bce65aa907373b7eeb514bfe1c81",
+    "semantic_hash": ""
+  },
+  "regression/ablation/evidence/20261017-141216-fa77bf2a/process-logs.json": {
+    "mtime": 1792217625.15019,
+    "ast_hash": "bf87151d87bf6ac4b1190a408cd24fc0",
+    "semantic_hash": ""
+  },
+  "regression/ablation/evidence/20261017-141216-fa77bf2a/results.json": {
+    "mtime": 1792217562.9645445,
+    "ast_hash": "50ffac2a55cdc7032c541d139fb6876d",
+    "semantic_hash": ""
+  },
+  "regression/ablation/reference/default-behavior.json": {
+    "mtime": 1792216840.028911,
+    "ast_hash": "d1f34ee9f02caf496628cecefef98aa4",
+    "semantic_hash": ""
+  },
+  "regression/ablation/reference/initial-regression.json": {
+    "mtime": 1792216840.0299108,
+    "ast_hash": "7093ca61b29a43f6afa3ac75c812d7ce",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/ablation-confirmation/build-artifacts.json": {
+    "mtime": 1792225955.2357178,
+    "ast_hash": "fda1e7cd968bd51fcd3d119f1bf0028c",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/ablation-confirmation/environment.json": {
+    "mtime": 1792225955.2347176,
+    "ast_hash": "2dd1a9f4b2df936924e8fb5a989cbd65",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/ablation-confirmation/results.json": {
+    "mtime": 1792225955.2337182,
+    "ast_hash": "37f5dcafad04577b320657b5ce77c9a9",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/ablation-rerun/build-artifacts.json": {
+    "mtime": 1792225954.9174187,
+    "ast_hash": "fda1e7cd968bd51fcd3d119f1bf0028c",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/ablation-rerun/environment.json": {
+    "mtime": 1792225954.9174187,
+    "ast_hash": "da61f5814a27d74c800171966c60abd6",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/ablation-rerun/results.json": {
+    "mtime": 1792225954.9154189,
+    "ast_hash": "03293e633bf3e772077a26325098945b",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/archive-manifest.json": {
+    "mtime": 1792226062.6312866,
+    "ast_hash": "7aea9a0ab7ae4c021725f83dce8027a9",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/final-verification.json": {
+    "mtime": 1792226062.5962853,
+    "ast_hash": "808192800e96f305ea720b0ad77e87e7",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/minimal-repro.json": {
+    "mtime": 1792225955.581483,
+    "ast_hash": "acde795f6075cce599ddd7e96d174705",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/preservation.json": {
+    "mtime": 1792225955.6234827,
+    "ast_hash": "f3e0b8f52eec3fd9a29d9bb12a517d42",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/process-logs.json": {
+    "mtime": 1792225955.580479,
+    "ast_hash": "c6b3514bbc3c6f9d2fbed9c48722c7be",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/results.json": {
+    "mtime": 1792225955.607483,
+    "ast_hash": "cc27e3cef45f6c71c5256be8eda6802b",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-171412-coverage-rule-4c9062/ablation-after/build-artifacts.json": {
+    "mtime": 1792228840.7919428,
+    "ast_hash": "46c24fec5ebb9b94e8969cfa2769b895",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-171412-coverage-rule-4c9062/ablation-after/environment.json": {
+    "mtime": 1792228840.7919428,
+    "ast_hash": "18593af2b9f3331ccb5d1799fa9c45db",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-171412-coverage-rule-4c9062/ablation-after/results.json": {
+    "mtime": 1792228840.7909434,
+    "ast_hash": "18e82e69984d8f026e8c95bbfaef252c",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-171412-coverage-rule-4c9062/archive-manifest.json": {
+    "mtime": 1792228841.218436,
+    "ast_hash": "09e263bf6bf10acc632335305d9f43f3",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-171412-coverage-rule-4c9062/process-logs.json": {
+    "mtime": 1792228840.788946,
+    "ast_hash": "1f3d9c1296cf1c543e199b5f95975abf",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-171412-coverage-rule-4c9062/results.json": {
+    "mtime": 1792228841.1968017,
+    "ast_hash": "2f8bb1773a50546235eb933bc4d69bc2",
+    "semantic_hash": ""
+  },
+  "scripts/ablation_metrics.py": {
+    "mtime": 1792217408.81716,
+    "ast_hash": "8c599051facab510e242264305543453",
+    "semantic_hash": ""
+  },
+  "scripts/run-ablation.py": {
+    "mtime": 1792217501.3537123,
+    "ast_hash": "7968beafc73bc233db27f69ab8fe314b",
+    "semantic_hash": ""
+  },
+  "scripts/test_ablation_metrics.py": {
+    "mtime": 1792217416.1112647,
+    "ast_hash": "ea3a082fb0dff55954def044bb4454c1",
+    "semantic_hash": ""
+  },
+  "docs/AblationExperiments.md": {
+    "mtime": 1792217603.0422592,
+    "ast_hash": "8d4ffafc3308e3c71d1a16093bc5be39",
+    "semantic_hash": ""
+  },
+  "docs/CoreRegressionRecovery.md": {
+    "mtime": 1792224831.5879421,
+    "ast_hash": "805c7f512d6675ed1e6702cd2d39b865",
+    "semantic_hash": ""
+  },
+  "regression/ablation/evidence/20261017-141216-fa77bf2a/README.md": {
+    "mtime": 1792217614.8189197,
+    "ast_hash": "33648dc385ce2c3a6e8014d0a129686d",
+    "semantic_hash": ""
+  },
+  "regression/ablation/evidence/20261017-141216-fa77bf2a/REPORT.md": {
+    "mtime": 1792217562.9655416,
+    "ast_hash": "8d98f6f09f00708a6030b8c3f07f2f1c",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/README.md": {
+    "mtime": 1792226000.995332,
+    "ast_hash": "90a5e3754d0b557c3f97c18e317d53f2",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/REPORT.md": {
+    "mtime": 1792225955.6264822,
+    "ast_hash": "6f98d6041c67b525f682d8742d8f3dbe",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/ablation-confirmation/REPORT.md": {
+    "mtime": 1792225955.2337182,
+    "ast_hash": "d671b95dabd756a1ebb9475a12c259f4",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-154719-590b7b/ablation-rerun/REPORT.md": {
+    "mtime": 1792225954.9164183,
+    "ast_hash": "ad183444bf64d76f503caad6df061db5",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-171412-coverage-rule-4c9062/REPORT.md": {
+    "mtime": 1792228841.1977904,
+    "ast_hash": "0ed62a3d8755c90b764e24c1d510c9cb",
+    "semantic_hash": ""
+  },
+  "regression/core-recovery/evidence/20261017-171412-coverage-rule-4c9062/ablation-after/REPORT.md": {
+    "mtime": 1792228840.7899442,
+    "ast_hash": "eb5ee0a41dc80c2275c69e7af980ca8d",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Planning/DimensionPlanner.StepDatum.cs": {
+    "mtime": 1792562192.892473,
+    "ast_hash": "ac35e662ac548018288a6af9d79f4414",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Rules/StructureDatumRules.cs": {
+    "mtime": 1792478123.7655869,
+    "ast_hash": "9b174892e62052c9810bd5626d309c63",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/StepDatumReviewChecks.cs": {
+    "mtime": 1792562192.8944747,
+    "ast_hash": "e040fac4f1c6748b344c502e5495f624",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/CompositeOutlineChecks.cs": {
+    "mtime": 1792487233.0325954,
+    "ast_hash": "8ba43f0e96cb0ed28efde5a0f7d131ef",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/capture-manifest.json": {
+    "mtime": 1792552880.9287128,
+    "ast_hash": "f46f30b947798cd1f9f769b748c3dbac",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/BottomProtrusionSuppressesOuterWidthAndInnerLedge.json": {
+    "mtime": 1792552880.8369067,
+    "ast_hash": "515f1218e0b092a632df274ac33306a7",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/CNotchPlateKeepsTopEnvelopeBodyWidth120.json": {
+    "mtime": 1792552880.673431,
+    "ast_hash": "47b573a27834db1e3496232845024fa2",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/CadLastRunGrooveSnapsToWallClearWidthFourWay.json": {
+    "mtime": 1792552880.6112921,
+    "ast_hash": "bc0a5eeda08f3dfbd64f07813cddf323",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/CenterlineEndpointIsAllowedForHolePositioning.json": {
+    "mtime": 1792552880.91259,
+    "ast_hash": "4ef7f8dd652bcc78b22a05f11af95ea4",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/CrossSideStructureWidthsThatCloseOverallChainAreSuppressed.json": {
+    "mtime": 1792552880.6904373,
+    "ast_hash": "e07548559df9b8e10c4a02ea7b6882ba",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/DatumRootedBottomAndLeftOuterEnvelopeDimensionsAreSuppressed.json": {
+    "mtime": 1792552880.6985967,
+    "ast_hash": "4a7e9b1c7a6a97cd9fa27b944e73c1ba",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/F215CadRotatedKeeps42Drops32Stub.json": {
+    "mtime": 1792552880.5952945,
+    "ast_hash": "662c864065a893ee35d7ab5f10d89796",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/HoleAndPinChainsUseSideFacingCenterlineEndpoints.json": {
+    "mtime": 1792552880.8865037,
+    "ast_hash": "417362e74ba6d7d532ae431124447881",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/LProfileAnnotationRulesUseTopology.json": {
+    "mtime": 1792552880.7923713,
+    "ast_hash": "dce4cb87d77b64857ce9b085c1f49a53",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/LProfileChamferBridgedChordResidualIsSuppressed.json": {
+    "mtime": 1792552880.7998097,
+    "ast_hash": "7e1fc6f9a3995ee65567943eca1d5018",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/LProfileChamferedArmResidualUsesBoundarySequence.json": {
+    "mtime": 1792552880.7793715,
+    "ast_hash": "14681f9def8a114876ca71a35efa1b4b",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/LProfileFarEndCornerUsesAdjacentVerticalChain.json": {
+    "mtime": 1792552880.8098097,
+    "ast_hash": "a36c6479f929133cf3f66815affc64d3",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/LProfileOuterContourAnnotationRulesUseTopology.json": {
+    "mtime": 1792552880.8239076,
+    "ast_hash": "ad6d2dee96e996a4c47754c8c8eef9a5",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/LProfileWidthExtensionsMoveAlongEquivalentBoundarySupports.json": {
+    "mtime": 1792552880.8309064,
+    "ast_hash": "5b13987a32c4bf00861615bf30e1bf9e",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/PinGroupsPlanBaseAndPairDistances.json": {
+    "mtime": 1792552880.918713,
+    "ast_hash": "b87edb9ff64a91f6217763199e7415ed",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/RootedLaneChoosesNearestSafeFiniteSegmentCoordinate.json": {
+    "mtime": 1792552880.927713,
+    "ast_hash": "2e0634efee3dce4cbfc6c91a35a75c08",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/RotatedTest2PreservesLocalSemanticSignature.json": {
+    "mtime": 1792552880.4699848,
+    "ast_hash": "ead443a73833e28c4660478be2c50527",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/RotationSignature_ClosedChainStructureIsStable.json": {
+    "mtime": 1792552880.489976,
+    "ast_hash": "2ac77a3788a4b255b771a4686213a3c5",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/RotationSignature_F215CadGoldenMultisetFourWayEqual.json": {
+    "mtime": 1792552880.5892932,
+    "ast_hash": "90b9a9307ddce24c0285ed042030ccef",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/RotationSignature_F215GoldenMultisetFourWayEqual.json": {
+    "mtime": 1792552880.5571404,
+    "ast_hash": "66bef363914d8435ea427f94dc2a8a8a",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/RotationSignature_F338CadGoldenMultisetFourWayEqual.json": {
+    "mtime": 1792552880.6022925,
+    "ast_hash": "fd9c77e1af053385ba1badbb7be8da4d",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/RotationSignature_LBoss257GoldenMultisetFourWayEqual.json": {
+    "mtime": 1792552880.6568682,
+    "ast_hash": "049a4cf7550b83e620e12bd669929a2c",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/RotationSignature_Stair3GoldenMultisetFourWayEqual.json": {
+    "mtime": 1792552880.6303494,
+    "ast_hash": "e43f5a58dc216755ce7eeef7ef73d129",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/SlotChainAlignmentKeyAlignsEdgeLocationAndCenterDistance.json": {
+    "mtime": 1792552880.923714,
+    "ast_hash": "59dae439a17437e1c6735f95414bd08d",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/SlotDimensionsUseCenterAndDatumChainsWithoutPins.json": {
+    "mtime": 1792552880.9085038,
+    "ast_hash": "cb0276522daa317bfe3a3b9ecd7209f2",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/StepGroovePlacesOnSameSideAsOuterStepFourWay.json": {
+    "mtime": 1792552880.6804297,
+    "ast_hash": "16faa6d77c3e5ecbe0c6d036ef4aa01a",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/SteppedPlateReplacesThinStepRisersWithComplement53.json": {
+    "mtime": 1792552880.6658683,
+    "ast_hash": "965e283894b27110f6e80e78c31e95ac",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/StructureWidthThatPartitionsOverallWithOutlineSegmentIsSuppressed.json": {
+    "mtime": 1792552880.7035978,
+    "ast_hash": "beebf9018472cb59940b93c6cffc42b2",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/data/Test2BottomContourChainKeepsTwoRealWidths.json": {
+    "mtime": 1792552880.4250045,
+    "ast_hash": "6edec9e69410984d5ad3a59bc2f10713",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/logs/build-v2.meta.json": {
+    "mtime": 1792552735.5907722,
+    "ast_hash": "44eaddd815c723203d108a1338490dff",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/logs/build-v3.meta.json": {
+    "mtime": 1792552871.9270997,
+    "ast_hash": "60609db4821f21ba1484f2e73bc87350",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/logs/build.meta.json": {
+    "mtime": 1792552445.0497222,
+    "ast_hash": "1dca5048f5fe33283c089e349f4f6452",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/logs/capture-v2.check.json": {
+    "mtime": 1792552774.7667391,
+    "ast_hash": "f2bd700e2828eec5f6ff7bda968854e1",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/logs/capture-v2.meta.json": {
+    "mtime": 1792552748.252211,
+    "ast_hash": "559956a36f563592f3e5e680a602adb2",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/logs/capture-v3.check.json": {
+    "mtime": 1792552889.979958,
+    "ast_hash": "2a8c5fb0c62a47660487eeb7602e3a95",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/logs/capture-v3.meta.json": {
+    "mtime": 1792552880.9368055,
+    "ast_hash": "8804af0354215fd1e7970815600f18a6",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/logs/capture.meta.json": {
+    "mtime": 1792552520.5612316,
+    "ast_hash": "1b4e21416e7a7e34494e2829059e135b",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/logs/preview-v1.meta.json": {
+    "mtime": 1792552926.5088708,
+    "ast_hash": "3aa712d39a9d6c3afc876099db4fde33",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/logs/preview-v3.meta.json": {
+    "mtime": 1792553111.6471207,
+    "ast_hash": "32b79e5ff394444e444a45080ac5f81e",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/logs/render-v1.meta.json": {
+    "mtime": 1792552904.1979237,
+    "ast_hash": "cdaaa743f49a1d0f1c7b57af695b6794",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/logs/render-v3.check.json": {
+    "mtime": 1792553133.9114327,
+    "ast_hash": "11978f4b8c440bd74d8b373b65b8b53a",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/logs/render-v3.meta.json": {
+    "mtime": 1792553100.8989668,
+    "ast_hash": "3f1a99213f83dc6601d8fc9525a510ce",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/package-check.json": {
+    "mtime": 1792553402.0343714,
+    "ast_hash": "c0166209a7e1223d7c6d75dece274cfd",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/source-manifest.json": {
+    "mtime": 1792552262.3774204,
+    "ast_hash": "4a9624bec24ce6baa9c0f01b718d120a",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/validation.json": {
+    "mtime": 1792553100.6979141,
+    "ast_hash": "a0f3e6cf1ee2ffad9a10f6199bd9491f",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/01.html": {
+    "mtime": 1792553100.525249,
+    "ast_hash": "64d9c3c53ea287f7379903e5733d0f4b",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/02.html": {
+    "mtime": 1792553100.5462506,
+    "ast_hash": "95a3ed8b7766596fc18fdfc734a42430",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/03.html": {
+    "mtime": 1792553100.5568924,
+    "ast_hash": "0784050c3f5f11c3f44e9d8253621e56",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/04.html": {
+    "mtime": 1792553100.5598936,
+    "ast_hash": "fdbd18e94a3b57112471a9fb157ef2ec",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/05.html": {
+    "mtime": 1792553100.563894,
+    "ast_hash": "59858ce04258e5d4282cc6fb06ef2d71",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/06.html": {
+    "mtime": 1792553100.5672443,
+    "ast_hash": "a19fab03de6a93a78dac35eb8fca7790",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/07.html": {
+    "mtime": 1792553100.5716171,
+    "ast_hash": "8f6091d150a8559ec86290bd9adf1588",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/08.html": {
+    "mtime": 1792553100.5756173,
+    "ast_hash": "4b921adbbcc43e7f90688ac918016058",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/09.html": {
+    "mtime": 1792553100.5796182,
+    "ast_hash": "0912b17e7cc43c7adeb57e1eed11f9c8",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/10.html": {
+    "mtime": 1792553100.5856166,
+    "ast_hash": "11782c04144e95790c2af1986482fb8f",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/11.html": {
+    "mtime": 1792553100.5896194,
+    "ast_hash": "69ea6da4db37b58a9765fd4c84e04e57",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/12.html": {
+    "mtime": 1792553100.593447,
+    "ast_hash": "5ba30dd567336c462035e7cb60bb978e",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/13.html": {
+    "mtime": 1792553100.5964465,
+    "ast_hash": "1b35ef18d471e7cedb80083626758cab",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/14.html": {
+    "mtime": 1792553100.599447,
+    "ast_hash": "0aa8c6667296a05a6b031d5b7ef0f397",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/15.html": {
+    "mtime": 1792553100.6024468,
+    "ast_hash": "5aa8f8fd44d9f7172d4e94feaf89603b",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/16.html": {
+    "mtime": 1792553100.6044466,
+    "ast_hash": "799c87ebf722a18838154056af86b67d",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/17.html": {
+    "mtime": 1792553100.630917,
+    "ast_hash": "17fa9e7ffe5a469c13611871caaa93b0",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/18.html": {
+    "mtime": 1792553100.6349146,
+    "ast_hash": "f282aa15538f3db316dbfdbdd91906ac",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/19.html": {
+    "mtime": 1792553100.639915,
+    "ast_hash": "9ae3aacf6b242e72ae51134f02d94ad3",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/20.html": {
+    "mtime": 1792553100.6449144,
+    "ast_hash": "1d4a859450dda4d3a7cd481691853b8e",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/21.html": {
+    "mtime": 1792553100.6499155,
+    "ast_hash": "ef7012022c553a2075348c9951991a16",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/22.html": {
+    "mtime": 1792553100.6549146,
+    "ast_hash": "d721cd3a5175c1de840a2b02f5b013b8",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/23.html": {
+    "mtime": 1792553100.6579144,
+    "ast_hash": "54e2aa3750329de54c01bf412ffe9c91",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/24.html": {
+    "mtime": 1792553100.6669145,
+    "ast_hash": "ab82a22ed670bc6162bebc2ecb6fb8b6",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/25.html": {
+    "mtime": 1792553100.6699157,
+    "ast_hash": "c6f649db860f0b1e726a822c381416ce",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/26.html": {
+    "mtime": 1792553100.6729145,
+    "ast_hash": "74238c91987c5417e44d9f2eec72ce92",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/27.html": {
+    "mtime": 1792553100.6759143,
+    "ast_hash": "be7a8f15ac3a1a1ff9029746ede642c7",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/28.html": {
+    "mtime": 1792553100.6799157,
+    "ast_hash": "bd87ea82ee48d61fe8fb09d8f0ff13fb",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/cases/29.html": {
+    "mtime": 1792553100.6819146,
+    "ast_hash": "7e754dc5e8dddb234aafcd772869b8ab",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/index.html": {
+    "mtime": 1792553100.6829143,
+    "ast_hash": "f3ff4b384bf6b2e520e2d4248c08aa48",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/validation-summary.md": {
+    "mtime": 1792553280.689612,
+    "ast_hash": "13cc6674f38393420bf70374681ca34c",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/previews/01-02.png": {
+    "mtime": 1792553111.403,
+    "ast_hash": "172997b9af87cd509eda116da9d62926",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/previews/08-01.png": {
+    "mtime": 1792553111.451,
+    "ast_hash": "c9cf103ef4c73262c1aafe089cfe255f",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/previews/22-01.png": {
+    "mtime": 1792553111.513,
+    "ast_hash": "34aac16787ca89a89fd440783f9326c4",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/previews/24-03.png": {
+    "mtime": 1792553111.571,
+    "ast_hash": "ff14576c36d63eac84f619816e0bc286",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/previews/28-02.png": {
+    "mtime": 1792553111.621,
+    "ast_hash": "8ff8236c5375b1eb0867c36ae6bf5466",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/previews/overview.png": {
+    "mtime": 1792553111.214,
+    "ast_hash": "3e7e94b272d43281690fb88c26cf9752",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/01-01.svg": {
+    "mtime": 1792553100.51952,
+    "ast_hash": "86af72ac6efc06ccd0f43682470ed5d5",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/01-02.svg": {
+    "mtime": 1792553100.521519,
+    "ast_hash": "10c2308345ef093870bacfc12c8c0cb9",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/02-01.svg": {
+    "mtime": 1792553100.53025,
+    "ast_hash": "15369da1f3b73c9f8d0a76f426e4bd25",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/02-02.svg": {
+    "mtime": 1792553100.5322495,
+    "ast_hash": "b3cff637cdfd4b450e0cbf57f468c0bf",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/02-03.svg": {
+    "mtime": 1792553100.534249,
+    "ast_hash": "5b8ff2bdfc3d34d1381eaaac45605f2d",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/02-04.svg": {
+    "mtime": 1792553100.5352597,
+    "ast_hash": "81698cea02c6373c5b9fa7a46c469e03",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/02-05.svg": {
+    "mtime": 1792553100.537249,
+    "ast_hash": "a9984a10a66055d6ff0b6edb8756d1d9",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/02-06.svg": {
+    "mtime": 1792553100.5392494,
+    "ast_hash": "39d8d9aafb93d09c1d4acfea251e4e8c",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/03-01.svg": {
+    "mtime": 1792553100.5488873,
+    "ast_hash": "9fe502baec7079a0a78f6ccb34408cfb",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/03-02.svg": {
+    "mtime": 1792553100.549893,
+    "ast_hash": "1784ff3a00cf71c251a92d7b28dd97d5",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/03-03.svg": {
+    "mtime": 1792553100.5518944,
+    "ast_hash": "bb118408ad1cfa055058f4892015e178",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/03-04.svg": {
+    "mtime": 1792553100.5528948,
+    "ast_hash": "73863d498ca95f64cc905e57e427926e",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/04-01.svg": {
+    "mtime": 1792553100.5578928,
+    "ast_hash": "3c460acc06343bab5a083b4d2083f8af",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/05-01.svg": {
+    "mtime": 1792553100.561895,
+    "ast_hash": "781ccec74a03527ef4a4abdef7844993",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/06-01.svg": {
+    "mtime": 1792553100.5652463,
+    "ast_hash": "e64cccb1ea8eed6a11088c39146fa50d",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/07-01.svg": {
+    "mtime": 1792553100.568244,
+    "ast_hash": "93f8b1c732fb9de1178becb48c0bcfc1",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/08-01.svg": {
+    "mtime": 1792553100.5726173,
+    "ast_hash": "94f424ae398dcc87eff3ceb9254df3f6",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/09-01.svg": {
+    "mtime": 1792553100.5776174,
+    "ast_hash": "a489bf1b2592779f546065a826c16358",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/10-01.svg": {
+    "mtime": 1792553100.5826175,
+    "ast_hash": "0180ad6432476af0a188c96732cfe069",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/11-01.svg": {
+    "mtime": 1792553100.5876172,
+    "ast_hash": "5bca13843e29fa5e60eb9c17fad5c654",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/12-01.svg": {
+    "mtime": 1792553100.5906193,
+    "ast_hash": "2d5bb7a76e4f682f27c6e8b8d6e13722",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/13-01.svg": {
+    "mtime": 1792553100.5944467,
+    "ast_hash": "3dbf3c18a1a9d0244c2a2cc7f526ee2b",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/14-01.svg": {
+    "mtime": 1792553100.5974467,
+    "ast_hash": "abb7bad438cce1d72a6385dd6b936b24",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/15-01.svg": {
+    "mtime": 1792553100.600448,
+    "ast_hash": "bee29a92a1b71ce94ee88ab4281e3cec",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/16-01.svg": {
+    "mtime": 1792553100.6034467,
+    "ast_hash": "5f3d9ff9d567772395020fb9cc41ac06",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/17-01.svg": {
+    "mtime": 1792553100.6117618,
+    "ast_hash": "83e92f49c94d47db5abb10eb963e0a27",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/17-02.svg": {
+    "mtime": 1792553100.6127608,
+    "ast_hash": "006578252d358424b5e9d4917e228345",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/17-03.svg": {
+    "mtime": 1792553100.6147585,
+    "ast_hash": "bd6e0723667253e103f4522d04ecd99c",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/17-04.svg": {
+    "mtime": 1792553100.615759,
+    "ast_hash": "bfe13a990bae116ac9a2509360af7798",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/17-05.svg": {
+    "mtime": 1792553100.6167598,
+    "ast_hash": "f2f37518992f3253aa04eafedab3a323",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/17-06.svg": {
+    "mtime": 1792553100.6197605,
+    "ast_hash": "f9b8bc7a839dd3aa7a6d52a3d7275b4d",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/17-07.svg": {
+    "mtime": 1792553100.6217597,
+    "ast_hash": "de25af415df43bff6f35fbb8a2c5300f",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/17-08.svg": {
+    "mtime": 1792553100.6227589,
+    "ast_hash": "2cc38270cfad4ce3a822550c2a9131f1",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/17-09.svg": {
+    "mtime": 1792553100.6237595,
+    "ast_hash": "f7049ee8f684040bab4cfd2ec43452c8",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/18-01.svg": {
+    "mtime": 1792553100.6339147,
+    "ast_hash": "a34c090f85d665d5d5c951925021dfb4",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/19-01.svg": {
+    "mtime": 1792553100.6369143,
+    "ast_hash": "b9b25f5a014196a0f5def09f915f86f4",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/20-01.svg": {
+    "mtime": 1792553100.6419144,
+    "ast_hash": "5730878887ae9df5e45d3bd11fdaf29b",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/21-01.svg": {
+    "mtime": 1792553100.6459143,
+    "ast_hash": "c1429141058d6c696bf241084acf623b",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/21-02.svg": {
+    "mtime": 1792553100.6479144,
+    "ast_hash": "99c39d16913f34f19639d96d5b939815",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/22-01.svg": {
+    "mtime": 1792553100.6519146,
+    "ast_hash": "0f8cf8fe192122aed7937372711fe22d",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/23-01.svg": {
+    "mtime": 1792553100.6559145,
+    "ast_hash": "95c8ce94e3d2ba9775a39992055937f7",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/24-01.svg": {
+    "mtime": 1792553100.6589148,
+    "ast_hash": "f0314b16e9eecd60635414f6a649f08f",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/24-02.svg": {
+    "mtime": 1792553100.660915,
+    "ast_hash": "be679344f065f06d1350088d8d8940c0",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/24-03.svg": {
+    "mtime": 1792553100.6619146,
+    "ast_hash": "d6d7caa2ef431507759dd22b4440db0f",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/24-04.svg": {
+    "mtime": 1792553100.6629145,
+    "ast_hash": "667276dbc66d96851cf30cdfd57642fd",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/25-01.svg": {
+    "mtime": 1792553100.6679142,
+    "ast_hash": "8c75429f6bc0f42c1631a7c4dbf98ddc",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/26-01.svg": {
+    "mtime": 1792553100.6709154,
+    "ast_hash": "ee06271fa47e309c337941d7b21f5f57",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/27-01.svg": {
+    "mtime": 1792553100.6739142,
+    "ast_hash": "cd1bdc995729844432a2bab5b9c324a1",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/28-01.svg": {
+    "mtime": 1792553100.6769142,
+    "ast_hash": "2769bb53ddeb15b6ff1abb3e462ebca0",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/28-02.svg": {
+    "mtime": 1792553100.6779144,
+    "ast_hash": "9d94727e35320b5caf16121c67373e31",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/scenes/29-01.svg": {
+    "mtime": 1792553100.6809158,
+    "ast_hash": "8510f48647bd337898a3ff0cff638318",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/01-Test2BottomContourChainKeepsTwoRealWidths.svg": {
+    "mtime": 1792553100.525249,
+    "ast_hash": "3b7a57d3e94e7a8726227ff819c8640d",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/02-RotatedTest2PreservesLocalSemanticSignature.svg": {
+    "mtime": 1792553100.5452487,
+    "ast_hash": "f92e702ac96afe28a6855dce97dcbf1e",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/03-RotationSignature_ClosedChainStructureIsStable.svg": {
+    "mtime": 1792553100.5558932,
+    "ast_hash": "717a246124c43f6bcc98c32937a9b555",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/04-RotationSignature_F215GoldenMultisetFourWayEqual.svg": {
+    "mtime": 1792553100.5598936,
+    "ast_hash": "3c9b03d90aca799ad7c6f4c7a8c05a3e",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/05-RotationSignature_F215CadGoldenMultisetFourWayEqual.svg": {
+    "mtime": 1792553100.563894,
+    "ast_hash": "f2ff2b7fd2e0a2143e2333b07782a740",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/06-F215CadRotatedKeeps42Drops32Stub.svg": {
+    "mtime": 1792553100.5672443,
+    "ast_hash": "830f231a3e4c462bada1e2b0b2ed517e",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/07-RotationSignature_F338CadGoldenMultisetFourWayEqual.svg": {
+    "mtime": 1792553100.5706186,
+    "ast_hash": "9c0a3f69f085fa31db4efb71d26462e1",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/08-CadLastRunGrooveSnapsToWallClearWidthFourWay.svg": {
+    "mtime": 1792553100.5756173,
+    "ast_hash": "06df94afcdfdfe5d66dbbf749d5283b8",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/09-RotationSignature_Stair3GoldenMultisetFourWayEqual.svg": {
+    "mtime": 1792553100.5796182,
+    "ast_hash": "aebd21e2ed9dd6c819476b825959829f",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/10-RotationSignature_LBoss257GoldenMultisetFourWayEqual.svg": {
+    "mtime": 1792553100.5856166,
+    "ast_hash": "4daa6895355b6e90eb6cece669bc0420",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/11-SteppedPlateReplacesThinStepRisersWithComplement53.svg": {
+    "mtime": 1792553100.588617,
+    "ast_hash": "ffab5c808a59b8c0241fc24dc9e7c7a4",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/12-CNotchPlateKeepsTopEnvelopeBodyWidth120.svg": {
+    "mtime": 1792553100.5924425,
+    "ast_hash": "a9683ee70a47ff5a1bafa2d1d8641c92",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/13-StepGroovePlacesOnSameSideAsOuterStepFourWay.svg": {
+    "mtime": 1792553100.5964465,
+    "ast_hash": "4a37ad11bd4ec24ef8b4c1d80b91cfd8",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/14-CrossSideStructureWidthsThatCloseOverallChainAreSuppressed.svg": {
+    "mtime": 1792553100.599447,
+    "ast_hash": "dd12a17c950b88c074a56d20d0e04a05",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/15-DatumRootedBottomAndLeftOuterEnvelopeDimensionsAreSuppressed.svg": {
+    "mtime": 1792553100.6024468,
+    "ast_hash": "2793e162ac780bb936708c8fd083cec9",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/16-StructureWidthThatPartitionsOverallWithOutlineSegmentIsSuppressed.svg": {
+    "mtime": 1792553100.6044466,
+    "ast_hash": "36f39c167c249d9787d77109e6efa6b2",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/17-LProfileChamferedArmResidualUsesBoundarySequence.svg": {
+    "mtime": 1792553100.630917,
+    "ast_hash": "9cde232a9de1320707e07260b0a2f393",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/18-LProfileAnnotationRulesUseTopology.svg": {
+    "mtime": 1792553100.6349146,
+    "ast_hash": "ac174473aa7c9051480a6bc6c91c94ec",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/19-LProfileChamferBridgedChordResidualIsSuppressed.svg": {
+    "mtime": 1792553100.639915,
+    "ast_hash": "3cd0054cf12031b4dbd90cd6d3f88cb8",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/20-LProfileFarEndCornerUsesAdjacentVerticalChain.svg": {
+    "mtime": 1792553100.643914,
+    "ast_hash": "093c98f2d118bb55313ff3eb537102b6",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/21-LProfileOuterContourAnnotationRulesUseTopology.svg": {
+    "mtime": 1792553100.648915,
+    "ast_hash": "f4e12a6c0956fbfd51854956752b0a0d",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/22-LProfileWidthExtensionsMoveAlongEquivalentBoundarySupports.svg": {
+    "mtime": 1792553100.6539147,
+    "ast_hash": "4475e9cdd8fc8a95e7550c9555bdd046",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/23-BottomProtrusionSuppressesOuterWidthAndInnerLedge.svg": {
+    "mtime": 1792553100.6569145,
+    "ast_hash": "8f76de51974d2efa3747389246b91563",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/24-HoleAndPinChainsUseSideFacingCenterlineEndpoints.svg": {
+    "mtime": 1792553100.6659143,
+    "ast_hash": "610c3baa871b931c4b334fd8645d3515",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/25-SlotDimensionsUseCenterAndDatumChainsWithoutPins.svg": {
+    "mtime": 1792553100.6699157,
+    "ast_hash": "12b2e790af1fe9e0390e2bd1c82603db",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/26-CenterlineEndpointIsAllowedForHolePositioning.svg": {
+    "mtime": 1792553100.6719146,
+    "ast_hash": "6bf507f2ec1d4fe772dc5373f00a180e",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/27-PinGroupsPlanBaseAndPairDistances.svg": {
+    "mtime": 1792553100.6759143,
+    "ast_hash": "3784128b996d39703c99f248a60acc3d",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/28-SlotChainAlignmentKeyAlignsEdgeLocationAndCenterDistance.svg": {
+    "mtime": 1792553100.6799157,
+    "ast_hash": "974414052358687d379261f73e824b3a",
+    "semantic_hash": ""
+  },
+  "regression/core-failure-svg/20261021-110826/svg/29-RootedLaneChoosesNearestSafeFiniteSegmentCoordinate.svg": {
+    "mtime": 1792553100.6819146,
+    "ast_hash": "c935ff298963022779496c55f804fa1a",
     "semantic_hash": ""
   }
 }

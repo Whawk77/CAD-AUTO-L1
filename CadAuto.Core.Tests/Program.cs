@@ -32,6 +32,7 @@ namespace CadAuto.Core.Tests
         };
         private static readonly HashSet<string> P1Tests = new HashSet<string>
         {
+            nameof(CompositeOutlineKeepsFeatureWidthDropsSeamFragments),
             nameof(Production73x20EnvelopeDimensionsAreSuppressed),
             nameof(MirroredEnvelopeStructureWidthsAreBothSuppressed),
             nameof(StructureWidthsThatPartitionOverallAreSuppressed),
@@ -58,18 +59,19 @@ namespace CadAuto.Core.Tests
 			nameof(OrthogonalRotatedVerticalChainKeepsRealWidths),
 			nameof(FullWidthSideSeamsDoNotCreateStructureHeights),
 			nameof(MirroredProjectedChainNormalizesStructureSelection),
-			nameof(Test2BottomContourChainKeepsTwoRealWidths),
+			nameof(Test2BottomContourChainAcceptsCommonDatumCoverage),
 			nameof(RotatedTest2PreservesLocalSemanticSignature),
 			nameof(RotationSignature_OuterStepOverallStructureIsStable),
 			nameof(RotationSignature_ClosedChainStructureIsStable),
-			nameof(RotationSignature_F215GoldenMultisetFourWayEqual),
-			nameof(RotationSignature_F215CadGoldenMultisetFourWayEqual),
+			nameof(OutlineConstraintsRejectInvalidPlans),
+			nameof(RotationConstraints_F215FourWay),
+			nameof(RotationConstraints_F215CadFourWay),
 			nameof(F215CadRotatedKeeps42Drops32Stub),
-			nameof(RotationSignature_F338GoldenMultisetFourWayEqual),
-			nameof(RotationSignature_F338CadGoldenMultisetFourWayEqual),
+			nameof(RotationConstraints_F338FourWay),
+			nameof(RotationConstraints_F338CadFourWay),
 			nameof(CadLastRunGrooveSnapsToWallClearWidthFourWay),
-			nameof(RotationSignature_Stair3GoldenMultisetFourWayEqual),
-			nameof(RotationSignature_LBoss257GoldenMultisetFourWayEqual),
+			nameof(RotationConstraints_Stair3FourWay),
+			nameof(RotationConstraints_LBoss257FourWay),
 			nameof(SteppedPlateReplacesThinStepRisersWithComplement53),
 			nameof(CNotchPlateKeepsTopEnvelopeBodyWidth120),
 			nameof(AnnotationCaseOverlayDropsMaxEndResidual),
@@ -116,8 +118,18 @@ namespace CadAuto.Core.Tests
             nameof(LProfileChamferedArmResidualUsesBoundarySequence),
             nameof(LProfileChamferedArmResidualRequiresChamferDefinition),
             nameof(LProfileAnnotationRulesUseTopology),
+            nameof(LProfileChamferBridgedChordResidualIsSuppressed),
             nameof(LProfileFarEndCornerUsesAdjacentVerticalChain),
             nameof(LProfileOuterContourAnnotationRulesUseTopology),
+            nameof(LProfileWidthExtensionsMoveAlongEquivalentBoundarySupports),
+            nameof(StepDatumBlocksChooseBottomWithoutChangingStructureSide),
+            nameof(StepDatumInsertionEvidenceRejectsUnverifiedTransforms),
+            nameof(StepDatumGeometryRechoosesDatumAfterRotation),
+            nameof(StepDatumCoverageTracksRawEdgesAndProtectsLegalEqualValues),
+            nameof(StepDatumReplacesLegacyStructureDimensions),
+            nameof(StepDatumProvidersSurviveRepeatedDeduplication),
+            nameof(StepDatumDisconnectedGroupsRequireConfirmation),
+            nameof(ExtensionCrossingChecksRealArcsOnFourSides),
             nameof(LProfileTopologyRejectionIsDiagnostic),
             nameof(RoundedRectangleOuterContourIsNotLProfile),
             nameof(LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment),
@@ -233,6 +245,10 @@ namespace CadAuto.Core.Tests
                 bool diagnosticContinuation;
                 string regressionReportPath;
                 ParseRegressionArguments(args, out filter, out diagnosticContinuation, out regressionReportPath);
+                RunTest(nameof(CompositeOutlineKeepsFeatureWidthDropsSeamFragments), CompositeOutlineKeepsFeatureWidthDropsSeamFragments);
+                RunTest(nameof(CompositeOutlineNormalizesExistingEndpointsOnly), CompositeOutlineNormalizesExistingEndpointsOnly);
+				RunTest(nameof(CompositeOutlineUsesClearSelectedHoleAxis), CompositeOutlineUsesClearSelectedHoleAxis);
+				RunTest(nameof(CompositeOutlineTangentSuppressionProtectsIndependentIntent), CompositeOutlineTangentSuppressionProtectsIndependentIntent);
                 RunTest(nameof(RectangularOutlineKeepsOverallDimensions), RectangularOutlineKeepsOverallDimensions);
                 RunTest(nameof(ChamferedEnvelopeDropsSplitStructureFragments), ChamferedEnvelopeDropsSplitStructureFragments);
                 RunTest(nameof(DatumRoughnessFollowsToleranceAndVisibleExtensionLine), DatumRoughnessFollowsToleranceAndVisibleExtensionLine);
@@ -341,18 +357,19 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(OrthogonalRotatedVerticalChainKeepsRealWidths), OrthogonalRotatedVerticalChainKeepsRealWidths);
 				RunTest(nameof(FullWidthSideSeamsDoNotCreateStructureHeights), FullWidthSideSeamsDoNotCreateStructureHeights);
 				RunTest(nameof(MirroredProjectedChainNormalizesStructureSelection), MirroredProjectedChainNormalizesStructureSelection);
-				RunTest(nameof(Test2BottomContourChainKeepsTwoRealWidths), Test2BottomContourChainKeepsTwoRealWidths);
+				RunTest(nameof(Test2BottomContourChainAcceptsCommonDatumCoverage), Test2BottomContourChainAcceptsCommonDatumCoverage);
 				RunTest(nameof(RotatedTest2PreservesLocalSemanticSignature), RotatedTest2PreservesLocalSemanticSignature);
 				RunTest(nameof(RotationSignature_OuterStepOverallStructureIsStable), RotationSignature_OuterStepOverallStructureIsStable);
 				RunTest(nameof(RotationSignature_ClosedChainStructureIsStable), RotationSignature_ClosedChainStructureIsStable);
-				RunTest(nameof(RotationSignature_F215GoldenMultisetFourWayEqual), RotationSignature_F215GoldenMultisetFourWayEqual);
-				RunTest(nameof(RotationSignature_F215CadGoldenMultisetFourWayEqual), RotationSignature_F215CadGoldenMultisetFourWayEqual);
+				RunTest(nameof(OutlineConstraintsRejectInvalidPlans), OutlineConstraintsRejectInvalidPlans);
+				RunTest(nameof(RotationConstraints_F215FourWay), RotationConstraints_F215FourWay);
+				RunTest(nameof(RotationConstraints_F215CadFourWay), RotationConstraints_F215CadFourWay);
 				RunTest(nameof(F215CadRotatedKeeps42Drops32Stub), F215CadRotatedKeeps42Drops32Stub);
-				RunTest(nameof(RotationSignature_F338GoldenMultisetFourWayEqual), RotationSignature_F338GoldenMultisetFourWayEqual);
-				RunTest(nameof(RotationSignature_F338CadGoldenMultisetFourWayEqual), RotationSignature_F338CadGoldenMultisetFourWayEqual);
+				RunTest(nameof(RotationConstraints_F338FourWay), RotationConstraints_F338FourWay);
+				RunTest(nameof(RotationConstraints_F338CadFourWay), RotationConstraints_F338CadFourWay);
 				RunTest(nameof(CadLastRunGrooveSnapsToWallClearWidthFourWay), CadLastRunGrooveSnapsToWallClearWidthFourWay);
-				RunTest(nameof(RotationSignature_Stair3GoldenMultisetFourWayEqual), RotationSignature_Stair3GoldenMultisetFourWayEqual);
-				RunTest(nameof(RotationSignature_LBoss257GoldenMultisetFourWayEqual), RotationSignature_LBoss257GoldenMultisetFourWayEqual);
+				RunTest(nameof(RotationConstraints_Stair3FourWay), RotationConstraints_Stair3FourWay);
+				RunTest(nameof(RotationConstraints_LBoss257FourWay), RotationConstraints_LBoss257FourWay);
 				RunTest(nameof(SteppedPlateReplacesThinStepRisersWithComplement53), SteppedPlateReplacesThinStepRisersWithComplement53);
 				RunTest(nameof(CNotchPlateKeepsTopEnvelopeBodyWidth120), CNotchPlateKeepsTopEnvelopeBodyWidth120);
 				RunTest(nameof(AnnotationCaseOverlayDropsMaxEndResidual), AnnotationCaseOverlayDropsMaxEndResidual);
@@ -412,8 +429,18 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(LProfileChamferedArmResidualUsesBoundarySequence), LProfileChamferedArmResidualUsesBoundarySequence);
                 RunTest(nameof(LProfileChamferedArmResidualRequiresChamferDefinition), LProfileChamferedArmResidualRequiresChamferDefinition);
                 RunTest(nameof(LProfileAnnotationRulesUseTopology), LProfileAnnotationRulesUseTopology);
+                RunTest(nameof(LProfileChamferBridgedChordResidualIsSuppressed), LProfileChamferBridgedChordResidualIsSuppressed);
                 RunTest(nameof(LProfileFarEndCornerUsesAdjacentVerticalChain), LProfileFarEndCornerUsesAdjacentVerticalChain);
                 RunTest(nameof(LProfileOuterContourAnnotationRulesUseTopology), LProfileOuterContourAnnotationRulesUseTopology);
+                RunTest(nameof(LProfileWidthExtensionsMoveAlongEquivalentBoundarySupports), LProfileWidthExtensionsMoveAlongEquivalentBoundarySupports);
+                RunTest(nameof(StepDatumBlocksChooseBottomWithoutChangingStructureSide), StepDatumBlocksChooseBottomWithoutChangingStructureSide);
+                RunTest(nameof(StepDatumInsertionEvidenceRejectsUnverifiedTransforms), StepDatumInsertionEvidenceRejectsUnverifiedTransforms);
+                RunTest(nameof(StepDatumGeometryRechoosesDatumAfterRotation), StepDatumGeometryRechoosesDatumAfterRotation);
+                RunTest(nameof(StepDatumCoverageTracksRawEdgesAndProtectsLegalEqualValues), StepDatumCoverageTracksRawEdgesAndProtectsLegalEqualValues);
+                RunTest(nameof(StepDatumReplacesLegacyStructureDimensions), StepDatumReplacesLegacyStructureDimensions);
+                RunTest(nameof(StepDatumProvidersSurviveRepeatedDeduplication), StepDatumProvidersSurviveRepeatedDeduplication);
+                RunTest(nameof(StepDatumDisconnectedGroupsRequireConfirmation), StepDatumDisconnectedGroupsRequireConfirmation);
+                RunTest(nameof(ExtensionCrossingChecksRealArcsOnFourSides), ExtensionCrossingChecksRealArcsOnFourSides);
                 RunTest(nameof(LProfileTopologyRejectionIsDiagnostic), LProfileTopologyRejectionIsDiagnostic);
                 RunTest(nameof(RoundedRectangleOuterContourIsNotLProfile), RoundedRectangleOuterContourIsNotLProfile);
                 RunTest(nameof(LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment), LShapeTowerTopWidthIsKeptDespiteArmTopOutlineSegment);
@@ -4513,14 +4540,21 @@ namespace CadAuto.Core.Tests
 		private static void ProjectedThreePieceHorizontalChainKeepsRealSteps()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
-			var plan = new DimensionPlanner(config).CreateOutlinePlan(BuildProjectedHorizontalChainOutline(mirrored: false));
+			var outline = BuildProjectedHorizontalChainOutline(mirrored: false);
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
 			var selected = plan.Dimensions.Where(d => d.DebugRole == "TopStructWidth").ToList();
 			var suppressed = plan.Diagnostics.DimensionCandidates
 				.Where(c => c.DebugRole == "TopStructWidth" && c.IsSuppressed)
 				.ToList();
 
-			Assert(selected.Count(d => Math.Abs(Math.Round(GetSpan(d), 2) - 134.79) <= config.GeometryTolerance) == 2,
-				"two real top steps 134.79 must remain selected");
+			var steps = outline.Segments.Where(e => e.SourceKey == "step-2" || e.SourceKey == "top").ToList();
+			Assert(steps.Count == 2 && steps.All(edge => selected.Any(d =>
+					Math.Abs(Math.Min(d.FirstPoint.X, d.SecondPoint.X) - edge.MinX) <= config.GeometryTolerance
+					&& Math.Abs(Math.Max(d.FirstPoint.X, d.SecondPoint.X) - edge.MaxX) <= config.GeometryTolerance
+					&& Math.Abs(d.FirstPoint.Y - edge.Start.Y) <= config.GeometryTolerance
+					&& Math.Abs(d.SecondPoint.Y - edge.Start.Y) <= config.GeometryTolerance)
+				|| HasHorizontalCommonDatumCoverage(plan.Dimensions, edge, outline, config.GeometryTolerance, DimensionSide.Top)),
+				"both real top steps must have direct or common datum coverage");
 			Assert(!selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 169.21) <= config.GeometryTolerance),
 				"cross-level top projection 169.21 must not remain selected");
 			Assert(suppressed.Any(c => Math.Abs(Math.Round(c.Value, 2) - 169.21) <= config.GeometryTolerance
@@ -4936,10 +4970,14 @@ namespace CadAuto.Core.Tests
 			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
 			var bottom = plan.Dimensions.Where(d => d.DebugRole == "BottomStructWidth").ToList();
 			double[] sig = bottom.Select(d => Math.Round(GetSpan(d), 2)).OrderBy(v => v).ToArray();
-			Assert(bottom.Any(d => Math.Abs(GetSpan(d) - 73.0) <= config.GeometryTolerance),
-				"bottom step 73 must be selected; bottom=[" + string.Join(",", sig) + "]");
-			Assert(bottom.Any(d => Math.Abs(GetSpan(d) - 87.55) <= config.GeometryTolerance),
-				"bottom step 87.55 must be selected (bottom-facing edge); bottom=[" + string.Join(",", sig) + "]");
+			var steps = outline.Segments.Where(e => e.SourceKey == "bottom-step-73" || e.SourceKey == "bottom-step-87.55").ToList();
+			Assert(steps.Count == 2 && steps.All(edge => bottom.Any(d =>
+					Math.Abs(Math.Min(d.FirstPoint.X, d.SecondPoint.X) - edge.MinX) <= config.GeometryTolerance
+					&& Math.Abs(Math.Max(d.FirstPoint.X, d.SecondPoint.X) - edge.MaxX) <= config.GeometryTolerance
+					&& Math.Abs(d.FirstPoint.Y - edge.Start.Y) <= config.GeometryTolerance
+					&& Math.Abs(d.SecondPoint.Y - edge.Start.Y) <= config.GeometryTolerance)
+				|| HasHorizontalCommonDatumCoverage(plan.Dimensions, edge, outline, config.GeometryTolerance)),
+				"bottom steps 73 and 87.55 must have direct or common datum coverage");
 			Assert(!bottom.Any(d => Math.Abs(GetSpan(d) - 177.45) <= config.GeometryTolerance),
 				"body remainder 177.45 must be suppressed; bottom=[" + string.Join(",", sig) + "]");
 			Assert(plan.Diagnostics.DimensionCandidates.Any(c =>
@@ -5062,16 +5100,28 @@ namespace CadAuto.Core.Tests
 		private static void ProjectedThreePieceVerticalChainKeepsRealHeights()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
-			var plan = new DimensionPlanner(config).CreateOutlinePlan(BuildProjectedVerticalChainOutline());
+			var outline = BuildProjectedVerticalChainOutline();
+			var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
 			var selected = plan.Dimensions.Where(d => d.DebugRole == "LeftStructHeight").ToList();
 			var suppressed = plan.Diagnostics.DimensionCandidates
 				.Where(c => c.DebugRole == "LeftStructHeight" && c.IsSuppressed)
 				.ToList();
 
-			Assert(selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 163.37) <= config.GeometryTolerance),
-				"real left height 163.37 must remain selected");
-			Assert(selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 126.11) <= config.GeometryTolerance),
-				"real left height 126.11 must remain selected");
+			foreach (double height in new[] { 163.37, 126.11 })
+			{
+				var edge = outline.Segments.Single(e => e.IsVertical(config.GeometryTolerance)
+					&& Math.Abs(Math.Round(e.LengthY, 2) - height) <= config.GeometryTolerance);
+				Assert(selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - height) <= config.GeometryTolerance)
+					|| HasCommonDatumCoverage(plan.Dimensions, edge, outline, config.GeometryTolerance, false, DimensionSide.Left),
+					"real left height must remain directly measured or covered by one common datum: " + height);
+			}
+			var middle = outline.Segments.Single(e => e.SourceKey == "left-middle");
+			var providers = plan.Dimensions.Where(d => d.RuleId == StructureDatumRules.VerticalCommonDatumRule).ToList();
+			Assert(!HasCommonDatumCoverage(providers.Take(1), middle, outline, config.GeometryTolerance, false, DimensionSide.Left),
+				"vertical coverage must fail when either provider is missing");
+			var shifted = new Segment2D(new Point2D(middle.Start.X, middle.Start.Y + 2 * config.GeometryTolerance), middle.End);
+			Assert(!HasCommonDatumCoverage(providers, shifted, outline, config.GeometryTolerance, false, DimensionSide.Left),
+				"vertical coverage must match real coordinates, not only a similar span");
 			Assert(!selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 140.44) <= config.GeometryTolerance),
 				"cross-level left residual 140.44 must not remain selected");
 			Assert(suppressed.Any(c => Math.Abs(Math.Round(c.Value, 2) - 140.44) <= config.GeometryTolerance
@@ -5091,26 +5141,37 @@ namespace CadAuto.Core.Tests
 					.Where(d => (d.DebugRole == "TopStructWidth" || d.DebugRole == "BottomStructWidth" || d.DebugRole == "OutlineSegment")
 						&& d.Orientation == DimensionOrientation.Horizontal)
 					.ToList();
-				Assert(selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 163.37) <= config.GeometryTolerance),
-					"90-degree rotated chain must retain real width 163.37");
-				Assert(selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 126.11) <= config.GeometryTolerance),
-					"90-degree rotated chain must retain real width 126.11");
+				foreach (double width in new[] { 163.37, 126.11 })
+				{
+					var edge = rotated.Segments.Single(e => e.IsHorizontal(config.GeometryTolerance)
+						&& Math.Abs(Math.Round(e.LengthX, 2) - width) <= config.GeometryTolerance);
+					Assert(selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - width) <= config.GeometryTolerance)
+						|| HasHorizontalCommonDatumCoverage(plan.Dimensions, edge, rotated, config.GeometryTolerance, DimensionSide.Top)
+						|| HasHorizontalCommonDatumCoverage(plan.Dimensions, edge, rotated, config.GeometryTolerance, DimensionSide.Bottom),
+						"rotated real width must remain directly measured or covered by one common datum: " + width);
+				}
 				Assert(!selected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 140.44) <= config.GeometryTolerance),
 					"90-degree rotated chain must suppress derivable width 140.44");
 			}
 
+			var actualOutline = BuildActualRotatedContourOutline();
 			var actual = new DimensionPlanner(config).CreateDimensionPlan(
-				BuildActualRotatedContourOutline(),
+				actualOutline,
 				null,
 				new HoleFeature2D[0]);
 			var actualSelected = actual.Dimensions
 				.Where(d => (d.DebugRole == "TopStructWidth" || d.DebugRole == "BottomStructWidth" || d.DebugRole == "OutlineSegment")
 					&& d.Orientation == DimensionOrientation.Horizontal)
 				.ToList();
-			Assert(actualSelected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 163.37) <= config.GeometryTolerance),
-				"actual rotated contour must retain real width 163.37");
-			Assert(actualSelected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 126.11) <= config.GeometryTolerance),
-				"actual rotated contour must retain real width 126.11");
+			foreach (double width in new[] { 163.37, 126.11 })
+			{
+				var edge = actualOutline.Segments.Single(e => e.IsHorizontal(config.GeometryTolerance)
+					&& Math.Abs(Math.Round(e.LengthX, 2) - width) <= config.GeometryTolerance);
+				Assert(actualSelected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - width) <= config.GeometryTolerance)
+					|| HasHorizontalCommonDatumCoverage(actual.Dimensions, edge, actualOutline, config.GeometryTolerance, DimensionSide.Top)
+					|| HasHorizontalCommonDatumCoverage(actual.Dimensions, edge, actualOutline, config.GeometryTolerance, DimensionSide.Bottom),
+					"actual real width must remain directly measured or covered by one common datum: " + width);
+			}
 			Assert(!actualSelected.Any(d => Math.Abs(Math.Round(GetSpan(d), 2) - 140.44) <= config.GeometryTolerance),
 				"actual rotated contour must suppress derivable width 140.44");
 			Assert(actual.Diagnostics.DimensionCandidates.Any(c =>
@@ -5206,7 +5267,7 @@ namespace CadAuto.Core.Tests
 				+ string.Join(",", originalSelection) + "; mirrored: " + string.Join(",", mirroredSelection) + ")");
 		}
 
-		private static void Test2BottomContourChainKeepsTwoRealWidths()
+		private static void Test2BottomContourChainAcceptsCommonDatumCoverage()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
 			var planner = new DimensionPlanner(config);
@@ -5217,6 +5278,28 @@ namespace CadAuto.Core.Tests
 
 			AssertTest2BottomContourPlan(original, originalOutline, config);
 			AssertTest2BottomContourPlan(mirrored, mirroredOutline, config);
+			var middle = originalOutline.Segments.Single(e => e.SourceKey == "bottom-real-2");
+			var providers = original.Dimensions.Where(d => d.RuleId == StructureDatumRules.HorizontalCommonDatumRule).ToList();
+			Assert(HasHorizontalCommonDatumCoverage(providers, middle, originalOutline, config.GeometryTolerance),
+				"test2 cumulative dimensions must cover the real middle ledge");
+			Assert(!HasHorizontalCommonDatumCoverage(providers.Take(1), middle, originalOutline, config.GeometryTolerance),
+				"test2 coverage must fail when either cumulative dimension is missing");
+			var shifted = new Segment2D(new Point2D(middle.Start.X + 2 * config.GeometryTolerance, middle.Start.Y), middle.End);
+			Assert(!HasHorizontalCommonDatumCoverage(providers, shifted, originalOutline, config.GeometryTolerance),
+				"test2 coverage must match both real edge coordinates, not merely a similar width");
+			var changedProvider = providers.First();
+			string family = changedProvider.DatumFamilyKey;
+			try
+			{
+				changedProvider.DatumFamilyKey = family + ":unrelated";
+				Assert(!HasHorizontalCommonDatumCoverage(providers, middle, originalOutline, config.GeometryTolerance),
+					"test2 cumulative dimensions from different datum families cannot replace a real ledge");
+				changedProvider.DatumFamilyKey = family;
+				changedProvider.AttachmentValidity = false;
+				Assert(!HasHorizontalCommonDatumCoverage(providers, middle, originalOutline, config.GeometryTolerance),
+					"test2 an invalid attachment cannot provide cumulative coverage");
+			}
+			finally { changedProvider.DatumFamilyKey = family; changedProvider.AttachmentValidity = true; }
 
 			string[] originalSelection = original.Dimensions
 				.Where(d => (d.DebugRole == "BottomStructWidth" || d.DebugRole == "OutlineSegment")
@@ -5420,32 +5503,27 @@ namespace CadAuto.Core.Tests
 		}
 
 		/// <summary>
-		/// Phase A hard gate: F215 four-way Signature must equal Golden215 exactly.
-		/// Expected RED on legacy side-patch pipeline until Phase B/C feature-first lands.
-		/// Golden215 = {42, 50, 75, 100, 120, 215}
+		/// F215: validate general geometry and coverage constraints in all four rotations.
 		/// </summary>
-		private static void RotationSignature_F215GoldenMultisetFourWayEqual()
+		private static void RotationConstraints_F215FourWay()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
 			config.UseFeatureFirstStructurePipeline = true;
 			var planner = new DimensionPlanner(config);
-			double[] golden = { 42.0, 50.0, 75.0, 100.0, 120.0, 215.0 };
 			var baseline = CreateF215NotchOutline();
-			AssertFourWaySignatureEqualsGolden(planner, baseline, golden, config.GeometryTolerance, "F215");
+			AssertFourWayOutlineConstraints(planner, baseline, config.GeometryTolerance, "F215");
 		}
 
 		/// <summary>
-		/// last-run v42 F215 CAD: 假槽宽 95 挤掉 120，顶 75/80 被圆角切成 72/77。
-		/// 槽宽必须两侧内凹；缺口 3mm 内凹仍算 notch。Golden215 四向全等。
+		/// F215Cad: validate general geometry and coverage constraints in all four rotations.
 		/// </summary>
-		private static void RotationSignature_F215CadGoldenMultisetFourWayEqual()
+		private static void RotationConstraints_F215CadFourWay()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
 			config.UseFeatureFirstStructurePipeline = true;
 			var planner = new DimensionPlanner(config);
-			double[] golden = { 42.0, 50.0, 75.0, 100.0, 120.0, 215.0 };
 			var baseline = CreateF215CadFilletedOutline();
-			AssertFourWaySignatureEqualsGolden(planner, baseline, golden, config.GeometryTolerance, "F215Cad");
+			AssertFourWayOutlineConstraints(planner, baseline, config.GeometryTolerance, "F215Cad");
 		}
 
 		/// <summary>
@@ -5475,61 +5553,51 @@ namespace CadAuto.Core.Tests
 		}
 
 		/// <summary>
-		/// Phase A/B hard gate: F338 four-way Signature must equal Golden338 exactly.
-		/// Golden338 = {73, 87.55, 100, 201.5, 305, 338} (305 kept by product decision).
+		/// F338: validate general geometry and coverage constraints in all four rotations.
 		/// </summary>
-		private static void RotationSignature_F338GoldenMultisetFourWayEqual()
+		private static void RotationConstraints_F338FourWay()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
 			config.UseFeatureFirstStructurePipeline = true;
 			var planner = new DimensionPlanner(config);
-			double[] golden = { 73.0, 87.55, 100.0, 201.5, 305.0, 338.0 };
 			var baseline = CreateF338StepOutline();
-			AssertFourWaySignatureEqualsGolden(planner, baseline, golden, config.GeometryTolerance, "F338");
+			AssertFourWayOutlineConstraints(planner, baseline, config.GeometryTolerance, "F338");
 		}
 
 		/// <summary>
-		/// CAD 轨门禁：Golden338Cad = {20, 73, 87.55, 100, 201.5, 305, 338} 四向全等。
-		/// Fixture 模拟 test2 圆角缝（合成边还原 305）+ 外轮廓脚尖 20。
-		/// ASD 打开 FeatureFirst 的前置条件（grill-me 2026-08-07）。
+		/// F338Cad: validate general geometry and coverage constraints in all four rotations.
 		/// </summary>
-		private static void RotationSignature_F338CadGoldenMultisetFourWayEqual()
+		private static void RotationConstraints_F338CadFourWay()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
 			config.UseFeatureFirstStructurePipeline = true;
 			var planner = new DimensionPlanner(config);
-			double[] golden = { 20.0, 73.0, 87.55, 100.0, 201.5, 305.0, 338.0 };
 			var baseline = CreateF338CadFilletedOutline();
-			AssertFourWaySignatureEqualsGolden(planner, baseline, golden, config.GeometryTolerance, "F338Cad");
+			AssertFourWayOutlineConstraints(planner, baseline, config.GeometryTolerance, "F338Cad");
 		}
 
 		/// <summary>
-		/// last-run 8-line staircase: three abutting treads and three risers, all similar
-		/// (no 50%+ body). Keep every step including both 134.79 edges; four-way equal.
+		/// Stair3: validate general geometry and coverage constraints in all four rotations.
 		/// </summary>
-		private static void RotationSignature_Stair3GoldenMultisetFourWayEqual()
+		private static void RotationConstraints_Stair3FourWay()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
 			config.UseFeatureFirstStructurePipeline = true;
 			var planner = new DimensionPlanner(config);
-			// Open chain: both 134.79 + locating 163.37 + mid riser 126.11; ring is 169.21/140.44.
-			double[] golden = { 126.11, 134.79, 134.79, 163.37, 429.91, 438.80 };
 			var baseline = CreateStair3Outline();
-			AssertFourWaySignatureEqualsGolden(planner, baseline, golden, 0.05, "Stair3");
+			AssertFourWayOutlineConstraints(planner, baseline, config.GeometryTolerance, "Stair3");
 		}
 
 		/// <summary>
-		/// L-plate 257×134: foot 25 + fillet-trimmed boss 30 + locate 58,
-		/// arm 25, boss stack 10⊂25⊂40. No 33/232/59.
+		/// LBoss257: validate general geometry and coverage constraints in all four rotations.
 		/// </summary>
-		private static void RotationSignature_LBoss257GoldenMultisetFourWayEqual()
+		private static void RotationConstraints_LBoss257FourWay()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
 			config.UseFeatureFirstStructurePipeline = true;
 			var planner = new DimensionPlanner(config);
-			double[] golden = { 10.0, 25.0, 25.0, 25.0, 30.0, 40.0, 58.0, 134.0, 257.0 };
 			var baseline = CreateLBoss257Outline();
-			AssertFourWaySignatureEqualsGolden(planner, baseline, golden, 0.05, "LBoss257");
+			AssertFourWayOutlineConstraints(planner, baseline, config.GeometryTolerance, "LBoss257");
 		}
 
 		/// <summary>
@@ -5981,46 +6049,121 @@ namespace CadAuto.Core.Tests
 			return o;
 		}
 
-		private static void AssertFourWaySignatureEqualsGolden(
+		private static void AssertFourWayOutlineConstraints(
 			DimensionPlanner planner,
 			OutlineFeature2D baseline,
-			double[] golden,
 			double tol,
 			string label)
 		{
-			double[] sortedGolden = golden.OrderBy(v => v).ToArray();
+			var failures = new List<string>();
 			foreach (double degrees in new[] { 0.0, 90.0, 180.0, 270.0 })
 			{
 				OutlineFeature2D outline = degrees == 0.0
 					? baseline
 					: TransformOutline(baseline, degrees * Math.PI / 180.0);
-				double[] signature = GetOverallStructureValueSignature(
-					planner.CreateOutlinePlan(outline),
-					tol);
-				Console.WriteLine(label + " @" + degrees + "° sig=[" + string.Join(",", signature) + "]"
-					+ " golden=[" + string.Join(",", sortedGolden) + "]");
-				Assert(SignaturesEqualMultiset(signature, sortedGolden, tol),
-					label + " @" + degrees + "° Signature must equal golden; got=["
-					+ string.Join(",", signature) + "] expected=["
-					+ string.Join(",", sortedGolden) + "]");
-			}
-		}
-
-		private static bool SignaturesEqualMultiset(double[] actual, double[] goldenSorted, double tol)
-		{
-			if (actual == null || goldenSorted == null || actual.Length != goldenSorted.Length)
-			{
-				return false;
-			}
-			double[] a = actual.OrderBy(v => v).ToArray();
-			for (int i = 0; i < a.Length; i++)
-			{
-				if (Math.Abs(a[i] - goldenSorted[i]) > tol)
+				string context = label + " @" + degrees + "°";
+				try
 				{
-					return false;
+					var plan = planner.CreateOutlinePlan(outline);
+					var errors = GetOutlineConstraintFailures(plan, outline, tol);
+					Console.WriteLine(context + " constraints=" + (errors.Count == 0 ? "PASS" : "FAIL")
+						+ " dimensions=" + plan.Dimensions.Count);
+					failures.AddRange(errors.Select(error => context + ": " + error));
+				}
+				catch (Exception error)
+				{
+					Console.WriteLine(context + " constraints=ERROR: " + error.Message);
+					failures.Add(context + ": " + error.Message);
 				}
 			}
-			return true;
+			Assert(failures.Count == 0, string.Join(Environment.NewLine, failures));
+		}
+
+		private static List<string> GetOutlineConstraintFailures(DimensionPlan plan, OutlineFeature2D outline, double tol)
+		{
+			var errors = new List<string>();
+			Action<bool, string> check = (valid, message) => { if (!valid) { errors.Add(message); } };
+			var local = CoordinateFrameModelTransform.ToLocal(outline, plan.CoordinateFrame, tol);
+			if (!OutlineGeometryQuery.TryGetEnvelope(local, tol, out var envelope))
+			{
+				errors.Add("No real geometry envelope");
+				return errors;
+			}
+			foreach (var kind in new[] { DimensionKind.OverallWidth, DimensionKind.OverallHeight })
+			{
+				bool horizontal = kind == DimensionKind.OverallWidth;
+				var overall = plan.Dimensions.Where(d => d.Kind == kind).ToList();
+				check(overall.Count == 1, kind + " must occur exactly once");
+				foreach (var d in overall)
+				{
+					double first = horizontal ? d.FirstPoint.X : d.FirstPoint.Y;
+					double second = horizontal ? d.SecondPoint.X : d.SecondPoint.Y;
+					check(d.Orientation == (horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical)
+						&& Math.Abs(Math.Min(first, second) - (horizontal ? envelope.MinX : envelope.MinY)) <= tol
+						&& Math.Abs(Math.Max(first, second) - (horizontal ? envelope.MaxX : envelope.MaxY)) <= tol,
+						kind + " must measure the real geometry envelope");
+				}
+			}
+			foreach (var d in plan.Dimensions.Where(d => d.Orientation == DimensionOrientation.Horizontal || d.Orientation == DimensionOrientation.Vertical))
+			{
+				string id = "D" + d.DiagnosticId + " (" + d.RuleId + ")";
+				check(new[] { d.FirstPoint.X, d.FirstPoint.Y, d.SecondPoint.X, d.SecondPoint.Y }.All(v => !double.IsNaN(v) && !double.IsInfinity(v))
+					&& GetSpan(d) > tol, id + " must have finite endpoints and positive span");
+				check(OutlineGeometryQuery.IsPointOnBoundary(d.FirstPoint, local, tol)
+					&& OutlineGeometryQuery.IsPointOnBoundary(d.SecondPoint, local, tol), id + " must attach to real line/arc geometry");
+				check(d.AttachmentValidity != false, id + " must not retain an invalid attachment");
+			}
+			var structure = plan.Dimensions.Where(d => d.Kind == DimensionKind.Normal && d.Role == DimensionCandidateRole.Structure
+				&& !d.ForceOuterLevel && string.IsNullOrWhiteSpace(d.OverrideText)).ToList();
+			for (int i = 0; i < structure.Count; i++)
+			for (int j = i + 1; j < structure.Count; j++)
+			{
+				var a = structure[i];
+				var b = structure[j];
+				// Equal values alone do not identify duplicate features or datum relationships.
+				bool duplicate = a.Orientation == b.Orientation && a.Side == b.Side && a.OwnerKind == b.OwnerKind
+					&& string.Equals(a.DatumFamilyKey, b.DatumFamilyKey, StringComparison.Ordinal)
+					&& ((a.FirstPoint.DistanceTo(b.FirstPoint) <= tol && a.SecondPoint.DistanceTo(b.SecondPoint) <= tol)
+						|| (a.FirstPoint.DistanceTo(b.SecondPoint) <= tol && a.SecondPoint.DistanceTo(b.FirstPoint) <= tol));
+				check(!duplicate, "Duplicate structure endpoint pair D" + a.DiagnosticId + "/D" + b.DiagnosticId);
+			}
+			errors.AddRange(plan.Diagnostics.Warnings.Where(w => w.StartsWith("StructureCoverage.Incomplete|", StringComparison.Ordinal)));
+			return errors;
+		}
+
+		private static void OutlineConstraintsRejectInvalidPlans()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var outline = CreateRectangle(100, 50);
+			var planner = new DimensionPlanner(config);
+			foreach (string defect in new[] { "valid", "legal-equal", "missing-overall", "wrong-envelope", "zero", "floating", "nonfinite", "duplicate", "coverage" })
+			{
+				var plan = planner.CreateOutlinePlan(outline);
+				var width = plan.Dimensions.Single(d => d.Kind == DimensionKind.OverallWidth);
+				if (defect == "missing-overall") { plan.Dimensions.Remove(width); }
+				if (defect == "wrong-envelope") { width.SecondPoint = new Point2D(90, 0); }
+				if (defect == "zero") { width.SecondPoint = width.FirstPoint; }
+				if (defect == "floating") { width.FirstPoint = new Point2D(10, 10); }
+				if (defect == "nonfinite") { width.FirstPoint = new Point2D(double.NaN, 0); }
+				if (defect == "coverage") { plan.Diagnostics.Warnings.Add("StructureCoverage.Incomplete|MissingCoveredByIds=999"); }
+				if (defect == "duplicate")
+				{
+					for (int i = 0; i < 2; i++) { plan.Add(new PlannedDimension { Kind = DimensionKind.Normal,
+						Role = DimensionCandidateRole.Structure, Orientation = DimensionOrientation.Horizontal, Side = DimensionSide.Bottom,
+						FirstPoint = new Point2D(10, 0), SecondPoint = new Point2D(20, 0) }); }
+				}
+				if (defect == "legal-equal")
+				{
+					foreach (double start in new[] { 10.0, 30.0 }) { plan.Add(new PlannedDimension { Kind = DimensionKind.Normal,
+						Role = DimensionCandidateRole.Structure, Orientation = DimensionOrientation.Horizontal, Side = DimensionSide.Bottom,
+						FirstPoint = new Point2D(start, 0), SecondPoint = new Point2D(start + 10, 0) }); }
+					plan.Add(new PlannedDimension { Kind = DimensionKind.Normal, Role = DimensionCandidateRole.Structure,
+						Orientation = DimensionOrientation.Horizontal, Side = DimensionSide.Bottom, OverrideText = "<>±0.02",
+						FirstPoint = new Point2D(10, 0), SecondPoint = new Point2D(20, 0) });
+				}
+				var errors = GetOutlineConstraintFailures(plan, outline, config.GeometryTolerance);
+				Assert((errors.Count == 0) == (defect == "valid" || defect == "legal-equal"), "generic constraints must distinguish " + defect);
+			}
 		}
 
 		/// <summary>
@@ -6418,15 +6561,15 @@ namespace CadAuto.Core.Tests
 			Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallWidth
 				&& Math.Abs(GetSpan(d) - overallWidth) <= config.GeometryTolerance),
 				"test2 overall width 438.79648808 must remain");
-			Assert(selectedReal.Count == 2
-				&& selectedReal.Count(d => d.DebugRole == "BottomStructWidth") == 1
-				&& selectedReal.Count(d => d.DebugRole == "OutlineSegment") == 1
-				&& selectedReal.All(d => HasRealHorizontalSegment(d, outline, config)),
-				"test2 must retain exactly one real BottomStructWidth and one real OutlineSegment at 134.79369829 (selected="
-				+ string.Join(",", selected.Select(d => d.DebugRole + "@" + Math.Round(GetSpan(d), 3)
-					+ "/yΔ=" + Math.Round(Math.Abs(d.FirstPoint.Y - d.SecondPoint.Y), 3)))
-				+ "; real=" + string.Join(",", selectedReal.Select(d => d.DebugRole + "@" + Math.Round(GetSpan(d), 3)))
-				+ ")");
+			var realEdges = outline.Segments.Where(e => e.IsHorizontal(config.GeometryTolerance)
+				&& Math.Abs(e.LengthX - realWidth) <= config.GeometryTolerance).ToList();
+			// Equal widths on different ledges need separate coverage, not a fixed pair of legacy role names.
+			Assert(realEdges.Count == 2 && realEdges.All(edge => selectedReal.Any(d => HasRealHorizontalSegment(d, outline, config)
+					&& Math.Abs(d.FirstPoint.Y - edge.MinY) <= config.GeometryTolerance
+					&& Math.Abs(Math.Min(d.FirstPoint.X, d.SecondPoint.X) - edge.MinX) <= config.GeometryTolerance
+					&& Math.Abs(Math.Max(d.FirstPoint.X, d.SecondPoint.X) - edge.MaxX) <= config.GeometryTolerance)
+				|| HasHorizontalCommonDatumCoverage(plan.Dimensions, edge, outline, config.GeometryTolerance)),
+				"test2 real ledges must remain dimensioned directly or fully covered by real same-datum cumulative dimensions");
 			Assert(!selected.Any(d => Math.Abs(GetSpan(d) - projectedWidth) <= config.GeometryTolerance),
 				"test2 derived/projection width 169.20909149 must not remain selected");
 			Assert(selected.All(d => Math.Abs(d.FirstPoint.Y - d.SecondPoint.Y) <= config.GeometryTolerance),
@@ -6439,6 +6582,35 @@ namespace CadAuto.Core.Tests
 			Assert(projectedCandidates.Any(c => c.DebugRole == "OutlineSegment"
 				&& c.SuppressedReason == "OutlineSegmentOverallPartition"),
 				"test2 real OutlineSegment 169.20909149 must record OutlineSegmentOverallPartition");
+		}
+
+		private static bool HasHorizontalCommonDatumCoverage(IEnumerable<PlannedDimension> dimensions,
+			Segment2D edge, OutlineFeature2D outline, double tolerance, DimensionSide side = DimensionSide.Bottom)
+			=> HasCommonDatumCoverage(dimensions, edge, outline, tolerance, true, side);
+
+		private static bool HasCommonDatumCoverage(IEnumerable<PlannedDimension> dimensions,
+			Segment2D edge, OutlineFeature2D outline, double tolerance, bool horizontal, DimensionSide side)
+		{
+			Func<Point2D, double> coordinate = p => horizontal ? p.X : p.Y;
+			double minimum = horizontal ? outline.MinX : outline.MinY;
+			double maximum = horizontal ? outline.MaxX : outline.MaxY;
+			double edgeMin = horizontal ? edge.MinX : edge.MinY;
+			double edgeMax = horizontal ? edge.MaxX : edge.MaxY;
+			var providers = dimensions.Where(d => d.Kind == DimensionKind.Normal
+				&& d.Role == DimensionCandidateRole.Structure && d.OwnerKind == DimensionCandidateOwnerKind.Outline
+				&& d.RuleId == (horizontal ? StructureDatumRules.HorizontalCommonDatumRule : StructureDatumRules.VerticalCommonDatumRule)
+				&& d.Orientation == (horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical) && d.Side == side
+				&& d.AttachmentValidity == true && !string.IsNullOrEmpty(d.DatumFamilyKey)
+				&& !string.IsNullOrEmpty(d.SourceKey) && d.SourceGeometryIds.Contains(d.SourceKey)
+				&& (Math.Abs(coordinate(d.FirstPoint) - minimum) <= tolerance || Math.Abs(coordinate(d.FirstPoint) - maximum) <= tolerance)
+				&& OutlineGeometryQuery.IsPointOnBoundary(d.FirstPoint, outline, tolerance)
+				&& OutlineGeometryQuery.IsPointOnBoundary(d.SecondPoint, outline, tolerance)).ToList();
+			return providers.Any(d => Math.Abs(Math.Min(coordinate(d.FirstPoint), coordinate(d.SecondPoint)) - edgeMin) <= tolerance
+					&& Math.Abs(Math.Max(coordinate(d.FirstPoint), coordinate(d.SecondPoint)) - edgeMax) <= tolerance)
+				|| providers.Any(first => Math.Abs(coordinate(first.SecondPoint) - edgeMin) <= tolerance
+					&& providers.Any(second => Math.Abs(coordinate(second.SecondPoint) - edgeMax) <= tolerance
+						&& first.DatumFamilyKey == second.DatumFamilyKey
+						&& first.FirstPoint.DistanceTo(second.FirstPoint) <= tolerance));
 		}
 
 		private static bool HasRealHorizontalSegment(
@@ -7575,6 +7747,15 @@ namespace CadAuto.Core.Tests
 						"inner horizontal slope projection belongs below the contour");
 					Assert(plan.Dimensions.Single(d => d.DebugRole == "BoundaryObliqueProjection" && Math.Abs(GetSpan(d) - 25 * scale) < config.GeometryTolerance).Side == DimensionSide.Left,
 						"inner vertical slope projection follows the empty left side, not the nearest bounding-box side");
+					var leftProjection = plan.Dimensions.Single(d => d.DebugRole == "BoundaryObliqueProjection"
+						&& d.Orientation == DimensionOrientation.Vertical && d.SourceGeometryIds.Contains("B87"));
+					var replacementAnchor = new Point2D(0, 42.022 * scale);
+					var originalAnchor = new Point2D(69 * scale, 17.022 * scale);
+					Assert(new[] { leftProjection.FirstPoint, leftProjection.SecondPoint }.Any(p => p.DistanceTo(replacementAnchor) <= config.GeometryTolerance)
+						&& new[] { leftProjection.FirstPoint, leftProjection.SecondPoint }.Any(p => p.DistanceTo(originalAnchor) <= config.GeometryTolerance)
+						&& leftProjection.TopologyEvidence.Contains("EquivalentAxisAttachment=Endpoint")
+						&& Math.Abs(GetSpan(leftProjection) - 25 * scale) <= config.GeometryTolerance,
+						"the left projection must use the connected real contour point on the same Y datum and keep its 25 mm measure");
 					Assert(plan.Dimensions.Single(d => d.DebugRole == "BoundaryObliqueProjection" && Math.Abs(GetSpan(d) - 50 * scale) < config.GeometryTolerance).Side == DimensionSide.Right,
 						"outer vertical slope projection belongs on the right");
 				}
@@ -7729,6 +7910,40 @@ namespace CadAuto.Core.Tests
 			Assert(plan.Diagnostics.Warnings.Any(w => w.StartsWith("LProfile.NotApplied|", StringComparison.Ordinal)
 				&& w.IndexOf("ConnectedCornerPairCount=0", StringComparison.Ordinal) >= 0),
 				"a non-L outline must explain why the L profile rule was not applied");
+		}
+
+		private static void LProfileChamferBridgedChordResidualIsSuppressed()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var withChord = CreateLProfileChamferBridgedChordFixture(includeInteriorChord: true);
+			new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(withChord);
+			var chordPlan = new DimensionPlanner(config).CreateOutlinePlan(withChord);
+			Assert(chordPlan.Diagnostics.Warnings.Any(w =>
+				w == "LProfile.NotApplied|Reason=HorizontalArmHeightCandidateAmbiguous"),
+				"the fixture must exercise suppression before the L-profile ambiguity return");
+			Assert(chordPlan.Diagnostics.DimensionCandidates.Any(candidate =>
+				candidate.RuleId == "LProfile.InternalChordEndpoint"
+				&& candidate.IsSuppressed
+				&& candidate.SourceGeometryIds.Contains("boundary-residual-18")
+				&& Math.Abs(candidate.Value - 18.0) <= config.GeometryTolerance
+				&& candidate.TopologyEvidence != null
+				&& candidate.TopologyEvidence.Contains("Relation=ChamferBridgedBoundaryResidualOfInteriorChord")),
+				"the 18 boundary residual must be suppressed only with the matching interior chord and two convex chamfer bridges");
+			Assert(chordPlan.Diagnostics.DimensionCandidates.Any(candidate =>
+				candidate.RuleId == "LProfile.InternalChordEndpoint"
+				&& candidate.IsSuppressed
+				&& candidate.SourceGeometryIds.Contains("step-riser-2.522")
+				&& Math.Abs(candidate.Value - 2.5222276) <= config.GeometryTolerance),
+				"the 2.522 step residual at the interior chord endpoint must be suppressed");
+
+			var withoutChord = CreateLProfileChamferBridgedChordFixture(includeInteriorChord: false);
+			new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(withoutChord);
+			var plainPlan = new DimensionPlanner(config).CreateOutlinePlan(withoutChord);
+			Assert(plainPlan.Dimensions.Any(d => d.Orientation == DimensionOrientation.Horizontal
+				&& Math.Abs(GetSpan(d) - 18.0) <= config.GeometryTolerance
+				&& d.SourceGeometryIds.Contains("boundary-residual-18")),
+				"the same 18 boundary size must remain when there is no interior chord");
 		}
 
 		private static void RoundedRectangleOuterContourIsNotLProfile()
@@ -7887,6 +8102,112 @@ namespace CadAuto.Core.Tests
 			}
 		}
 
+		private static void StepDatumBlocksChooseBottomWithoutChangingStructureSide()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			foreach (bool featureFirst in new[] { false, true })
+			foreach (bool mirror in new[] { false, true })
+			foreach (double scale in new[] { 1.0, 1.3 })
+			foreach (string markerName in new[] { "", "CadAider_日标2个角", "CadAider_国标粗糙度32下", "CadAider_国标粗糙度32", "OtherBlock", "Detached", "Conflict", "Top" })
+			{
+				config.UseFeatureFirstStructurePipeline = featureFirst;
+				var outline = new OutlineFeature2D { MinX = 0, MinY = 0, MaxX = 168 * scale, MaxY = 50 * scale };
+				var points = new[] { new Point2D(85, 50), new Point2D(163, 50), new Point2D(168, 45),
+					new Point2D(168, 0), new Point2D(113, 0), new Point2D(113, 10), new Point2D(108, 10),
+					new Point2D(108, 15), new Point2D(0, 15), new Point2D(0, 35), new Point2D(85, 35) };
+				Point2D Transform(Point2D point) => new Point2D((mirror ? 168 - point.X : point.X) * scale, point.Y * scale);
+				for (int i = 0; i < points.Length; i++)
+				{
+					if (i == 1) { continue; }
+					AddSegment(outline, Transform(points[i]), Transform(points[(i + 1) % points.Length]), "step-" + i);
+				}
+				outline.Arcs.Add(new Arc2D { Start = Transform(points[1]), End = Transform(points[2]),
+					Center = Transform(new Point2D(163, 45)), Radius = 5 * scale,
+					Bulge = (mirror ? 1 : -1) * Math.Tan(Math.PI / 8), SourceKey = "R5" });
+				var datum = Datum2D.FromOutline(outline);
+				if (markerName.Length > 0)
+				{
+					datum.StructureDatumMarkers.Add(StructureDatumRules.CreateInsertionMarker(
+						markerName == "Detached" || markerName == "Conflict" || markerName == "Top" ? "CadAider_国标粗糙度32" : markerName,
+						"block", Transform(new Point2D(130, markerName == "Detached" ? -5 : markerName == "Top" ? 50 : 0)),
+						new Point2D(mirror ? -scale : scale, 0), new Point2D(0, scale), outline, config.GeometryTolerance));
+				}
+				if (markerName == "Conflict")
+				{
+					datum.StructureDatumMarkers.Add(StructureDatumRules.CreateInsertionMarker("CadAider_日标2个角", "top-block",
+						Transform(new Point2D(100, 50)), new Point2D(mirror ? -scale : scale, 0), new Point2D(0, scale), outline, config.GeometryTolerance));
+				}
+				var plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, new HoleFeature2D[0], new SlotFeature2D[0], CoordinateFrame2D.Identity);
+				var dimensions = plan.Dimensions.Where(d => d.RuleId == "StepDatum.VerticalCommonDatum").ToList();
+				if (markerName == "Conflict")
+				{
+					Assert(dimensions.Count == 3 && plan.Diagnostics.Warnings.Any(w => w.Contains("ConflictingTopBottomBlocks")), "conflicting datum markers retain geometry-based position dimensions and require datum confirmation");
+				}
+				if (markerName == "" || markerName == "OtherBlock" || markerName == "Detached")
+				{
+					Assert(dimensions.Count == 3 && plan.Diagnostics.Warnings.Any(w => w.StartsWith("StepDatum.PendingHumanConfirmation|", StringComparison.Ordinal)),
+						"missing or detached evidence must retain position dimensions with an explicit geometry fallback");
+					Assert(plan.Diagnostics.StructureCoverageStatus == "PendingConfirmation", "unconfirmed datum must remain machine-readable");
+				}
+				bool bottom = StructureDatumRules.IsDatumBlock(markerName);
+				double baseY = (bottom ? 0 : 50) * scale;
+				Assert(dimensions.Count == 3, "all three real step levels must receive datum dimensions");
+				foreach (double level in new[] { 10.0, 15.0, 35.0 })
+				{
+					Assert(dimensions.Any(d => Math.Abs(d.FirstPoint.Y - baseY) < config.GeometryTolerance
+						&& Math.Abs(d.SecondPoint.Y - level * scale) < config.GeometryTolerance
+						&& d.Side == (mirror ? DimensionSide.Right : DimensionSide.Left)
+						&& OutlineGeometryQuery.IsPointOnBoundary(d.FirstPoint, outline, config.GeometryTolerance)
+						&& OutlineGeometryQuery.IsPointOnBoundary(d.SecondPoint, outline, config.GeometryTolerance)),
+						"datum and target feature identity must survive scaling and reflection");
+				}
+				Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.OverallHeight), "overall height must remain");
+				if (featureFirst)
+				{
+					Assert(!plan.Dimensions.Any(d => (d.DebugRole == "LeftStructHeight" || d.DebugRole == "RightStructHeight")
+						&& Math.Abs(GetSpan(d) - 20 * scale) <= config.GeometryTolerance), "the sourced local arm height must be covered by the common datum scheme");
+				}
+			}
+		}
+
+		private static void LProfileWidthExtensionsMoveAlongEquivalentBoundarySupports()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var suppression = new StructureSuppressionRules(config);
+			foreach (double scale in new[] { 1.0, 1.3 })
+			foreach (double rotation in new[] { 0.0, 90.0, 180.0, 270.0 })
+			foreach (bool mirror in new[] { false, true })
+			{
+				var outline = TransformLProfileFixture(CreateLProfileExtensionOverlapFixture(scale), rotation, mirror);
+				new FeatureRecognizer2D(config).RecognizeOutlineCornerFeatures(outline);
+				var plan = new DimensionPlanner(config).CreateOutlinePlan(outline);
+				var width = plan.Dimensions.SingleOrDefault(d => d.RuleId == "LProfile.VerticalArmWidth");
+				string context = "scale=" + scale + " rotation=" + rotation + " mirror=" + mirror;
+				Assert(width != null && Math.Abs(GetSpan(width) - 20.0 * scale) <= config.GeometryTolerance,
+					"the L-profile arm width must remain selected with its original span, " + context);
+				Assert(width.TopologyEvidence.Contains("Mode=EquivalentAxisSupport")
+					&& OutlineGeometryQuery.IsPointOnBoundary(width.FirstPoint, outline, config.GeometryTolerance)
+					&& OutlineGeometryQuery.IsPointOnBoundary(width.SecondPoint, outline, config.GeometryTolerance),
+					"overlapping extension origins must move to equivalent real boundary points, " + context);
+				bool Crosses(Point2D point) => width.Orientation == DimensionOrientation.Horizontal
+					? (width.Side == DimensionSide.Bottom
+						? suppression.BottomExtensionCrossesOutline(point, outline, config.FirstDimOffset)
+						: suppression.TopExtensionCrossesOutline(point, outline, config.FirstDimOffset))
+					: (width.Side == DimensionSide.Left
+						? suppression.LeftExtensionCrossesOutline(point, outline, config.FirstDimOffset)
+						: suppression.RightExtensionCrossesOutline(point, outline, config.FirstDimOffset));
+				Assert(!Crosses(width.FirstPoint) && !Crosses(width.SecondPoint),
+					"the retained arm width must have extension origins clear of the real contour, " + context);
+				if (rotation == 0.0 && !mirror && scale == 1.0)
+				{
+					Assert(Math.Abs(width.FirstPoint.Y - 1.0) <= config.GeometryTolerance
+						&& Math.Abs(width.SecondPoint.Y - 1.0) <= config.GeometryTolerance,
+						"the bottom width should attach at the lower ends of its vertical supports");
+				}
+			}
+		}
+
 		private static OutlineFeature2D CreateLProfileAnnotationFixture()
 		{
 			var outline = new OutlineFeature2D
@@ -7924,6 +8245,27 @@ namespace CadAuto.Core.Tests
 			AddSegment(outline, new Point2D(155.0, 0.0), new Point2D(155.0, 25.0), "internal-chord");
 			AddSegment(outline, new Point2D(155.0, 0.0), new Point2D(5.0, 0.0), "bottom-left");
 			AddSegment(outline, new Point2D(5.0, 0.0), new Point2D(0.0, 5.0), "C5");
+			return outline;
+		}
+
+		private static OutlineFeature2D CreateLProfileChamferBridgedChordFixture(bool includeInteriorChord)
+		{
+			const double maxY = 65.522228;
+			var outline = new OutlineFeature2D { MinX = 0.0, MinY = 0.0, MaxX = 125.0, MaxY = maxY };
+			AddSegment(outline, new Point2D(124.0, 0.0), new Point2D(125.0, 1.0), "right-chamfer");
+			AddSegment(outline, new Point2D(124.0, 0.0), new Point2D(106.0, 0.0), "boundary-residual-18");
+			if (includeInteriorChord)
+			{
+				AddSegment(outline, new Point2D(125.0, 1.0), new Point2D(105.0, 1.0), "interior-chord-20");
+			}
+			AddSegment(outline, new Point2D(125.0, 8.5222274), new Point2D(125.0, 1.0), "right-vertical");
+			AddSegment(outline, new Point2D(106.0, 0.0), new Point2D(105.0, 1.0), "left-chamfer");
+			AddSegment(outline, new Point2D(105.0, 1.0), new Point2D(105.0, 3.5222276), "step-riser-2.522");
+			AddSegment(outline, new Point2D(125.0, 8.5222274), new Point2D(75.0, maxY), "upper-diagonal");
+			AddSegment(outline, new Point2D(105.0, 3.5222276), new Point2D(70.0, 45.522228), "lower-diagonal");
+			AddSegment(outline, new Point2D(0.0, maxY), new Point2D(75.0, maxY), "top");
+			AddSegment(outline, new Point2D(70.0, 45.522228), new Point2D(0.0, 45.522228), "inner-horizontal");
+			AddSegment(outline, new Point2D(0.0, 45.522228), new Point2D(0.0, maxY), "left-vertical");
 			return outline;
 		}
 
@@ -7970,6 +8312,32 @@ namespace CadAuto.Core.Tests
 			AddSegment(outline, new Point2D(95.0, 17.0), new Point2D(95.0, 0.0), "right-arm");
 			AddSegment(outline, new Point2D(95.0, 0.0), new Point2D(5.0, 0.0), "bottom");
 			AddSegment(outline, new Point2D(5.0, 0.0), new Point2D(0.0, 3.0), "C5");
+			return outline;
+		}
+
+		private static OutlineFeature2D CreateLProfileExtensionOverlapFixture(double scale)
+		{
+			var outline = new OutlineFeature2D
+			{
+				MinX = 0.0,
+				MinY = 0.0,
+				MaxX = 125.0 * scale,
+				MaxY = 65.522228 * scale
+			};
+			var points = new[]
+			{
+				new Point2D(124.0, 0.0), new Point2D(106.0, 0.0), new Point2D(105.0, 1.0),
+				new Point2D(105.0, 3.522228), new Point2D(70.0, 45.522228), new Point2D(0.0, 45.522228),
+				new Point2D(0.0, 65.522228), new Point2D(75.0, 65.522228), new Point2D(125.0, 8.522228),
+				new Point2D(125.0, 1.0)
+			};
+			for (int i = 0; i < points.Length; i++)
+			{
+				Point2D first = new Point2D(points[i].X * scale, points[i].Y * scale);
+				Point2D second = new Point2D(points[(i + 1) % points.Length].X * scale, points[(i + 1) % points.Length].Y * scale);
+				AddSegment(outline, first, second, "outer-" + i);
+			}
+			AddSegment(outline, new Point2D(125.0 * scale, 1.0 * scale), new Point2D(105.0 * scale, 1.0 * scale), "inner-chord");
 			return outline;
 		}
 

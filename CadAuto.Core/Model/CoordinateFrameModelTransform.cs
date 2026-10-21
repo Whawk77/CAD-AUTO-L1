@@ -181,6 +181,14 @@ public static class CoordinateFrameModelTransform
 				SourceGeometryId = endpoint.SourceGeometryId ?? string.Empty
 			});
 		}
+		foreach (StructureDatumMarker2D marker in source.StructureDatumMarkers)
+		{
+			target.StructureDatumMarkers.Add(new StructureDatumMarker2D { ContactPoint = effectiveFrame.ToLocal(marker.ContactPoint),
+				BlockName = marker.BlockName, SourceGeometryId = marker.SourceGeometryId,
+				ContactKind = marker.ContactKind, ValidationFailure = marker.ValidationFailure });
+		}
+		target.StructureDatumMinimumX = source.StructureDatumMinimumX;
+		target.StructureDatumMinimumY = source.StructureDatumMinimumY;
 		return target;
 	}
 

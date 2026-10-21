@@ -105,6 +105,12 @@ public static class CadToCoreModelMapper
 				SourceGeometryId = endpoint.SourceGeometryId ?? string.Empty
 			});
 		}
+		foreach (StructureDatumMarker2D marker in source.StructureDatumMarkers)
+		{
+			datum.StructureDatumMarkers.Add(new StructureDatumMarker2D { ContactPoint = marker.ContactPoint,
+				BlockName = marker.BlockName, SourceGeometryId = marker.SourceGeometryId,
+				ContactKind = marker.ContactKind, ValidationFailure = marker.ValidationFailure });
+		}
 		return datum;
 	}
 

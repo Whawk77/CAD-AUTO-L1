@@ -1,0 +1,321 @@
+{
+  "schemaVersion": 1,
+  "caseId": "L01-13",
+  "status": "PendingHumanConfirmation",
+  "fixtureReady": false,
+  "fixture": "source.dwg",
+  "fixtureSha256": "AE4EF04B486ABFC4624D804A9B63CE4D9E78979C8B672657232117BBA41DBFF1",
+  "correctDrawing": null,
+  "wrongDrawing": null,
+  "numericComparisonTolerance": 0.001,
+  "numericToleranceMeaning": "Comparison epsilon in drawing units, NOT machining tolerance",
+  "command": "ASD4",
+  "commandScope": "All",
+  "diagnosticSide": "All",
+  "dimensions": [
+    {
+      "id": "overall-width",
+      "policy": "required",
+      "status": "PendingHumanConfirmation",
+      "debugRole": "OverallWidth",
+      "orientation": "Horizontal",
+      "valueApprox": 145,
+      "minCount": 1,
+      "maxCount": 1,
+      "ownerKind": "Outline",
+      "featureIdentity": "outer-envelope-x",
+      "sourceHandles": [
+        "4D3",
+        "4DA"
+      ],
+      "anchors": [
+        [
+          1736.9114607387055,
+          1541.9007444187773
+        ],
+        [
+          1881.9114581812937,
+          1606.9007501238484
+        ]
+      ],
+      "datum": {
+        "type": "real-boundary-pair",
+        "handles": [
+          "4D3",
+          "4DA"
+        ]
+      },
+      "machiningTolerance": null,
+      "toleranceConfirmed": false,
+      "allowedVariation": [
+        "placementSide",
+        "dimensionLineOffset",
+        "equivalent-real-boundary-anchors-after-review"
+      ],
+      "basis": "Actual X extrema; 4EE/4EF classification does not change width",
+      "evidence": [
+        "geometry.json#4D3",
+        "geometry.json#4DA"
+      ],
+      "needsHumanConfirmation": true
+    },
+    {
+      "id": "overall-height",
+      "policy": "required",
+      "status": "PendingHumanConfirmation",
+      "debugRole": "OverallHeight",
+      "orientation": "Vertical",
+      "valueApprox": 65,
+      "minCount": 1,
+      "maxCount": 1,
+      "ownerKind": "Outline",
+      "featureIdentity": "outer-envelope-y",
+      "sourceHandles": [
+        "4D3",
+        "4DA"
+      ],
+      "anchors": [
+        [
+          1736.9114607387055,
+          1541.9007444187773
+        ],
+        [
+          1881.9114581812937,
+          1606.9007501238484
+        ]
+      ],
+      "datum": {
+        "type": "real-boundary-pair",
+        "handles": [
+          "4D3",
+          "4DA"
+        ]
+      },
+      "machiningTolerance": null,
+      "toleranceConfirmed": false,
+      "allowedVariation": [
+        "placementSide",
+        "dimensionLineOffset",
+        "equivalent-real-boundary-anchors-after-review"
+      ],
+      "basis": "Actual Y extrema; no dimension text evidence",
+      "evidence": [
+        "geometry.json#4D3",
+        "geometry.json#4DA"
+      ],
+      "needsHumanConfirmation": true
+    },
+    {
+      "id": "horizontal-arm-height",
+      "policy": "required",
+      "status": "PendingHumanConfirmation",
+      "debugRole": "LeftStructHeight",
+      "orientation": "Vertical",
+      "valueApprox": 25,
+      "minCount": 1,
+      "maxCount": 1,
+      "ownerKind": "Outline",
+      "featureIdentity": "horizontal-arm-thickness",
+      "sourceHandles": [
+        "4D3",
+        "4D5"
+      ],
+      "anchors": [
+        [
+          1736.9114607387055,
+          1541.9007444187773
+        ],
+        [
+          1741.9114597551124,
+          1566.9007446154974
+        ]
+      ],
+      "datum": {
+        "type": "real-boundary-pair",
+        "handles": [
+          "4D3",
+          "4D5"
+        ]
+      },
+      "machiningTolerance": null,
+      "toleranceConfirmed": false,
+      "allowedVariation": [
+        "placementSide",
+        "dimensionLineOffset",
+        "equivalent-real-boundary-anchors-after-review"
+      ],
+      "basis": "Real bottom and upper arm boundary Y difference; chamfer projects 5",
+      "evidence": [
+        "geometry.json#4D3",
+        "geometry.json#4D5"
+      ],
+      "needsHumanConfirmation": true
+    },
+    {
+      "id": "vertical-arm-width",
+      "policy": "required",
+      "status": "PendingHumanConfirmation",
+      "debugRole": "TopStructWidth",
+      "orientation": "Horizontal",
+      "valueApprox": 25,
+      "minCount": 1,
+      "maxCount": 1,
+      "ownerKind": "Outline",
+      "featureIdentity": "vertical-arm-thickness",
+      "sourceHandles": [
+        "4D7",
+        "4DA"
+      ],
+      "anchors": [
+        [
+          1856.9114583780356,
+          1601.9007491402117
+        ],
+        [
+          1881.9114581812937,
+          1606.9007501238484
+        ]
+      ],
+      "datum": {
+        "type": "real-boundary-pair",
+        "handles": [
+          "4D7",
+          "4DA"
+        ]
+      },
+      "machiningTolerance": null,
+      "toleranceConfirmed": false,
+      "allowedVariation": [
+        "placementSide",
+        "dimensionLineOffset",
+        "equivalent-real-boundary-anchors-after-review"
+      ],
+      "basis": "Real inner/outer arm X difference; top chamfer projects 5",
+      "evidence": [
+        "geometry.json#4D7",
+        "geometry.json#4DA"
+      ],
+      "needsHumanConfirmation": true
+    },
+    {
+      "id": "top-chamfer-residual",
+      "policy": "forbidden",
+      "status": "PendingHumanConfirmation",
+      "debugRole": "TopStructWidth",
+      "orientation": "Horizontal",
+      "valueApprox": 20,
+      "minCount": 1,
+      "maxCount": 1,
+      "ownerKind": "Outline",
+      "featureIdentity": "top-shortened-edge",
+      "sourceHandles": [
+        "4D9"
+      ],
+      "anchors": [
+        [
+          1861.9114581812937,
+          1606.900749336939
+        ],
+        [
+          1881.9114581812937,
+          1606.9007501238484
+        ]
+      ],
+      "datum": {
+        "type": "real-boundary-pair",
+        "handles": [
+          "4D9"
+        ]
+      },
+      "machiningTolerance": null,
+      "toleranceConfirmed": false,
+      "allowedVariation": [
+        "placementSide",
+        "dimensionLineOffset",
+        "equivalent-real-boundary-anchors-after-review"
+      ],
+      "basis": "Conditional: 25 arm definition and 5 chamfer already define this edge; independent function must be excluded",
+      "evidence": [
+        "geometry.json#4D9"
+      ],
+      "needsHumanConfirmation": true
+    },
+    {
+      "id": "left-chamfer-residual",
+      "policy": "forbidden",
+      "status": "PendingHumanConfirmation",
+      "debugRole": "LeftStructHeight",
+      "orientation": "Vertical",
+      "valueApprox": 20,
+      "minCount": 1,
+      "maxCount": 1,
+      "ownerKind": "Outline",
+      "featureIdentity": "left-shortened-edge",
+      "sourceHandles": [
+        "4D3"
+      ],
+      "anchors": [
+        [
+          1736.9114607387055,
+          1541.9007444187773
+        ],
+        [
+          1736.9114599517961,
+          1561.9007444187773
+        ]
+      ],
+      "datum": {
+        "type": "real-boundary-pair",
+        "handles": [
+          "4D3"
+        ]
+      },
+      "machiningTolerance": null,
+      "toleranceConfirmed": false,
+      "allowedVariation": [
+        "placementSide",
+        "dimensionLineOffset",
+        "equivalent-real-boundary-anchors-after-review"
+      ],
+      "basis": "Conditional: 25 arm definition and 5 chamfer already define this edge; independent function must be excluded",
+      "evidence": [
+        "geometry.json#4D3"
+      ],
+      "needsHumanConfirmation": true
+    }
+  ],
+  "cornerFeatures": [
+    {
+      "handles": [
+        "4D0",
+        "4D6"
+      ],
+      "type": "radius",
+      "measuredRadius": 5,
+      "policy": "allowed",
+      "status": "PendingHumanConfirmation"
+    },
+    {
+      "handles": [
+        "4D4",
+        "4D8"
+      ],
+      "type": "chamfer",
+      "measuredAxisOffsets": [
+        5,
+        5
+      ],
+      "policy": "allowed",
+      "status": "PendingHumanConfirmation"
+    }
+  ],
+  "unresolved": [
+    "Correct drawing and approval evidence",
+    "4EE/4EF boundary ownership",
+    "Required arm dimensions and datum choices",
+    "Whether shortened 20 edges have independent functional requirements",
+    "Units and machining tolerances",
+    "Corner callout requirements and selection scope"
+  ],
+  "approvalEvidence": null
+}

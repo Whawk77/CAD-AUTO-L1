@@ -10,6 +10,33 @@ public sealed partial class DimensionPlanner
 {
 	private const string CollinearBranchFragmentRule = "Structure.CollinearBoundaryBranchFragment";
 
+	private void SuppressTangentSpansAcrossJoinedSeams(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		var graph = plan.Diagnostics.OutlineTopology;
+		var ownership = new StructureBoundaryEvidence(graph, _config.GeometryTolerance);
+		if (!ownership.IsAvailable) { return; }
+		double tol = _config.GeometryTolerance;
+		foreach (var candidate in plan.Dimensions.ToList())
+		{
+			if (StructureCoveragePolicy.GetIneligibilityReason(candidate) != null) { continue; }
+			var source = outline.Segments.FirstOrDefault(s => s != null && !s.IsArcChord && !string.IsNullOrEmpty(s.SourceKey) && s.SourceKey == candidate.SourceKey
+				&& SameBoundaryPair(s.Start, s.End, candidate.FirstPoint, candidate.SecondPoint));
+			if (source == null || ownership.GetMembership(source) != "Boundary" || !IsSuppressedByCornerFeature(source, outline)) { continue; }
+			bool horizontal = candidate.Orientation == DimensionOrientation.Horizontal;
+			var seam = outline.Segments.FirstOrDefault(s => s != null && !s.IsArcChord && !string.IsNullOrEmpty(s.SourceKey) && s != source && (horizontal ? s.IsHorizontal(tol) : s.IsVertical(tol))
+				&& Math.Abs((horizontal ? s.MinX : s.MinY) - (horizontal ? source.MinX : source.MinY)) <= tol
+				&& Math.Abs((horizontal ? s.MaxX : s.MaxY) - (horizontal ? source.MaxX : source.MaxY)) <= tol
+				&& Math.Abs((horizontal ? s.MinY : s.MinX) - (horizontal ? source.MinY : source.MinX)) > tol
+				&& graph.Edges.Any(e => e.SourceKeys.Contains(s.SourceKey) && e.IsBoundary)
+				&& graph.Edges.Any(e => e.SourceKeys.Contains(s.SourceKey) && !e.IsBoundary));
+			if (seam == null) { continue; }
+			const string rule = "Structure.TangentSpanAcrossJoinedSeam";
+			plan.MarkSuppressed(candidate, rule, rule, new[] { source.SourceKey, seam.SourceKey },
+				candidate.TopologyEvidence + "|Relation=CornerTangentOppositeMixedBoundarySeam|TangentEdge=" + source.SourceKey + "|JoinedSeam=" + seam.SourceKey);
+			plan.Dimensions.Remove(candidate);
+		}
+	}
+
 	private void SuppressCollinearExteriorBranchFragments(DimensionPlan plan, OutlineFeature2D outline)
 	{
 		var graph = plan.Diagnostics.OutlineTopology;
@@ -18,7 +45,8 @@ public sealed partial class DimensionPlanner
 		double tol = Math.Max(Math.Abs(_config.GeometryTolerance), 1E-9);
 		foreach (var candidate in plan.Dimensions.ToList())
 		{
-			if (!candidate.RequiresOuterBoundarySupport || StructureCoveragePolicy.GetIneligibilityReason(candidate) != null) { continue; }
+			if ((!candidate.RequiresOuterBoundarySupport && candidate.Role != DimensionCandidateRole.OutlineSegment)
+				|| StructureCoveragePolicy.GetIneligibilityReason(candidate, allowOutlineSegment: true) != null) { continue; }
 			bool horizontal = candidate.Orientation == DimensionOrientation.Horizontal;
 			if (horizontal ? candidate.Side != DimensionSide.Top && candidate.Side != DimensionSide.Bottom
 				: candidate.Side != DimensionSide.Left && candidate.Side != DimensionSide.Right) { continue; }
@@ -26,11 +54,6 @@ public sealed partial class DimensionPlanner
 			Func<Point2D, double> cross = p => horizontal ? p.Y : p.X;
 			double crossPosition = cross(candidate.FirstPoint);
 			if (Math.Abs(cross(candidate.SecondPoint) - crossPosition) > tol) { continue; }
-			double crossMin = horizontal ? outline.MinY : outline.MinX;
-			double crossMax = horizontal ? outline.MaxY : outline.MaxX;
-			bool onMin = Math.Abs(crossPosition - crossMin) <= tol;
-			bool onMax = Math.Abs(crossPosition - crossMax) <= tol;
-			if (onMin == onMax) { continue; }
 			Func<OutlineTopologyEdge, bool> straight = e => e.Kind == "Line" && e.StartNode != e.EndNode
 				&& Math.Abs(cross(e.Start) - crossPosition) <= tol && Math.Abs(cross(e.End) - crossPosition) <= tol
 				&& Math.Abs(axis(e.End) - axis(e.Start)) > tol;
@@ -40,6 +63,8 @@ public sealed partial class DimensionPlanner
 				&& ((same(candidate.FirstPoint, e.Start) && same(candidate.SecondPoint, e.End))
 					|| (same(candidate.FirstPoint, e.End) && same(candidate.SecondPoint, e.Start)))).ToList();
 			if (seeds.Count != 1) { continue; }
+			var facing = BoundaryProjectionSide(seeds[0], graph, horizontal);
+			bool onMin = facing == DimensionSide.Left || facing == DimensionSide.Bottom;
 			// Only the raw edge / its outer-tip promotion is redundant here. An independently
 			// recovered groove, boss or ledge may carry additional feature intent.
 			if (candidate.SourceKey != seeds[0].SourceKey && candidate.SourceKey != "OuterTip:" + seeds[0].SourceKey) { continue; }
@@ -81,12 +106,13 @@ public sealed partial class DimensionPlanner
 				|| !junctions.Any(n => n == seeds[0].StartNode || n == seeds[0].EndNode)) { continue; }
 			double minimum = chain.Min(e => Math.Min(axis(e.Start), axis(e.End)));
 			double maximum = chain.Max(e => Math.Max(axis(e.Start), axis(e.End)));
-			if (Math.Abs(minimum - (horizontal ? outline.MinX : outline.MinY)) > tol
-				|| Math.Abs(maximum - (horizontal ? outline.MaxX : outline.MaxY)) > tol) { continue; }
+			double overallMin = horizontal ? outline.MinX : outline.MinY;
+			double overallMax = horizontal ? outline.MaxX : outline.MaxY;
+			bool completeSide = Math.Abs(minimum - overallMin) <= tol && Math.Abs(maximum - overallMax) <= tol;
 			var provider = plan.Dimensions.FirstOrDefault(d => d.Kind == (horizontal ? DimensionKind.OverallWidth : DimensionKind.OverallHeight)
 				&& d.Orientation == candidate.Orientation
-				&& Math.Abs(Math.Min(axis(d.FirstPoint), axis(d.SecondPoint)) - minimum) <= tol
-				&& Math.Abs(Math.Max(axis(d.FirstPoint), axis(d.SecondPoint)) - maximum) <= tol
+				&& Math.Abs(Math.Min(axis(d.FirstPoint), axis(d.SecondPoint)) - overallMin) <= tol
+				&& Math.Abs(Math.Max(axis(d.FirstPoint), axis(d.SecondPoint)) - overallMax) <= tol
 				&& ownership.ValidateBoundaryAttachments(d.FirstPoint, d.SecondPoint) == true);
 			if (provider == null) { continue; }
 			var supporting = chain.Concat(branches).Select(e => e.SourceKey).Where(k => !string.IsNullOrEmpty(k)).Distinct();
@@ -94,8 +120,8 @@ public sealed partial class DimensionPlanner
 				+ "|BoundaryEdges=" + string.Join(",", chain.Select(e => e.Id).OrderBy(id => id))
 				+ "|InternalBranches=" + string.Join(",", branches.Select(e => e.Id).Distinct().OrderBy(id => id))
 				+ "|StraightJunctionNodes=" + string.Join(",", junctions.OrderBy(id => id))
-				+ "|Axis=" + candidate.Orientation + "|CompleteEnvelopeSide=True|RealBoundary=True";
-			plan.TrySuppressCoveredStructure(candidate, CollinearBranchFragmentRule, new[] { provider }, supporting, proof);
+				+ "|Axis=" + candidate.Orientation + "|CompleteEnvelopeSide=" + completeSide + "|RealBoundary=True";
+			plan.TrySuppressCoveredStructure(candidate, CollinearBranchFragmentRule, new[] { provider }, supporting, proof, allowOutlineSegment: true);
 		}
 	}
 }

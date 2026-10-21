@@ -1,0 +1,451 @@
+{
+  "checkedPreexistingFileCount": 63,
+  "unchangedCount": 56,
+  "expectedEditedCount": 7,
+  "unexpectedChanges": [],
+  "files": [
+    {
+      "path": "AutoFixtureDim.csproj",
+      "beforeSha256": "209532CC847426E61F749253325759EB5546900F8D2D5A4D9A0DB0ED7F1D7C31",
+      "afterSha256": "209532CC847426E61F749253325759EB5546900F8D2D5A4D9A0DB0ED7F1D7C31",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.CadAdapter/Collection/GeometryCollector.cs",
+      "beforeSha256": "A477A405F4520321068D3F4EADED9C919C75B0CA86E8AF11CBC9E45F9B8DFFA0",
+      "afterSha256": "A477A405F4520321068D3F4EADED9C919C75B0CA86E8AF11CBC9E45F9B8DFFA0",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.CadAdapter/Environment/DimStyleManager.cs",
+      "beforeSha256": "D4043EE849A4FD111E1C0858518D5FEA379F6506510C1037A15B08D3237146F9",
+      "afterSha256": "D4043EE849A4FD111E1C0858518D5FEA379F6506510C1037A15B08D3237146F9",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.CadAdapter/Mapping/CadToCoreModelMapper.cs",
+      "beforeSha256": "91B23BA4B8675712D18DFACC60116797CABDE2664FEEBF746DBF3E6E59085D35",
+      "afterSha256": "91B23BA4B8675712D18DFACC60116797CABDE2664FEEBF746DBF3E6E59085D35",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.CadAdapter/Model/DatumDefinition.cs",
+      "beforeSha256": "BB3AE2646412BD595D61AD13C76C2E7A32E07FC5FEFE37363E7AB79695F607F0",
+      "afterSha256": "BB3AE2646412BD595D61AD13C76C2E7A32E07FC5FEFE37363E7AB79695F607F0",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.CadAdapter/Recognition/FeatureRecognizer.cs",
+      "beforeSha256": "6DAA1A31B89C07E41130E9F3BC62DA1FDC75FCFBE78B8A87021741C75A634449",
+      "afterSha256": "6DAA1A31B89C07E41130E9F3BC62DA1FDC75FCFBE78B8A87021741C75A634449",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.CadAdapter/Rendering/CadEntityWriter.cs",
+      "beforeSha256": "B0EC163E3A7AB6D2067DA20548A99A8F44740824BEAF10CE748A5A6DF5E3ED72",
+      "afterSha256": "B0EC163E3A7AB6D2067DA20548A99A8F44740824BEAF10CE748A5A6DF5E3ED72",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.CadAdapter/Rendering/CornerCalloutRenderer.cs",
+      "beforeSha256": "1AB22F573358C9EF9D3110CBA80873B2B73568C738E3E5DE6AE099A57822469B",
+      "afterSha256": "1AB22F573358C9EF9D3110CBA80873B2B73568C738E3E5DE6AE099A57822469B",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.CadAdapter/Rendering/DimensionDrawer.cs",
+      "beforeSha256": "F0613D847374C4B86FC0D5E1D1649732078F8C6A1E67AAF588DDC6AE3D29B0F0",
+      "afterSha256": "F0613D847374C4B86FC0D5E1D1649732078F8C6A1E67AAF588DDC6AE3D29B0F0",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.CadAdapter/Rendering/DimensionExtensionLineRenderer.cs",
+      "beforeSha256": "E53B7BB5AE3DF1477EAE551223CE866F39A2DD48B7CBABE39BD6377FF4D90765",
+      "afterSha256": "E53B7BB5AE3DF1477EAE551223CE866F39A2DD48B7CBABE39BD6377FF4D90765",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.CadAdapter/Rendering/DimensionPlanCadItem.cs",
+      "beforeSha256": "F6FF128B2C403961638FCD8B5D9F7D031A2903062CB532929103F6E788520332",
+      "afterSha256": "F6FF128B2C403961638FCD8B5D9F7D031A2903062CB532929103F6E788520332",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.CadAdapter/Rendering/DimensionPlanCadMapper.cs",
+      "beforeSha256": "9ECFF04127F588B55D444E22CDD6CED21A0200B136DFAD2DAA29DDDBB7898BC5",
+      "afterSha256": "9ECFF04127F588B55D444E22CDD6CED21A0200B136DFAD2DAA29DDDBB7898BC5",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.CadAdapter/Rendering/NativeDiameterDimensioner.cs",
+      "beforeSha256": "6F43B49E2335DABF847D039113B9919569FBAFF6CF73F649CB8B4E97CB9CB6FC",
+      "afterSha256": "6F43B49E2335DABF847D039113B9919569FBAFF6CF73F649CB8B4E97CB9CB6FC",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core.Tests/Program.cs",
+      "beforeSha256": "97B9E3BCE94E5468DB65DDCAB36DBB6EF1CC0702487B300F94D65E1B736603EB",
+      "afterSha256": "9AFAFD80EF484DF93EC101DC1E2D987FCBCE2A8247AEF061616352C35B3D964F",
+      "changed": true,
+      "expectedEdit": true
+    },
+    {
+      "path": "CadAuto.Core/Model/CoordinateFrameModelTransform.cs",
+      "beforeSha256": "8A3EADB95746678AB0595A6643766B0E8EA4ABA5A8F014480A3275F24E59A45D",
+      "afterSha256": "8A3EADB95746678AB0595A6643766B0E8EA4ABA5A8F014480A3275F24E59A45D",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Model/Datum2D.cs",
+      "beforeSha256": "D5D1334AA75D86313933585BBA07FAEAD6AC96F53AD45D9AFD31C3DE6B00EC93",
+      "afterSha256": "D5D1334AA75D86313933585BBA07FAEAD6AC96F53AD45D9AFD31C3DE6B00EC93",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionCandidateDiagnostic.cs",
+      "beforeSha256": "57BD5460A30F7F94D984F7D3DC91A5F2BAD142D7170C5AD419D5C8B06285F50C",
+      "afterSha256": "57BD5460A30F7F94D984F7D3DC91A5F2BAD142D7170C5AD419D5C8B06285F50C",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionDiagnosticReport.cs",
+      "beforeSha256": "2D2216BDC2469420521ABB1EFBD765F4DF01C326EC4AD4CA3C9DC2A7B5CECB44",
+      "afterSha256": "2D2216BDC2469420521ABB1EFBD765F4DF01C326EC4AD4CA3C9DC2A7B5CECB44",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlan.cs",
+      "beforeSha256": "6A16C1E084DCD60EA896537891277E0FD2111E4F885FD6422E53943E7B14C458",
+      "afterSha256": "6A16C1E084DCD60EA896537891277E0FD2111E4F885FD6422E53943E7B14C458",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlanner.Features.cs",
+      "beforeSha256": "2CBBFDFB08510B0FE768AD2010146AEE187C130B2618554BC5CC2F6D135692A9",
+      "afterSha256": "A6201199570FDB297BDC0AE02EA4D8BDE84BAB6C3DEAA304599304AB316DBCAF",
+      "changed": true,
+      "expectedEdit": true
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlanner.LProfile.cs",
+      "beforeSha256": "A4CAEBBF5A64A60F025FB0D2B9C8BC8333FFB050840937B74459C3FEB52B314A",
+      "afterSha256": "A4CAEBBF5A64A60F025FB0D2B9C8BC8333FFB050840937B74459C3FEB52B314A",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlanner.Structure.cs",
+      "beforeSha256": "9DEBCA7CB932414E7FDC8A2F51D1C3FC11EBAF11D2B24094B67EDFD6CCEC9EC7",
+      "afterSha256": "9DEBCA7CB932414E7FDC8A2F51D1C3FC11EBAF11D2B24094B67EDFD6CCEC9EC7",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlanner.Suppression.cs",
+      "beforeSha256": "5F68203166BB6EA57C7EB302C395AE94C859B29F25794D50371482A9E1900F92",
+      "afterSha256": "CD91B0909D6F1A2039EE8CE4C863D600ACAF1797FD39EC4F704BC9E7B00A6B83",
+      "changed": true,
+      "expectedEdit": true
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlanner.cs",
+      "beforeSha256": "21995BDEE7CC0020C45EC99455136919B92F7B60D2F5236A1676E80C235DB91A",
+      "afterSha256": "5F3BBF41B034169BFF1C2EC95789A890FF1BAC2A98BE4A639EA51C153A2D542F",
+      "changed": true,
+      "expectedEdit": true
+    },
+    {
+      "path": "CadAuto.Core/Planning/PlannedDimension.cs",
+      "beforeSha256": "FA9A3FDDA1A64CBCFCFABCDF2356D3952DB595CCAE6D5D3A5F2482808BDEA063",
+      "afterSha256": "FA9A3FDDA1A64CBCFCFABCDF2356D3952DB595CCAE6D5D3A5F2482808BDEA063",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/StructureFeature.cs",
+      "beforeSha256": "E6AAB0DEA22A81C91BA596209D1FBC6B0F0FAD722ED63E7F6FDFA7186ED00DBA",
+      "afterSha256": "E6AAB0DEA22A81C91BA596209D1FBC6B0F0FAD722ED63E7F6FDFA7186ED00DBA",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/StructureFeatureExtractor.cs",
+      "beforeSha256": "A73B3E21285E4DDF390034E7788A4703630BD866E9D8CCC59A15BA6770D5DB4B",
+      "afterSha256": "A73B3E21285E4DDF390034E7788A4703630BD866E9D8CCC59A15BA6770D5DB4B",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/StructureMeasurementSelector.cs",
+      "beforeSha256": "B07D3B56BB3D6D15AE881B0776F70ABC03F930B9D38F2AE1DFD38A1DE6F0CD77",
+      "afterSha256": "B07D3B56BB3D6D15AE881B0776F70ABC03F930B9D38F2AE1DFD38A1DE6F0CD77",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/StructurePlacementAdapter.cs",
+      "beforeSha256": "1BEFB867F3056D44EAF2DBEB3F631519E691392B3329798ECAA7F0C7DFFB223E",
+      "afterSha256": "1BEFB867F3056D44EAF2DBEB3F631519E691392B3329798ECAA7F0C7DFFB223E",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Rules/DimensionLayoutItem.cs",
+      "beforeSha256": "C0F3DEF7207EE3E9E6FF4765F44EA6C63D14249C0147E12CC660B111AF5C9BEC",
+      "afterSha256": "C0F3DEF7207EE3E9E6FF4765F44EA6C63D14249C0147E12CC660B111AF5C9BEC",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Rules/DimensionLayoutRules.cs",
+      "beforeSha256": "E87E0EB57EFF07AF41C7E6093D35D684AD344772C200404D2BC27BF6FE9D450E",
+      "afterSha256": "FB23BF85B9E2BDA2AFA74D92CC076F56A2ED5CDDFC7151471D8316B330E0750D",
+      "changed": true,
+      "expectedEdit": true
+    },
+    {
+      "path": "CadAuto.Core/Rules/DimensionPlanPostValidator.cs",
+      "beforeSha256": "0AAC66BFFB53E2E7FC1B44BFADE4845F48C98EEE04D02540CB68012BFB929931",
+      "afterSha256": "0AAC66BFFB53E2E7FC1B44BFADE4845F48C98EEE04D02540CB68012BFB929931",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Rules/DimensionStackingPlacement.cs",
+      "beforeSha256": "DAD4B58799E9418710BA7A99B520DE4366800F4B4CA49A20D2A4304815D8B51E",
+      "afterSha256": "DAD4B58799E9418710BA7A99B520DE4366800F4B4CA49A20D2A4304815D8B51E",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "Commands.cs",
+      "beforeSha256": "509F34A169EECBD8DA1BF74B06019CB64A989E78CA45125B246C37506093AE39",
+      "afterSha256": "509F34A169EECBD8DA1BF74B06019CB64A989E78CA45125B246C37506093AE39",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "PluginEntry.cs",
+      "beforeSha256": "6D7CAFBD8B8A2D3E5B84F66850FE723481C82F2E1C76DD40078CD076931B99F2",
+      "afterSha256": "6D7CAFBD8B8A2D3E5B84F66850FE723481C82F2E1C76DD40078CD076931B99F2",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "graphify-out/.graphify_labels.json",
+      "beforeSha256": "97691E9FC5F422B554D499A77B41FBBDDBC77C0D56F9E76DEACABABA1501928C",
+      "afterSha256": "97691E9FC5F422B554D499A77B41FBBDDBC77C0D56F9E76DEACABABA1501928C",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "graphify-out/GRAPH_REPORT.md",
+      "beforeSha256": "3968236362CBA00EACA3D70CE975E4DBD3C394268FF8EBE25E7871ABA8284DE4",
+      "afterSha256": "3968236362CBA00EACA3D70CE975E4DBD3C394268FF8EBE25E7871ABA8284DE4",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "graphify-out/graph.json",
+      "beforeSha256": "D3B3F4B320D2DEF286EFF1FABC532FF473829C67FB9BB4D8E54A13A9FDB691AE",
+      "afterSha256": "D3B3F4B320D2DEF286EFF1FABC532FF473829C67FB9BB4D8E54A13A9FDB691AE",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "graphify-out/manifest.json",
+      "beforeSha256": "77A0D53D8D2117633A5B80DA87965621FA2F6E88B86ECC1D446B7B5CC079A4D8",
+      "afterSha256": "77A0D53D8D2117633A5B80DA87965621FA2F6E88B86ECC1D446B7B5CC079A4D8",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.CadAdapter/Model/ClosedViewOutline.cs",
+      "beforeSha256": "DA6FB3348975DC868E84C1A879BF8F05319A15A75C97E99271E279287362D806",
+      "afterSha256": "DA6FB3348975DC868E84C1A879BF8F05319A15A75C97E99271E279287362D806",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Model/PinGroupHorizontalLayoutPreference.cs",
+      "beforeSha256": "FB1FB4C6B1BE26A0F3736AB16608BE77BD4A0E18279F64FE971756C087BB17D4",
+      "afterSha256": "FB1FB4C6B1BE26A0F3736AB16608BE77BD4A0E18279F64FE971756C087BB17D4",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Model/PinGroupVerticalLayoutPreference.cs",
+      "beforeSha256": "BB0AD2041734DA73B5954CAD20E84C473773B688ACBF7554A0A4DC31A4C25150",
+      "afterSha256": "BB0AD2041734DA73B5954CAD20E84C473773B688ACBF7554A0A4DC31A4C25150",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlanner.BoundaryFragments.cs",
+      "beforeSha256": "EEE3FC868533539AC3589979AF34C05FE147D8A4E59B0EEFB11C30BE4D98AC33",
+      "afterSha256": "EEE3FC868533539AC3589979AF34C05FE147D8A4E59B0EEFB11C30BE4D98AC33",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/DimensionPlanner.BoundaryInformation.cs",
+      "beforeSha256": "1E71599BA9AAB12F4E96ECF7070016981588F64A69DB4EF3F896B85A44027E4C",
+      "afterSha256": "FDCF0C263C3B62C3C1A6149FE93852BEFEFAE6DA3482D7C1FBBA50026FD497E2",
+      "changed": true,
+      "expectedEdit": true
+    },
+    {
+      "path": "CadAuto.Core/Planning/OrthographicViewSetAssigner.cs",
+      "beforeSha256": "26B0088F31301F28BA119135138DEA585ED7A35F5267A8D97270E0508FAE3533",
+      "afterSha256": "26B0088F31301F28BA119135138DEA585ED7A35F5267A8D97270E0508FAE3533",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/OutlineTopologyDiagnostic.cs",
+      "beforeSha256": "A0A8271B3CD9EE03FE61E661B0A8420532E2C5ADCEC14F6527707FD3D438265E",
+      "afterSha256": "A0A8271B3CD9EE03FE61E661B0A8420532E2C5ADCEC14F6527707FD3D438265E",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/OutlineTopologyExporter.cs",
+      "beforeSha256": "28BCBBACB466FE292C0F2CDEBBA29E70A000034D37A05FC038774AF0DB88FB95",
+      "afterSha256": "28BCBBACB466FE292C0F2CDEBBA29E70A000034D37A05FC038774AF0DB88FB95",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/StructureBoundaryEvidence.cs",
+      "beforeSha256": "C90518E04A540211C60C35D6B62033CC26A4EFBADAC7752565FDC521E8A6F2A5",
+      "afterSha256": "C90518E04A540211C60C35D6B62033CC26A4EFBADAC7752565FDC521E8A6F2A5",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Planning/StructureCoveragePolicy.cs",
+      "beforeSha256": "3507F5C50B1A4F999681A8E0CB007A3D620A2CFF5154F201339A53DF68018427",
+      "afterSha256": "3507F5C50B1A4F999681A8E0CB007A3D620A2CFF5154F201339A53DF68018427",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Rules/DimensionExtensionLineRules.cs",
+      "beforeSha256": "CAC69EA9F38F556A354B8E4AC1D4B987AC18DF4C0E86BE0308D059AF4811523C",
+      "afterSha256": "CAC69EA9F38F556A354B8E4AC1D4B987AC18DF4C0E86BE0308D059AF4811523C",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "CadAuto.Core/Rules/DimensionLayoutRules.DatumStacks.cs",
+      "beforeSha256": "EE7FC8D24D646A175822A6E5A3B523344550B6A850AB0465FACC4F08CAD4B4EF",
+      "afterSha256": "773C5FD3B3D2744EE7380748698FFD4057DE0A6FE0CFDFF2F04EADA8114654BB",
+      "changed": true,
+      "expectedEdit": true
+    },
+    {
+      "path": "HANDOFF-2026-09-10-outer-contour-dimension-analysis.md",
+      "beforeSha256": "292DD446905B95DEAD83BDA1C828140F51A5E30D16FE3B968C52AF63D6C538CB",
+      "afterSha256": "292DD446905B95DEAD83BDA1C828140F51A5E30D16FE3B968C52AF63D6C538CB",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "ThreeViewTrialCommand.cs",
+      "beforeSha256": "D7F2F2511DDB7CDF3B9FEFEA1A6E8FB629C0FBA576BB55ADEAE353FD29C7092A",
+      "afterSha256": "D7F2F2511DDB7CDF3B9FEFEA1A6E8FB629C0FBA576BB55ADEAE353FD29C7092A",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "diagnostics/last-run.outline.svg",
+      "beforeSha256": "8D30CAEDB005BF1D00CA77C3C384357595A6F186636C6B527DF077A5CDCC894C",
+      "afterSha256": "8D30CAEDB005BF1D00CA77C3C384357595A6F186636C6B527DF077A5CDCC894C",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "regression/asd4-correctness/L01-13/dwg-extract.json",
+      "beforeSha256": "BF2064F24AB994459FC3D6B9C214867C52BCBD3A4CFCAED8FB2FCF81D1536A65",
+      "afterSha256": "BF2064F24AB994459FC3D6B9C214867C52BCBD3A4CFCAED8FB2FCF81D1536A65",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "regression/asd4-correctness/L01-13/expectations.json",
+      "beforeSha256": "2723855FA2FF8936F2DEBFAE697EA44BA1F6235DA27F36E2A38B91C5AE751BB4",
+      "afterSha256": "2723855FA2FF8936F2DEBFAE697EA44BA1F6235DA27F36E2A38B91C5AE751BB4",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "regression/asd4-correctness/L01-13/geometry.json",
+      "beforeSha256": "55208796DD789D3E6A853327BBABA30377D2E02B75AF732BE0B996DD34A5D59C",
+      "afterSha256": "55208796DD789D3E6A853327BBABA30377D2E02B75AF732BE0B996DD34A5D59C",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "regression/asd4-correctness/L01-13/geometry.svg",
+      "beforeSha256": "94C36711AF6DCC32AF8A86648F75B04148D6A2B417DCD641D1EE5E21DA08D2E3",
+      "afterSha256": "94C36711AF6DCC32AF8A86648F75B04148D6A2B417DCD641D1EE5E21DA08D2E3",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "regression/asd4-correctness/L01-13/round1-expectations.json",
+      "beforeSha256": "4A12A90ABDDD340FA0524ADB1D4FBE431675F15346B105ADBDAB3A2D108F12DA",
+      "afterSha256": "4A12A90ABDDD340FA0524ADB1D4FBE431675F15346B105ADBDAB3A2D108F12DA",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "regression/asd4-correctness/L01-13/round1-report.md",
+      "beforeSha256": "E10904676DECE00D8B08CCF69734D4EFB5598AE39BF4666E4CEE00F2C2DA5A7B",
+      "afterSha256": "E10904676DECE00D8B08CCF69734D4EFB5598AE39BF4666E4CEE00F2C2DA5A7B",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "regression/asd4-correctness/L01-13/source.dwg",
+      "beforeSha256": "AE4EF04B486ABFC4624D804A9B63CE4D9E78979C8B672657232117BBA41DBFF1",
+      "afterSha256": "AE4EF04B486ABFC4624D804A9B63CE4D9E78979C8B672657232117BBA41DBFF1",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "scripts/cad-increment-brush.lsp",
+      "beforeSha256": "598D4EF5CFCEDD32078377299AC6F07B3A40628F461FAE64B47E6F569616129A",
+      "afterSha256": "598D4EF5CFCEDD32078377299AC6F07B3A40628F461FAE64B47E6F569616129A",
+      "changed": false,
+      "expectedEdit": false
+    },
+    {
+      "path": "scripts/test-deploy-next-version.ps1",
+      "beforeSha256": "B09369B3A9D18B95CC53C3D8424FC8CD067A2BD7A0C2F857EEB16EDDBEF0DF59",
+      "afterSha256": "B09369B3A9D18B95CC53C3D8424FC8CD067A2BD7A0C2F857EEB16EDDBEF0DF59",
+      "changed": false,
+      "expectedEdit": false
+    }
+  ],
+  "rawRunDirectory": "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-delivery",
+  "note": "Precise edits only in the seven listed preexisting dirty sources. Runtime input/source/binary fingerprints are independently in results.json; no production DWG, expectation or original graph was changed."
+}

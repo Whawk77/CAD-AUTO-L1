@@ -312,7 +312,7 @@ public sealed class StructureSuppressionRules
 				return true;
 			}
 		}
-		return false;
+		return ArcCrossesExtension(featurePoint, outline, horizontal: true, num, num2);
 	}
 
 	public bool RightExtensionCrossesOutline(Point2D featurePoint, OutlineFeature2D outline, double firstDimensionOffset)
@@ -335,7 +335,7 @@ public sealed class StructureSuppressionRules
 				return true;
 			}
 		}
-		return false;
+		return ArcCrossesExtension(featurePoint, outline, horizontal: true, num, num2);
 	}
 
 	public bool TopExtensionCrossesOutline(Point2D featurePoint, OutlineFeature2D outline, double firstDimensionOffset)
@@ -358,7 +358,7 @@ public sealed class StructureSuppressionRules
 				return true;
 			}
 		}
-		return false;
+		return ArcCrossesExtension(featurePoint, outline, horizontal: false, num, num2);
 	}
 
 	public bool BottomExtensionCrossesOutline(Point2D featurePoint, OutlineFeature2D outline, double firstDimensionOffset)
@@ -381,7 +381,20 @@ public sealed class StructureSuppressionRules
 				return true;
 			}
 		}
-		return false;
+		return ArcCrossesExtension(featurePoint, outline, horizontal: false, num, num2);
+	}
+
+	private bool ArcCrossesExtension(Point2D origin, OutlineFeature2D outline, bool horizontal, double minimum, double maximum)
+	{
+		if (outline.Arcs.Count == 0) { return false; }
+		var arcScope = new OutlineFeature2D();
+		arcScope.Arcs.AddRange(outline.Arcs);
+		var intersections = horizontal
+			? OutlineGeometryQuery.GetHorizontalBoundaryIntersections(arcScope, origin.Y, _config.GeometryTolerance)
+			: OutlineGeometryQuery.GetVerticalBoundaryIntersections(arcScope, origin.X, _config.GeometryTolerance);
+		return intersections.Any(point => point.DistanceTo(origin) > _config.GeometryTolerance
+			&& (horizontal ? point.X : point.Y) >= minimum - _config.GeometryTolerance
+			&& (horizontal ? point.X : point.Y) <= maximum + _config.GeometryTolerance);
 	}
 
 	private bool TryGetVerticalIntersectionY(Segment2D segment, double x, out double y)

@@ -1,0 +1,63 @@
+{
+  "scope": "Core model, not DWG",
+  "closed": true,
+  "outlineVertices": [
+    [
+      100,
+      100
+    ],
+    [
+      200,
+      100
+    ],
+    [
+      200,
+      200
+    ],
+    [
+      160,
+      200
+    ],
+    [
+      160,
+      140
+    ],
+    [
+      100,
+      140
+    ]
+  ],
+  "hole": {
+    "center": [
+      180,
+      170
+    ],
+    "diameter": 8,
+    "kind": "Normal"
+  },
+  "datum": {
+    "BaseX": 100,
+    "BaseY": 100,
+    "HoleCenterlineEndpoints": []
+  },
+  "expectedHorizontalFirstPoint": [
+    100,
+    140
+  ],
+  "expectedVerticalFirstPoint": [
+    180,
+    100
+  ],
+  "actualVerticalBefore": [
+    200,
+    100
+  ],
+  "actualVerticalAfter": [
+    180,
+    100
+  ],
+  "measurementBeforeAndAfter": 70,
+  "verticalSideBeforeAndAfter": "Right",
+  "testExpectationChanged": false,
+  "classification": "Algorithm eligibility defect: unconditional side-facing endpoint relocation overwrote the correct real-boundary query without matching selected-centerline evidence"
+}

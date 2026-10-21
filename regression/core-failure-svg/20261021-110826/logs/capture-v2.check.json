@@ -1,0 +1,14 @@
+{
+  "start_time": "2026-10-21T11:19:34+08:00",
+  "manifest_path": "D:\\work\\AI\\9.1 托压块版本\\regression\\core-failure-svg\\20261021-110826\\capture-manifest.json",
+  "status": "failed",
+  "manifest_count": 29,
+  "case_array_length": 29,
+  "scene_count_positive": 28,
+  "reproduced_true": 29,
+  "same_failure_message_true": 29,
+  "invalid_case_indexes": [
+    7
+  ],
+  "end_time": "2026-10-21T11:19:34+08:00"
+}

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using CadAuto.Core.Geometry;
 using CadAuto.Core.Model;
@@ -62,6 +63,122 @@ public sealed partial class DimensionPlanner
 			: (normal > 0 ? DimensionSide.Right : DimensionSide.Left);
 	}
 
+	private bool TryChooseClearBoundaryEndpoint(OutlineTopologyDiagnostic graph, OutlineTopologyEdge sourceEdge,
+		int sourceNodeId, int endpointIndex, Point2D endpoint, DimensionOrientation orientation, DimensionSide side,
+		OutlineFeature2D outline, out Point2D replacement, out string evidence)
+	{
+		replacement = endpoint;
+		evidence = null;
+		if (outline == null || !ExtensionCrossesOutline(endpoint, orientation, side, outline)) { return false; }
+		evidence = "ExtensionOverlapUnresolved=Endpoint" + endpointIndex + ";NoEquivalentAxisSupport";
+		if (graph == null || graph.Status != "UniqueExteriorWalk" || !graph.IsClosedWalk || graph.HasRepeatedBoundaryEdges
+			|| _config.FirstDimOffset < 0 || double.IsNaN(_config.FirstDimOffset) || double.IsInfinity(_config.FirstDimOffset))
+		{
+			return false;
+		}
+
+		double tolerance = _config.GeometryTolerance;
+		bool horizontalExtension = orientation == DimensionOrientation.Vertical;
+		bool horizontalMeasurement = orientation == DimensionOrientation.Horizontal;
+		if ((orientation == DimensionOrientation.Vertical && side != DimensionSide.Left && side != DimensionSide.Right)
+			|| (orientation == DimensionOrientation.Horizontal && side != DimensionSide.Top && side != DimensionSide.Bottom))
+		{
+			return false;
+		}
+		double measuredCoordinate = horizontalMeasurement ? endpoint.X : endpoint.Y;
+		double dimLineCoordinate = side == DimensionSide.Left ? outline.MinX - _config.FirstDimOffset
+			: side == DimensionSide.Right ? outline.MaxX + _config.FirstDimOffset
+			: side == DimensionSide.Bottom ? outline.MinY - _config.FirstDimOffset
+			: outline.MaxY + _config.FirstDimOffset;
+		double currentDistance = Math.Abs((horizontalExtension ? endpoint.X : endpoint.Y) - dimLineCoordinate);
+		var boundaryEdgeIds = new HashSet<int>(graph.BoundaryPath.Select(step => step.EdgeId));
+		double bestDistance = currentDistance;
+		OutlineTopologyNode bestNode = null;
+		OutlineTopologyEdge bestSupport = null;
+		foreach (var support in graph.Edges.Where(e => e.Id != sourceEdge.Id && e.IsBoundary
+			&& boundaryEdgeIds.Contains(e.Id) && e.Kind == "Line"
+			&& (e.StartNode == sourceNodeId || e.EndNode == sourceNodeId)
+			&& (horizontalExtension ? Math.Abs(e.Start.Y - e.End.Y) <= tolerance : Math.Abs(e.Start.X - e.End.X) <= tolerance)
+			&& !string.IsNullOrEmpty(e.SourceKey)).OrderBy(e => e.Id))
+		{
+			int candidateNodeId = support.StartNode == sourceNodeId ? support.EndNode : support.StartNode;
+			var candidate = graph.Nodes.FirstOrDefault(n => n.Id == candidateNodeId && n.IsBoundary);
+			if (candidate == null) { continue; }
+			double candidateMeasuredCoordinate = horizontalMeasurement ? candidate.Point.X : candidate.Point.Y;
+			if (Math.Abs(candidateMeasuredCoordinate - measuredCoordinate) > tolerance
+				|| !MovesTowardDimensionLine(endpoint, candidate.Point, orientation, side, tolerance)
+				|| ExtensionCrossesOutline(candidate.Point, orientation, side, outline)) { continue; }
+			double candidateDistance = Math.Abs((horizontalExtension ? candidate.Point.X : candidate.Point.Y) - dimLineCoordinate);
+			if (candidateDistance >= bestDistance - tolerance) { continue; }
+			bestDistance = candidateDistance;
+			bestNode = candidate;
+			bestSupport = support;
+		}
+		if (bestNode == null) { return false; }
+
+		replacement = bestNode.Point;
+		evidence = string.Format(CultureInfo.InvariantCulture,
+			"EquivalentAxisAttachment=Endpoint{0};OriginalNode={1};ReplacementNode={2};SupportEdge={3};MeasuredAxisDelta={4:0.#########}",
+			endpointIndex, sourceNodeId, bestNode.Id, bestSupport.SourceKey,
+			Math.Abs((horizontalMeasurement ? replacement.X : replacement.Y) - measuredCoordinate));
+		return true;
+	}
+
+	private void ResolveStructureExtensionAttachments(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		var graph = plan.Diagnostics.OutlineTopology;
+		if (!new StructureBoundaryEvidence(graph, _config.GeometryTolerance).IsAvailable) { return; }
+		foreach (var dimension in plan.Dimensions.Where(d => d.Kind == DimensionKind.Normal
+			&& (d.Role == DimensionCandidateRole.Structure || d.Role == DimensionCandidateRole.OutlineSegment)))
+		{
+			for (int index = 1; index <= 2; index++)
+			{
+				Point2D point = index == 1 ? dimension.FirstPoint : dimension.SecondPoint;
+				var node = graph.Nodes.FirstOrDefault(n => n.IsBoundary && n.Point.DistanceTo(point) <= _config.GeometryTolerance);
+				if (node == null) { continue; }
+				var source = graph.Edges.FirstOrDefault(e => e.IsBoundary && e.Kind == "Line"
+					&& (e.StartNode == node.Id || e.EndNode == node.Id)
+					&& (dimension.Orientation == DimensionOrientation.Horizontal
+						? Math.Abs(e.Start.Y - e.End.Y) <= _config.GeometryTolerance
+						: Math.Abs(e.Start.X - e.End.X) <= _config.GeometryTolerance));
+				if (source == null) { continue; }
+				Point2D replacement;
+				string evidence;
+				if (TryChooseClearBoundaryEndpoint(graph, source, node.Id, index, point, dimension.Orientation,
+					dimension.Side, outline, out replacement, out evidence))
+				{
+					if (index == 1) { dimension.FirstPoint = replacement; } else { dimension.SecondPoint = replacement; }
+				}
+				if (evidence != null) { plan.RecordRuleEvidence(dimension, null, null, dimension.TopologyEvidence + ";" + evidence); }
+			}
+		}
+	}
+
+	private bool ExtensionCrossesOutline(Point2D point, DimensionOrientation orientation, DimensionSide side, OutlineFeature2D outline)
+	{
+		if (orientation == DimensionOrientation.Vertical)
+		{
+			return side == DimensionSide.Left
+				? _structureSuppressionRules.LeftExtensionCrossesOutline(point, outline, _config.FirstDimOffset)
+				: side == DimensionSide.Right && _structureSuppressionRules.RightExtensionCrossesOutline(point, outline, _config.FirstDimOffset);
+		}
+		return side == DimensionSide.Top
+			? _structureSuppressionRules.TopExtensionCrossesOutline(point, outline, _config.FirstDimOffset)
+			: side == DimensionSide.Bottom && _structureSuppressionRules.BottomExtensionCrossesOutline(point, outline, _config.FirstDimOffset);
+	}
+
+	private static bool MovesTowardDimensionLine(Point2D from, Point2D to, DimensionOrientation orientation,
+		DimensionSide side, double tolerance)
+	{
+		if (orientation == DimensionOrientation.Vertical)
+		{
+			return side == DimensionSide.Left ? to.X < from.X - tolerance
+				: side == DimensionSide.Right && to.X > from.X + tolerance;
+		}
+		return side == DimensionSide.Bottom ? to.Y < from.Y - tolerance
+			: side == DimensionSide.Top && to.Y > from.Y + tolerance;
+	}
+
 	private PlannedDimension AddBoundaryInformationDimension(DimensionPlan plan, string key, string role,
 		DimensionOrientation orientation, DimensionSide side, Point2D first, Point2D second, IEnumerable<string> sources, string proof)
 	{
@@ -95,10 +212,27 @@ public sealed partial class DimensionPlanner
 		{
 			foreach (bool horizontal in new[] { true, false })
 			{
+				var orientation = horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical;
+				var side = BoundaryProjectionSide(edge, graph, horizontal);
+				var first = edge.Start;
+				var second = edge.End;
+				var attachmentEvidence = new List<string>();
+				if (TryChooseClearBoundaryEndpoint(graph, edge, edge.StartNode, 1, first, orientation, side, outline,
+					out var replacement, out var evidence))
+				{
+					first = replacement;
+				}
+				if (!string.IsNullOrEmpty(evidence)) { attachmentEvidence.Add(evidence); }
+				if (TryChooseClearBoundaryEndpoint(graph, edge, edge.EndNode, 2, second, orientation, side, outline,
+					out replacement, out evidence))
+				{
+					second = replacement;
+				}
+				if (!string.IsNullOrEmpty(evidence)) { attachmentEvidence.Add(evidence); }
+				string proof = "BoundaryInformation|Relation=BodyObliqueProjection|BoundaryEdge=" + edge.Id
+					+ (attachmentEvidence.Count == 0 ? string.Empty : "|" + string.Join("|", attachmentEvidence));
 				AddBoundaryInformationDimension(plan, "BoundaryInformation:Oblique:" + edge.SourceKey, BoundaryObliqueRole,
-					horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical,
-					BoundaryProjectionSide(edge, graph, horizontal), edge.Start, edge.End, new[] { edge.SourceKey },
-					"BoundaryInformation|Relation=BodyObliqueProjection|BoundaryEdge=" + edge.Id);
+					orientation, side, first, second, new[] { edge.SourceKey }, proof);
 			}
 		}
 		// A chamfer / straight face / chamfer route defines its full face width using

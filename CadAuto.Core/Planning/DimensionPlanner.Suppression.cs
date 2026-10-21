@@ -62,6 +62,9 @@ public sealed partial class DimensionPlanner
 			// CAD real geometry can still emit near-overall inset bodies via OS / residual paths.
 			SuppressNearOverallInsetStructureBodies(plan, outline);
 			SuppressInsetStructureComplementaryToEnvelopeArm(plan, outline);
+			SuppressRawLedgesCoveredByEnvelopePosition(plan, outline);
+			SuppressTangentSpansAcrossJoinedSeams(plan, outline);
+			SuppressCollinearExteriorBranchFragments(plan, outline);
 			// Only clean OutlineSegment / envelope noise so OS does not re-win over structure.
 			SuppressOutlineSegmentsThatPartitionOverall(plan, outline, DimensionSide.Top, horizontal: true);
 			SuppressOutlineSegmentsThatPartitionOverall(plan, outline, DimensionSide.Bottom, horizontal: true);
@@ -1155,6 +1158,7 @@ public sealed partial class DimensionPlanner
 			}
 			Point2D inner = new Point2D(maxX, outline.MinY);
 			return HasContinuousStraightOutlineEdge(outline, true, outline.MinY, minX, maxX)
+				&& !HasStraightContinuation(outline, inner, new Point2D(minX, outline.MinY), tol)
 				&& outline.Segments.Any((Segment2D segment) => segment != null
 					&& !segment.IsArcChord
 					&& segment.IsVertical(tol)
@@ -1176,12 +1180,48 @@ public sealed partial class DimensionPlanner
 		}
 		Point2D upper = new Point2D(outline.MinX, maxY);
 		return HasContinuousStraightOutlineEdge(outline, false, outline.MinX, minY, maxY)
+			&& !HasStraightContinuation(outline, upper, new Point2D(outline.MinX, minY), tol)
 			&& outline.Segments.Any((Segment2D segment) => segment != null
 				&& !segment.IsArcChord
 				&& segment.IsHorizontal(tol)
 				&& segment.LengthX < outline.Width - tol
 				&& (PointsEqual(segment.Start, upper) && segment.End.X > upper.X + tol
 					|| PointsEqual(segment.End, upper) && segment.Start.X > upper.X + tol));
+	}
+
+	private static bool HasStraightContinuation(OutlineFeature2D outline, Point2D endpoint, Point2D from, double tolerance)
+	{
+		double length = endpoint.DistanceTo(from);
+		if (length <= tolerance) { return false; }
+		double dx = (endpoint.X - from.X) / length, dy = (endpoint.Y - from.Y) / length;
+		return outline.Segments.Any(s => s != null && !s.IsArcChord
+			&& PointLiesOnSegment(endpoint, s, tolerance)
+			&& Math.Abs((s.End.X - s.Start.X) * dy - (s.End.Y - s.Start.Y) * dx) <= tolerance
+			&& (new[] { s.Start, s.End }).Any(p => (p.X - endpoint.X) * dx + (p.Y - endpoint.Y) * dy > tolerance));
+	}
+
+	private bool IsRealEnvelopeCornerSpan(PlannedDimension dimension, OutlineFeature2D outline)
+	{
+		if (outline == null) { return false; }
+		double tol = _config.GeometryTolerance;
+		bool horizontal = dimension.Orientation == DimensionOrientation.Horizontal;
+		Func<Point2D, double> axis = p => horizontal ? p.X : p.Y;
+		Func<Point2D, double> cross = p => horizontal ? p.Y : p.X;
+		double minimum = horizontal ? outline.MinX : outline.MinY, maximum = horizontal ? outline.MaxX : outline.MaxY;
+		double crossMin = horizontal ? outline.MinY : outline.MinX, crossMax = horizontal ? outline.MaxY : outline.MaxX;
+		double level = cross(dimension.FirstPoint);
+		if (Math.Abs(cross(dimension.SecondPoint) - level) > tol) { return false; }
+		bool onMin = Math.Abs(level - crossMin) <= tol, onMax = Math.Abs(level - crossMax) <= tol;
+		bool atMin = Math.Abs(Math.Min(axis(dimension.FirstPoint), axis(dimension.SecondPoint)) - minimum) <= tol;
+		bool atMax = Math.Abs(Math.Max(axis(dimension.FirstPoint), axis(dimension.SecondPoint)) - maximum) <= tol;
+		if (onMin == onMax || atMin == atMax) { return false; }
+		Point2D inner = (axis(dimension.FirstPoint) < axis(dimension.SecondPoint)) == atMin ? dimension.SecondPoint : dimension.FirstPoint;
+		Point2D outer = inner.Equals(dimension.FirstPoint) ? dimension.SecondPoint : dimension.FirstPoint;
+		return HasContinuousStraightOutlineEdge(outline, horizontal, level, Math.Min(axis(inner), axis(outer)), Math.Max(axis(inner), axis(outer)))
+			&& !HasStraightContinuation(outline, inner, outer, tol)
+			&& outline.Segments.Any(s => s != null && !s.IsArcChord && (horizontal ? s.IsVertical(tol) : s.IsHorizontal(tol))
+				&& ((PointsEqual(s.Start, inner) && (onMin ? cross(s.End) > level + tol : cross(s.End) < level - tol))
+					|| (PointsEqual(s.End, inner) && (onMin ? cross(s.Start) > level + tol : cross(s.Start) < level - tol))));
 	}
 
 	private void SuppressDatumRootedOuterStepComplements(DimensionPlan plan, OutlineFeature2D outline, bool horizontal)
@@ -1340,7 +1380,8 @@ public sealed partial class DimensionPlanner
 			return;
 		}
 		double tol = _config.GeometryTolerance;
-		List<PlannedDimension> snapshot = plan.Dimensions.ToList();
+		List<PlannedDimension> snapshot = plan.Dimensions
+			.Where(d => !StructureDatumRules.IsCommonDatumRule(d.RuleId)).ToList();
 		List<PlannedDimension> realFaces = snapshot.Where((PlannedDimension d) =>
 			d.Kind == DimensionKind.Normal
 			&& d.Orientation == DimensionOrientation.Vertical
@@ -1395,7 +1436,8 @@ public sealed partial class DimensionPlanner
 			return;
 		}
 		double tol = _config.GeometryTolerance;
-		List<PlannedDimension> snapshot = plan.Dimensions.ToList();
+		List<PlannedDimension> snapshot = plan.Dimensions
+			.Where(d => !StructureDatumRules.IsCommonDatumRule(d.RuleId)).ToList();
 		List<PlannedDimension> realTopSteps = snapshot.Where((PlannedDimension d) =>
 			d.Kind == DimensionKind.Normal
 			&& d.Orientation == DimensionOrientation.Horizontal
@@ -1461,7 +1503,8 @@ public sealed partial class DimensionPlanner
 		}
 		double tol = _config.GeometryTolerance;
 		Tuple<double, double> overallInterval = ComputeArrowInterval(overall, horizontal: true);
-		List<PlannedDimension> snapshot = plan.Dimensions.ToList();
+		List<PlannedDimension> snapshot = plan.Dimensions
+			.Where(d => !StructureDatumRules.IsCommonDatumRule(d.RuleId)).ToList();
 		foreach (PlannedDimension step in snapshot.Where((PlannedDimension d) =>
 			d.Kind == DimensionKind.Normal
 			&& d.Orientation == DimensionOrientation.Horizontal
@@ -1636,6 +1679,66 @@ public sealed partial class DimensionPlanner
 		return false;
 	}
 
+	private void SuppressRawLedgesCoveredByEnvelopePosition(DimensionPlan plan, OutlineFeature2D outline)
+	{
+		double tol = _config.GeometryTolerance;
+		var ownership = new StructureBoundaryEvidence(plan.Diagnostics.OutlineTopology, tol);
+		if (!ownership.IsAvailable) { return; }
+		var graph = plan.Diagnostics.OutlineTopology;
+		var boundary = ownership.BoundaryOutline;
+		var overall = plan.Dimensions.FirstOrDefault(d => d.Kind == DimensionKind.OverallWidth
+			&& d.Orientation == DimensionOrientation.Horizontal && d.AttachmentValidity != false);
+		if (overall == null) { return; }
+		foreach (var raw in plan.Dimensions.Where(d => d.Kind == DimensionKind.Normal
+			&& d.Role == DimensionCandidateRole.OutlineSegment && d.DebugRole == "OutlineSegment"
+			&& d.Orientation == DimensionOrientation.Horizontal).ToList())
+		{
+			if (StructureCoveragePolicy.GetIneligibilityReason(raw, allowOutlineSegment: true) != null) { continue; }
+			var ledge = graph.Edges.FirstOrDefault(e => e.IsBoundary && e.Kind == "Line"
+				&& e.SourceKey == raw.SourceKey && SameBoundaryPair(e.Start, e.End, raw.FirstPoint, raw.SecondPoint)
+				&& Math.Abs(e.Start.Y - e.End.Y) <= tol);
+			if (ledge == null) { continue; }
+			foreach (var position in plan.Dimensions.Where(d => d.Kind == DimensionKind.Normal
+				&& d.Role == DimensionCandidateRole.Structure && d.OwnerKind == DimensionCandidateOwnerKind.Outline
+				&& d.Orientation == DimensionOrientation.Horizontal && d.Side == raw.Side
+				&& (d.Side == DimensionSide.Top || d.Side == DimensionSide.Bottom)
+				&& d.AttachmentValidity != false && string.IsNullOrEmpty(d.RuleId)).ToList())
+			{
+				var riser = graph.Edges.FirstOrDefault(e => e.IsBoundary && e.Kind == "Line"
+					&& !string.IsNullOrEmpty(e.SourceKey)
+					&& (position.SourceKey == "LedgeResidualRight:" + e.SourceKey
+						|| position.SourceKey == "LedgeResidualLeft:" + e.SourceKey)
+					&& Math.Abs(e.Start.X - e.End.X) <= tol
+					&& (e.StartNode == ledge.StartNode || e.StartNode == ledge.EndNode
+						|| e.EndNode == ledge.StartNode || e.EndNode == ledge.EndNode));
+				if (riser == null || !FormsCompleteOverallPartition(raw, position, overall, horizontal: true)) { continue; }
+				double envelopeY = position.Side == DimensionSide.Top ? outline.MaxY : outline.MinY;
+				if (Math.Abs(riser.Start.Y - envelopeY) > tol && Math.Abs(riser.End.Y - envelopeY) > tol) { continue; }
+				// Fillets may replace an envelope corner; keep the measured X and use a real clear endpoint.
+				var first = graph.Nodes.Where(n => n.IsBoundary && Math.Abs(n.Point.X - position.FirstPoint.X) <= tol
+					&& !ExtensionCrossesOutline(n.Point, position.Orientation, position.Side, boundary))
+					.OrderBy(n => Math.Abs(n.Point.Y - envelopeY)).ToList();
+				var second = graph.Nodes.Where(n => n.IsBoundary && Math.Abs(n.Point.X - position.SecondPoint.X) <= tol
+					&& !ExtensionCrossesOutline(n.Point, position.Orientation, position.Side, boundary))
+					.OrderBy(n => Math.Abs(n.Point.Y - envelopeY)).ToList();
+				if (first.Count == 0 || second.Count == 0) { continue; }
+				position.FirstPoint = first[0].Point;
+				position.SecondPoint = second[0].Point;
+				position.SourceGeometryIds = DimensionCandidateSemantics.MergeSourceGeometryIds(position.SourceGeometryIds,
+					graph.Edges.Where(e => e.IsBoundary && (e.StartNode == first[0].Id || e.EndNode == first[0].Id
+						|| e.StartNode == second[0].Id || e.EndNode == second[0].Id)).Select(e => e.SourceKey));
+				position.AttachmentKind = "ExteriorBoundary";
+				plan.SetAttachmentValidity(position, true);
+				string evidence = "ConnectedLedgeRiser|Ledge=" + ledge.SourceKey + "|Riser=" + riser.SourceKey
+					+ "|Proof=AdjacentIntervalsPartitionOverall|ProviderRealBoundaryEndpoints=true";
+				plan.RecordRuleEvidence(position, null, null, (position.TopologyEvidence ?? string.Empty) + "|" + evidence);
+				System.Diagnostics.Debug.Assert(FormsCompleteOverallPartition(raw, position, overall, horizontal: true));
+				if (plan.TrySuppressCoveredStructure(raw, "Structure.RawLedgeCoveredByEnvelopePosition",
+					new[] { overall, position }, new[] { ledge.SourceKey, riser.SourceKey }, evidence, allowOutlineSegment: true)) { break; }
+			}
+		}
+	}
+
 	private static bool HasUpwardReturnAtStepShoulder(OutlineFeature2D outline, Point2D shoulder, double baseline, double tol)
 	{
 		return outline.Segments.Any((Segment2D segment) =>
@@ -1711,6 +1814,7 @@ public sealed partial class DimensionPlanner
 			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
 				&& d.Side == side
 				&& d.Role == DimensionCandidateRole.Structure
+				&& !StructureDatumRules.IsCommonDatumRule(d.RuleId)
 				// Same-level collinear structure only; cross-level projections use other rules.
 				&& IsAxisAlignedStructureMember(d, horizontal, tol))
 			.ToList();
@@ -1720,6 +1824,7 @@ public sealed partial class DimensionPlanner
 			if (candidate.Kind != DimensionKind.Normal
 				|| candidate.Side != side
 				|| candidate.Role != DimensionCandidateRole.Structure
+				|| StructureDatumRules.IsCommonDatumRule(candidate.RuleId)
 				|| !IsAxisAlignedStructureMember(candidate, horizontal, tol))
 			{
 				continue;
@@ -1803,6 +1908,7 @@ public sealed partial class DimensionPlanner
 				&& d.Side == side
 				&& d.Orientation == expected
 				&& d.Role == DimensionCandidateRole.Structure
+				&& !StructureDatumRules.IsCommonDatumRule(d.RuleId)
 				&& IsAxisAlignedStructureMember(d, horizontal, tol))
 			.ToList();
 		if (structure.Count < 3)
@@ -2340,7 +2446,8 @@ public sealed partial class DimensionPlanner
 				.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
 					&& d.Orientation == expected
 					&& d.Side == side
-					&& d.Role == DimensionCandidateRole.Structure)
+					&& d.Role == DimensionCandidateRole.Structure
+					&& !StructureDatumRules.IsCommonDatumRule(d.RuleId))
 				.ToList();
 			if (members.Count < 2)
 			{
@@ -2421,7 +2528,8 @@ public sealed partial class DimensionPlanner
 				.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
 					&& d.Orientation == DimensionOrientation.Vertical
 					&& d.Side == opposite
-					&& d.Role == DimensionCandidateRole.Structure)
+					&& d.Role == DimensionCandidateRole.Structure
+					&& !StructureDatumRules.IsCommonDatumRule(d.RuleId))
 				.ToList();
 			if (!oppositeHeights.Any((PlannedDimension d) =>
 				GetDimensionSpan(d, horizontal: false) + tol >= majorFloor))
@@ -2432,7 +2540,8 @@ public sealed partial class DimensionPlanner
 				.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
 					&& d.Orientation == DimensionOrientation.Vertical
 					&& d.Side == side
-					&& d.Role == DimensionCandidateRole.Structure)
+					&& d.Role == DimensionCandidateRole.Structure
+					&& !StructureDatumRules.IsCommonDatumRule(d.RuleId))
 				.ToList();
 			// Only lone residuals; multi-piece feature chains (50+75) stay.
 			if (sideHeights.Count != 1)
@@ -2941,6 +3050,7 @@ public sealed partial class DimensionPlanner
 			.Where((PlannedDimension d) => d.Kind == DimensionKind.Normal
 				&& string.Equals(d.DebugRole, "OutlineSegment", StringComparison.Ordinal)
 				&& !IsDatumRootedOuterStepDimension(d, outline)
+				&& !IsRealEnvelopeCornerSpan(d, outline)
 				&& IsDimensionOnOverallEnvelope(d, minX, maxX, minY, maxY))
 			.ToList();
 		List<PlannedDimension> bottomOuterArmResiduals = plan.Dimensions
@@ -3211,7 +3321,9 @@ public sealed partial class DimensionPlanner
 			PlannedDimension cand = plan.Dimensions[num];
 			if (cand == null
 				|| cand.Kind != DimensionKind.Normal
-				|| cand.Role != DimensionCandidateRole.Structure)
+				|| cand.Role != DimensionCandidateRole.Structure
+				// Common-datum positions carry independent feature locations, even near overall.
+				|| StructureDatumRules.IsCommonDatumRule(cand.RuleId))
 			{
 				continue;
 			}
@@ -3290,6 +3402,7 @@ public sealed partial class DimensionPlanner
 			.Where(d => d != null
 				&& d.Kind == DimensionKind.Normal
 				&& d.Role == DimensionCandidateRole.Structure
+				&& !StructureDatumRules.IsCommonDatumRule(d.RuleId)
 				&& d.Orientation == DimensionOrientation.Vertical)
 			.ToList();
 		if (structures.Count < 2)
@@ -3946,7 +4059,7 @@ public sealed partial class DimensionPlanner
 			for (int num3 = num + 1; num3 < list.Count; num3++)
 			{
 				if (IsSameMeasuredDimension(list[num], list[num3], horizontal)
-					&& CompareSameSideDuplicatePreference(list[num3], list[num2], side) > 0)
+					&& CompareSameSideDuplicatePreference(list[num3], list[num2], side, plan) > 0)
 				{
 					num2 = num3;
 				}
@@ -3975,11 +4088,20 @@ public sealed partial class DimensionPlanner
 		{
 			return false;
 		}
+		if (StructureDatumRules.IsCommonDatumRule(a.RuleId) || StructureDatumRules.IsCommonDatumRule(b.RuleId))
+		{
+			// Datum providers are duplicates only for the same group, datum and target feature.
+			if (a.RuleId != b.RuleId || string.IsNullOrEmpty(a.DatumFamilyKey) || a.DatumFamilyKey != b.DatumFamilyKey
+				|| string.IsNullOrEmpty(a.SourceKey) || a.SourceKey != b.SourceKey
+				|| !string.Equals(a.OverrideText ?? string.Empty, b.OverrideText ?? string.Empty, StringComparison.Ordinal)) { return false; }
+		}
 		return _dimensionDeduplicationRules.IsSameMeasuredDimension(ToDeduplicationItem(a), ToDeduplicationItem(b), horizontal);
 	}
 
-	private int CompareSameSideDuplicatePreference(PlannedDimension a, PlannedDimension b, DimensionSide side)
+	private int CompareSameSideDuplicatePreference(PlannedDimension a, PlannedDimension b, DimensionSide side, DimensionPlan plan)
 	{
+		if (StructureDatumRules.IsCommonDatumRule(a.RuleId) && a.RuleId == b.RuleId
+			&& plan.IsCoverageProvider(a) != plan.IsCoverageProvider(b)) { return plan.IsCoverageProvider(a) ? 1 : -1; }
 		int basePreference = CompareDuplicatePreference(a, b);
 		if (basePreference != 0 || !IsSlotLayoutDimension(a) || !IsSlotLayoutDimension(b))
 		{

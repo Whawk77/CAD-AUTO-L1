@@ -1,0 +1,360 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-17T09:20:41.191787+00:00",
+  "status": "RuleIdentityConflictFixed_CoreOnly_ExistingFailuresRemain",
+  "rawDirectory": "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-171412-coverage-rule-4c9062",
+  "head": "37c16787008014ad907b6b4ff358334bce80e5be",
+  "productionFile": "CadAuto.Core/Planning/DimensionPlan.cs",
+  "modifiedExistingFiles": [
+    "CadAuto.Core.Tests/Program.cs",
+    "CadAuto.Core/Planning/DimensionPlan.cs"
+  ],
+  "newTestFile": "CadAuto.Core.Tests/Runner/CoverageRuleRecoveryChecks.cs",
+  "sourceSha256": {
+    "CadAuto.Core.Tests/Program.cs": "8230b312ca6b033fc083a32e7230ff9454c79aff8179f1bd9721820546fda382",
+    "CadAuto.Core.Tests/Runner/CoverageRuleRecoveryChecks.cs": "e03050d1bef11ff4e733da2f8de2879516e4f9c64dce5d03333493a51c50f675",
+    "CadAuto.Core/Planning/DimensionPlan.cs": "62bd86dba99b06ef652d414247433d50693133f86c9a4708a460eba65449219f"
+  },
+  "before": {
+    "registeredCount": 249,
+    "selectedCount": 249,
+    "executedCount": 249,
+    "passedCount": 219,
+    "failedCount": 30,
+    "skippedCount": 0
+  },
+  "after": {
+    "registeredCount": 249,
+    "selectedCount": 249,
+    "executedCount": 249,
+    "passedCount": 225,
+    "failedCount": 24,
+    "skippedCount": 0
+  },
+  "gatedAfter": {
+    "registeredCount": 249,
+    "selectedCount": 249,
+    "executedCount": 115,
+    "passedCount": 96,
+    "failedCount": 19,
+    "skippedCount": 134
+  },
+  "original245Before": {
+    "Passed": 218,
+    "Failed": 27
+  },
+  "original245After": {
+    "Passed": 221,
+    "Failed": 24
+  },
+  "newTestsPassed": 4,
+  "statusChanges": [
+    {
+      "name": "ObliqueBoundaryInformationMatchesUserScheme",
+      "before": "Failed",
+      "after": "Passed"
+    },
+    {
+      "name": "ObliqueBoundaryInformationProtectsEqualProjections",
+      "before": "Failed",
+      "after": "Passed"
+    },
+    {
+      "name": "ObliqueBoundaryInformationFallsBackAndAuditsMissingProviders",
+      "before": "Failed",
+      "after": "Passed"
+    },
+    {
+      "name": "ReviewedStructureCoveragePreservesGenerationRuleAndEvidence",
+      "before": "Failed",
+      "after": "Passed"
+    },
+    {
+      "name": "ReviewedStructureCoverageStillTracksMissingProviders",
+      "before": "Failed",
+      "after": "Passed"
+    },
+    {
+      "name": "StructureCoverageWithoutGenerationRuleKeepsLegacyIdentity",
+      "before": "Failed",
+      "after": "Passed"
+    }
+  ],
+  "newRegressions": [],
+  "newlyReachedFailures": [
+    {
+      "name": "CNotchPlateKeepsTopEnvelopeBodyWidth120",
+      "before": "System.InvalidOperationException: Dimension candidate 13 already has RuleId 'BoundaryInformation.ObliqueProjection' and cannot be reassigned to 'BoundaryInformation.Covered'.",
+      "after": "System.InvalidOperationException: bottom 120 must stay dropped"
+    },
+    {
+      "name": "LProfileFarEndCornerUsesAdjacentVerticalChain",
+      "before": "System.InvalidOperationException: Dimension candidate 19 already has RuleId 'BoundaryInformation.ObliqueProjection' and cannot be reassigned to 'BoundaryInformation.Covered'.",
+      "after": "System.InvalidOperationException: far-end corner L profile must suppress the derived 69 inner edge, case=0"
+    }
+  ],
+  "remainingFailures": [
+    {
+      "name": "RotationSignature_F215GoldenMultisetFourWayEqual",
+      "priority": 1,
+      "error": "System.InvalidOperationException: F215 @0° Signature must equal golden; got=[50,95,100,215] expected=[42,50,75,100,120,215]\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.AssertFourWaySignatureEqualsGolden(DimensionPlanner planner, OutlineFeature2D baseline, Double[] golden, Double tol, String label) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 6002\r\n   在 CadAuto.Core.Tests.Program.RotationSignature_F215GoldenMultisetFourWayEqual() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 5434\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "RotationSignature_F215CadGoldenMultisetFourWayEqual",
+      "priority": 1,
+      "error": "System.InvalidOperationException: F215Cad @0° Signature must equal golden; got=[42,100,215] expected=[42,50,75,100,120,215]\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.AssertFourWaySignatureEqualsGolden(DimensionPlanner planner, OutlineFeature2D baseline, Double[] golden, Double tol, String label) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 6002\r\n   在 CadAuto.Core.Tests.Program.RotationSignature_F215CadGoldenMultisetFourWayEqual() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 5448\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "F215CadRotatedKeeps42Drops32Stub",
+      "priority": 1,
+      "error": "System.InvalidOperationException: rotated F215 must keep arm 42; sig=[38,75,100,215]\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.F215CadRotatedKeeps42Drops32Stub() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 5471\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "RotationSignature_F338CadGoldenMultisetFourWayEqual",
+      "priority": 1,
+      "error": "System.InvalidOperationException: F338Cad @0° Signature must equal golden; got=[87.55,201.5,338] expected=[20,73,87.55,100,201.5,305,338]\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.AssertFourWaySignatureEqualsGolden(DimensionPlanner planner, OutlineFeature2D baseline, Double[] golden, Double tol, String label) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 6002\r\n   在 CadAuto.Core.Tests.Program.RotationSignature_F338CadGoldenMultisetFourWayEqual() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 5503\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "CadLastRunGrooveSnapsToWallClearWidthFourWay",
+      "priority": 1,
+      "error": "System.InvalidOperationException: CAD-last-run @0° must keep foot tip 20; kept=[92.55]\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.CadLastRunGrooveSnapsToWallClearWidthFourWay() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 6271\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "RotationSignature_Stair3GoldenMultisetFourWayEqual",
+      "priority": 1,
+      "error": "System.InvalidOperationException: Stair3 @0° Signature must equal golden; got=[134.79,134.79,163.37,269.59,429.91,438.8] expected=[126.11,134.79,134.79,163.37,429.91,438.8]\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.AssertFourWaySignatureEqualsGolden(DimensionPlanner planner, OutlineFeature2D baseline, Double[] golden, Double tol, String label) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 6002\r\n   在 CadAuto.Core.Tests.Program.RotationSignature_Stair3GoldenMultisetFourWayEqual() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 5518\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "RotationSignature_LBoss257GoldenMultisetFourWayEqual",
+      "priority": 1,
+      "error": "System.InvalidOperationException: LBoss257 @0° Signature must equal golden; got=[3,3,3,3,10,10,15,18,25,25,25,30,30,30,40,58,66,134,232,232,257] expected=[10,25,25,25,30,40,58,134,257]\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.AssertFourWaySignatureEqualsGolden(DimensionPlanner planner, OutlineFeature2D baseline, Double[] golden, Double tol, String label) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 6002\r\n   在 CadAuto.Core.Tests.Program.RotationSignature_LBoss257GoldenMultisetFourWayEqual() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 5532\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "SteppedPlateReplacesThinStepRisersWithComplement53",
+      "priority": 1,
+      "error": "System.InvalidOperationException: 53 (overall min to inner top ledge) must be kept; sig=[50,50,55,102.5]\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.SteppedPlateReplacesThinStepRisersWithComplement53() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 5546\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "CNotchPlateKeepsTopEnvelopeBodyWidth120",
+      "priority": 1,
+      "error": "System.InvalidOperationException: bottom 120 must stay dropped\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.CNotchPlateKeepsTopEnvelopeBodyWidth120() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 5679\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "StepGroovePlacesOnSameSideAsOuterStepFourWay",
+      "priority": 1,
+      "error": "System.InvalidOperationException: F338Cad @0° missing 73; sides=[87.55@Bottom]\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.StepGroovePlacesOnSameSideAsOuterStepFourWay() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 6315\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "CrossSideStructureWidthsThatCloseOverallChainAreSuppressed",
+      "priority": 1,
+      "error": "System.InvalidOperationException: full-path step length 20 must remain\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.CrossSideStructureWidthsThatCloseOverallChainAreSuppressed() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 4389\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "DatumRootedBottomAndLeftOuterEnvelopeDimensionsAreSuppressed",
+      "priority": 1,
+      "error": "System.InvalidOperationException: bottom overall width 96 must remain\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.DatumRootedBottomAndLeftOuterEnvelopeDimensionsAreSuppressed() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 6590\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "StructureWidthThatPartitionsOverallWithOutlineSegmentIsSuppressed",
+      "priority": 1,
+      "error": "System.InvalidOperationException: short structure step 20 must remain (decision A with overall 98)\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.StructureWidthThatPartitionsOverallWithOutlineSegmentIsSuppressed() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 3767\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "LProfileChamferedArmResidualUsesBoundarySequence",
+      "priority": 1,
+      "error": "System.InvalidOperationException: the real short edge must be suppressed by boundary topology, not a fixed numeric value width=32 chamfer=7 rotation=0 mirror=False\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.LProfileChamferedArmResidualUsesBoundarySequence() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 7628\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "LProfileAnnotationRulesUseTopology",
+      "priority": 1,
+      "error": "System.InvalidOperationException: top 25 replacement must retain an attachment-valid rule diagnostic\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.LProfileAnnotationRulesUseTopology() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 7699\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "LProfileFarEndCornerUsesAdjacentVerticalChain",
+      "priority": 1,
+      "error": "System.InvalidOperationException: far-end corner L profile must suppress the derived 69 inner edge, case=0\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.LProfileFarEndCornerUsesAdjacentVerticalChain() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 7805\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "LProfileOuterContourAnnotationRulesUseTopology",
+      "priority": 1,
+      "error": "System.InvalidOperationException: outer-contour L must diagnose derived inner 52 suppression, case=1\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.LProfileOuterContourAnnotationRulesUseTopology() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 7862\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "BottomProtrusionSuppressesOuterWidthAndInnerLedge",
+      "priority": 1,
+      "error": "System.InvalidOperationException: bottom protrusion width 50 on partial MinY must be kept\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.BottomProtrusionSuppressesOuterWidthAndInnerLedge() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 3970\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "HoleAndPinChainsUseSideFacingCenterlineEndpoints",
+      "priority": 1,
+      "error": "System.InvalidOperationException: pin horizontal distances must inherit the datum-pin top side and axis-endpoint chain\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.HoleAndPinChainsUseSideFacingCenterlineEndpoints() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 9232\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "SlotDimensionsUseCenterAndDatumChainsWithoutPins",
+      "priority": 2,
+      "error": "System.InvalidOperationException: horizontal slot datum location should be planned without pins\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.SlotDimensionsUseCenterAndDatumChainsWithoutPins() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 9080\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "CenterlineEndpointIsAllowedForHolePositioning",
+      "priority": 2,
+      "error": "System.InvalidOperationException: hole positioning may use a selected centerline endpoint\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.CenterlineEndpointIsAllowedForHolePositioning() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 9138\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "PinGroupsPlanBaseAndPairDistances",
+      "priority": 2,
+      "error": "System.InvalidOperationException: PG1 datum, PG1-to-PG2 transfer, and PG2 direct dimensions must share one rooted datum chain\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.PinGroupsPlanBaseAndPairDistances() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 9828\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "SlotChainAlignmentKeyAlignsEdgeLocationAndCenterDistance",
+      "priority": 3,
+      "error": "System.InvalidOperationException: expected vertical slot chain segments (edge location + center distance)\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.SlotChainAlignmentKeyAlignsEdgeLocationAndCenterDistance() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 1680\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    },
+    {
+      "name": "RootedLaneChoosesNearestSafeFiniteSegmentCoordinate",
+      "priority": 3,
+      "error": "System.InvalidOperationException: the block must choose the nearest candidate that is safe for every finite dimension segment\r\n   在 CadAuto.Core.Tests.Program.Assert(Boolean condition, String message) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 11026\r\n   在 CadAuto.Core.Tests.Program.RootedLaneChoosesNearestSafeFiniteSegmentCoordinate() 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 2787\r\n   在 CadAuto.Core.Tests.Program.RunRegisteredTests(String filter, Boolean diagnosticContinuation) 位置 D:\\work\\AI\\9.1 托压块版本\\CadAuto.Core.Tests\\Program.cs:行号 575"
+    }
+  ],
+  "fullReplayIdentical": true,
+  "audit": {
+    "inputIdentitiesUnchanged": true,
+    "defaultSemanticallyUnchanged": [
+      "legacy-default/rectangle",
+      "legacy-default/duplicate-segments",
+      "legacy-default/concave-datum",
+      "legacy-default/outer-step",
+      "legacy-default/stepped-plate",
+      "legacy-default/c-notch",
+      "legacy-default/oblique-0",
+      "legacy-default/oblique-90",
+      "legacy-default/oblique-180",
+      "legacy-default/oblique-270",
+      "legacy-default/pin-family-v",
+      "legacy-default/pin-family-v-reverse",
+      "legacy-default/pin-family-h",
+      "legacy-default/pin-family-h-reverse",
+      "legacy-default/separate-pin-groups",
+      "legacy-default/normal-two",
+      "legacy-default/normal-grid",
+      "legacy-default/selected-pin-grid",
+      "legacy-default/slots-without-pins",
+      "asd-feature-first/rectangle",
+      "asd-feature-first/duplicate-segments",
+      "asd-feature-first/concave-datum",
+      "asd-feature-first/stepped-plate",
+      "asd-feature-first/pin-family-v",
+      "asd-feature-first/pin-family-v-reverse",
+      "asd-feature-first/pin-family-h",
+      "asd-feature-first/pin-family-h-reverse",
+      "asd-feature-first/separate-pin-groups",
+      "asd-feature-first/normal-two",
+      "asd-feature-first/normal-grid",
+      "asd-feature-first/selected-pin-grid",
+      "asd-feature-first/slots-without-pins"
+    ],
+    "recoveredExceptionsNotWholeDrawingQualityProof": [
+      "asd-feature-first/outer-step",
+      "asd-feature-first/c-notch",
+      "asd-feature-first/oblique-0",
+      "asd-feature-first/oblique-90",
+      "asd-feature-first/oblique-180",
+      "asd-feature-first/oblique-270"
+    ],
+    "otherDefaultChanges": [],
+    "baselineRepeatIdentical": true,
+    "fullRegressionRepeatIdentical": true,
+    "original245TestAndFactoryBodiesByteIdentical": true,
+    "originalBodySha256": "94b010baf82a0808eaf98be9d638b7ac71b5c93c614df38430e62e959e74e60d",
+    "existingSourceEdits": [
+      "CadAuto.Core.Tests/Program.cs",
+      "CadAuto.Core/Planning/DimensionPlan.cs"
+    ],
+    "newSourceFile": "CadAuto.Core.Tests/Runner/CoverageRuleRecoveryChecks.cs",
+    "protectedFileCount": 620,
+    "protectedChanges": []
+  },
+  "checks": {
+    "coveragePassed": 8,
+    "ruleReassignmentGuardPassed": 1,
+    "obliqueIntegrationPassed": 3,
+    "p0Passed": 11,
+    "datumReferenceCasesPassed": 26,
+    "measurementTestsPassed": 17,
+    "runnerSelfCheckPassed": true,
+    "ablationSelfCheckPassed": true,
+    "gitDiffCheckExit": 0
+  },
+  "ablation": {
+    "exitCode": 1,
+    "protectedInputsAndSourcesUnchanged": true,
+    "status": "InfrastructureOrCompatibilityFailure",
+    "oldDefaultCompatibility": {
+      "status": "FAILED_DefaultBehaviorDrift",
+      "mismatches": [
+        {
+          "case": "legacy-default/concave-datum",
+          "reason": "PreSwitchReferenceMismatch"
+        },
+        {
+          "case": "asd-feature-first/concave-datum",
+          "reason": "PreSwitchReferenceMismatch"
+        },
+        {
+          "case": "asd-feature-first/outer-step",
+          "reason": "PreSwitchReferenceMismatch"
+        },
+        {
+          "case": "asd-feature-first/c-notch",
+          "reason": "PreSwitchReferenceMismatch"
+        },
+        {
+          "case": "asd-feature-first/oblique-0",
+          "reason": "PreSwitchReferenceMismatch"
+        },
+        {
+          "case": "asd-feature-first/oblique-90",
+          "reason": "PreSwitchReferenceMismatch"
+        },
+        {
+          "case": "asd-feature-first/oblique-180",
+          "reason": "PreSwitchReferenceMismatch"
+        },
+        {
+          "case": "asd-feature-first/oblique-270",
+          "reason": "PreSwitchReferenceMismatch"
+        }
+      ],
+      "reference": "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\reference\\default-behavior.json",
+      "meaning": "Behavior compatibility only, never annotation truth"
+    },
+    "aggregate": {
+      "caseProfileCount": 38,
+      "evaluableCount": 38,
+      "exceptionCount": 0,
+      "contractPassCount": 36,
+      "contractFailureCount": 2,
+      "metrics": {
+        "contractRequired": 152,
+        "contractMissingRequired": 1,
+        "contractWrongDimensions": 1,
+        "contractDuplicateDimensions": 0,
+        "contractIncorrectlySuppressedRequired": 0,
+        "contractSuppressedRequiredAttachmentUnknown": 1,
+        "contractCorrectRetained": 151,
+        "finalDimensionCount": 236,
+        "coreDimensionLineOverlapPairs": 0,
+        "centeredTextConflictProxyPairs": 2,
+        "physicalOrderViolations": 0,
+        "datumFamilySpacingViolations": 0,
+        "contractRecall": 0.993421052631579
+      }
+    }
+  },
+  "pluginRebuilt": false,
+  "v75AndV76Unchanged": true,
+  "cadOrDwgExecuted": false,
+  "currentLiveDiagnosticUnchanged": true,
+  "noExistingExpectationsChanged": true,
+  "noProductGuardsWeakened": true,
+  "userGraphUntouched": true
+}

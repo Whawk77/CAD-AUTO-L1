@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "logs": [
+    {
+      "name": "ablation-self-check.log",
+      "sha256": "c21f62353aeb8606b9acdaf03bc4912799cea6f502f7d5cc553b354ac14a13da",
+      "encoding": "base64",
+      "content": "QWJsYXRpb24gc2VsZi1jaGVjayBwYXNzZWQ6IDM4IGRldGVybWluaXN0aWMgc25hcHNob3RzOyBkZWZhdWx0LCBpc29sYXRpb24sIGludmFsaWQgdmFsdWUsIGR1cGxpY2F0ZSBwYXNzLCBzaW5nbGV0b24gcGluIGZhbGxiYWNrLg0K"
+    },
+    {
+      "name": "core-build.log",
+      "sha256": "46986f6478638c43896d1350ac6c2fe0ea89f07da696d037cae443c4fdd63ec7",
+      "encoding": "base64",
+      "content": "6YCC55So5LqOIC5ORVQgTVNCdWlsZCDniYjmnKwgMTcuMTQuNDMrMmEwZWI3OGIzDQogIENhZEF1dG8uQ29yZSAtPiBEOlx3b3JrXEFJXDkuMSDmiZjljovlnZfniYjmnKxccmVncmVzc2lvblxhYmxhdGlvblxydW5zXDIwMjYxMDE3LWRlbGl2ZXJ5XGNvcmUtYnVpbGRcQ2FkQXV0by5Db3JlLmRsbA0KICBDYWRBdXRvLkNvcmUuVGVzdHMgLT4gRDpcd29ya1xBSVw5LjEg5omY5Y6L5Z2X54mI5pysXHJlZ3Jlc3Npb25cYWJsYXRpb25ccnVuc1wyMDI2MTAxNy1kZWxpdmVyeVxjb3JlLWJ1aWxkXENhZEF1dG8uQ29yZS5UZXN0cy5leGUNCg=="
+    },
+    {
+      "name": "dotnet-info.log",
+      "sha256": "c95c23e4982808eff120e00e1a41cbbaf368f2e083abf578ef9fbcc49e887e33",
+      "encoding": "base64",
+      "content": "Lk5FVCBTREs6DQogVmVyc2lvbjogICAgICAgICAgIDkuMC4zMTYNCiBDb21taXQ6ICAgICAgICAgICAgNjg3ZTczZGZmMg0KIFdvcmtsb2FkIHZlcnNpb246ICA5LjAuMzAwLW1hbmlmZXN0cy42MDBiMzE2ZA0KIE1TQnVpbGQgdmVyc2lvbjogICAxNy4xNC40MysyYTBlYjc4YjMNCg0K6L+Q6KGM5pe2546v5aKDOg0KIE9TIE5hbWU6ICAgICBXaW5kb3dzDQogT1MgVmVyc2lvbjogIDEwLjAuMTkwNDUNCiBPUyBQbGF0Zm9ybTogV2luZG93cw0KIFJJRDogICAgICAgICB3aW4teDY0DQogQmFzZSBQYXRoOiAgIEM6XFByb2dyYW0gRmlsZXNcZG90bmV0XHNka1w5LjAuMzE2XA0KDQrlt7Llronoo4UgLk5FVCDlt6XkvZzotJ/ovb06DQrmsqHmnInopoHmmL7npLrnmoTlt7Llronoo4Xlt6XkvZzotJ/ovb3jgIINCumFjee9ruS4uuWcqOWuieijheaWsOa4heWNleaXtuS9v+eUqCBsb29zZSBtYW5pZmVzdHPjgIINCg0KSG9zdDoNCiAgVmVyc2lvbjogICAgICA5LjAuMTgNCiAgQXJjaGl0ZWN0dXJlOiB4NjQNCiAgQ29tbWl0OiAgICAgICBkODM5YzQxYzg1DQoNCi5ORVQgU0RLcyBpbnN0YWxsZWQ6DQogIDkuMC4zMTYgW0M6XFByb2dyYW0gRmlsZXNcZG90bmV0XHNka10NCg0KLk5FVCBydW50aW1lcyBpbnN0YWxsZWQ6DQogIE1pY3Jvc29mdC5Bc3BOZXRDb3JlLkFwcCA4LjAuMjkgW0M6XFByb2dyYW0gRmlsZXNcZG90bmV0XHNoYXJlZFxNaWNyb3NvZnQuQXNwTmV0Q29yZS5BcHBdDQogIE1pY3Jvc29mdC5Bc3BOZXRDb3JlLkFwcCA5LjAuMTggW0M6XFByb2dyYW0gRmlsZXNcZG90bmV0XHNoYXJlZFxNaWNyb3NvZnQuQXNwTmV0Q29yZS5BcHBdDQogIE1pY3Jvc29mdC5ORVRDb3JlLkFwcCA2LjAuMzYgW0M6XFByb2dyYW0gRmlsZXNcZG90bmV0XHNoYXJlZFxNaWNyb3NvZnQuTkVUQ29yZS5BcHBdDQogIE1pY3Jvc29mdC5ORVRDb3JlLkFwcCA4LjAuMjkgW0M6XFByb2dyYW0gRmlsZXNcZG90bmV0XHNoYXJlZFxNaWNyb3NvZnQuTkVUQ29yZS5BcHBdDQogIE1pY3Jvc29mdC5ORVRDb3JlLkFwcCA5LjAuMTggW0M6XFByb2dyYW0gRmlsZXNcZG90bmV0XHNoYXJlZFxNaWNyb3NvZnQuTkVUQ29yZS5BcHBdDQogIE1pY3Jvc29mdC5XaW5kb3dzRGVza3RvcC5BcHAgNi4wLjM2IFtDOlxQcm9ncmFtIEZpbGVzXGRvdG5ldFxzaGFyZWRcTWljcm9zb2Z0LldpbmRvd3NEZXNrdG9wLkFwcF0NCiAgTWljcm9zb2Z0LldpbmRvd3NEZXNrdG9wLkFwcCA4LjAuMjkgW0M6XFByb2dyYW0gRmlsZXNcZG90bmV0XHNoYXJlZFxNaWNyb3NvZnQuV2luZG93c0Rlc2t0b3AuQXBwXQ0KICBNaWNyb3NvZnQuV2luZG93c0Rlc2t0b3AuQXBwIDkuMC4xOCBbQzpcUHJvZ3JhbSBGaWxlc1xkb3RuZXRcc2hhcmVkXE1pY3Jvc29mdC5XaW5kb3dzRGVza3RvcC5BcHBdDQoNCk90aGVyIGFyY2hpdGVjdHVyZXMgZm91bmQ6DQogIHg4NiAgIFtDOlxQcm9ncmFtIEZpbGVzICh4ODYpXGRvdG5ldF0NCiAgICByZWdpc3RlcmVkIGF0IFtIS0xNXFNPRlRXQVJFXGRvdG5ldFxTZXR1cFxJbnN0YWxsZWRWZXJzaW9uc1x4ODZcSW5zdGFsbExvY2F0aW9uXQ0KDQpFbnZpcm9ubWVudCB2YXJpYWJsZXM6DQogIE5vdCBzZXQNCg0KZ2xvYmFsLmpzb24gZmlsZToNCiAgTm90IGZvdW5kDQoNCkxlYXJuIG1vcmU6DQogIGh0dHBzOi8vYWthLm1zL2RvdG5ldC9pbmZvDQoNCkRvd25sb2FkIC5ORVQ6DQogIGh0dHBzOi8vYWthLm1zL2RvdG5ldC9kb3dubG9hZA0K"
+    },
+    {
+      "name": "dotnet-version.log",
+      "sha256": "0898b8373fd27d4f3b0aa657da99bf1fdc1cbd1e1ea226ecdb9ab46a28450400",
+      "encoding": "base64",
+      "content": "OS4wLjMxNg0K"
+    },
+    {
+      "name": "final-existing-regression.log",
+      "sha256": "665eda9b054b20df53f867e80d27f1a9590cf23146b6b72166a92d09f7bd7f27",
+      "encoding": "base64",
+      "content": "U1RBUlQgUDAgY291bnQ9MTENClBBU1MgUDAgUmVjdGFuZ3VsYXJPdXRsaW5lS2VlcHNPdmVyYWxsRGltZW5zaW9ucw0KUEFTUyBQMCBDaGFtZmVyZWRFbnZlbG9wZURyb3BzU3BsaXRTdHJ1Y3R1cmVGcmFnbWVudHMNClBBU1MgUDAgT3ZlcmFsbERpbWVuc2lvbnNVc2VCb3VuZGFyeUdyaXBQb2ludHMNClBBU1MgUDAgRHVwbGljYXRlU2VnbWVudHNBcmVTdXBwcmVzc2VkV2l0aERpYWdub3N0aWMNClBBU1MgUDAgWmVyb0FuZE1pY3JvU2VnbWVudHNEb05vdEVtaXREaW1lbnNpb25zDQpQQVNTIFAwIEdlb21ldHJ5VG9sZXJhbmNlQ29udHJvbHNNaWNyb1NlZ21lbnRzDQpGQUlMIFAwIENvbmNhdmVIb2xlRGF0dW1Vc2VzUmVhbE91dGxpbmVJbnRlcnNlY3Rpb25zIDo6IHZlcnRpY2FsIGRhdHVtIHNob3VsZCBwcmVzZXJ2ZSBpdHMgWSBkYXR1bSBhbmQgdXNlIHRoZSByZWFsIGJvdHRvbSBvdXRsaW5lIGludGVyc2VjdGlvbg0KVElFUiBGQUlMIFAwIGFib3J0aW5nIHJlbWFpbmluZyB0aWVycy4NClRJRVIgTk9UIFJVTiBQMSBjb3VudD0xMDQgYmxvY2tlZCBieSBQMA0KVElFUiBOT1QgUlVOIFAyIGNvdW50PTcwIGJsb2NrZWQgYnkgUDANClRJRVIgTk9UIFJVTiBQMyBjb3VudD02MCBibG9ja2VkIGJ5IFAwDQpDYWRBdXRvLkNvcmUuVGVzdHM6IDYvMTEgcGFzc2VkLg0KRkFJTEVEIENvbmNhdmVIb2xlRGF0dW1Vc2VzUmVhbE91dGxpbmVJbnRlcnNlY3Rpb25zIDo6IHZlcnRpY2FsIGRhdHVtIHNob3VsZCBwcmVzZXJ2ZSBpdHMgWSBkYXR1bSBhbmQgdXNlIHRoZSByZWFsIGJvdHRvbSBvdXRsaW5lIGludGVyc2VjdGlvbg0K"
+    },
+    {
+      "name": "metric-tests.log",
+      "sha256": "4d481ae7bed87e0f51aec7c2b3bb406c09977efb2cc846baba14431630937306",
+      "encoding": "base64",
+      "content": "Li4uLi4uLi4uLi4uLi4uLi4NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0NClJhbiAxNyB0ZXN0cyBpbiAwLjAzMXMNCg0KT0sNCg=="
+    },
+    {
+      "name": "runner-self-check.log",
+      "sha256": "e90e0b37d640763a1cd3b8570103bb617db58815257510298f4850a4b82ace34",
+      "encoding": "base64",
+      "content": "UnVubmVyIHNlbGYtY2hlY2sgcGFzc2VkLg0K"
+    },
+    {
+      "name": "trial-BoundaryInformationCompletion.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "base64",
+      "content": ""
+    },
+    {
+      "name": "trial-FunctionalHoleAssignment.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "base64",
+      "content": ""
+    },
+    {
+      "name": "trial-LocalEnvelopeSuppression.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "base64",
+      "content": ""
+    },
+    {
+      "name": "trial-MeasuredDeduplication.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "base64",
+      "content": ""
+    },
+    {
+      "name": "trial-MirroredDeduplication.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "base64",
+      "content": ""
+    },
+    {
+      "name": "trial-None-repeat.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "base64",
+      "content": ""
+    },
+    {
+      "name": "trial-None.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "base64",
+      "content": ""
+    },
+    {
+      "name": "trial-NonPinNearestDatum.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "base64",
+      "content": ""
+    },
+    {
+      "name": "trial-OutlineOverallPartition.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "base64",
+      "content": ""
+    },
+    {
+      "name": "trial-ParallelDatumCompaction.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "base64",
+      "content": ""
+    },
+    {
+      "name": "trial-PinPairGrouping.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "base64",
+      "content": ""
+    },
+    {
+      "name": "trial-SelectedCenterlineAttachment.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "base64",
+      "content": ""
+    },
+    {
+      "name": "trial-SharedExtensionAlignment.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "base64",
+      "content": ""
+    }
+  ]
+}

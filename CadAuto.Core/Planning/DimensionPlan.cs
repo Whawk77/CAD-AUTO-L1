@@ -14,6 +14,38 @@ public sealed class DimensionPlan
 	private readonly Dictionary<PlannedDimension, List<PlannedDimension>> _coverageDependencies
 		= new Dictionary<PlannedDimension, List<PlannedDimension>>();
 
+	private readonly Dictionary<PlannedDimension, double> _stepDatumRequirements
+		= new Dictionary<PlannedDimension, double>();
+
+	internal void RegisterStepDatumRequirement(PlannedDimension dimension, double tolerance)
+	{
+		System.Diagnostics.Debug.Assert(Dimensions.Contains(dimension)
+			&& CadAuto.Core.Rules.StructureDatumRules.IsCommonDatumRule(dimension.RuleId)
+			&& tolerance > 0);
+		// Freeze the feature and datum identity before later suppression or attachment changes.
+		_stepDatumRequirements.Add(new PlannedDimension {
+			DiagnosticId = dimension.DiagnosticId, RuleId = dimension.RuleId,
+			SourceKey = dimension.SourceKey, DatumFamilyKey = dimension.DatumFamilyKey,
+			Orientation = dimension.Orientation, FirstPoint = dimension.FirstPoint,
+			SecondPoint = dimension.SecondPoint, OverrideText = dimension.OverrideText
+		}, tolerance);
+	}
+
+	private bool HasStepDatumRequirement(PlannedDimension required, double tolerance)
+	{
+		bool horizontal = required.Orientation == DimensionOrientation.Horizontal;
+		double datum = horizontal ? required.FirstPoint.X : required.FirstPoint.Y;
+		double target = horizontal ? required.SecondPoint.X : required.SecondPoint.Y;
+		return Dimensions.Any(d => d.Kind == DimensionKind.Normal
+			&& d.Role == DimensionCandidateRole.Structure && d.OwnerKind == DimensionCandidateOwnerKind.Outline
+			&& d.AttachmentValidity == true && d.Orientation == required.Orientation
+			&& d.RuleId == required.RuleId && d.SourceKey == required.SourceKey
+			&& d.DatumFamilyKey == required.DatumFamilyKey
+			&& string.Equals(d.OverrideText ?? string.Empty, required.OverrideText ?? string.Empty, StringComparison.Ordinal)
+			&& Math.Abs((horizontal ? d.FirstPoint.X : d.FirstPoint.Y) - datum) <= tolerance
+			&& Math.Abs((horizontal ? d.SecondPoint.X : d.SecondPoint.Y) - target) <= tolerance);
+	}
+
 	public List<PlannedDimension> Dimensions { get; private set; }
 
 	public List<PinGroupPlan> PinGroups { get; private set; }
@@ -218,10 +250,10 @@ public sealed class DimensionPlan
 
 	public bool TrySuppressCoveredStructure(PlannedDimension residual, string ruleId,
 		IEnumerable<PlannedDimension> coveringDimensions, IEnumerable<string> sourceGeometryIds,
-		string topologyEvidence, string replaceableRuleId = null)
+		string topologyEvidence, string replaceableRuleId = null, bool allowOutlineSegment = false)
 	{
 		List<PlannedDimension> covering = (coveringDimensions ?? new PlannedDimension[0]).Distinct().ToList();
-		string failure = StructureCoveragePolicy.GetIneligibilityReason(residual, replaceableRuleId);
+		string failure = StructureCoveragePolicy.GetIneligibilityReason(residual, replaceableRuleId, allowOutlineSegment);
 		if (failure == null && (!Dimensions.Contains(residual) || string.IsNullOrWhiteSpace(ruleId)
 			|| string.IsNullOrWhiteSpace(topologyEvidence)))
 		{
@@ -260,6 +292,15 @@ public sealed class DimensionPlan
 		// A legal attachment is not proof of completeness. Do not invent replacements
 		// when a subsequent suppression removes a provider of previously covered information.
 		Diagnostics.Warnings.RemoveAll(w => w.StartsWith("StructureCoverage.Incomplete|", StringComparison.Ordinal));
+		foreach (var requirement in _stepDatumRequirements)
+		{
+			if (!HasStepDatumRequirement(requirement.Key, requirement.Value))
+			{
+				Diagnostics.Warnings.Add("StructureCoverage.Incomplete|Status=PendingConfirmation|Requirement=StepDatum"
+					+ "|CandidateId=" + requirement.Key.DiagnosticId + "|Rule=" + requirement.Key.RuleId
+					+ "|Source=" + requirement.Key.SourceKey + "|Group=" + requirement.Key.DatumFamilyKey);
+			}
+		}
 		foreach (var dependency in _coverageDependencies)
 		{
 			List<PlannedDimension> missing = dependency.Value

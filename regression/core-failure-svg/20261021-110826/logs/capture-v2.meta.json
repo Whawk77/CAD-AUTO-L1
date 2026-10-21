@@ -1,0 +1,14 @@
+{
+  "cwd": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\asd-failure-svg-20261021-110826-50dbaf\\project",
+  "command_argv": [
+    "C:\\Users\\Administrator\\AppData\\Local\\Temp\\asd-failure-svg-20261021-110826-50dbaf\\project\\bin\\FailureSvgCapture-v2\\CadAuto.Core.Tests.exe",
+    "--export-failure-svg",
+    "C:\\Users\\Administrator\\AppData\\Local\\Temp\\asd-composite-v98-validation-139a2e3b6315466d83cf94ed44e0f18f\\continuation.json",
+    "D:\\work\\AI\\9.1 托压块版本\\regression\\core-failure-svg\\20261021-110826"
+  ],
+  "start_time": "2026-10-21T11:19:07+08:00",
+  "timeout_seconds": 170,
+  "status": "completed",
+  "exit_code": 0,
+  "end_time": "2026-10-21T11:19:08+08:00"
+}

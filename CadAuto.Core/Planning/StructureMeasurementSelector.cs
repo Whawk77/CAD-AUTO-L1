@@ -516,6 +516,26 @@ public sealed partial class StructureMeasurementSelector
 					}
 					StructureFeature longer = a.Span >= b.Span ? a : b;
 					StructureFeature shorter = a.Span >= b.Span ? b : a;
+					double minimum = axis == StructureFeatureAxis.Horizontal ? outline.MinX : outline.MinY;
+					double maximum = axis == StructureFeatureAxis.Horizontal ? outline.MaxX : outline.MaxY;
+					double crossMin = axis == StructureFeatureAxis.Horizontal ? outline.MinY : outline.MinX;
+					double crossMax = axis == StructureFeatureAxis.Horizontal ? outline.MaxY : outline.MaxX;
+					// A real envelope face takes precedence over its derived overall-complement position.
+					if (IsLedgeResidual(shorter) && !IsLedgeResidual(longer)
+						&& longer.RequiresOuterBoundarySupport && longer.BoundaryMembership == "Boundary"
+						&& longer.BoundaryAttachmentValidity == true
+						&& (Math.Abs(longer.CrossPosition - crossMin) <= tol || Math.Abs(longer.CrossPosition - crossMax) <= tol)
+						&& Math.Abs(sum - overall) <= tol
+						&& Math.Abs(Math.Min(Math.Min(a.T0, a.T1), Math.Min(b.T0, b.T1)) - minimum) <= tol
+						&& Math.Abs(Math.Max(Math.Max(a.T0, a.T1), Math.Max(b.T0, b.T1)) - maximum) <= tol
+						&& (Math.Abs(Math.Max(a.T0, a.T1) - Math.Min(b.T0, b.T1)) <= tol
+							|| Math.Abs(Math.Max(b.T0, b.T1) - Math.Min(a.T0, a.T1)) <= tol))
+					{
+						shorter.Keep = false;
+						shorter.SuppressReason = "ComplementaryEnvelopeFeaturePosition";
+						shorter.Kind = StructureFeatureKind.BodyRemainder;
+						continue;
+					}
 					if (balancedSteps != null && (balancedSteps.Contains(a) || balancedSteps.Contains(b)))
 					{
 						continue;

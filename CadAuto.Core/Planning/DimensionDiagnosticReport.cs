@@ -29,6 +29,7 @@ public sealed class DimensionDiagnosticReport
 		w.StartsWith("StructureCoverage.Incomplete|", StringComparison.Ordinal)
 		|| w.StartsWith("StructureCoverage.PendingConfirmation|", StringComparison.Ordinal)
 		|| w.StartsWith("StructureBoundary.PendingConfirmation|", StringComparison.Ordinal)
+		|| w.StartsWith("StepDatum.PendingHumanConfirmation|", StringComparison.Ordinal)
 		|| w.StartsWith("LProfile.StepCoverage.Topology|", StringComparison.Ordinal)
 		|| w.Contains("LProfile.StepCoverage.NotApplied|"))
 		? "PendingConfirmation" : "NoDetectedDependencyGap";

@@ -1,0 +1,49 @@
+{
+  "generatedAt": "2026-10-17T06:15:19.896152+00:00",
+  "archiveHashesVerified": true,
+  "sourceAndBinaryHashesVerified": true,
+  "all13SnapshotsHaveIdenticalInputs": true,
+  "singleRuleSwitchStatesVerified": true,
+  "commands": [
+    {
+      "command": [
+        "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts",
+        "-p",
+        "test_ablation_metrics.py"
+      ],
+      "exitCode": 0,
+      "output": ".................\r\n----------------------------------------------------------------------\r\nRan 17 tests in 0.023s\r\n\r\nOK\r\n"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-delivery\\core-build\\CadAuto.Core.Tests.exe",
+        "--runner-self-check"
+      ],
+      "exitCode": 0,
+      "output": "Runner self-check passed.\r\n"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-delivery\\core-build\\CadAuto.Core.Tests.exe",
+        "--ablation-self-check"
+      ],
+      "exitCode": 0,
+      "output": "Ablation self-check passed: 38 deterministic snapshots; default, isolation, invalid value, duplicate pass, singleton pin fallback.\r\n"
+    },
+    {
+      "command": [
+        "D:\\work\\AI\\9.1 托压块版本\\regression\\ablation\\runs\\20261017-delivery\\core-build\\CadAuto.Core.Tests.exe"
+      ],
+      "exitCode": 1,
+      "output": "START P0 count=11\r\nPASS P0 RectangularOutlineKeepsOverallDimensions\r\nPASS P0 ChamferedEnvelopeDropsSplitStructureFragments\r\nPASS P0 OverallDimensionsUseBoundaryGripPoints\r\nPASS P0 DuplicateSegmentsAreSuppressedWithDiagnostic\r\nPASS P0 ZeroAndMicroSegmentsDoNotEmitDimensions\r\nPASS P0 GeometryToleranceControlsMicroSegments\r\nFAIL P0 ConcaveHoleDatumUsesRealOutlineIntersections :: vertical datum should preserve its Y datum and use the real bottom outline intersection\r\nTIER FAIL P0 aborting remaining tiers.\r\nTIER NOT RUN P1 count=104 blocked by P0\r\nTIER NOT RUN P2 count=70 blocked by P0\r\nTIER NOT RUN P3 count=60 blocked by P0\r\nCadAuto.Core.Tests: 6/11 passed.\r\nFAILED ConcaveHoleDatumUsesRealOutlineIntersections :: vertical datum should preserve its Y datum and use the real bottom outline intersection\r\n"
+    }
+  ],
+  "gitDiffCheckExitCode": 0,
+  "gitDiffCheckOutput": "warning: in the working copy of 'CadAuto.CadAdapter/Model/DatumDefinition.cs', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'CadAuto.CadAdapter/Rendering/DimensionExtensionLineRenderer.cs', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'CadAuto.Core/Model/Datum2D.cs', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'CadAuto.Core/Planning/DimensionPlan.cs', LF will be replaced by CRLF the next time Git touches it\n",
+  "newTextFilesWhitespaceChecked": 18
+}

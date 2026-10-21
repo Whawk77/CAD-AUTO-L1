@@ -1,0 +1,24 @@
+{
+  "generatedAt": "2026-10-17T08:34:22.595285+00:00",
+  "sourceAndBinaryHashesVerified": true,
+  "compressedReportsAndSnapshotsByteExact": true,
+  "processLogsByteExact": true,
+  "historicalFixedProtectedFilesUnchangedExceptConcurrentLiveDiagnostics": true,
+  "preexistingSourceEditsExactlyDeclared": true,
+  "originalTestBodiesByteIdentical": true,
+  "noNewRegressionIn245Methods": true,
+  "fullReplayIdentical": true,
+  "gitDiffCheckExitCode": 0,
+  "gitDiffCheckOutput": "warning: in the working copy of 'CadAuto.CadAdapter/Model/DatumDefinition.cs', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'CadAuto.CadAdapter/Rendering/DimensionExtensionLineRenderer.cs', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'CadAuto.Core/Model/Datum2D.cs', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'CadAuto.Core/Planning/DimensionPlan.cs', LF will be replaced by CRLF the next time Git touches it\n",
+  "whitespaceErrors": [],
+  "workingTreeSourceChanges": [
+    "CadAuto.Core.Tests/CadAuto.Core.Tests.csproj",
+    "CadAuto.Core.Tests/Program.cs",
+    "CadAuto.Core/Planning/DimensionPlanner.Features.cs",
+    "CadAuto.Core/Planning/DimensionPlanner.cs"
+  ],
+  "externallyChangedLivePaths": [
+    "diagnostics/last-run.outline.svg",
+    "diagnostics/last-run.json"
+  ]
+}

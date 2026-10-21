@@ -1,0 +1,361 @@
+{
+  "schemaVersion": 1,
+  "baselineId": "ASD4-L01-13-round1",
+  "status": "PartiallyConfirmedByUser",
+  "userLabeledDrawings": {
+    "original": {
+      "path": "C:\\Users\\Administrator\\Desktop\\X\\13.dwg",
+      "sha256": "AE4EF04B486ABFC4624D804A9B863CE4D9E78979C8B672657232117BBA41DBFF1"
+    },
+    "incorrect": {
+      "path": "C:\\Users\\Administrator\\Desktop\\X\\14.dwg",
+      "sha256": "8AA9BDF9E80B89D240C32C1C359AF0C85AF67FC2D4E6A4BC68E5283C583A031A"
+    },
+    "correct": {
+      "path": "C:\\Users\\Administrator\\Desktop\\X\\12.dwg",
+      "sha256": "7EE23CE5ADE597B0E4F69FC351616EFB68E12E411C3FEEFF687B0A33C5B9D339"
+    }
+  },
+  "geometry": {
+    "units": "mm",
+    "coordinateSystem": "WCS",
+    "comparisonEpsilon": 0.001,
+    "epsilonMeaning": "Geometry matching epsilon only; not fabrication tolerance",
+    "displayOriginWcs": [
+      1736.9114607387055,
+      1541.9007444187773
+    ],
+    "localEnvelope": {
+      "minX": 0,
+      "maxX": 145,
+      "minY": 0,
+      "maxY": 65
+    },
+    "originalEntityCounts": {
+      "modelSpace": 60,
+      "lines": 58,
+      "arcs": 2
+    }
+  },
+  "dimensionExpectations": [
+    {
+      "id": "overall-width",
+      "policy": "required",
+      "count": {
+        "min": 1,
+        "max": 1
+      },
+      "featureIdentity": "outer-envelope-x",
+      "owner": "LProfileOuterEnvelope",
+      "role": "OverallWidth",
+      "orientation": "horizontal",
+      "value": 145,
+      "span": {
+        "axis": "X",
+        "from": 0,
+        "to": 145
+      },
+      "datum": "leftmost-to-rightmost-real-outer-boundary",
+      "attachment": {
+        "correctDrawingDimAssoc": false,
+        "evidence": "extension-line endpoints geometrically match outer boundaries; inferred, not associative"
+      },
+      "tolerance": {
+        "text": null,
+        "machiningTolerance": null,
+        "confirmed": false
+      },
+      "allowedVariation": [
+        "dimensionLinePosition",
+        "dimensionLineOffset"
+      ],
+      "evidence": [
+        "12.dwg dimension geometry",
+        "13.dwg outer envelope"
+      ],
+      "needsHumanConfirmation": true
+    },
+    {
+      "id": "overall-height",
+      "policy": "required",
+      "count": {
+        "min": 1,
+        "max": 1
+      },
+      "featureIdentity": "outer-envelope-y",
+      "owner": "LProfileOuterEnvelope",
+      "role": "OverallHeight",
+      "orientation": "vertical",
+      "value": 65,
+      "span": {
+        "axis": "Y",
+        "from": 0,
+        "to": 65
+      },
+      "datum": "bottommost-to-topmost-real-outer-boundary",
+      "attachment": {
+        "correctDrawingDimAssoc": "partial",
+        "sourceHandles": [
+          "4EF",
+          "4DA"
+        ],
+        "evidence": "lower endpoint DIMASSOC to 4EF; upper endpoint geometrically matches 4DA"
+      },
+      "tolerance": {
+        "text": null,
+        "machiningTolerance": null,
+        "confirmed": false
+      },
+      "allowedVariation": [
+        "dimensionLinePosition",
+        "dimensionLineOffset"
+      ],
+      "evidence": [
+        "12.dwg dimension geometry and DIMASSOC",
+        "13.dwg outer envelope"
+      ],
+      "needsHumanConfirmation": true
+    },
+    {
+      "id": "horizontal-arm-thickness",
+      "policy": "required",
+      "count": {
+        "min": 1,
+        "max": 1
+      },
+      "featureIdentity": "horizontal-arm-thickness",
+      "owner": "LProfileHorizontalArm",
+      "role": "LeftStructHeight",
+      "orientation": "vertical",
+      "value": 25,
+      "span": {
+        "axis": "Y",
+        "from": 0,
+        "to": 25
+      },
+      "datum": "lower-and-upper-real-boundaries-of-horizontal-arm",
+      "attachment": {
+        "correctDrawingDimAssoc": true,
+        "sourceHandles": [
+          "4D5",
+          "4D3"
+        ]
+      },
+      "tolerance": {
+        "text": null,
+        "machiningTolerance": null,
+        "confirmed": false
+      },
+      "allowedVariation": [
+        "dimensionLinePosition",
+        "dimensionLineOffset"
+      ],
+      "evidence": [
+        "12.dwg DIMASSOC and extension geometry",
+        "13.dwg outline"
+      ],
+      "needsHumanConfirmation": true
+    },
+    {
+      "id": "vertical-arm-width",
+      "policy": "required",
+      "count": {
+        "min": 1,
+        "max": 1
+      },
+      "featureIdentity": "vertical-arm-width",
+      "owner": "LProfileVerticalArm",
+      "role": "TopStructWidth",
+      "orientation": "horizontal",
+      "value": 25,
+      "span": {
+        "axis": "X",
+        "from": 120,
+        "to": 145
+      },
+      "datum": "inner-and-outer-real-boundaries-of-vertical-arm",
+      "attachment": {
+        "correctDrawingDimAssoc": true,
+        "sourceHandles": [
+          "4D8",
+          "4DA"
+        ]
+      },
+      "tolerance": {
+        "text": null,
+        "machiningTolerance": null,
+        "confirmed": false
+      },
+      "allowedVariation": [
+        "dimensionLinePosition",
+        "dimensionLineOffset"
+      ],
+      "evidence": [
+        "12.dwg DIMASSOC and extension geometry",
+        "13.dwg outline"
+      ],
+      "needsHumanConfirmation": true
+    },
+    {
+      "id": "top-short-edge-residual",
+      "policy": "forbidden",
+      "count": {
+        "max": 0
+      },
+      "featureIdentity": "top-shortened-edge",
+      "owner": "LProfileVerticalArm",
+      "orientation": "horizontal",
+      "value": 20,
+      "span": {
+        "axis": "X",
+        "from": 125,
+        "to": 145
+      },
+      "datum": "top-shortened-edge-4D9-to-outer-right-boundary",
+      "attachment": {
+        "incorrectDrawingSourceHandle": "4D9",
+        "incorrectDrawingAssociative": false
+      },
+      "tolerance": {
+        "text": null,
+        "machiningTolerance": null,
+        "confirmed": false
+      },
+      "evidence": [
+        "14.dwg contains dimension",
+        "12.dwg omits dimension",
+        "13.dwg entity 4D9"
+      ],
+      "needsHumanConfirmation": false,
+      "confirmationStatus": "ConfirmedByUser"
+    },
+    {
+      "id": "right-lower-edge-residual",
+      "policy": "forbidden",
+      "count": {
+        "max": 0
+      },
+      "featureIdentity": "right-side-lower-segment",
+      "owner": "LProfileOuterEnvelope",
+      "orientation": "vertical",
+      "value": 15,
+      "span": {
+        "axis": "Y",
+        "from": 0,
+        "to": 15
+      },
+      "datum": "lower-end-to-step-transition-on-edge-4EF",
+      "attachment": {
+        "incorrectDrawingSourceHandle": "4EF",
+        "incorrectDrawingAssociative": false,
+        "sourceEdgeMustRemain": true
+      },
+      "tolerance": {
+        "text": null,
+        "machiningTolerance": null,
+        "confirmed": false
+      },
+      "evidence": [
+        "14.dwg contains dimension",
+        "12.dwg omits dimension",
+        "13.dwg entity 4EF is also used by valid envelope geometry"
+      ],
+      "needsHumanConfirmation": false,
+      "confirmationStatus": "ConfirmedByUser"
+    }
+  ],
+  "pairedChecks": [
+    {
+      "id": "remove-wrong-20-residual",
+      "expectationId": "top-short-edge-residual",
+      "assert": "noDimensionOnFeatureIdentity"
+    },
+    {
+      "id": "preserve-legitimate-horizontal-25",
+      "expectationId": "vertical-arm-width",
+      "assert": "exactlyOneDimensionOnFeatureIdentity"
+    },
+    {
+      "id": "remove-wrong-15-residual",
+      "expectationId": "right-lower-edge-residual",
+      "assert": "noDimensionOnFeatureIdentity"
+    },
+    {
+      "id": "preserve-legitimate-vertical-25",
+      "expectationId": "horizontal-arm-thickness",
+      "assert": "exactlyOneDimensionOnFeatureIdentity"
+    },
+    {
+      "id": "same-value-features-are-distinct",
+      "expectationIds": [
+        "horizontal-arm-thickness",
+        "vertical-arm-width"
+      ],
+      "assert": "bothRequiredFeaturesPresentEvenWhenValuesEqual"
+    },
+    {
+      "id": "do-not-delete-shared-source-edge",
+      "expectationId": "right-lower-edge-residual",
+      "assert": "sourceGeometryHandleStillPresent",
+      "handle": "4EF"
+    }
+  ],
+  "duplicateCheck": {
+    "key": [
+      "featureIdentity",
+      "orientation",
+      "datum",
+      "span"
+    ],
+    "assert": "countWithinPolicy",
+    "valueOnlyDeduplicationAllowed": false
+  },
+  "toleranceCheck": {
+    "explicitLinearToleranceTextInReferences": false,
+    "requiredToleranceText": null,
+    "assert": "doNotInventUnconfirmedTolerance",
+    "machiningToleranceConfirmed": false
+  },
+  "cornerCallouts": [
+    {
+      "featureHandles": [
+        "4D4",
+        "4D8"
+      ],
+      "kind": "chamfer",
+      "geometry": "two C5 chamfers",
+      "referenceText": "2-C5",
+      "policy": "presentInCorrectAndIncorrectReferences",
+      "needsHumanConfirmation": true
+    },
+    {
+      "featureHandles": [
+        "4D0",
+        "4D6"
+      ],
+      "kind": "radius",
+      "geometry": "two R5 arcs",
+      "correctReferenceText": "R5",
+      "incorrectReferenceText": "2-R5",
+      "policy": "outOfScope",
+      "needsHumanConfirmation": false,
+      "scopeNote": "用户确认本轮暂不处理 R5；不得据此作正确性判定。"
+    }
+  ],
+  "unresolvedQuestions": [
+    "Are the chamfer and radius callouts part of the ASD4 dimension correctness scope?",
+    "Are the four linear dimensions required to have no tolerance text, or is the manufacturing tolerance defined elsewhere?",
+    "Are the overall 145 and 65 datum interpretations accepted, especially overall width whose DIMASSOC is absent?",
+    "Has the drawing been visually accepted for text, arrows, overlap, and readability in AutoCAD?"
+  ],
+  "automationReadiness": {
+    "dataReady": true,
+    "runnerIntegrated": false,
+    "requiresFeatureIdentityBeyondNumericValue": true,
+    "requiresDiagnosticOrGeometryCandidateMapping": true,
+    "visualAcceptanceCompleted": false
+  },
+  "confirmedDecisions": [
+    "顶部水平 20 残差禁止出现；右侧垂直 15 残差禁止出现；R5 暂不纳入本轮基线。"
+  ]
+}

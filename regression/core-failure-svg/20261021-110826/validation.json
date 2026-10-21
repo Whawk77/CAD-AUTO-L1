@@ -1,0 +1,301 @@
+{
+  "caseCount": 29,
+  "sceneCount": 51,
+  "allFailuresReproduced": true,
+  "missingPlacementCount": 0,
+  "sourceFilesHashed": 86,
+  "originalSourceChanges": [],
+  "cadRendering": false,
+  "cases": [
+    {
+      "number": 1,
+      "name": "Test2BottomContourChainKeepsTwoRealWidths",
+      "title": "底部轮廓链：保留两段真实宽度",
+      "scenes": 2,
+      "svg": "svg/01-Test2BottomContourChainKeepsTwoRealWidths.svg",
+      "page": "cases/01.html",
+      "data": "data/Test2BottomContourChainKeepsTwoRealWidths.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 2,
+      "name": "RotatedTest2PreservesLocalSemanticSignature",
+      "title": "旋转和镜像后尺寸语义一致",
+      "scenes": 6,
+      "svg": "svg/02-RotatedTest2PreservesLocalSemanticSignature.svg",
+      "page": "cases/02.html",
+      "data": "data/RotatedTest2PreservesLocalSemanticSignature.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 3,
+      "name": "RotationSignature_ClosedChainStructureIsStable",
+      "title": "215闭合尺寸链：避免完整重复分段",
+      "scenes": 4,
+      "svg": "svg/03-RotationSignature_ClosedChainStructureIsStable.svg",
+      "page": "cases/03.html",
+      "data": "data/RotationSignature_ClosedChainStructureIsStable.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 4,
+      "name": "RotationSignature_F215GoldenMultisetFourWayEqual",
+      "title": "F215：四方向尺寸集合",
+      "scenes": 1,
+      "svg": "svg/04-RotationSignature_F215GoldenMultisetFourWayEqual.svg",
+      "page": "cases/04.html",
+      "data": "data/RotationSignature_F215GoldenMultisetFourWayEqual.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 5,
+      "name": "RotationSignature_F215CadGoldenMultisetFourWayEqual",
+      "title": "F215圆角图样：四方向尺寸集合",
+      "scenes": 1,
+      "svg": "svg/05-RotationSignature_F215CadGoldenMultisetFourWayEqual.svg",
+      "page": "cases/05.html",
+      "data": "data/RotationSignature_F215CadGoldenMultisetFourWayEqual.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 6,
+      "name": "F215CadRotatedKeeps42Drops32Stub",
+      "title": "F215旋转：保留42，抑制32残段",
+      "scenes": 1,
+      "svg": "svg/06-F215CadRotatedKeeps42Drops32Stub.svg",
+      "page": "cases/06.html",
+      "data": "data/F215CadRotatedKeeps42Drops32Stub.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 7,
+      "name": "RotationSignature_F338CadGoldenMultisetFourWayEqual",
+      "title": "F338圆角图样：四方向尺寸集合",
+      "scenes": 1,
+      "svg": "svg/07-RotationSignature_F338CadGoldenMultisetFourWayEqual.svg",
+      "page": "cases/07.html",
+      "data": "data/RotationSignature_F338CadGoldenMultisetFourWayEqual.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 8,
+      "name": "CadLastRunGrooveSnapsToWallClearWidthFourWay",
+      "title": "槽宽：按真实槽壁净宽取尺寸",
+      "scenes": 1,
+      "svg": "svg/08-CadLastRunGrooveSnapsToWallClearWidthFourWay.svg",
+      "page": "cases/08.html",
+      "data": "data/CadLastRunGrooveSnapsToWallClearWidthFourWay.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 9,
+      "name": "RotationSignature_Stair3GoldenMultisetFourWayEqual",
+      "title": "三级台阶：四方向尺寸集合",
+      "scenes": 1,
+      "svg": "svg/09-RotationSignature_Stair3GoldenMultisetFourWayEqual.svg",
+      "page": "cases/09.html",
+      "data": "data/RotationSignature_Stair3GoldenMultisetFourWayEqual.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 10,
+      "name": "RotationSignature_LBoss257GoldenMultisetFourWayEqual",
+      "title": "257凸台轮廓：四方向尺寸集合",
+      "scenes": 1,
+      "svg": "svg/10-RotationSignature_LBoss257GoldenMultisetFourWayEqual.svg",
+      "page": "cases/10.html",
+      "data": "data/RotationSignature_LBoss257GoldenMultisetFourWayEqual.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 11,
+      "name": "SteppedPlateReplacesThinStepRisersWithComplement53",
+      "title": "台阶板：互补53与薄台阶残段",
+      "scenes": 1,
+      "svg": "svg/11-SteppedPlateReplacesThinStepRisersWithComplement53.svg",
+      "page": "cases/11.html",
+      "data": "data/SteppedPlateReplacesThinStepRisersWithComplement53.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 12,
+      "name": "CNotchPlateKeepsTopEnvelopeBodyWidth120",
+      "title": "C形缺口板：保留120宽度",
+      "scenes": 1,
+      "svg": "svg/12-CNotchPlateKeepsTopEnvelopeBodyWidth120.svg",
+      "page": "cases/12.html",
+      "data": "data/CNotchPlateKeepsTopEnvelopeBodyWidth120.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 13,
+      "name": "StepGroovePlacesOnSameSideAsOuterStepFourWay",
+      "title": "台阶槽：标注侧与外台阶一致",
+      "scenes": 1,
+      "svg": "svg/13-StepGroovePlacesOnSameSideAsOuterStepFourWay.svg",
+      "page": "cases/13.html",
+      "data": "data/StepGroovePlacesOnSameSideAsOuterStepFourWay.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 14,
+      "name": "CrossSideStructureWidthsThatCloseOverallChainAreSuppressed",
+      "title": "跨侧尺寸：完整总长分段去重",
+      "scenes": 1,
+      "svg": "svg/14-CrossSideStructureWidthsThatCloseOverallChainAreSuppressed.svg",
+      "page": "cases/14.html",
+      "data": "data/CrossSideStructureWidthsThatCloseOverallChainAreSuppressed.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 15,
+      "name": "DatumRootedBottomAndLeftOuterEnvelopeDimensionsAreSuppressed",
+      "title": "基准侧：底部和左侧包络冗余",
+      "scenes": 1,
+      "svg": "svg/15-DatumRootedBottomAndLeftOuterEnvelopeDimensionsAreSuppressed.svg",
+      "page": "cases/15.html",
+      "data": "data/DatumRootedBottomAndLeftOuterEnvelopeDimensionsAreSuppressed.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 16,
+      "name": "StructureWidthThatPartitionsOverallWithOutlineSegmentIsSuppressed",
+      "title": "结构宽与轮廓段共同闭合总长",
+      "scenes": 1,
+      "svg": "svg/16-StructureWidthThatPartitionsOverallWithOutlineSegmentIsSuppressed.svg",
+      "page": "cases/16.html",
+      "data": "data/StructureWidthThatPartitionsOverallWithOutlineSegmentIsSuppressed.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 17,
+      "name": "LProfileChamferedArmResidualUsesBoundarySequence",
+      "title": "L形件：倒角臂残段与真实边界顺序",
+      "scenes": 9,
+      "svg": "svg/17-LProfileChamferedArmResidualUsesBoundarySequence.svg",
+      "page": "cases/17.html",
+      "data": "data/LProfileChamferedArmResidualUsesBoundarySequence.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 18,
+      "name": "LProfileAnnotationRulesUseTopology",
+      "title": "L形件：尺寸取舍的拓扑规则",
+      "scenes": 1,
+      "svg": "svg/18-LProfileAnnotationRulesUseTopology.svg",
+      "page": "cases/18.html",
+      "data": "data/LProfileAnnotationRulesUseTopology.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 19,
+      "name": "LProfileChamferBridgedChordResidualIsSuppressed",
+      "title": "L形件：倒角桥接内部弦线残段",
+      "scenes": 1,
+      "svg": "svg/19-LProfileChamferBridgedChordResidualIsSuppressed.svg",
+      "page": "cases/19.html",
+      "data": "data/LProfileChamferBridgedChordResidualIsSuppressed.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 20,
+      "name": "LProfileFarEndCornerUsesAdjacentVerticalChain",
+      "title": "L形件：远端转角与相邻竖向链",
+      "scenes": 1,
+      "svg": "svg/20-LProfileFarEndCornerUsesAdjacentVerticalChain.svg",
+      "page": "cases/20.html",
+      "data": "data/LProfileFarEndCornerUsesAdjacentVerticalChain.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 21,
+      "name": "LProfileOuterContourAnnotationRulesUseTopology",
+      "title": "L形件：外轮廓尺寸拓扑",
+      "scenes": 2,
+      "svg": "svg/21-LProfileOuterContourAnnotationRulesUseTopology.svg",
+      "page": "cases/21.html",
+      "data": "data/LProfileOuterContourAnnotationRulesUseTopology.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 22,
+      "name": "LProfileWidthExtensionsMoveAlongEquivalentBoundarySupports",
+      "title": "L形件：尺寸界线沿等价真实支撑避让",
+      "scenes": 1,
+      "svg": "svg/22-LProfileWidthExtensionsMoveAlongEquivalentBoundarySupports.svg",
+      "page": "cases/22.html",
+      "data": "data/LProfileWidthExtensionsMoveAlongEquivalentBoundarySupports.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 23,
+      "name": "BottomProtrusionSuppressesOuterWidthAndInnerLedge",
+      "title": "底部凸台：外宽与内台残差去重",
+      "scenes": 1,
+      "svg": "svg/23-BottomProtrusionSuppressesOuterWidthAndInnerLedge.svg",
+      "page": "cases/23.html",
+      "data": "data/BottomProtrusionSuppressesOuterWidthAndInnerLedge.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 24,
+      "name": "HoleAndPinChainsUseSideFacingCenterlineEndpoints",
+      "title": "孔和销孔链：面向标注侧的中心线端点",
+      "scenes": 4,
+      "svg": "svg/24-HoleAndPinChainsUseSideFacingCenterlineEndpoints.svg",
+      "page": "cases/24.html",
+      "data": "data/HoleAndPinChainsUseSideFacingCenterlineEndpoints.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 25,
+      "name": "SlotDimensionsUseCenterAndDatumChainsWithoutPins",
+      "title": "无销孔槽：中心距与基准定位",
+      "scenes": 1,
+      "svg": "svg/25-SlotDimensionsUseCenterAndDatumChainsWithoutPins.svg",
+      "page": "cases/25.html",
+      "data": "data/SlotDimensionsUseCenterAndDatumChainsWithoutPins.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 26,
+      "name": "CenterlineEndpointIsAllowedForHolePositioning",
+      "title": "孔定位：使用已选中心线端点",
+      "scenes": 1,
+      "svg": "svg/26-CenterlineEndpointIsAllowedForHolePositioning.svg",
+      "page": "cases/26.html",
+      "data": "data/CenterlineEndpointIsAllowedForHolePositioning.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 27,
+      "name": "PinGroupsPlanBaseAndPairDistances",
+      "title": "销孔组：基准、组内距与组间距",
+      "scenes": 1,
+      "svg": "svg/27-PinGroupsPlanBaseAndPairDistances.svg",
+      "page": "cases/27.html",
+      "data": "data/PinGroupsPlanBaseAndPairDistances.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 28,
+      "name": "SlotChainAlignmentKeyAlignsEdgeLocationAndCenterDistance",
+      "title": "槽定位链：边距与中心距同层对齐",
+      "scenes": 2,
+      "svg": "svg/28-SlotChainAlignmentKeyAlignsEdgeLocationAndCenterDistance.svg",
+      "page": "cases/28.html",
+      "data": "data/SlotChainAlignmentKeyAlignsEdgeLocationAndCenterDistance.json",
+      "sameFailureMessage": true
+    },
+    {
+      "number": 29,
+      "name": "RootedLaneChoosesNearestSafeFiniteSegmentCoordinate",
+      "title": "基准尺寸链：最近安全有限边界",
+      "scenes": 1,
+      "svg": "svg/29-RootedLaneChoosesNearestSafeFiniteSegmentCoordinate.svg",
+      "page": "cases/29.html",
+      "data": "data/RootedLaneChoosesNearestSafeFiniteSegmentCoordinate.json",
+      "sameFailureMessage": true
+    }
+  ]
+}

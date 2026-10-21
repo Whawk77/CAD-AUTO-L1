@@ -1,0 +1,42 @@
+{
+  "modified": {
+    "CadAuto.Core.Tests/Program.cs": {
+      "before": "9afafd80ef484df93ec101dc1e2d987fcbce2a8247aef061616352c35b3d964f",
+      "after": "d7437029469a821a8fa9cb885d53f6a61d93030e263973d4a8b4456fad01fd30"
+    },
+    "CadAuto.Core.Tests/CadAuto.Core.Tests.csproj": {
+      "before": "c82116415c04a20891eec85d103361d9c22eb87dd5f2c6fd5270e9469c8f5584",
+      "after": "3b352f6a39b91721734d4eb0959df79df0b1249d624c64963d3b7d1905aa5e47"
+    },
+    "CadAuto.Core/Planning/DimensionPlanner.cs": {
+      "before": "5f3bbf41b034169bff1c2ec95789a890ff1bac2a98be4a639ea51c153a2d542f",
+      "after": "0329dda5edd9ce1d92a19b2d3e299e3be7f048675cc1da62901a6b5c90028aa9"
+    },
+    "CadAuto.Core/Planning/DimensionPlanner.Features.cs": {
+      "before": "a6201199570fdb297bdc0ae02ea4d8bde84bab6c3deaa304599304ab316dbcaf",
+      "after": "9af720cb7d4e9de079d9e3a255039c836df86320731598058b9dfe8b6a4876b9"
+    }
+  },
+  "allOtherPreexistingSourcesUnchanged": true,
+  "originalTestBodiesByteIdentical": true,
+  "originalTestBodiesSha256": "94b010baf82a0808eaf98be9d638b7ac71b5c93c614df38430e62e959e74e60d",
+  "liveChanges": [
+    {
+      "path": "diagnostics/last-run.json",
+      "beforeSha256": "e4aba7a15e07994237b9daf282585c013890b7ab53892195cfbd40b85e83fa12",
+      "afterSha256": "42512d75e981bdc8781699a10d5a0f6c5407b4428a534f4fe521e2f65a14b1b1",
+      "classification": "ConcurrentLiveCadDiagnostic_NotRestored"
+    },
+    {
+      "path": "diagnostics/last-run.outline.svg",
+      "beforeSha256": "8d30caedb005bf1d00ca77c3c384357595a6f186636c6b527df077a5cdcc894c",
+      "afterSha256": "734cba7e11370a8d863f63889a5e41fef9ff3e8ecb7a0c47cc85baea0754dc11",
+      "classification": "ConcurrentLiveCadDiagnostic_NotRestored"
+    }
+  ],
+  "noLiveRestore": true,
+  "protectedCount": 65,
+  "historicalFixedProtectedUnchangedExceptListedLiveFiles": true,
+  "head": "37c16787008014ad907b6b4ff358334bce80e5be",
+  "currentHead": "37c16787008014ad907b6b4ff358334bce80e5be"
+}

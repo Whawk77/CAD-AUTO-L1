@@ -1,0 +1,28 @@
+{
+  "start_time": "2026-10-21T11:25:33+08:00",
+  "case_count": 29,
+  "case_array_length": 29,
+  "scene_count": 51,
+  "all_failures_reproduced": true,
+  "same_failure_message_count": 29,
+  "missing_placement_count": 0,
+  "source_files_hashed": 86,
+  "original_source_changes": [],
+  "complete_svg_file_count": 29,
+  "missing_svg_files": [],
+  "svg_files_under_root": 80,
+  "preview_samples_reported": 5,
+  "overview_exists": true,
+  "preview_png_file_count": 7,
+  "preview_png_paths": [
+    "D:\\work\\AI\\9.1 托压块版本\\regression\\core-failure-svg\\20261021-110826\\previews\\01-02.png",
+    "D:\\work\\AI\\9.1 托压块版本\\regression\\core-failure-svg\\20261021-110826\\previews\\08-01.png",
+    "D:\\work\\AI\\9.1 托压块版本\\regression\\core-failure-svg\\20261021-110826\\previews\\22-01.png",
+    "D:\\work\\AI\\9.1 托压块版本\\regression\\core-failure-svg\\20261021-110826\\previews\\24-03.png",
+    "D:\\work\\AI\\9.1 托压块版本\\regression\\core-failure-svg\\20261021-110826\\previews\\24-04.png",
+    "D:\\work\\AI\\9.1 托压块版本\\regression\\core-failure-svg\\20261021-110826\\previews\\28-02.png",
+    "D:\\work\\AI\\9.1 托压块版本\\regression\\core-failure-svg\\20261021-110826\\previews\\overview.png"
+  ],
+  "status": "failed",
+  "end_time": "2026-10-21T11:25:33+08:00"
+}

@@ -55,6 +55,7 @@ public static class OutlineTopologyExporter
 		b.Append("],\"edges\":[");
 		b.Append(string.Join(",", graph.Edges.Select(e => "{\"id\":" + e.Id + ",\"startNode\":" + e.StartNode
 			+ ",\"endNode\":" + e.EndNode + ",\"kind\":" + Quote(e.Kind) + ",\"sourceKey\":" + Quote(e.SourceKey)
+			+ ",\"sourceKeys\":[" + string.Join(",", e.SourceKeys.Select(Quote)) + "]"
 			+ ",\"sourceHandle\":" + Quote(e.SourceHandle) + ",\"start\":" + Point(e.Start) + ",\"end\":" + Point(e.End)
 			+ ",\"center\":" + (e.Kind == "Arc" ? Point(e.Center) : "null") + ",\"radius\":" + Number(e.Radius)
 			+ ",\"bulge\":" + Number(e.Bulge) + ",\"isBoundary\":" + Bool(e.IsBoundary)

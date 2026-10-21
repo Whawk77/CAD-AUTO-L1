@@ -51,9 +51,24 @@ public sealed class StructureBoundaryEvidence
 	public string GetMembership(Segment2D segment)
 	{
 		if (!IsAvailable) { return "Unknown"; }
-		var matches = _graph.Edges.Where(e => e.Kind == "Line" && PairMatches(segment.Start, segment.End, e.Start, e.End)).ToList();
-		if (matches.Count == 0) { return "Unknown"; }
-		return matches.All(e => e.IsBoundary) ? "Boundary" : matches.All(e => !e.IsBoundary) ? "NonBoundary" : "Unknown";
+		double length = segment.Length;
+		if (length <= _tolerance) { return "Unknown"; }
+		double dx = (segment.End.X - segment.Start.X) / length, dy = (segment.End.Y - segment.Start.Y) / length;
+		Func<Point2D, double> axis = p => (p.X - segment.Start.X) * dx + (p.Y - segment.Start.Y) * dy;
+		Func<Point2D, bool> onLine = p => Math.Abs((p.X - segment.Start.X) * dy - (p.Y - segment.Start.Y) * dx) <= _tolerance;
+		var matches = _graph.Edges.Where(e => e.Kind == "Line" && onLine(e.Start) && onLine(e.End)
+			&& Math.Max(axis(e.Start), axis(e.End)) > _tolerance
+			&& Math.Min(axis(e.Start), axis(e.End)) < length - _tolerance)
+			.OrderBy(e => Math.Min(axis(e.Start), axis(e.End))).ToList();
+		double covered = 0;
+		foreach (var edge in matches)
+		{
+			if (Math.Min(axis(edge.Start), axis(edge.End)) > covered + _tolerance) { return "Unknown"; }
+			covered = Math.Max(covered, Math.Max(axis(edge.Start), axis(edge.End)));
+		}
+		if (covered < length - _tolerance) { return "Unknown"; }
+		// A raw edge crossing an internal seam is not wholly supported by the exterior contour.
+		return matches.All(e => e.IsBoundary) ? "Boundary" : "NonBoundary";
 	}
 
 	public bool? ValidateBoundaryAttachments(Point2D first, Point2D second)

@@ -9,7 +9,7 @@ public sealed class OutlineTopologyDiagnostic
 	public string Status { get; set; } = "Unavailable";
 	public string Reason { get; set; } = "NotCaptured";
 	public string CoordinateSystem => "PlanningFrame";
-	public string IntersectionHandling => "ExistingEndpointsOnly_NoIntersectionSplitting";
+	public string IntersectionHandling => "ExistingEndpointsOnly_SplitLineOverlaps_NoNewIntersections";
 	public double Tolerance { get; set; }
 	public double MinX { get; set; }
 	public double MinY { get; set; }
@@ -40,6 +40,7 @@ public sealed class OutlineTopologyEdge
 	public int EndNode { get; set; }
 	public string Kind { get; set; }
 	public string SourceKey { get; set; }
+	public List<string> SourceKeys { get; set; } = new List<string>();
 	public string SourceHandle { get; set; }
 	public Point2D Start { get; set; }
 	public Point2D End { get; set; }

@@ -46,15 +46,6 @@ public sealed class FeatureRecognizer
 		public double Radius { get; set; }
 	}
 
-	private sealed class ThreadMinorCircleInfo
-	{
-		public Point3d Center { get; set; }
-
-		public double Diameter { get; set; }
-
-		public string Callout { get; set; }
-	}
-
 	private const double BulgeEpsilon = 1E-12;
 
 	private static readonly bool DiagnosticsEnabled;
@@ -157,7 +148,6 @@ public sealed class FeatureRecognizer
 		HashSet<ObjectId> hashSet = new HashSet<ObjectId>(LastRecognizedSlots.SelectMany(GetSlotSourceIds));
 		IList<Point3d> list2 = CollectPinMarkers(contextIds, list, tr);
 		IList<ThreadArcInfo> list3 = CollectThreadArcInfos(list, tr);
-		IList<ThreadMinorCircleInfo> minorCircles = CollectThreadMinorCircles(list, tr, list3);
 		List<Circle> selectionCircles = MaterializeSelectionCircles(list, tr);
 		List<HoleFeature> list4 = new List<HoleFeature>();
 		int num = 0;
@@ -230,11 +220,8 @@ public sealed class FeatureRecognizer
 			Arc arc = entity as Arc;
 			if (arc != null && IsConfirmedThreadArc(arc, selectionCircles))
 			{
-				string text = FindThreadMinorCallout(arc.Center, minorCircles);
-				if (string.IsNullOrEmpty(text))
-				{
-					text = _config.GetThreadCalloutForMinorDiameter(arc.Radius * 2.0);
-				}
+				// The confirmed thread arc represents the major diameter, not the minor diameter.
+				string text = _config.FormatThreadCallout(arc.Radius * 2.0);
 				list4.Add(new HoleFeature
 				{
 					Center = arc.Center,
@@ -1642,33 +1629,6 @@ public sealed class FeatureRecognizer
 		return false;
 	}
 
-	private IList<ThreadMinorCircleInfo> CollectThreadMinorCircles(IEnumerable<ObjectId> sourceIds, Transaction tr, IEnumerable<ThreadArcInfo> threadArcs)
-	{
-		List<ThreadMinorCircleInfo> list = new List<ThreadMinorCircleInfo>();
-		if (sourceIds == null)
-		{
-			return list;
-		}
-		foreach (ObjectId sourceId in sourceIds)
-		{
-			Circle circle = tr.GetObject(sourceId, OpenMode.ForRead) as Circle;
-			if (!(circle == null) && HasThreadArcAtCenter(circle.Center, threadArcs))
-			{
-				string threadCalloutForMinorDiameter = _config.GetThreadCalloutForMinorDiameter(circle.Radius * 2.0);
-				if (!string.IsNullOrEmpty(threadCalloutForMinorDiameter))
-				{
-					list.Add(new ThreadMinorCircleInfo
-					{
-						Center = circle.Center,
-						Diameter = circle.Radius * 2.0,
-						Callout = threadCalloutForMinorDiameter
-					});
-				}
-			}
-		}
-		return list;
-	}
-
 	private bool HasThreadArcAtCenter(Point3d center, IEnumerable<ThreadArcInfo> threadArcs)
 	{
 		foreach (ThreadArcInfo threadArc in threadArcs)
@@ -1679,18 +1639,6 @@ public sealed class FeatureRecognizer
 			}
 		}
 		return false;
-	}
-
-	private string FindThreadMinorCallout(Point3d center, IEnumerable<ThreadMinorCircleInfo> minorCircles)
-	{
-		foreach (ThreadMinorCircleInfo minorCircle in minorCircles)
-		{
-			if (center.DistanceTo(minorCircle.Center) <= _config.GeometryTolerance)
-			{
-				return minorCircle.Callout;
-			}
-		}
-		return string.Empty;
 	}
 
 	private static bool IsDrawingLayer(string layerName)
@@ -1704,6 +1652,30 @@ public sealed class FeatureRecognizer
 	{
 		string blockName = GetBlockName(blockReference, tr);
 		return string.Equals(blockName, "CadAider_销孔标记", StringComparison.OrdinalIgnoreCase) || string.Equals(blockName, "CadAider_销孔标记背面", StringComparison.OrdinalIgnoreCase);
+	}
+
+	public void CollectStructureDatumMarkers(IEnumerable<ObjectId> selectedIds, Transaction tr, OutlineFeature outline, DatumDefinition datum)
+	{
+		var coreOutline = Mapping.CadToCoreModelMapper.ToCoreOutline(outline);
+		foreach (ObjectId id in (selectedIds ?? Enumerable.Empty<ObjectId>()).Distinct())
+		{
+			if (id.IsNull || id.IsErased || !(tr.GetObject(id, OpenMode.ForRead) is BlockReference block)
+				|| AnnotationMetadata.IsMarked(block)) { continue; }
+			string name = GetBlockName(block, tr);
+			if (!StructureDatumRules.IsDatumBlock(name)) { continue; }
+			Vector3d x = Vector3d.XAxis.TransformBy(block.BlockTransform);
+			Vector3d y = Vector3d.YAxis.TransformBy(block.BlockTransform);
+			var marker = StructureDatumRules.CreateInsertionMarker(name, id.ToString(),
+				new CadAuto.Core.Geometry.Point2D(block.Position.X, block.Position.Y),
+				new CadAuto.Core.Geometry.Point2D(x.X, x.Y), new CadAuto.Core.Geometry.Point2D(y.X, y.Y),
+				coreOutline, _config.GeometryTolerance, block.IsDynamicBlock);
+			if (Math.Abs(x.Z) > _config.GeometryTolerance || Math.Abs(y.Z) > _config.GeometryTolerance)
+			{
+				marker.ValidationFailure = "NonPlanarBlockTransform";
+			}
+			// Keep rejected evidence so an unsupported symbol cannot silently select a default datum.
+			datum.StructureDatumMarkers.Add(marker);
+		}
 	}
 
 	internal static string GetBlockName(BlockReference blockReference, Transaction tr)

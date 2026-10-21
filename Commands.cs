@@ -656,6 +656,7 @@ public sealed class Commands
 				ReportEnvelopeSkippedEntities(editor, featureRecognizer);
 			}
 			DatumDefinition datumDefinition = DatumDefinition.FromOutline(outlineFeature);
+			featureRecognizer.CollectStructureDatumMarkers(outlineSelection.SelectedIds, transaction, outlineFeature, datumDefinition);
 			datumDefinition.HoleCenterlineEndpoints.AddRange(geometryCollector.CollectHoleCenterlineEndpoints(transaction, outlineSelection, dimensionRuleConfig.GeometryTolerance));
 			IList<SlotFeature> list = featureRecognizer.RecognizeOutlineSlotFeatures(outlineFeature);
 			IList<ObjectId> list2 = geometryCollector.CollectHoleSourcesFromOutlineSelection(transaction, outlineFeature, outlineSelection, dimensionRuleConfig);
@@ -724,8 +725,7 @@ public sealed class Commands
 			Datum2D datum2D = CadToCoreModelMapper.ToCoreDatum(datumDefinition);
 			List<HoleFeature2D> holes = CadToCoreModelMapper.ToCoreHoles(list5);
 			List<SlotFeature2D> list7 = CadToCoreModelMapper.ToCoreSlots(featureRecognizer.LastRecognizedSlots);
-			DimensionPlanner dimensionPlanner = new DimensionPlanner(config);
-			DimensionPlan dimensionPlan = dimensionPlanner.CreateDimensionPlan(outline, datum2D, holes, list7);
+			DimensionPlan dimensionPlan = CreatePlanWithStructureDatumSelection(editor, outline, datum2D, holes, list7, config);
 			IList<HoleCalloutPlan> holeCalloutPlans = new HoleCalloutPlanner(config).CreatePlans(holes, datum2D.DatumHole);
 			DimensionPlan dimensionPlan2 = CreateCoreDebugRenderPlan(dimensionPlan);
 			string text = EnsureCoreDebugLayer(database, transaction);
@@ -809,6 +809,7 @@ public sealed class Commands
 					ReportEnvelopeSkippedEntities(editor, featureRecognizer);
 				}
 				DatumDefinition datumDefinition = DatumDefinition.FromOutline(outlineFeature);
+				featureRecognizer.CollectStructureDatumMarkers(outlineSelection.SelectedIds, transaction, outlineFeature, datumDefinition);
 				datumDefinition.HoleCenterlineEndpoints.AddRange(geometryCollector.CollectHoleCenterlineEndpoints(transaction, outlineSelection, config.GeometryTolerance));
 				IList<SlotFeature> list3;
 				if (!flag4)
@@ -913,7 +914,7 @@ public sealed class Commands
 				DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, objectId2, objectId3, num, text, groupId, diagnosticsEnabled, diagnosticSide);
 				if (flag)
 				{
-					DimensionPlan dimensionPlan = DrawLinearDimensions(dimensionDrawer, outlineFeature, datumDefinition, list8, list10, flag6, config, outputScope);
+					DimensionPlan dimensionPlan = DrawLinearDimensions(editor, dimensionDrawer, outlineFeature, datumDefinition, list8, list10, flag6, config, outputScope);
 					completedLinearPlan = dimensionPlan;
 					recognizedHoles = list8;
 				}
@@ -1242,18 +1243,47 @@ public sealed class Commands
 		return num * num + num2 * num2 <= config.GeometryTolerance * config.GeometryTolerance && Math.Abs(a.Diameter - b.Diameter) <= config.GeometryTolerance;
 	}
 
-	private static DimensionPlan DrawLinearDimensions(DimensionDrawer drawer, OutlineFeature outline, DatumDefinition datum, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, bool skipHoleDimensions, DimensionRuleConfig config, AutoFixDimOutputScope outputScope)
+	private static DimensionPlan DrawLinearDimensions(Editor editor, DimensionDrawer drawer, OutlineFeature outline, DatumDefinition datum, IEnumerable<HoleFeature> holes, IEnumerable<SlotFeature> slots, bool skipHoleDimensions, DimensionRuleConfig config, AutoFixDimOutputScope outputScope)
 	{
 		OutlineFeature2D outline2 = CadToCoreModelMapper.ToCoreOutline(outline);
 		Datum2D datum2 = CadToCoreModelMapper.ToCoreDatum(datum);
 		List<HoleFeature> source = (skipHoleDimensions ? new List<HoleFeature>() : (holes ?? new List<HoleFeature>()).Where((HoleFeature hole) => hole != null).ToList());
 		List<HoleFeature2D> holes2 = CadToCoreModelMapper.ToCoreHoles(source);
 		List<SlotFeature2D> slots2 = CadToCoreModelMapper.ToCoreSlots(slots);
-		DimensionPlan dimensionPlan = new DimensionPlanner(config).CreateDimensionPlan(outline2, datum2, holes2, slots2);
+		DimensionPlan dimensionPlan = CreatePlanWithStructureDatumSelection(editor, outline2, datum2, holes2, slots2, config,
+			outputScope != AutoFixDimOutputScope.HoleOnly);
 		drawer.DrawDimensionPlan(FilterDimensionPlan(dimensionPlan, outputScope), dimensionPlan.Diagnostics, datum2);
 		drawer.FlushStackedDimensions(outline);
 		dimensionPlan.SynchronizeFinalPlacementSides();
 		return dimensionPlan;
+	}
+
+	private static DimensionPlan CreatePlanWithStructureDatumSelection(Editor editor, OutlineFeature2D outline, Datum2D datum,
+		List<HoleFeature2D> holes, List<SlotFeature2D> slots, DimensionRuleConfig config, bool promptForStructure = true)
+	{
+		var planner = new DimensionPlanner(config);
+		var plan = planner.CreateDimensionPlan(outline, datum, holes, slots, CoordinateFrame2D.Identity);
+		if (!promptForStructure) { return plan; }
+		bool conflictY = plan.Diagnostics.Warnings.Any(w => w.Contains("|Axis=Y|Reason=ConflictingTopBottomBlocks|"));
+		bool conflictX = plan.Diagnostics.Warnings.Any(w => w.Contains("|Axis=X|Reason=ConflictingLeftRightBlocks|"));
+		if (!conflictY && !conflictX) { return plan; }
+		if (conflictY) { datum.StructureDatumMinimumY = PromptForStructureDatumMinimum(editor, horizontal: false); }
+		if (conflictX) { datum.StructureDatumMinimumX = PromptForStructureDatumMinimum(editor, horizontal: true); }
+		return planner.CreateDimensionPlan(outline, datum, holes, slots, CoordinateFrame2D.Identity);
+	}
+
+	private static bool PromptForStructureDatumMinimum(Editor editor, bool horizontal)
+	{
+		var options = horizontal
+			? new PromptKeywordOptions("\n左右两侧均有有效基准块，请选择水平尺寸基准 [左侧(A)/右侧(D)]", "A D")
+			: new PromptKeywordOptions("\n上下两侧均有有效基准块，请选择竖向尺寸基准 [顶部(W)/底部(S)]", "W S");
+		options.AllowNone = false;
+		PromptResult result = editor.GetKeywords(options);
+		if (result.Status != PromptStatus.OK)
+		{
+			throw new Autodesk.AutoCAD.Runtime.Exception(ErrorStatus.UserBreak);
+		}
+		return string.Equals(result.StringResult, horizontal ? "A" : "S", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static DiagnosticRunContext CreateDiagnosticRunContext(Database database, Transaction transaction, OutlineSelection selection, IEnumerable<ObjectId> holeSourceIds, OutlineFeature outline, DatumDefinition datum, string runId, string commandName)

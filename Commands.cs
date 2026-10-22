@@ -32,7 +32,8 @@ public sealed class Commands
 		All,
 		OutlineOnly,
 		HoleOnly,
-		CornerOnly
+		CornerOnly,
+		DiameterOnly
 	}
 
 	private sealed class DiagnosticBounds
@@ -230,6 +231,12 @@ public sealed class Commands
 	public void Asd7()
 	{
 		RunAutoFixDim(clearExistingBeforeGenerate: false, diagnosticsEnabled: false, outputScope: AutoFixDimOutputScope.CornerOnly, commandName: "ASD7");
+	}
+
+	[CommandMethod("ASD8")]
+	public void Asd8()
+	{
+		RunAutoFixDim(clearExistingBeforeGenerate: false, diagnosticsEnabled: false, outputScope: AutoFixDimOutputScope.DiameterOnly, commandName: "ASD8");
 	}
 
 	[CommandMethod("ASDREPRO")]
@@ -770,8 +777,9 @@ public sealed class Commands
 		}
 		string groupId = DateTime.Now.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
 		DiagnosticDimensionSide diagnosticSide = (diagnosticsEnabled ? PromptForDiagnosticSide(editor) : DiagnosticDimensionSide.All);
-		bool flag = outputScope != AutoFixDimOutputScope.CornerOnly;
-		bool flag2 = outputScope == AutoFixDimOutputScope.All || outputScope == AutoFixDimOutputScope.HoleOnly;
+		bool diameterOnly = outputScope == AutoFixDimOutputScope.DiameterOnly;
+		bool flag = outputScope != AutoFixDimOutputScope.CornerOnly && !diameterOnly;
+		bool flag2 = outputScope == AutoFixDimOutputScope.All || outputScope == AutoFixDimOutputScope.HoleOnly || diameterOnly;
 		bool flag3 = outputScope == AutoFixDimOutputScope.All || outputScope == AutoFixDimOutputScope.CornerOnly;
 		bool flag4 = outputScope == AutoFixDimOutputScope.All || outputScope == AutoFixDimOutputScope.HoleOnly;
 		bool flag5 = flag4;
@@ -838,7 +846,7 @@ public sealed class Commands
 						list5 = geometryCollector.PromptForCircleHoles();
 						if (list5 == null || list5.Count == 0)
 						{
-							editor.WriteMessage("\n未选择孔，已跳过孔标注，继续外轮廓标注。");
+							editor.WriteMessage(diameterOnly ? "\n未选择孔，已跳过孔径标注。" : "\n未选择孔，已跳过孔标注，继续外轮廓标注。");
 							list5 = new List<ObjectId>();
 							flag6 = true;
 						}
@@ -857,10 +865,10 @@ public sealed class Commands
 				IList<HoleFeature> list8 = list6;
 				if (!flag6 && list8.Count == 0)
 				{
-					editor.WriteMessage("\n未识别到有效圆孔，已跳过孔标注，继续外轮廓标注。");
+						editor.WriteMessage(diameterOnly ? "\n未识别到有效圆孔，已跳过孔径标注。" : "\n未识别到有效圆孔，已跳过孔标注，继续外轮廓标注。");
 					flag6 = true;
 				}
-				if (!flag6)
+				if (!flag6 && !diameterOnly)
 				{
 					List<HoleFeature> list9 = list8.Where((HoleFeature h) => h.IsPinHole).ToList();
 					if (list9.Count > 0)

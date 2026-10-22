@@ -188,9 +188,13 @@ public sealed class StructureFeatureExtractor
 		// Outer envelope short tips (CAD foot tip ~20): promote to Structure even when OS
 		// would only see OutlineSegmentOnOverallEnvelope.
 		AddOuterEnvelopeTips(features, outerGeometry, envelopeBand, minSpan, tol, boundaryEvidence);
-		RecoverInnerBossStack(features, outline, microGap, minSpan, envelopeBand, tol);
+		RecoverInnerBossStack(features, outline, microGap, minSpan, envelopeBand, tol, boundaryEvidence);
 		RecoverThinStepRisers(features, outerGeometry, envelopeBand, tol);
 
+		foreach (var groove in features.Where(f => f.SourceKey != null && f.SourceKey.StartsWith("StepGroove:", StringComparison.Ordinal)))
+		{
+			boundaryEvidence.AttachRecoveredGroove(groove, maxBridge);
+		}
 		AssignChainsAndClassify(features, outline, microGap, tol);
 		features.AddRange(unsupported);
 		boundaryEvidence?.ApplyAttachmentEvidence(features);
@@ -312,7 +316,8 @@ public sealed class StructureFeatureExtractor
 		double microGap,
 		double minSpan,
 		double envelopeBand,
-		double tol)
+		double tol,
+		StructureBoundaryEvidence boundaryEvidence)
 	{
 		if (features == null || outline == null)
 		{
@@ -412,7 +417,7 @@ public sealed class StructureFeatureExtractor
 							groove.Keep = false;
 						}
 					}
-					features.Add(new StructureFeature
+					var location = new StructureFeature
 					{
 						Axis = axis,
 						Kind = StructureFeatureKind.RealStep,
@@ -431,7 +436,13 @@ public sealed class StructureFeatureExtractor
 							: new Point2D(tip.CrossPosition, loc1),
 						Confidence = 0.91,
 						SourceKey = "InnerBossLocate:" + Math.Round(locate, 2).ToString(System.Globalization.CultureInfo.InvariantCulture)
-					});
+					};
+					if (boundaryEvidence.IsAvailable)
+					{
+						boundaryEvidence.AttachRecoveredBoundarySpan(location, bestDelta + envelopeBand, "RecoveredBossPosition");
+						location.SupportSourceKeys.AddRange(bestLedge.SupportSourceKeys.Where(key => !location.SupportSourceKeys.Contains(key)));
+					}
+					features.Add(location);
 				}
 				double env = tip.CrossPosition;
 				double ledgeCross = bestLedge.CrossPosition;
@@ -439,7 +450,8 @@ public sealed class StructureFeatureExtractor
 				double wall = bestAbutMax
 					? Math.Max(bestLedge.T0, bestLedge.T1)
 					: Math.Min(bestLedge.T0, bestLedge.T1);
-				TrimFootLedgeAfterFillet(widthLedge, outline, tip, bestAbutMax, wall, envelopeBand, tol);
+				double stem = bestAbutMax ? Math.Max(tip.T0, tip.T1) : Math.Min(tip.T0, tip.T1);
+				boundaryEvidence.RecoverInnerBossGroove(widthLedge, outline, stem, wall, env, ledgeCross);
 				StructureFeatureAxis heightAxis = tipIsHorizontal
 					? StructureFeatureAxis.Vertical
 					: StructureFeatureAxis.Horizontal;
@@ -618,77 +630,6 @@ public sealed class StructureFeatureExtractor
 				SourceKey = "InnerBossStep:" + Math.Round(span, 2).ToString(System.Globalization.CultureInfo.InvariantCulture),
 				PreferLocalPlacement = true
 			});
-		}
-	}
-
-	private static void TrimFootLedgeAfterFillet(
-		StructureFeature ledge,
-		OutlineFeature2D outline,
-		StructureFeature tip,
-		bool ledgeBeyondTipMax,
-		double wall,
-		double envelopeBand,
-		double tol)
-	{
-		if (ledge == null || outline?.Segments == null || tip == null)
-		{
-			return;
-		}
-		double stem = ledgeBeyondTipMax ? Math.Max(tip.T0, tip.T1) : Math.Min(tip.T0, tip.T1);
-		bool horizontal = ledge.Axis == StructureFeatureAxis.Horizontal;
-		double inner = wall;
-		bool found = false;
-		foreach (Segment2D s in outline.Segments)
-		{
-			if (s == null || s.IsArcChord)
-			{
-				continue;
-			}
-			if (horizontal ? !s.IsHorizontal(tol) : !s.IsVertical(tol))
-			{
-				continue;
-			}
-			double a0 = horizontal ? Math.Min(s.Start.X, s.End.X) : Math.Min(s.Start.Y, s.End.Y);
-			double a1 = horizontal ? Math.Max(s.Start.X, s.End.X) : Math.Max(s.Start.Y, s.End.Y);
-			double start = ledgeBeyondTipMax ? a0 : a1;
-			if (ledgeBeyondTipMax)
-			{
-				if (start <= stem + tol || a1 < wall - envelopeBand)
-				{
-					continue;
-				}
-			}
-			else if (start >= stem - tol || a0 > wall + envelopeBand)
-			{
-				continue;
-			}
-			if (!found)
-			{
-				inner = start;
-				found = true;
-			}
-			else if (ledgeBeyondTipMax ? start < inner : start > inner)
-			{
-				inner = start;
-			}
-		}
-		if (!found || Math.Abs(inner - stem) <= tol)
-		{
-			return;
-		}
-		if (ledgeBeyondTipMax)
-		{
-			ledge.T0 = inner;
-			ledge.T1 = wall;
-			ledge.FirstPoint = horizontal ? new Point2D(inner, ledge.CrossPosition) : new Point2D(ledge.CrossPosition, inner);
-			ledge.SecondPoint = horizontal ? new Point2D(wall, ledge.CrossPosition) : new Point2D(ledge.CrossPosition, wall);
-		}
-		else
-		{
-			ledge.T0 = wall;
-			ledge.T1 = inner;
-			ledge.FirstPoint = horizontal ? new Point2D(wall, ledge.CrossPosition) : new Point2D(ledge.CrossPosition, wall);
-			ledge.SecondPoint = horizontal ? new Point2D(inner, ledge.CrossPosition) : new Point2D(ledge.CrossPosition, inner);
 		}
 	}
 

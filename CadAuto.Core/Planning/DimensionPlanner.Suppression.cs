@@ -63,6 +63,7 @@ public sealed partial class DimensionPlanner
 			SuppressNearOverallInsetStructureBodies(plan, outline);
 			SuppressInsetStructureComplementaryToEnvelopeArm(plan, outline);
 			SuppressRawLedgesCoveredByEnvelopePosition(plan, outline);
+			SuppressRawBossFacesCoveredByEnvelopePosition(plan, outline);
 			SuppressTangentSpansAcrossJoinedSeams(plan, outline);
 			SuppressCollinearExteriorBranchFragments(plan, outline);
 			// Only clean OutlineSegment / envelope noise so OS does not re-win over structure.

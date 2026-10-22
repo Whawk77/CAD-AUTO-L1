@@ -1129,7 +1129,13 @@ public sealed partial class StructureMeasurementSelector
 				{
 					continue;
 				}
-				if (outer.PreferredSide != inner.PreferredSide)
+				// A proven groove already owns its truncated floor, regardless of layout side.
+				bool recoveredFloor = IsStepGroove(outer) && outer.RequiresOuterBoundarySupport
+					&& outer.BoundaryMembership == "Boundary" && outer.BoundaryAttachmentValidity == true
+					&& (outer.BoundaryEvidence ?? "").Contains("|Relation=RecoveredGroove|")
+					&& !string.IsNullOrEmpty(inner.SourceKey) && outer.SupportSourceKeys.Contains(inner.SourceKey)
+					&& Math.Abs(outer.CrossPosition - inner.CrossPosition) <= tol;
+				if (outer.PreferredSide != inner.PreferredSide && !recoveredFloor)
 				{
 					continue;
 				}
@@ -1148,7 +1154,7 @@ public sealed partial class StructureMeasurementSelector
 						|| outer.PreferredSide == inner.PreferredSide)
 					{
 						inner.Keep = false;
-						inner.SuppressReason = "NestedInLargerResidual";
+						inner.SuppressReason = recoveredFloor ? "RecoveredGrooveCoversSameSourceFloor" : "NestedInLargerResidual";
 					}
 				}
 			}

@@ -12,6 +12,8 @@ public sealed class DimensionDiagnosticReport
 
 	public string OutlineTopologySvgPath { get; set; }
 
+	public List<string> StructureDatumChecks { get; } = new List<string>();
+
 	// Scoped to real axis edges, recognized body-slope projections and chamfer spans.
 	public string OutlineInformationStatus { get; set; } = "NotEvaluated";
 

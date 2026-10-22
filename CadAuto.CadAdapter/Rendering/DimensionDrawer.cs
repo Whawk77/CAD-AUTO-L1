@@ -161,6 +161,8 @@ public sealed class DimensionDrawer
 
 	private readonly BlockTableRecord _space;
 
+	private List<RotatedDimension> _existingGeneratedDimensions;
+
 	private readonly List<DeferredDim> _bottomDims = new List<DeferredDim>();
 
 	private readonly List<DeferredDim> _topDims = new List<DeferredDim>();
@@ -612,6 +614,7 @@ public sealed class DimensionDrawer
 
 	public void FlushStackedDimensions(OutlineFeature outline)
 	{
+		_existingGeneratedDimensions = null;
 		double dimStyleTextHeight = GetDimStyleTextHeight(_dimStyleId);
 		double perLevelSpacing = dimStyleTextHeight + Scale(_config.DimTextClearance);
 		RebalanceVerticalHoleLocationSides();
@@ -705,14 +708,24 @@ public sealed class DimensionDrawer
 			// WCS coordinates against local bounds and reserving a false lane.
 			return 0.0;
 		}
-		double num = 0.0;
-		foreach (ObjectId item in _space)
+		if (_existingGeneratedDimensions == null)
 		{
-			RotatedDimension rotatedDimension = _transaction.GetObject(item, OpenMode.ForRead, openErased: false) as RotatedDimension;
-			if (!(rotatedDimension == null) && AnnotationMetadata.IsMarked(rotatedDimension) && IsExistingDimensionOnSide(rotatedDimension, side, outline, isHorizontal, out var offset) && offset > num)
+			_existingGeneratedDimensions = new List<RotatedDimension>();
+			var rotatedClass = Autodesk.AutoCAD.Runtime.RXObject.GetClass(typeof(RotatedDimension));
+			foreach (ObjectId item in GetExistingGeneratedDimensionIds())
 			{
-				num = offset;
+				if (item.IsNull || !item.IsValid || item.IsErased || !item.ObjectClass.IsDerivedFrom(rotatedClass)) { continue; }
+				var dimension = _transaction.GetObject(item, OpenMode.ForRead, openErased: false) as RotatedDimension;
+				if (dimension != null && dimension.OwnerId == _space.ObjectId && AnnotationMetadata.IsMarked(dimension)
+					&& IsExistingDimensionRelevantToOutline(dimension, outline))
+				{ _existingGeneratedDimensions.Add(dimension); }
 			}
+		}
+		double num = 0.0;
+		foreach (var dimension in _existingGeneratedDimensions)
+		{
+			if (IsExistingDimensionOnSide(dimension, side, outline, isHorizontal, out var offset) && offset > num)
+			{ num = offset; }
 		}
 		if (num <= _config.GeometryTolerance)
 		{
@@ -720,6 +733,29 @@ public sealed class DimensionDrawer
 		}
 		int num2 = (int)Math.Floor(Math.Max(0.0, num - firstOffset) / perLevelSpacing) + 1;
 		return (double)num2 * perLevelSpacing;
+	}
+
+	private IEnumerable<ObjectId> GetExistingGeneratedDimensionIds()
+	{
+		var document = Autodesk.AutoCAD.ApplicationServices.Application.DocumentManager.MdiActiveDocument;
+		if (document != null && document.Database == _space.Database)
+		{
+			try
+			{
+				var result = document.Editor.SelectAll(new SelectionFilter(new[] {
+					new TypedValue((int)DxfCode.Start, "DIMENSION"),
+					new TypedValue((int)DxfCode.ExtendedDataRegAppName, AnnotationMetadata.AppName) }));
+				if (result.Status == PromptStatus.OK)
+				{
+					using (var selection = result.Value) { return selection.GetObjectIds(); }
+				}
+			}
+			catch (Autodesk.AutoCAD.Runtime.Exception)
+			{
+				// A failed native filter must not silently disable existing-dimension avoidance.
+			}
+		}
+		return _space.Cast<ObjectId>();
 	}
 
 	private static bool IsExistingDimensionOnSide(RotatedDimension dimension, DimSide side, OutlineFeature outline, bool isHorizontal, out double offset)

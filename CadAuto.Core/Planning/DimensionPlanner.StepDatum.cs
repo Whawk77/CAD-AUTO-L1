@@ -10,8 +10,28 @@ namespace CadAuto.Core.Planning;
 
 public sealed partial class DimensionPlanner
 {
+	private void RecordStructureDatumCheck(DimensionPlan plan, string check)
+	{
+		if (!plan.Diagnostics.StructureDatumChecks.Contains(check)) { plan.Diagnostics.StructureDatumChecks.Add(check); }
+	}
+
+	private void InspectStructureDatumBlocks(DimensionPlan plan, Datum2D datum)
+	{
+		var ownership = new StructureBoundaryEvidence(plan.Diagnostics.OutlineTopology, _config.GeometryTolerance);
+		// Explicit block evidence must be checked before shape-specific rules can exit.
+		foreach (bool horizontal in new[] { false, true })
+		{
+			if (!ownership.IsAvailable)
+			{
+				RecordStructureDatumCheck(plan, "Axis=" + (horizontal ? "X" : "Y") + "|Decision=Pending|Reason=UnverifiedOuterBoundary|Side=None");
+				continue;
+			}
+			ChooseStepDatumMinimum(plan, ownership.BoundaryOutline, datum, horizontal, false, out var selected, out string reason, inspectionOnly: true);
+		}
+	}
+
 	private bool ChooseStepDatumMinimum(DimensionPlan plan, OutlineFeature2D boundary, Datum2D datum,
-		bool horizontal, bool geometricMinimum, out List<StructureDatumMarker2D> selected, out string reason)
+		bool horizontal, bool geometricMinimum, out List<StructureDatumMarker2D> selected, out string reason, bool inspectionOnly = false)
 	{
 		double tol = _config.GeometryTolerance;
 		string axis = horizontal ? "X" : "Y";
@@ -21,12 +41,19 @@ public sealed partial class DimensionPlanner
 		var valid = new List<StructureDatumMarker2D>();
 		foreach (var marker in markers)
 		{
-			if (!string.IsNullOrEmpty(marker.ValidationFailure)
-				|| !OutlineGeometryQuery.IsPointOnBoundary(marker.ContactPoint, boundary, tol))
+			bool verified = string.IsNullOrEmpty(marker.ValidationFailure)
+				&& OutlineGeometryQuery.IsPointOnBoundary(marker.ContactPoint, boundary, tol);
+			string detail = marker.ValidationFailure ?? (verified ? "None" : "MissingInsertionEvidence");
+			RecordStructureDatumCheck(plan, "Axis=" + axis + "|Block=" + marker.BlockName + "|Source=" + marker.SourceGeometryId
+				+ "|ContactX=" + marker.ContactPoint.X.ToString("R", CultureInfo.InvariantCulture)
+				+ "|ContactY=" + marker.ContactPoint.Y.ToString("R", CultureInfo.InvariantCulture)
+				+ "|Validation=" + (verified ? "Valid" : "Rejected") + "|Detail=" + detail + "|ContactKind=" + marker.ContactKind);
+			if (!verified)
 			{
-				plan.Diagnostics.Warnings.Add("StepDatum.PendingHumanConfirmation|Axis=" + axis
+				string warning = "StepDatum.PendingHumanConfirmation|Axis=" + axis
 					+ "|Reason=UnverifiedBlockContact|Block=" + marker.BlockName + "|Source=" + marker.SourceGeometryId
-					+ "|Detail=" + (marker.ValidationFailure ?? "MissingInsertionEvidence") + "|Fallback=Geometry");
+					+ "|Detail=" + detail + "|Fallback=Geometry";
+				if (!plan.Diagnostics.Warnings.Contains(warning)) { plan.Diagnostics.Warnings.Add(warning); }
 				continue;
 			}
 			valid.Add(marker);
@@ -41,16 +68,26 @@ public sealed partial class DimensionPlanner
 		{
 			selected = userMinimum.Value ? minimum : maximum;
 			reason = "UserConfirmedBoundaryBlock";
+			RecordStructureDatumCheck(plan, "Axis=" + axis + "|Decision=Confirmed|Reason=" + reason + "|Side="
+				+ (horizontal ? userMinimum.Value ? "Left" : "Right" : userMinimum.Value ? "Bottom" : "Top"));
 			return userMinimum.Value;
 		}
 		if ((minimum.Count > 0) != (maximum.Count > 0))
 		{
 			selected = minimum.Count > 0 ? minimum : maximum;
 			reason = "ConfirmedBoundaryBlock";
+			RecordStructureDatumCheck(plan, "Axis=" + axis + "|Decision=Confirmed|Reason=" + reason + "|Side="
+				+ (horizontal ? minimum.Count > 0 ? "Left" : "Right" : minimum.Count > 0 ? "Bottom" : "Top"));
 			return minimum.Count > 0;
 		}
 		string failure = minimum.Count > 0 ? (horizontal ? "ConflictingLeftRightBlocks" : "ConflictingTopBottomBlocks") : "NoBlockEvidence";
-		plan.Diagnostics.Warnings.Add("StepDatum.PendingHumanConfirmation|Axis=" + axis + "|Reason=" + failure + "|Fallback=Geometry");
+		RecordStructureDatumCheck(plan, "Axis=" + axis + "|Decision=" + (minimum.Count > 0 ? "Conflict" : markers.Count == 0 ? "Missing" : valid.Count == 0 ? "Rejected" : "Unresolved")
+			+ "|Reason=" + failure + "|Side=None");
+		if (!inspectionOnly || minimum.Count > 0)
+		{
+			string warning = "StepDatum.PendingHumanConfirmation|Axis=" + axis + "|Reason=" + failure + "|Fallback=Geometry";
+			if (!plan.Diagnostics.Warnings.Contains(warning)) { plan.Diagnostics.Warnings.Add(warning); }
+		}
 		reason = "GeometryClearExtensionThenShorterSpan";
 		return geometricMinimum;
 	}
@@ -157,22 +194,26 @@ public sealed partial class DimensionPlanner
 			replacements.Add(dimension);
 		}
 		var groupSources = new HashSet<string>(chain.Select(e => e.SourceKey));
+		var groupBoundary = new OutlineFeature2D();
+		foreach (var edge in chain) { groupBoundary.Segments.Add(new Segment2D(edge.Start, edge.End) { SourceKey = edge.SourceKey }); }
 		var positions = replacements.Select(d => d.SecondPoint.X).Concat(new[] { outline.MinX, outline.MaxX }).ToList();
 		foreach (var candidate in plan.Dimensions.ToList())
 		{
-			if (candidate.Orientation != DimensionOrientation.Horizontal || candidate.Side != group.Item1
+			// Placement side does not change the interval expressed by a proven common datum.
+			if (candidate.Orientation != DimensionOrientation.Horizontal
 				|| (candidate.DebugRole != "OutlineSegment" && candidate.DebugRole != "BottomStructWidth" && candidate.DebugRole != "TopStructWidth")
 				|| !groupSources.Contains(candidate.SourceKey)
 				|| !positions.Any(x => Math.Abs(x - candidate.FirstPoint.X) <= tol)
 				|| !positions.Any(x => Math.Abs(x - candidate.SecondPoint.X) <= tol)
-				|| !OutlineGeometryQuery.IsPointOnBoundary(candidate.FirstPoint, boundary, tol)
-				|| !OutlineGeometryQuery.IsPointOnBoundary(candidate.SecondPoint, boundary, tol)) { continue; }
+				|| !OutlineGeometryQuery.IsPointOnBoundary(candidate.FirstPoint, groupBoundary, tol)
+				|| !OutlineGeometryQuery.IsPointOnBoundary(candidate.SecondPoint, groupBoundary, tol)) { continue; }
 			var providers = replacements.Where(d => Math.Abs(d.SecondPoint.X - candidate.FirstPoint.X) <= tol
 				|| Math.Abs(d.SecondPoint.X - candidate.SecondPoint.X) <= tol).ToList();
 			if (Math.Abs(candidate.FirstPoint.X - (minimum ? outline.MaxX : outline.MinX)) <= tol
 				|| Math.Abs(candidate.SecondPoint.X - (minimum ? outline.MaxX : outline.MinX)) <= tol)
 			{ providers.AddRange(plan.Dimensions.Where(d => d.Kind == DimensionKind.OverallWidth)); }
-			plan.TrySuppressCoveredStructure(candidate, "StepDatum.CoveredByCommonDatum", providers, null, evidence, allowOutlineSegment: true);
+			plan.TrySuppressCoveredStructure(candidate, "StepDatum.CoveredByCommonDatum", providers, null,
+				evidence + "|Relation=CommonDatumMeasuredInterval|CrossSide=" + (candidate.Side != group.Item1), allowOutlineSegment: true);
 		}
 		SuppressStepDatumDuplicateStructureDimensions(plan, replacements, evidence);
 	}

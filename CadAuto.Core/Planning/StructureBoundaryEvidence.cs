@@ -136,6 +136,143 @@ public sealed class StructureBoundaryEvidence
 		return true;
 	}
 
+	public void AttachRecoveredGroove(StructureFeature feature, double localBand)
+	{
+		AttachRecoveredBoundarySpan(feature, localBand, "RecoveredGroove");
+	}
+
+	public void AttachRecoveredBoundarySpan(StructureFeature feature, double localBand, string relation)
+	{
+		feature.RequiresOuterBoundarySupport = true;
+		feature.BoundaryMembership = "Unknown";
+		feature.BoundaryAttachmentValidity = null;
+		feature.BoundaryEvidence = "StructureBoundary|Relation=" + relation + "|Membership=Unknown|Reason=ConnectedBoundaryProofMissing";
+		feature.SupportSourceKeys.Clear();
+		if (!IsAvailable) { return; }
+		bool horizontal = feature.Axis == StructureFeatureAxis.Horizontal;
+		Func<Point2D, double> axis = p => horizontal ? p.X : p.Y;
+		Func<Point2D, double> cross = p => horizontal ? p.Y : p.X;
+		double minimum = Math.Min(feature.T0, feature.T1), maximum = Math.Max(feature.T0, feature.T1);
+		var paths = new List<(Point2D First, Point2D Second, List<OutlineTopologyEdge> Edges, double Length)>();
+		foreach (var start in _graph.Nodes.Where(n => n.IsBoundary && Math.Abs(axis(n.Point) - minimum) <= _tolerance
+			&& Math.Abs(cross(n.Point) - feature.CrossPosition) <= localBand + _tolerance))
+		foreach (int direction in new[] { 1, -1 })
+		{
+			var path = _graph.BoundaryPath;
+			int index = path.FindIndex(s => direction > 0 ? s.FromNode == start.Id : s.ToNode == start.Id);
+			if (index < 0) { continue; }
+			var visited = new List<OutlineTopologyEdge>();
+			double previous = axis(start.Point);
+			bool hasFloor = false;
+			for (int count = 0; count < path.Count; count++)
+			{
+				var step = path[index];
+				var edge = _graph.Edges.Single(e => e.Id == step.EdgeId);
+				var end = (direction > 0 ? step.Forward : !step.Forward) ? edge.End : edge.Start;
+				if (!edge.IsBoundary || string.IsNullOrEmpty(edge.SourceKey) || axis(end) < previous - _tolerance
+					|| axis(end) > maximum + _tolerance || Math.Abs(cross(end) - feature.CrossPosition) > localBand + _tolerance) { break; }
+				if (edge.Kind == "Arc")
+				{
+					var scope = new OutlineFeature2D();
+					scope.Arcs.Add(new Arc2D { Start = edge.Start, End = edge.End, Center = edge.Center,
+						Radius = edge.Radius, Bulge = edge.Bulge });
+					if (!OutlineGeometryQuery.TryGetEnvelope(scope, _tolerance, out var envelope)
+						|| (horizontal ? envelope.MinX : envelope.MinY) < Math.Min(axis(edge.Start), axis(edge.End)) - _tolerance
+						|| (horizontal ? envelope.MaxX : envelope.MaxY) > Math.Max(axis(edge.Start), axis(edge.End)) + _tolerance
+						|| (horizontal ? envelope.MinY : envelope.MinX) < feature.CrossPosition - localBand - _tolerance
+						|| (horizontal ? envelope.MaxY : envelope.MaxX) > feature.CrossPosition + localBand + _tolerance) { break; }
+				}
+				else if (edge.Kind != "Line") { break; }
+				hasFloor |= edge.Kind == "Line" && Math.Abs(cross(edge.Start) - feature.CrossPosition) <= _tolerance
+					&& Math.Abs(cross(edge.End) - feature.CrossPosition) <= _tolerance
+					&& Math.Abs(axis(edge.End) - axis(edge.Start)) > _tolerance;
+				visited.Add(edge);
+				if (Math.Abs(axis(end) - maximum) <= _tolerance)
+				{
+					if (hasFloor) { paths.Add((start.Point, end, visited,
+						visited.Sum(e => e.Kind == "Arc" ? Math.Abs(4 * Math.Atan(e.Bulge)) * e.Radius : e.Start.DistanceTo(e.End)))); }
+					break;
+				}
+				previous = axis(end);
+				index = (index + direction + path.Count) % path.Count;
+			}
+		}
+		// The shortest proven local walk excludes unrelated wall tails at the same station.
+		var ordered = paths.OrderBy(p => p.Length).ToList();
+		if (ordered.Count == 0) { return; }
+		var best = ordered[0];
+		if (ordered.Skip(1).Any(p => Math.Abs(p.Length - best.Length) <= _tolerance
+			&& !PairMatches(best.First, best.Second, p.First, p.Second))) { return; }
+		feature.FirstPoint = best.First; feature.SecondPoint = best.Second;
+		feature.BoundaryMembership = "Boundary";
+		feature.BoundaryEvidence = "StructureBoundary|Relation=" + relation + "|Membership=Boundary|EdgeIds=" + string.Join(",", best.Edges.Select(e => e.Id));
+		feature.SupportSourceKeys.AddRange(best.Edges.SelectMany(e => e.SourceKeys.Concat(new[] { e.SourceKey })).Where(k => !string.IsNullOrEmpty(k)).Distinct());
+	}
+
+	public void RecoverInnerBossGroove(StructureFeature feature, OutlineFeature2D outline,
+		double stem, double wall, double baseCross, double topCross)
+	{
+		if (!IsAvailable) { return; }
+		bool horizontal = feature.Axis == StructureFeatureAxis.Horizontal;
+		Func<Point2D, double> axis = p => horizontal ? p.X : p.Y;
+		Func<Point2D, double> cross = p => horizontal ? p.Y : p.X;
+		double minimum = Math.Min(stem, wall), maximum = Math.Max(stem, wall);
+		double low = Math.Min(baseCross, topCross), high = Math.Max(baseCross, topCross);
+		var matches = new List<(Point2D First, Point2D Second, List<OutlineTopologyEdge> Edges)>();
+		foreach (var tread in _graph.Edges.Where(e => !e.IsBoundary && e.Kind == "Line"
+			&& Math.Abs(cross(e.Start) - cross(e.End)) <= _tolerance))
+		{
+			var outer = Math.Abs(axis(tread.Start) - wall) <= _tolerance ? tread.Start : tread.End;
+			var inner = outer.DistanceTo(tread.Start) <= _tolerance ? tread.End : tread.Start;
+			int outerId = outer.DistanceTo(tread.Start) <= _tolerance ? tread.StartNode : tread.EndNode;
+			int innerId = outerId == tread.StartNode ? tread.EndNode : tread.StartNode;
+			if (Math.Abs(axis(outer) - wall) > _tolerance || !_graph.Nodes.Any(n => n.Id == outerId && n.IsBoundary)
+				|| cross(outer) <= low + _tolerance || cross(outer) >= high - _tolerance
+				|| !_graph.Edges.Any(e => e.IsBoundary && e.Kind == "Line" && (e.StartNode == outerId || e.EndNode == outerId)
+					&& Math.Abs(axis(e.Start) - wall) <= _tolerance && Math.Abs(axis(e.End) - wall) <= _tolerance
+					&& feature.CrossPosition >= Math.Min(cross(e.Start), cross(e.End)) - _tolerance
+					&& feature.CrossPosition <= Math.Max(cross(e.Start), cross(e.End)) + _tolerance)) { continue; }
+			foreach (var arc in _graph.Edges.Where(e => !e.IsBoundary && e.Kind == "Arc" && e.Radius > _tolerance
+				&& (e.StartNode == innerId || e.EndNode == innerId)
+				&& outline.Fillets.Any(f => PairMatches(f.StartPoint, f.EndPoint, e.Start, e.End))))
+			{
+				int joinId = arc.StartNode == innerId ? arc.EndNode : arc.StartNode;
+				var join = arc.StartNode == innerId ? arc.End : arc.Start;
+				if (Math.Abs(axis(inner) - axis(arc.Center)) > _tolerance
+					|| Math.Abs(cross(join) - cross(arc.Center)) > _tolerance
+					|| Math.Abs(Math.Abs(arc.Bulge) - Math.Tan(Math.PI / 8)) > _tolerance / arc.Radius
+					|| (axis(join) - axis(inner)) * Math.Sign(stem - wall) <= _tolerance
+					|| Math.Abs(inner.DistanceTo(arc.Center) - arc.Radius) > _tolerance
+					|| Math.Abs(join.DistanceTo(arc.Center) - arc.Radius) > _tolerance) { continue; }
+				foreach (var side in _graph.Edges.Where(e => !e.IsBoundary && e.Kind == "Line"
+					&& (e.StartNode == joinId || e.EndNode == joinId) && Math.Abs(axis(e.Start) - axis(e.End)) <= _tolerance))
+				{
+					int endId = side.StartNode == joinId ? side.EndNode : side.StartNode;
+					var end = side.StartNode == joinId ? side.End : side.Start;
+					var edges = new List<OutlineTopologyEdge> { tread, arc, side };
+					if (!_graph.Nodes.Any(n => n.Id == endId && n.IsBoundary) || axis(end) <= minimum + _tolerance
+						|| axis(end) >= maximum - _tolerance || (cross(end) - cross(join)) * Math.Sign(cross(join) - cross(inner)) < -_tolerance
+						|| edges.Any(e => string.IsNullOrEmpty(e.SourceKey)
+							|| new[] { e.Start, e.End }.Any(p => axis(p) < minimum - _tolerance || axis(p) > maximum + _tolerance
+								|| cross(p) < low - _tolerance || cross(p) > high + _tolerance))) { continue; }
+					matches.Add((end, outer, edges));
+				}
+			}
+		}
+		if (matches.Count != 1) { return; }
+		var match = matches[0];
+		feature.T0 = Math.Min(axis(match.First), axis(match.Second)); feature.T1 = Math.Max(axis(match.First), axis(match.Second));
+		feature.FirstPoint = axis(match.First) < axis(match.Second) ? match.First : match.Second;
+		feature.SecondPoint = axis(match.First) < axis(match.Second) ? match.Second : match.First;
+		// Only this complete, tangent internal path is admitted; raw internal edges remain excluded.
+		feature.RequiresOuterBoundarySupport = false; feature.BoundaryMembership = "NonBoundary";
+		feature.BoundaryAttachmentValidity = ValidateBoundaryAttachments(feature.FirstPoint, feature.SecondPoint);
+		feature.SupportSourceKeys.Clear(); feature.SupportSourceKeys.AddRange(match.Edges.Select(e => e.SourceKey));
+		feature.SourceKey = "FootLedge:InnerGroove:" + string.Join(",", feature.SupportSourceKeys);
+		feature.BoundaryEvidence = "StructureBoundary|Relation=RecoveredInnerBossGroove|Membership=ConnectedInternalPath|TangentFillet=True|RealBoundaryEndpoints=True|EdgeIds="
+			+ string.Join(",", match.Edges.Select(e => e.Id));
+	}
+
 	public void ApplyAttachmentEvidence(IEnumerable<StructureFeature> features)
 	{
 		foreach (var feature in features.Where(f => f.RequiresOuterBoundarySupport && f.Kind != StructureFeatureKind.Overall))

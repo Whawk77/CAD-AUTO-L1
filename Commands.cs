@@ -1638,6 +1638,7 @@ public sealed class Commands
 		AppendJsonProperty(stringBuilder, 1, "dimensionFrameOriginY", effectiveFrame.Origin.Y, comma: true);
 		AppendDiagnosticSelection(stringBuilder, context, comma: true);
 		AppendDiagnosticDatum(stringBuilder, context, comma: true);
+		AppendStringArray(stringBuilder, 1, "structureDatumChecks", report.StructureDatumChecks, comma: true);
 		AppendDiagnosticEnvironment(stringBuilder, context, comma: true);
 		AppendFeatureCounts(stringBuilder, report.Features, comma: true);
 		AppendJsonProperty(stringBuilder, 1, "outlineTopologySvgPath", report.OutlineTopologySvgPath ?? string.Empty, comma: true);

@@ -36,14 +36,27 @@ public sealed class DimensionPlan
 		bool horizontal = required.Orientation == DimensionOrientation.Horizontal;
 		double datum = horizontal ? required.FirstPoint.X : required.FirstPoint.Y;
 		double target = horizontal ? required.SecondPoint.X : required.SecondPoint.Y;
-		return Dimensions.Any(d => d.Kind == DimensionKind.Normal
+		Func<PlannedDimension, bool> matches = d => d.Kind == DimensionKind.Normal
 			&& d.Role == DimensionCandidateRole.Structure && d.OwnerKind == DimensionCandidateOwnerKind.Outline
 			&& d.AttachmentValidity == true && d.Orientation == required.Orientation
 			&& d.RuleId == required.RuleId && d.SourceKey == required.SourceKey
 			&& d.DatumFamilyKey == required.DatumFamilyKey
 			&& string.Equals(d.OverrideText ?? string.Empty, required.OverrideText ?? string.Empty, StringComparison.Ordinal)
 			&& Math.Abs((horizontal ? d.FirstPoint.X : d.FirstPoint.Y) - datum) <= tolerance
-			&& Math.Abs((horizontal ? d.SecondPoint.X : d.SecondPoint.Y) - target) <= tolerance);
+			&& Math.Abs((horizontal ? d.SecondPoint.X : d.SecondPoint.Y) - target) <= tolerance;
+		return Dimensions.Any(matches) || _coverageDependencies.Keys.Any(d => d.DiagnosticId == required.DiagnosticId
+			&& matches(d) && HasLiveCoverage(d, new HashSet<PlannedDimension>()));
+	}
+
+	private bool HasLiveCoverage(PlannedDimension dimension, HashSet<PlannedDimension> path)
+	{
+		if (dimension == null || dimension.AttachmentValidity == false) { return false; }
+		if (Dimensions.Contains(dimension)) { return true; }
+		if (!path.Add(dimension)) { return false; }
+		bool complete = _coverageDependencies.TryGetValue(dimension, out var providers) && providers.Count > 0
+			&& providers.All(d => HasLiveCoverage(d, path));
+		path.Remove(dimension);
+		return complete;
 	}
 
 	public List<PlannedDimension> Dimensions { get; private set; }
@@ -304,7 +317,7 @@ public sealed class DimensionPlan
 		foreach (var dependency in _coverageDependencies)
 		{
 			List<PlannedDimension> missing = dependency.Value
-				.Where(d => !Dimensions.Contains(d) || d.AttachmentValidity == false).ToList();
+				.Where(d => !HasLiveCoverage(d, new HashSet<PlannedDimension>())).ToList();
 			if (missing.Count > 0)
 			{
 				Diagnostics.Warnings.Add("StructureCoverage.Incomplete|Status=PendingConfirmation|CandidateId="

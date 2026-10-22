@@ -11,6 +11,143 @@ namespace CadAuto.Core.Tests
 {
 	internal static partial class Program
 	{
+		private static void StepDatumBlocksCheckedBeforeChamferRuleExit()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var planner = new DimensionPlanner(config);
+			var baseline = new OutlineFeature2D { MinX = 0, MinY = 0, MaxX = 179, MaxY = 85.5 };
+			var points = new[] { new Point2D(0, 85.5), new Point2D(149, 85.5), new Point2D(159, 75.5),
+				new Point2D(159, 55), new Point2D(179, 55), new Point2D(179, 0), new Point2D(139, 0),
+				new Point2D(139, 65.5), new Point2D(0, 65.5) };
+			for (int i = 0; i < points.Length; i++) { AddSegment(baseline, points[i], points[(i + 1) % points.Length], "column-" + i); }
+			foreach (bool translated in new[] { false, true })
+			for (int quarter = 0; quarter < 4; quarter++)
+			{
+				double angle = quarter * Math.PI / 2;
+				var offset = translated ? new Point2D(142317.709134, -10697.612336) : new Point2D(0, 0);
+				Func<Point2D, Point2D> transform = p => { var rotated = TransformPoint(p, angle); return new Point2D(rotated.X + offset.X, rotated.Y + offset.Y); };
+				var outline = new OutlineFeature2D();
+				foreach (var edge in baseline.Segments) { AddSegment(outline, transform(edge.Start), transform(edge.End), edge.SourceKey); }
+				outline.MinX = outline.Segments.Min(e => e.MinX); outline.MaxX = outline.Segments.Max(e => e.MaxX);
+				outline.MinY = outline.Segments.Min(e => e.MinY); outline.MaxY = outline.Segments.Max(e => e.MaxY);
+				outline.Chamfers.Add(new ChamferFeature2D { StartPoint = transform(points[1]), EndPoint = transform(points[2]),
+					Value = 10, DeltaX = 10, DeltaY = 10, SourceSegment = outline.Segments[1] });
+				Func<string, Point2D, bool, bool, StructureDatumMarker2D> marker = (source, point, vertical, dynamic) =>
+					StructureDatumRules.CreateInsertionMarker("CadAider_国标粗糙度32", source, transform(point),
+						TransformPoint(vertical ? new Point2D(0, 1) : new Point2D(1, 0), angle),
+						TransformPoint(vertical ? new Point2D(-1, 0) : new Point2D(0, 1), angle), outline, config.GeometryTolerance, dynamic);
+				Func<Datum2D, DimensionPlan> run = inputDatum => planner.CreateDimensionPlan(outline, inputDatum, new HoleFeature2D[0], new SlotFeature2D[0], CoordinateFrame2D.Identity);
+				var noBlocks = run(Datum2D.FromOutline(outline));
+				Assert(noBlocks.Diagnostics.StructureDatumChecks.Count(c => c.Contains("|Decision=Missing|")) == 2,
+					"both datum axes must be checked before the chamfer exits the step rules");
+				Assert(!noBlocks.Dimensions.Any(d => (d.RuleId ?? string.Empty).StartsWith("StructureDatum.", StringComparison.Ordinal)),
+					"missing blocks must not invent a fixed structure datum");
+				var datum = Datum2D.FromOutline(outline);
+				var bottom = marker("bottom-block", new Point2D(159, 0), false, false);
+				datum.StructureDatumMarkers.Add(bottom);
+				datum.StructureDatumMarkers.Add(marker("right-block", new Point2D(179, 20), true, false));
+				var valid = run(datum);
+				Assert(valid.Diagnostics.StructureDatumChecks.Count(c => c.Contains("|Decision=Confirmed|")) == 2
+					&& valid.Diagnostics.StructureDatumChecks.Any(c => c.Contains("Source=bottom-block") && c.Contains("|Validation=Valid|"))
+					&& valid.Diagnostics.StructureDatumChecks.Any(c => c.Contains("Source=right-block") && c.Contains("|Validation=Valid|")),
+					"valid horizontal and vertical datum blocks must be reported on chamfered geometry");
+				Assert(datum.BaseX == outline.MinX && datum.BaseY == outline.MinY,
+					"structure datum preference must not change hole datum coordinates");
+				foreach (bool horizontal in new[] { true, false })
+				{
+					string axisName = horizontal ? "X" : "Y";
+					string decision = valid.Diagnostics.StructureDatumChecks.Single(c => c.StartsWith("Axis=" + axisName + "|Decision=Confirmed|", StringComparison.Ordinal));
+					double coordinate = horizontal ? decision.EndsWith("Side=Left") ? outline.MinX : outline.MaxX
+						: decision.EndsWith("Side=Bottom") ? outline.MinY : outline.MaxY;
+					var rooted = valid.Dimensions.Where(d => (d.RuleId ?? string.Empty).StartsWith("StructureDatum.", StringComparison.Ordinal)
+						&& d.Orientation == (horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical)).ToList();
+					Assert(rooted.Count > 0 && rooted.All(d => Math.Abs((horizontal ? d.FirstPoint.X : d.FirstPoint.Y) - coordinate) <= config.GeometryTolerance
+						&& d.AttachmentValidity == true && GetSpan(d) > config.GeometryTolerance),
+						"confirmed blocks must root structure positions without requiring a step classification");
+				}
+				Assert(!valid.Diagnostics.Warnings.Any(w => w.StartsWith("StructureCoverage.Incomplete|", StringComparison.Ordinal)),
+					"all replaced structure intervals must retain their live datum providers");
+				var rejectedDatum = Datum2D.FromOutline(outline);
+				rejectedDatum.StructureDatumMarkers.Add(marker("near-miss", new Point2D(159, -2 * config.GeometryTolerance), false, false));
+				rejectedDatum.StructureDatumMarkers.Add(marker("dynamic", new Point2D(159, 0), false, true));
+				var rejected = run(rejectedDatum);
+				Assert(rejected.Diagnostics.StructureDatumChecks.Count(c => c.Contains("|Validation=Rejected|")) == 2
+					&& !rejected.Diagnostics.StructureDatumChecks.Any(c => c.Contains("|Decision=Confirmed|"))
+					&& !rejected.Dimensions.Any(d => (d.RuleId ?? string.Empty).StartsWith("StructureDatum.", StringComparison.Ordinal)),
+					"off-boundary and unverified dynamic blocks must not confirm a datum");
+				var conflictDatum = Datum2D.FromOutline(outline);
+				conflictDatum.StructureDatumMarkers.Add(bottom);
+				conflictDatum.StructureDatumMarkers.Add(marker("top-block", new Point2D(20, 85.5), false, false));
+				var conflict = run(conflictDatum);
+				string axis = bottom.ContactKind == "BlockInsertion" ? "Y" : "X";
+				Assert(conflict.Diagnostics.StructureDatumChecks.Any(c => c.StartsWith("Axis=" + axis + "|Decision=Conflict|", StringComparison.Ordinal))
+					&& conflict.Diagnostics.Warnings.Any(w => w.Contains("|Axis=" + axis + "|Reason=Conflicting")),
+					"opposite datum blocks must request confirmation even when no step dimensions apply");
+				if (axis == "X") { conflictDatum.StructureDatumMinimumX = true; } else { conflictDatum.StructureDatumMinimumY = true; }
+				var confirmed = run(conflictDatum);
+				Assert(confirmed.Diagnostics.StructureDatumChecks.Any(c => c.StartsWith("Axis=" + axis + "|Decision=Confirmed|", StringComparison.Ordinal)
+					&& c.Contains("|Reason=UserConfirmedBoundaryBlock|")), "the explicit conflict choice must be honored on the next plan");
+				Console.WriteLine("StepDatum early check @" + quarter * 90 + " translated=" + translated + " valid/rejected/conflict/confirmed");
+			}
+		}
+
+		private static void ConfirmedStructureDatumPreservesIndependentDimensions()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			var planner = new DimensionPlanner(config);
+			var outline = new OutlineFeature2D { MinX = 0, MinY = 0, MaxX = 100, MaxY = 100 };
+			var points = new[] { new Point2D(0, 0), new Point2D(100, 0), new Point2D(100, 60), new Point2D(70, 100), new Point2D(0, 100) };
+			for (int i = 0; i < points.Length; i++) { AddSegment(outline, points[i], points[(i + 1) % points.Length], "body-" + i); }
+			var initial = planner.CreateOutlinePlan(outline, CoordinateFrame2D.Identity);
+			var plan = new DimensionPlan();
+			plan.Diagnostics.OutlineTopology = initial.Diagnostics.OutlineTopology;
+			foreach (var overall in initial.Dimensions.Where(d => d.Role == DimensionCandidateRole.Overall)) { plan.Add(overall); }
+			var datum = Datum2D.FromOutline(outline);
+			datum.StructureDatumMarkers.Add(StructureDatumRules.CreateInsertionMarker("CadAider_国标粗糙度32", "right-block", new Point2D(100, 20),
+				new Point2D(0, 1), new Point2D(-1, 0), outline, config.GeometryTolerance));
+			Func<PlannedDimension> width = () => new PlannedDimension { Kind = DimensionKind.Normal, Role = DimensionCandidateRole.Structure,
+				OwnerKind = DimensionCandidateOwnerKind.Outline, Orientation = DimensionOrientation.Horizontal, Side = DimensionSide.Top,
+				FirstPoint = points[4], SecondPoint = points[3], SourceKey = "body-3", AttachmentValidity = true, DebugRole = "TopStructWidth" };
+			var original = width(); plan.Add(original);
+			var tolerance = width(); tolerance.OverrideText = "70%%p0.02"; plan.Add(tolerance);
+			var feature = width(); feature.RuleId = "IndependentFeature.Width"; plan.Add(feature);
+			var internalSpan = width(); internalSpan.FirstPoint = new Point2D(20, 20); plan.Add(internalSpan);
+			var protectedDimensions = new List<PlannedDimension> { tolerance, feature, internalSpan };
+			foreach (var role in new[] { DimensionCandidateRole.Hole, DimensionCandidateRole.Pin, DimensionCandidateRole.Slot, DimensionCandidateRole.Datum })
+			{
+				var dimension = width(); dimension.Role = role; dimension.OwnerKind = DimensionCandidateOwnerKind.HoleGroup;
+				dimension.FirstPoint = new Point2D(20, 20); dimension.SecondPoint = new Point2D(50, 20);
+				plan.Add(dimension); protectedDimensions.Add(dimension);
+			}
+			var coveredProvider = width(); coveredProvider.FirstPoint = points[0]; coveredProvider.SecondPoint = new Point2D(50, 0);
+			plan.Add(coveredProvider); protectedDimensions.Add(coveredProvider);
+			var covered = width(); plan.Add(covered);
+			Assert(plan.TrySuppressCoveredStructure(covered, "Test.ExistingCoverage", new[] { coveredProvider }, null, "Test=LiveProvider"),
+				"the existing coverage provider must be registered before datum preference");
+			var apply = typeof(DimensionPlanner).GetMethod("ApplyConfirmedStructureDatumDimensions", BindingFlags.Instance | BindingFlags.NonPublic);
+			apply.Invoke(planner, new object[] { plan, datum });
+			var rooted = plan.Dimensions.Single(d => d.RuleId == StructureDatumRules.ConfirmedHorizontalDatumRule);
+			Assert(!plan.Dimensions.Contains(original) && rooted.FirstPoint.X == 100 && rooted.SecondPoint.DistanceTo(points[3]) <= config.GeometryTolerance
+				&& Math.Abs(GetSpan(rooted) - 30) <= config.GeometryTolerance && rooted.SourceGeometryIds.Contains("right-block"),
+				"a sloping body must express its accepted structure target from the confirmed right datum");
+			Assert(protectedDimensions.All(d => plan.Dimensions.Contains(d)) && plan.Dimensions.Count(d => Math.Abs(GetSpan(d) - 30) <= config.GeometryTolerance) == 5,
+				"equal-valued hole, pin, slot and datum dimensions, explicit tolerances, independent features and live providers must survive");
+			Assert(rooted.SourceGeometryIds.Contains("body-3") && rooted.SourceGeometryIds.Contains("body-1")
+				&& OutlineGeometryQuery.IsPointOnBoundary(rooted.FirstPoint, outline, config.GeometryTolerance),
+				"both datum support and real target geometry must remain traceable");
+			var suppression = new StructureSuppressionRules(config);
+			Assert(!suppression.TopExtensionCrossesOutline(rooted.FirstPoint, outline, config.FirstDimOffset)
+				&& !suppression.TopExtensionCrossesOutline(rooted.SecondPoint, outline, config.FirstDimOffset), "datum extensions must remain clear");
+			int count = plan.Dimensions.Count;
+			apply.Invoke(planner, new object[] { plan, datum });
+			Assert(plan.Dimensions.Count == count, "rechecking confirmed datums must not duplicate providers");
+			plan.CaptureFinalDimensions();
+			Assert(!plan.Diagnostics.Warnings.Any(w => w.StartsWith("StructureCoverage.Incomplete|", StringComparison.Ordinal)), "replacements must retain complete live coverage");
+			plan.Dimensions.Remove(rooted); plan.CaptureFinalDimensions();
+			Assert(plan.Diagnostics.Warnings.Any(w => w.StartsWith("StructureCoverage.Incomplete|", StringComparison.Ordinal)), "a later lost datum provider must be reported");
+		}
+
 		private static void StepDatumGeometryRechoosesDatumAfterRotation()
 		{
 			var config = DimensionRuleConfig.CreateDefault();
@@ -55,6 +192,105 @@ namespace CadAuto.Core.Tests
 					"dynamic datums must retain real and clear reference anchors");
 				Console.WriteLine("StepDatum dynamic @" + quarter * 90 + " translated=" + translated + " reversed=" + reversed
 					+ " X=" + (quarter < 2 ? "Right" : "Left") + " Y=" + (quarter == 0 || quarter == 3 ? "Bottom" : "Top"));
+			}
+		}
+
+		private static void StepDatumCrossSideCumulativeCoverageProtectsHoleGroups()
+		{
+			var config = DimensionRuleConfig.CreateDefault();
+			config.UseFeatureFirstStructurePipeline = true;
+			var planner = new DimensionPlanner(config);
+			foreach (bool split in new[] { false, true })
+			foreach (bool reversed in new[] { false, true })
+			foreach (bool translated in new[] { false, true })
+			for (int quarter = 0; quarter < 4; quarter++)
+			{
+				var baseline = new OutlineFeature2D { MinX = 0, MinY = 0, MaxX = 150, MaxY = 150 };
+				var points = split
+					? new[] { new Point2D(0, 0), new Point2D(50, 0), new Point2D(150, 0), new Point2D(150, 50),
+						new Point2D(150, 100), new Point2D(150, 150), new Point2D(100, 150), new Point2D(100, 100),
+						new Point2D(50, 100), new Point2D(50, 50), new Point2D(0, 50) }
+					: new[] { new Point2D(0, 0), new Point2D(150, 0), new Point2D(150, 150), new Point2D(100, 150),
+						new Point2D(100, 100), new Point2D(50, 100), new Point2D(50, 50), new Point2D(0, 50) };
+				var sources = split ? new[] { "base", "base", "base", "right-seam", "top", "top", "top", "middle", "middle", "left", "base" }
+					: Enumerable.Range(0, points.Length).Select(i => "edge-" + i).ToArray();
+				for (int i = 0; i < points.Length; i++) { AddSegment(baseline, points[i], points[(i + 1) % points.Length], sources[i]); }
+				var outline = TransformOutline(baseline, quarter * Math.PI / 2);
+				if (translated)
+				{
+					foreach (var edge in outline.Segments)
+					{
+						edge.Start = new Point2D(edge.Start.X + 141800, edge.Start.Y - 7104);
+						edge.End = new Point2D(edge.End.X + 141800, edge.End.Y - 7104);
+					}
+					outline.MinX += 141800; outline.MaxX += 141800; outline.MinY -= 7104; outline.MaxY -= 7104;
+				}
+				var ledge = outline.Segments[split ? 7 : 4];
+				if (reversed) { outline.Segments.Reverse(); }
+				bool horizontal = quarter % 2 == 0;
+				var orientation = horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical;
+				Func<Point2D, double> axis = p => horizontal ? p.X : p.Y;
+				var full = planner.CreateDimensionPlan(outline, Datum2D.FromOutline(outline), new HoleFeature2D[0], new SlotFeature2D[0], CoordinateFrame2D.Identity);
+				var providers = full.Dimensions.Where(d => StructureDatumRules.IsCommonDatumRule(d.RuleId) && d.Orientation == orientation).ToList();
+				Assert(providers.Count == 2 && providers.All(d => d.AttachmentValidity == true)
+					&& providers[0].FirstPoint.DistanceTo(providers[1].FirstPoint) <= config.GeometryTolerance
+					&& providers.Select(d => d.DatumFamilyKey).Distinct().Count() == 1
+					&& providers.Select(d => axis(d.SecondPoint)).OrderBy(x => x)
+					.SequenceEqual(new[] { axis(ledge.Start), axis(ledge.End) }.OrderBy(x => x)),
+					"both live cumulative dimensions must locate the actual middle step endpoints");
+				Assert(!full.Dimensions.Any(d => d.Kind == DimensionKind.Normal && d.OwnerKind == DimensionCandidateOwnerKind.Outline
+					&& !StructureDatumRules.IsCommonDatumRule(d.RuleId) && d.Orientation == orientation
+					&& Math.Abs(Math.Min(axis(d.FirstPoint), axis(d.SecondPoint)) - Math.Min(axis(ledge.Start), axis(ledge.End))) <= config.GeometryTolerance
+					&& Math.Abs(Math.Max(axis(d.FirstPoint), axis(d.SecondPoint)) - Math.Max(axis(ledge.Start), axis(ledge.End))) <= config.GeometryTolerance),
+					"middle step covered by the cumulative difference must disappear across placement sides, rotation=" + quarter + " split=" + split);
+				var plan = new DimensionPlan();
+				plan.Diagnostics.OutlineTopology = full.Diagnostics.OutlineTopology;
+				var side = providers[0].Side == DimensionSide.Top ? DimensionSide.Bottom : providers[0].Side == DimensionSide.Bottom ? DimensionSide.Top
+					: providers[0].Side == DimensionSide.Left ? DimensionSide.Right : DimensionSide.Left;
+				var removed = new List<PlannedDimension>();
+				var kept = new List<PlannedDimension>();
+				foreach (string kind in new[] { "structure", "raw", "tolerance", "forced", "pin-A", "pin-B", "pin-C", "functional", "slot", "unrelated", "near", "invalid" })
+				{
+					var candidate = new PlannedDimension { Kind = DimensionKind.Normal, Role = DimensionCandidateRole.Structure,
+						OwnerKind = DimensionCandidateOwnerKind.Outline, Orientation = orientation, Side = side,
+						FirstPoint = ledge.Start, SecondPoint = ledge.End, SourceKey = ledge.SourceKey,
+						SourceGeometryIds = new List<string> { ledge.SourceKey }, AttachmentValidity = true,
+						DebugRole = horizontal ? "BottomStructWidth" : "LeftStructHeight" };
+					if (kind == "raw") { candidate.Role = DimensionCandidateRole.OutlineSegment; candidate.DebugRole = "OutlineSegment"; }
+					if (kind == "tolerance") { candidate.OverrideText = "<>±0.02"; }
+					if (kind == "forced") { candidate.ForceOuterLevel = true; }
+					if (kind.StartsWith("pin-", StringComparison.Ordinal))
+					{
+						candidate.Kind = kind == "pin-A" ? (horizontal ? DimensionKind.DatumHoleLocationX : DimensionKind.DatumHoleLocationY)
+							: kind == "pin-B" ? DimensionKind.PinGroupDistance : DimensionKind.PinDistance;
+						candidate.Role = kind == "pin-A" ? DimensionCandidateRole.Datum : DimensionCandidateRole.Pin;
+						candidate.OwnerKind = DimensionCandidateOwnerKind.PinGroup;
+					}
+					if (kind == "functional") { candidate.Kind = DimensionKind.HoleLocation; candidate.Role = DimensionCandidateRole.Hole; candidate.OwnerKind = DimensionCandidateOwnerKind.PinGroup; }
+					if (kind == "slot") { candidate.Role = DimensionCandidateRole.Slot; candidate.OwnerKind = DimensionCandidateOwnerKind.Slot; }
+					if (kind == "unrelated")
+					{
+						candidate.FirstPoint = new Point2D(candidate.FirstPoint.X + (horizontal ? 0 : 5), candidate.FirstPoint.Y + (horizontal ? 5 : 0));
+						candidate.SecondPoint = new Point2D(candidate.SecondPoint.X + (horizontal ? 0 : 5), candidate.SecondPoint.Y + (horizontal ? 5 : 0));
+					}
+					if (kind == "near") { candidate.SecondPoint = new Point2D(candidate.SecondPoint.X + (horizontal ? 2 * config.GeometryTolerance : 0), candidate.SecondPoint.Y + (horizontal ? 0 : 2 * config.GeometryTolerance)); }
+					if (kind == "invalid") { candidate.AttachmentValidity = false; }
+					plan.Add(candidate);
+					(kind == "structure" || kind == "raw" ? removed : kept).Add(candidate);
+				}
+				typeof(DimensionPlanner).GetMethod(horizontal ? "ApplyHorizontalStepDatumDimensions" : "ApplyVerticalStepDatumDimensions", BindingFlags.Instance | BindingFlags.NonPublic)
+					.Invoke(planner, new object[] { plan, outline, Datum2D.FromOutline(outline) });
+				Assert(removed.All(d => !plan.Dimensions.Contains(d)), "both ordinary structure and raw segments must be removed by cross-side coverage");
+				Assert(kept.All(d => plan.Dimensions.Contains(d)),
+					"cross-side coverage must protect pin A/B/C, functional/slot, tolerance, unrelated equal values, near matches and invalid evidence");
+				var live = plan.Dimensions.Where(d => StructureDatumRules.IsCommonDatumRule(d.RuleId)).ToList();
+				Assert(live.Count == 2 && removed.All(d => plan.Diagnostics.DimensionCandidates.Single(c => c.Id == d.DiagnosticId)
+					.TopologyEvidence.Contains("|CoveredByIds=" + string.Join(",", live.Select(p => p.DiagnosticId)) + "|")),
+					"the difference proof must record both live cumulative providers");
+				plan.CaptureFinalDimensions(); full.CaptureFinalDimensions();
+				Assert(!plan.Diagnostics.Warnings.Any(w => w.StartsWith("StructureCoverage.Incomplete|", StringComparison.Ordinal)),
+					"both providers of the new cross-side replacements must remain live");
+				Console.WriteLine("StepDatum cross-side @" + quarter * 90 + " split=" + split + " translated=" + translated + " reversed=" + reversed + " protected=" + kept.Count);
 			}
 		}
 

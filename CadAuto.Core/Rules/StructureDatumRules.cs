@@ -9,7 +9,11 @@ public static class StructureDatumRules
 {
 	public const string VerticalCommonDatumRule = "StepDatum.VerticalCommonDatum";
 	public const string HorizontalCommonDatumRule = "StepDatum.HorizontalCommonDatum";
-	public static bool IsCommonDatumRule(string rule) => rule == VerticalCommonDatumRule || rule == HorizontalCommonDatumRule;
+	public const string ConfirmedHorizontalDatumRule = "StructureDatum.HorizontalFromConfirmedBoundary";
+	public const string ConfirmedVerticalDatumRule = "StructureDatum.VerticalFromConfirmedBoundary";
+	public const string NotchLocationRule = "StructureDatum.NotchLocation";
+	public static bool IsCommonDatumRule(string rule) => rule == VerticalCommonDatumRule || rule == HorizontalCommonDatumRule
+		|| rule == ConfirmedHorizontalDatumRule || rule == ConfirmedVerticalDatumRule || rule == NotchLocationRule;
 
 	public static bool IsDatumBlock(string name) =>
 		string.Equals(name, "CadAider_日标2个角", StringComparison.OrdinalIgnoreCase)

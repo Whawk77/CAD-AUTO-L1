@@ -227,6 +227,8 @@ public sealed partial class DimensionPlanner
 			out lProfileOuterContourFailure,
 			out outlineTopology);
 		dimensionPlan.Diagnostics.OutlineTopology = outlineTopology;
+		structureDatum = structureDatum ?? Datum2D.FromOutline(outline);
+		InspectStructureDatumBlocks(dimensionPlan, structureDatum);
 		AddOverallWidth(dimensionPlan, outline);
 		AddOverallHeight(dimensionPlan, outline);
 		if (_config.UseFeatureFirstStructurePipeline)
@@ -250,9 +252,13 @@ public sealed partial class DimensionPlanner
 		ApplyLProfileOverallDimensionRules(dimensionPlan, outline, lProfileOuterContour);
 		ApplyLProfileOverallSplitByFilletRule(dimensionPlan, outline, lProfileOuterContour);
 		SuppressDuplicateDimensions(dimensionPlan, outline);
-		ApplyVerticalStepDatumDimensions(dimensionPlan, outline, structureDatum ?? Datum2D.FromOutline(outline));
-		ApplyHorizontalStepDatumDimensions(dimensionPlan, outline, structureDatum ?? Datum2D.FromOutline(outline));
 		ResolveStructureExtensionAttachments(dimensionPlan, outline);
+		ApplyVerticalStepDatumDimensions(dimensionPlan, outline, structureDatum);
+		ApplyHorizontalStepDatumDimensions(dimensionPlan, outline, structureDatum);
+		ResolveStructureExtensionAttachments(dimensionPlan, outline);
+		ApplyConfirmedStructureDatumDimensions(dimensionPlan, structureDatum);
+		SuppressChamferDerivedStructurePositions(dimensionPlan, outline);
+		EnsureNotchOpeningLocations(dimensionPlan, outline, structureDatum);
 		_postValidator.Validate(dimensionPlan, outline);
 		AuditBoundaryInformationPlan(dimensionPlan, outline);
 		dimensionPlan.CaptureFinalDimensions();

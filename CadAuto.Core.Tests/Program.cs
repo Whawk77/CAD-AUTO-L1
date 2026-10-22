@@ -125,6 +125,23 @@ namespace CadAuto.Core.Tests
             nameof(StepDatumBlocksChooseBottomWithoutChangingStructureSide),
             nameof(StepDatumInsertionEvidenceRejectsUnverifiedTransforms),
             nameof(StepDatumGeometryRechoosesDatumAfterRotation),
+			nameof(StepDatumBlocksCheckedBeforeChamferRuleExit),
+			nameof(ConfirmedStructureDatumPreservesIndependentDimensions),
+			nameof(ChamferConstraintRemovesDerivedPositionsInAllDirections),
+			nameof(ChamferConstraintPreservesIndependentDimensionsAndAuditsProviders),
+			nameof(LegacyDatumCoverageRemovesArmComplementsInAllDirections),
+			nameof(LegacyDatumCoveragePreservesIndependentRequirementsAndAuditsProviders),
+			nameof(BoundaryGripFollowsConnectedCollinearFaces),
+			nameof(BoundaryGripPlanningRetainsClearCommonDatumDimensions),
+			nameof(NotchLocationUsesRealEndpointsInAllDirections),
+			nameof(NotchLocationReusesProvenConstraintsAndAuditsMissingProviders),
+			nameof(NotchLocationRecoversRoundedGrooveInAllDirections),
+			nameof(NotchLocationRejectsUnprovenRecoveredGrooves),
+			nameof(NotchLocationDropsOnlyProvenSameSourceFloors),
+			nameof(LBossBoundaryYellowWidthAndDerivedFaceInAllDirections),
+			nameof(LBossBoundaryCoveragePreservesIndependentRequirements),
+			nameof(LBossBoundaryMissingInnerPathCannotInventGrooveWidth),
+            nameof(StepDatumCrossSideCumulativeCoverageProtectsHoleGroups),
             nameof(StepDatumCoverageTracksRawEdgesAndProtectsLegalEqualValues),
             nameof(StepDatumReplacesLegacyStructureDimensions),
             nameof(StepDatumProvidersSurviveRepeatedDeduplication),
@@ -436,6 +453,23 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(StepDatumBlocksChooseBottomWithoutChangingStructureSide), StepDatumBlocksChooseBottomWithoutChangingStructureSide);
                 RunTest(nameof(StepDatumInsertionEvidenceRejectsUnverifiedTransforms), StepDatumInsertionEvidenceRejectsUnverifiedTransforms);
                 RunTest(nameof(StepDatumGeometryRechoosesDatumAfterRotation), StepDatumGeometryRechoosesDatumAfterRotation);
+				RunTest(nameof(StepDatumBlocksCheckedBeforeChamferRuleExit), StepDatumBlocksCheckedBeforeChamferRuleExit);
+				RunTest(nameof(ConfirmedStructureDatumPreservesIndependentDimensions), ConfirmedStructureDatumPreservesIndependentDimensions);
+				RunTest(nameof(ChamferConstraintRemovesDerivedPositionsInAllDirections), ChamferConstraintRemovesDerivedPositionsInAllDirections);
+				RunTest(nameof(ChamferConstraintPreservesIndependentDimensionsAndAuditsProviders), ChamferConstraintPreservesIndependentDimensionsAndAuditsProviders);
+				RunTest(nameof(LegacyDatumCoverageRemovesArmComplementsInAllDirections), LegacyDatumCoverageRemovesArmComplementsInAllDirections);
+				RunTest(nameof(LegacyDatumCoveragePreservesIndependentRequirementsAndAuditsProviders), LegacyDatumCoveragePreservesIndependentRequirementsAndAuditsProviders);
+				RunTest(nameof(BoundaryGripFollowsConnectedCollinearFaces), BoundaryGripFollowsConnectedCollinearFaces);
+				RunTest(nameof(BoundaryGripPlanningRetainsClearCommonDatumDimensions), BoundaryGripPlanningRetainsClearCommonDatumDimensions);
+				RunTest(nameof(NotchLocationUsesRealEndpointsInAllDirections), NotchLocationUsesRealEndpointsInAllDirections);
+				RunTest(nameof(NotchLocationReusesProvenConstraintsAndAuditsMissingProviders), NotchLocationReusesProvenConstraintsAndAuditsMissingProviders);
+				RunTest(nameof(NotchLocationRecoversRoundedGrooveInAllDirections), NotchLocationRecoversRoundedGrooveInAllDirections);
+				RunTest(nameof(NotchLocationRejectsUnprovenRecoveredGrooves), NotchLocationRejectsUnprovenRecoveredGrooves);
+				RunTest(nameof(NotchLocationDropsOnlyProvenSameSourceFloors), NotchLocationDropsOnlyProvenSameSourceFloors);
+				RunTest(nameof(LBossBoundaryYellowWidthAndDerivedFaceInAllDirections), LBossBoundaryYellowWidthAndDerivedFaceInAllDirections);
+				RunTest(nameof(LBossBoundaryCoveragePreservesIndependentRequirements), LBossBoundaryCoveragePreservesIndependentRequirements);
+				RunTest(nameof(LBossBoundaryMissingInnerPathCannotInventGrooveWidth), LBossBoundaryMissingInnerPathCannotInventGrooveWidth);
+                RunTest(nameof(StepDatumCrossSideCumulativeCoverageProtectsHoleGroups), StepDatumCrossSideCumulativeCoverageProtectsHoleGroups);
                 RunTest(nameof(StepDatumCoverageTracksRawEdgesAndProtectsLegalEqualValues), StepDatumCoverageTracksRawEdgesAndProtectsLegalEqualValues);
                 RunTest(nameof(StepDatumReplacesLegacyStructureDimensions), StepDatumReplacesLegacyStructureDimensions);
                 RunTest(nameof(StepDatumProvidersSurviveRepeatedDeduplication), StepDatumProvidersSurviveRepeatedDeduplication);

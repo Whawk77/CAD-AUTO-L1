@@ -109,6 +109,8 @@ public static class NativeDiameterDimensioner
 	}
 
 	private static readonly string PinRoughnessBlockName = "CadAider_日标3个角";
+	private const string NationalPinRoughnessBlockName = "CadAider_国标粗糙度16下";
+	private static string _sessionPinRoughnessBlockName;
 
 	public static void PromptDiameterDimensions(Document document, IList<IList<HoleFeature>> diameterGroups, DimensionRuleConfig config, string annotationLayer, ObjectId diameterDimStyleId, string groupId)
 	{
@@ -214,6 +216,10 @@ public static class NativeDiameterDimensioner
 			dimStyleTextHeight = GetDimStyleTextHeight(db, transaction, dimStyleId);
 			transaction.Commit();
 		}
+		if (hole.IsPinHole && !EnsureRoughnessBlockChoice(db, editor))
+		{
+			return DiameterJigResult.Cancel;
+		}
 		editor.WriteMessage("\nMove hole callout {0}, click to place, Enter to skip.", calloutText);
 		DiameterCalloutJig diameterCalloutJig = new DiameterCalloutJig(center, radius, dimStyleTextHeight, calloutText);
 		PromptResult promptResult = editor.Drag(diameterCalloutJig);
@@ -253,6 +259,36 @@ public static class NativeDiameterDimensioner
 		transaction.Commit();
 	}
 
+	public static bool EnsureRoughnessBlockChoice(Database db, Editor editor)
+	{
+		if (_sessionPinRoughnessBlockName != null) { return true; }
+		bool national;
+		bool japanese;
+		using (Transaction tr = db.TransactionManager.StartTransaction())
+		{
+			BlockTable blocks = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
+			national = blocks.Has(NationalPinRoughnessBlockName);
+			japanese = blocks.Has(PinRoughnessBlockName);
+			tr.Commit();
+		}
+		if (!national && !japanese)
+		{
+			editor.WriteMessage("\n当前图纸没有国标粗糙度16下或日标3个角块，标注保留并跳过插块。\n");
+			return true;
+		}
+		var options = new PromptKeywordOptions("\n选择粗糙度块（孔径与TY共用，保持至重启CAD） ["
+			+ (national && japanese ? "国标16下(G)/日标3个角(J)" : national ? "国标16下(G)" : "日标3个角(J)") + "]",
+			national && japanese ? "GB JP" : national ? "GB" : "JP");
+		options.AllowNone = true;
+		options.Keywords.Default = national ? "GB" : "JP";
+		PromptResult result = editor.GetKeywords(options);
+		if (result.Status != PromptStatus.OK && result.Status != PromptStatus.None) { return false; }
+		string choice = result.Status == PromptStatus.None ? options.Keywords.Default : result.StringResult;
+		_sessionPinRoughnessBlockName = choice == "JP" ? PinRoughnessBlockName : NationalPinRoughnessBlockName;
+		editor.WriteMessage("\n本次CAD会话的粗糙度块: {0}。", _sessionPinRoughnessBlockName);
+		return true;
+	}
+
 	private static void InsertPinRoughnessBlock(Database db, Transaction tr, BlockTableRecord space, HoleFeature hole, Point3d textPoint, string annotationLayer, ObjectId dimStyleId, string calloutText, string groupId)
 	{
 		InsertRoughnessBlock(db, tr, space, textPoint, annotationLayer, dimStyleId, groupId);
@@ -260,10 +296,22 @@ public static class NativeDiameterDimensioner
 
 	public static void InsertRoughnessBlock(Database db, Transaction tr, BlockTableRecord space, Point3d textPoint, string annotationLayer, ObjectId dimStyleId, string groupId)
 	{
-		BlockTable blockTable = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-		if (blockTable.Has(PinRoughnessBlockName))
+		if (_sessionPinRoughnessBlockName == null) { return; }
+		BlockTable blocks = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
+		if (!blocks.Has(_sessionPinRoughnessBlockName))
 		{
-			BlockReference blockReference = new BlockReference(textPoint, blockTable[PinRoughnessBlockName]);
+			Application.DocumentManager.MdiActiveDocument?.Editor.WriteMessage("\n当前图纸缺少本次会话选定的块 {0}，标注保留并跳过插块。", _sessionPinRoughnessBlockName);
+			return;
+		}
+		InsertRoughnessBlock(db, tr, space, textPoint, annotationLayer, dimStyleId, groupId, _sessionPinRoughnessBlockName);
+	}
+
+	private static void InsertRoughnessBlock(Database db, Transaction tr, BlockTableRecord space, Point3d textPoint, string annotationLayer, ObjectId dimStyleId, string groupId, string blockName)
+	{
+		BlockTable blockTable = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
+		if (blockTable.Has(blockName))
+		{
+			BlockReference blockReference = new BlockReference(textPoint, blockTable[blockName]);
 			blockReference.SetDatabaseDefaults(db);
 			blockReference.Layer = annotationLayer;
 			double dimStyleGlobalScale = GetDimStyleGlobalScale(db, tr, dimStyleId);

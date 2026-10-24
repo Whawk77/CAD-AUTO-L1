@@ -1356,6 +1356,25 @@ public sealed partial class DimensionLayoutRules
 		}
 	}
 
+	private List<List<LayoutBlock>> GetPhysicalLayoutGroups(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, IList<LayoutBlock> blocks, DimensionSide side, OutlineFeature2D outline)
+	{
+		var groups = blocks.Select(block => new List<LayoutBlock> { block }).ToList();
+		var unifiedKeys = CaptureUnifiedAlignmentLaneKeys(placements, dimensions, side, outline);
+		foreach (var lane in placements.Where(p => unifiedKeys.Contains(p.AlignmentLaneKey ?? string.Empty))
+			.GroupBy(p => p.AlignmentLaneKey, StringComparer.Ordinal))
+		{
+			var blockIds = new HashSet<string>(lane.Select(p => p.LayoutBlockId), StringComparer.Ordinal);
+			var joined = groups.Where(group => group.Any(block => blockIds.Contains(block.Id))).ToList();
+			foreach (var extra in joined.Skip(1))
+			{
+				joined[0].AddRange(extra);
+				groups.Remove(extra);
+			}
+		}
+		// A shared line moves as one unit, ordered by its last participating block.
+		return groups.OrderBy(group => group.Max(block => block.EffectiveOrder)).ToList();
+	}
+
 	private void EnsureLayoutBlockPhysicalOutwardOrder(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, IList<LayoutBlock> layoutBlocks, DimensionSide side, OutlineFeature2D outline, double perLevelSpacing, bool isHorizontal)
 	{
 		if (placements == null || dimensions == null || layoutBlocks == null || placements.Count < 2)
@@ -1365,11 +1384,13 @@ public sealed partial class DimensionLayoutRules
 		Dictionary<string, List<DimensionStackingPlacement>> placementsByBlock = placements
 			.GroupBy(placement => placement.LayoutBlockId, StringComparer.Ordinal)
 			.ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
+		var physicalGroups = GetPhysicalLayoutGroups(placements, dimensions, layoutBlocks, side, outline);
 		double clearance = Math.Max(Math.Abs(perLevelSpacing), _config.GeometryTolerance);
-		for (int outerIndex = 0; outerIndex < layoutBlocks.Count; outerIndex++)
+		for (int outerIndex = 0; outerIndex < physicalGroups.Count; outerIndex++)
 		{
-			LayoutBlock outer = layoutBlocks[outerIndex];
-			if (outer.ForceOuterLevel || !placementsByBlock.TryGetValue(outer.Id, out var outerPlacements))
+			var outerGroup = physicalGroups[outerIndex];
+			var outerPlacements = outerGroup.Where(block => placementsByBlock.ContainsKey(block.Id)).SelectMany(block => placementsByBlock[block.Id]).ToList();
+			if (outerGroup.Any(block => block.ForceOuterLevel) || outerPlacements.Count == 0)
 			{
 				continue;
 			}
@@ -1377,8 +1398,9 @@ public sealed partial class DimensionLayoutRules
 			string promotedBy = string.Empty;
 			for (int innerIndex = 0; innerIndex < outerIndex; innerIndex++)
 			{
-				LayoutBlock inner = layoutBlocks[innerIndex];
-				if (!placementsByBlock.TryGetValue(inner.Id, out var innerPlacements) || !RequiresPhysicalOutwardOrder(inner, outer, isHorizontal))
+				var innerGroup = physicalGroups[innerIndex];
+				var innerPlacements = innerGroup.Where(block => placementsByBlock.ContainsKey(block.Id)).SelectMany(block => placementsByBlock[block.Id]).ToList();
+				if (innerPlacements.Count == 0 || !innerGroup.Any(inner => outerGroup.Any(outer => RequiresPhysicalOutwardOrder(inner, outer, isHorizontal))))
 				{
 					continue;
 				}
@@ -1387,7 +1409,7 @@ public sealed partial class DimensionLayoutRules
 				if (requiredRank > requiredMinimumRank)
 				{
 					requiredMinimumRank = requiredRank;
-					promotedBy = inner.Id;
+					promotedBy = innerGroup[0].Id;
 				}
 			}
 			if (double.IsNegativeInfinity(requiredMinimumRank))
@@ -1406,7 +1428,7 @@ public sealed partial class DimensionLayoutRules
 				double coordinate = (side == DimensionSide.Bottom || side == DimensionSide.Left) ? (0.0 - adjustedRank) : adjustedRank;
 				placement.DimLineCoordinateOverride = coordinate;
 			}
-			outer.PromotedByConflictWith = promotedBy;
+			foreach (var outer in outerGroup) { outer.PromotedByConflictWith = promotedBy; }
 		}
 	}
 
@@ -1556,28 +1578,33 @@ public sealed partial class DimensionLayoutRules
 				physicalOrderValidated = false;
 			}
 		}
-		for (int outerIndex = 0; outerIndex < layoutBlocks.Count; outerIndex++)
+		var physicalGroups = GetPhysicalLayoutGroups(placements, dimensions, layoutBlocks, side, outline);
+		for (int outerIndex = 0; outerIndex < physicalGroups.Count; outerIndex++)
 		{
-			LayoutBlock outer = layoutBlocks[outerIndex];
-			if (!placementsByBlock.TryGetValue(outer.Id, out var outerPlacements))
+			var outerGroup = physicalGroups[outerIndex];
+			var outerPlacements = outerGroup.Where(block => placementsByBlock.ContainsKey(block.Id)).SelectMany(block => placementsByBlock[block.Id]).ToList();
+			if (outerPlacements.Count == 0)
 			{
 				continue;
 			}
 			for (int innerIndex = 0; innerIndex < outerIndex; innerIndex++)
 			{
-				LayoutBlock inner = layoutBlocks[innerIndex];
-				if (!placementsByBlock.TryGetValue(inner.Id, out var innerPlacements) || !RequiresPhysicalOutwardOrder(inner, outer, isHorizontal))
+				var innerGroup = physicalGroups[innerIndex];
+				var innerPlacements = innerGroup.Where(block => placementsByBlock.ContainsKey(block.Id)).SelectMany(block => placementsByBlock[block.Id]).ToList();
+				if (innerPlacements.Count == 0 || !innerGroup.Any(inner => outerGroup.Any(outer => RequiresPhysicalOutwardOrder(inner, outer, isHorizontal))))
 				{
 					continue;
 				}
-				if (physicalRanks[inner.Id].Item2 >= physicalRanks[outer.Id].Item1 - _config.GeometryTolerance)
+				if (innerGroup.Max(block => physicalRanks[block.Id].Item2) >= outerGroup.Min(block => physicalRanks[block.Id].Item1) - _config.GeometryTolerance)
 				{
 					physicalOrderValidated = false;
 				}
-				if (string.IsNullOrEmpty(outer.PromotedByConflictWith)
-					&& outerPlacements.Min(placement => placement.Level) > innerPlacements.Max(placement => placement.Level))
+				if (outerPlacements.Min(placement => placement.Level) > innerPlacements.Max(placement => placement.Level))
 				{
-					outer.PromotedByConflictWith = inner.Id;
+					foreach (var outer in outerGroup.Where(block => string.IsNullOrEmpty(block.PromotedByConflictWith)))
+					{
+						outer.PromotedByConflictWith = innerGroup[0].Id;
+					}
 				}
 			}
 		}

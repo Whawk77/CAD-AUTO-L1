@@ -15,8 +15,8 @@
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Collection/GeometryCollector.cs": {
-    "mtime": 1792211938.9729087,
-    "ast_hash": "68a5ca62c0e822ab9c8fbcc72f09dd96",
+    "mtime": 1792657234.0431552,
+    "ast_hash": "ea476ae6ef9ab5414a55d4be8df468f2",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Environment/DimStyleManager.cs": {
@@ -40,8 +40,8 @@
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Recognition/FeatureRecognizer.cs": {
-    "mtime": 1792482648.1583607,
-    "ast_hash": "022e57e1c6757026dbacd6e2abe4c1ac",
+    "mtime": 1792657218.7033699,
+    "ast_hash": "fa99ca4687895e973c30c399c95a3b14",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Rendering/CadEntityWriter.cs": {
@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core.Tests/Program.cs": {
-    "mtime": 1792645736.0578012,
-    "ast_hash": "6d472254781365c3c6cfd9d96f0a5050",
+    "mtime": 1792817168.6848457,
+    "ast_hash": "c5ebed7a671ca277c2c30e8b77688f01",
     "semantic_hash": ""
   },
   "CadAuto.Core.Tests/Properties/AssemblyInfo.cs": {
@@ -165,8 +165,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/HoleCalloutPlanner.cs": {
-    "mtime": 1788256961.8572426,
-    "ast_hash": "600d9c7a00cdee9105e2963cf227fe62",
+    "mtime": 1792805728.9860332,
+    "ast_hash": "1b7a88cd0b2eebffcae7288510aad0a9",
     "semantic_hash": ""
   },
   "CadAuto.Core/Properties/AssemblyInfo.cs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "Commands.cs": {
-    "mtime": 1792646508.2152157,
-    "ast_hash": "1f72b5624403fcad0cd069511872675a",
+    "mtime": 1792656435.2384555,
+    "ast_hash": "4bda2b569823c9daa9678206c30039f9",
     "semantic_hash": ""
   },
   "PluginEntry.cs": {
@@ -370,8 +370,8 @@
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Rendering/NativeDiameterDimensioner.cs": {
-    "mtime": 1791875689.6508472,
-    "ast_hash": "63ebff5790217810a1af123a2b4ebbcd",
+    "mtime": 1792722820.6749234,
+    "ast_hash": "b2765bdf1d063460afcba7e5834332dd",
     "semantic_hash": ""
   },
   "CadAuto.Core/Model/HoleKind2D.cs": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/DimensionLayoutRules.cs": {
-    "mtime": 1792216523.2018938,
-    "ast_hash": "ee09fa61569598630b2f81e5c0815283",
+    "mtime": 1792817325.2095008,
+    "ast_hash": "41f04ad6570ac0420ceaf0cb1819882e",
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/DimensionPlanPostValidator.cs": {
@@ -555,8 +555,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.Features.cs": {
-    "mtime": 1792223666.0628629,
-    "ast_hash": "b48599e32b89263a51cc9103fd45a40b",
+    "mtime": 1792810446.4188077,
+    "ast_hash": "2ccb11597db4b16e6d8620df97d5576b",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.Structure.cs": {
@@ -740,8 +740,8 @@
     "semantic_hash": ""
   },
   "SupportBlockCommand.cs": {
-    "mtime": 1792059515.662943,
-    "ast_hash": "4e0b34724aaf90fa9ebce4a5c05fc762",
+    "mtime": 1792722862.9597547,
+    "ast_hash": "fb7a4e94867689e9b2a11c1e706183f0",
     "semantic_hash": ""
   },
   "docs/\u4e0d\u906e\u6321\u4e2d\u5fc3\u7ebf\u6807\u6ce8\u89c4\u5219.md": {
@@ -775,13 +775,13 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/OrthographicViewSetAssigner.cs": {
-    "mtime": 1790219816.4243894,
-    "ast_hash": "c707539f4f5a899a040f60d2eb835a90",
+    "mtime": 1792653802.7760327,
+    "ast_hash": "57829207c5c48c1f2764937efabac216",
     "semantic_hash": ""
   },
   "ThreeViewTrialCommand.cs": {
-    "mtime": 1791876779.2443411,
-    "ast_hash": "ecd454d14889cd745a5a12b7ed645b21",
+    "mtime": 1792653895.9819355,
+    "ast_hash": "3423212f5e23c984845c8ca72e3b997d",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/StructureCoveragePolicy.cs": {
@@ -835,8 +835,8 @@
     "semantic_hash": ""
   },
   "diagnostics/last-run.outline.svg": {
-    "mtime": 1792646360.0877585,
-    "ast_hash": "50dc97522ac6b54dec7b171e3a9a162c",
+    "mtime": 1792816821.8901274,
+    "ast_hash": "9c1936ba38cf9ef9848f982d834ecc9e",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/StructureBoundaryEvidence.cs": {
@@ -1987,6 +1987,46 @@
   "CadAuto.Core.Tests/Runner/LBossBoundaryReviewChecks.cs": {
     "mtime": 1792646012.1391804,
     "ast_hash": "ce6db6e2caff7899894da218b5c6daa7",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/ThreeViewProjectionReviewChecks.cs": {
+    "mtime": 1792654602.9206927,
+    "ast_hash": "e536b5472933dc44629bbf6e46fc1d2b",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Planning/OrthographicViewSetAssigner.Projection.cs": {
+    "mtime": 1792654626.568373,
+    "ast_hash": "e64d6b0d321a460d500dfc1f0eaf8bf1",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/SplitCircleHoleReviewChecks.cs": {
+    "mtime": 1792656549.1403396,
+    "ast_hash": "586821ba7642467b72364d0ee26a62c9",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Rules/FullCircleArcRules.cs": {
+    "mtime": 1792656549.1393383,
+    "ast_hash": "6898a24edff958860aeff355b96104ee",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/ClosePinGroupChecks.cs": {
+    "mtime": 1792805668.4499938,
+    "ast_hash": "a3fd51be18562a4b295f348f6261b8d3",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/InteriorPinGroupChecks.cs": {
+    "mtime": 1792810434.7856286,
+    "ast_hash": "6f8aa002504e70dec41d66da19ec6697",
+    "semantic_hash": ""
+  },
+  "diagnostics/1/last-run.json": {
+    "mtime": 1792807009.3381667,
+    "ast_hash": "9aec7129c4f915dba01f8b27b0548516",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/FunctionalLaneCollisionChecks.cs": {
+    "mtime": 1792817192.38546,
+    "ast_hash": "592c108bf0aacdba4023e200e2c4ef77",
     "semantic_hash": ""
   }
 }

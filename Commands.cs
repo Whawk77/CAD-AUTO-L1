@@ -863,6 +863,7 @@ public sealed class Commands
 					list6 = list7;
 				}
 				IList<HoleFeature> list8 = list6;
+				recognizedHoles = list8;
 				if (!flag6 && list8.Count == 0)
 				{
 						editor.WriteMessage(diameterOnly ? "\n未识别到有效圆孔，已跳过孔径标注。" : "\n未识别到有效圆孔，已跳过孔标注，继续外轮廓标注。");
@@ -924,7 +925,6 @@ public sealed class Commands
 				{
 					DimensionPlan dimensionPlan = DrawLinearDimensions(editor, dimensionDrawer, outlineFeature, datumDefinition, list8, list10, flag6, config, outputScope);
 					completedLinearPlan = dimensionPlan;
-					recognizedHoles = list8;
 				}
 				outline = outlineFeature;
 				slotFeatures = list10;

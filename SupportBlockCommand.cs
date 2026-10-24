@@ -17,8 +17,6 @@ namespace AutoFixtureDim;
 
 internal static class SupportBlockCommand
 {
-	private const string RoughnessBlockName = "CadAider_日标3个角";
-
 	public static void Execute(Document document)
 	{
 		Execute(document, ty1: false);
@@ -71,9 +69,8 @@ internal static class SupportBlockCommand
 				double dimScale = (database.Dimscale <= 0.0) ? 1.0 : database.Dimscale;
 				ObjectId dimStyleId = DimStyleManager.ResolveDimStyle(database, transaction);
 				ObjectId diameterCalloutDimStyleId = DimStyleManager.ResolveDiameterCalloutDimStyle(database, transaction, dimStyleId);
-				if (!ty2 && !HasRoughnessBlock(database, transaction))
+				if (!ty2 && !NativeDiameterDimensioner.EnsureRoughnessBlockChoice(database, editor))
 				{
-					editor.WriteMessage("\n未找到块 {0}，已取消托压块标注。", RoughnessBlockName);
 					return;
 				}
 				if (!TryResolveDashedLinetype(database, transaction, out ObjectId dashedLinetypeId))
@@ -158,8 +155,8 @@ internal static class SupportBlockCommand
 			editor.WriteMessage(ty2
 				? "\nTY2 已生成一条红色偏移线（偏移 1，DASHED）及两条磨损线引线。"
 				: ty1
-					? "\nTY1 已生成一条红色偏移线（偏移 1，DASHED）、NC 引线及粗糙度块。"
-					: "\nTY 已生成两条托压块几何（偏移 1、2，洋红色，DASHED）及 CNC加工/淬火引线和粗糙度块。");
+					? "\nTY1 已生成一条红色偏移线（偏移 1，DASHED）及 NC 引线。"
+					: "\nTY 已生成两条托压块几何（偏移 1、2，洋红色，DASHED）及 CNC加工/淬火引线。");
 		}
 		catch (Autodesk.AutoCAD.Runtime.Exception ex)
 		{
@@ -218,12 +215,6 @@ internal static class SupportBlockCommand
 			"D" => new Vector3d(1.0, 0.0, 0.0),
 			_ => new Vector3d(0.0, -1.0, 0.0),
 		};
-	}
-
-	private static bool HasRoughnessBlock(Database database, Transaction transaction)
-	{
-		BlockTable blockTable = (BlockTable)transaction.GetObject(database.BlockTableId, OpenMode.ForRead);
-		return blockTable.Has(RoughnessBlockName);
 	}
 
 	private static DimensionSide ResolveSupportDimensionSide(Point3d startPoint, Point3d endPoint, Vector3d copyDirection)

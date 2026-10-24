@@ -32,6 +32,22 @@ namespace CadAuto.Core.Tests
         };
         private static readonly HashSet<string> P1Tests = new HashSet<string>
         {
+            nameof(FunctionalLaneKeeps28And32ClearOfSlot35),
+            nameof(InteriorPinGroupKeepsCounterboresWithOwningPair),
+            nameof(InteriorPinGroupEmitsFourFunctionalLocations),
+            nameof(ClosePinGroupsUseCompletePatternsBeforeDistance),
+            nameof(ClosePinGroupsKeepFunctionalLocationsAfterRotation),
+            nameof(ClosePinGroupsKeepConcentricDiametersTogether),
+            nameof(SplitCircleHoleCapturedLeftViewClosesThreeHoles),
+            nameof(SplitCircleHolePreservesRotatedScaledAndMirroredPairs),
+            nameof(SplitCircleHoleRejectsOpenDuplicateAndUnrelatedArcs),
+            nameof(SplitCircleHoleRejectsInvalidEvidence),
+            nameof(ThreeViewProjectionRealPlannerKeepsThreeOverallExtents),
+            nameof(ThreeViewProjectionLocal50KeepsOtherAxisAndUniqueStep),
+            nameof(ThreeViewProjectionThicknessUsesReversedTopAxis),
+            nameof(ThreeViewProjectionProtectedSemanticsAndMissingEvidenceRemain),
+            nameof(ThreeViewProjectionRequiresUniqueRenderedProvider),
+            nameof(ThreeViewProjectionUnverifiedAlignmentRemains),
             nameof(CompositeOutlineKeepsFeatureWidthDropsSeamFragments),
             nameof(Production73x20EnvelopeDimensionsAreSuppressed),
             nameof(MirroredEnvelopeStructureWidthsAreBothSuppressed),
@@ -522,6 +538,14 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(PinAlignmentKeySplitsStrictHorizontalOverlapsIntoLanes), PinAlignmentKeySplitsStrictHorizontalOverlapsIntoLanes);
 				RunTest(nameof(PinAlignmentKeySplitsStrictVerticalOverlapsIntoLanes), PinAlignmentKeySplitsStrictVerticalOverlapsIntoLanes);
 				RunTest(nameof(EquivalentPinGroupTransfersSuppressAcrossDebugOwners), EquivalentPinGroupTransfersSuppressAcrossDebugOwners);
+				RunTest(nameof(FunctionalLaneKeeps28And32ClearOfSlot35), FunctionalLaneKeeps28And32ClearOfSlot35);
+				RunTest(nameof(InteriorPinGroupKeepsCounterboresWithOwningPair), InteriorPinGroupKeepsCounterboresWithOwningPair);
+				RunTest(nameof(InteriorPinGroupEmitsFourFunctionalLocations), InteriorPinGroupEmitsFourFunctionalLocations);
+				RunTest(nameof(InteriorPinGroupRejectsIncompleteAndUncenteredPatterns), InteriorPinGroupRejectsIncompleteAndUncenteredPatterns);
+				RunTest(nameof(ClosePinGroupsUseCompletePatternsBeforeDistance), ClosePinGroupsUseCompletePatternsBeforeDistance);
+				RunTest(nameof(ClosePinGroupsKeepFunctionalLocationsAfterRotation), ClosePinGroupsKeepFunctionalLocationsAfterRotation);
+				RunTest(nameof(ClosePinGroupsKeepConcentricDiametersTogether), ClosePinGroupsKeepConcentricDiametersTogether);
+				RunTest(nameof(ClosePinGroupsWithoutPatternKeepDistanceFallback), ClosePinGroupsWithoutPatternKeepDistanceFallback);
 				RunTest(nameof(FunctionalHolesAttachToPinGroup), FunctionalHolesAttachToPinGroup);
 				RunTest(nameof(HoleBetweenPinPairAttachesAsFunctionalHole), HoleBetweenPinPairAttachesAsFunctionalHole);
 				RunTest(nameof(FunctionalHoleAlignmentUsesSeparateSameOrientationLane), FunctionalHoleAlignmentUsesSeparateSameOrientationLane);
@@ -540,6 +564,16 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(HoleCalloutsGroupByRowsWithoutPins), HoleCalloutsGroupByRowsWithoutPins);
                 RunTest(nameof(HoleCalloutsUsePinClustersAndFitText), HoleCalloutsUsePinClustersAndFitText);
                 RunTest(nameof(ThreeViewFirstAngleKeepsLengthAndHeightOnFrontAndWidthOnTop), ThreeViewFirstAngleKeepsLengthAndHeightOnFrontAndWidthOnTop);
+                RunTest(nameof(ThreeViewProjectionRealPlannerKeepsThreeOverallExtents), ThreeViewProjectionRealPlannerKeepsThreeOverallExtents);
+                RunTest(nameof(SplitCircleHoleCapturedLeftViewClosesThreeHoles), SplitCircleHoleCapturedLeftViewClosesThreeHoles);
+                RunTest(nameof(SplitCircleHolePreservesRotatedScaledAndMirroredPairs), SplitCircleHolePreservesRotatedScaledAndMirroredPairs);
+                RunTest(nameof(SplitCircleHoleRejectsOpenDuplicateAndUnrelatedArcs), SplitCircleHoleRejectsOpenDuplicateAndUnrelatedArcs);
+                RunTest(nameof(SplitCircleHoleRejectsInvalidEvidence), SplitCircleHoleRejectsInvalidEvidence);
+                RunTest(nameof(ThreeViewProjectionLocal50KeepsOtherAxisAndUniqueStep), ThreeViewProjectionLocal50KeepsOtherAxisAndUniqueStep);
+                RunTest(nameof(ThreeViewProjectionThicknessUsesReversedTopAxis), ThreeViewProjectionThicknessUsesReversedTopAxis);
+                RunTest(nameof(ThreeViewProjectionProtectedSemanticsAndMissingEvidenceRemain), ThreeViewProjectionProtectedSemanticsAndMissingEvidenceRemain);
+                RunTest(nameof(ThreeViewProjectionRequiresUniqueRenderedProvider), ThreeViewProjectionRequiresUniqueRenderedProvider);
+                RunTest(nameof(ThreeViewProjectionUnverifiedAlignmentRemains), ThreeViewProjectionUnverifiedAlignmentRemains);
                 RunTest(nameof(ThreeViewPinChainStaysOnTheViewThatShowsThePins), ThreeViewPinChainStaysOnTheViewThatShowsThePins);
                 RunTest(nameof(TwoViewTopAndLeftSplitLengthHeightAndWidth), TwoViewTopAndLeftSplitLengthHeightAndWidth);
                 RunTest(nameof(MismatchedViewEnvelopesDoNotAssign), MismatchedViewEnvelopesDoNotAssign);

@@ -56,7 +56,7 @@ public sealed partial class DimensionPlanner
 		HoleFeature2D holeFeature2D = ((datumPin != null && datumPin.IsPinHole) ? (list2.FirstOrDefault((HoleFeature2D h) => IsSameHole(h, datumPin)) ?? datumPin) : (from h in list2
 			orderby h.Center.X, h.Center.Y
 			select h).First());
-		PinGroupPlan pinGroupPlan = CreatePinPairGroup(holeFeature2D, list2, holeFeature2D, null);
+		PinGroupPlan pinGroupPlan = CreatePinPairGroup(holeFeature2D, list2, holeFeature2D, null, list);
 		list3.Add(pinGroupPlan);
 		RemoveGroupPins(list2, pinGroupPlan);
 		while (list2.Count > 0)
@@ -65,7 +65,7 @@ public sealed partial class DimensionPlanner
 			holeFeature2D = (from h in list2
 				orderby DistanceSquared(h.Center, previousBase.Center), h.Center.X, h.Center.Y
 				select h).First();
-			PinGroupPlan pinGroupPlan2 = CreatePinPairGroup(holeFeature2D, list2, null, previousBase);
+			PinGroupPlan pinGroupPlan2 = CreatePinPairGroup(holeFeature2D, list2, null, previousBase, list);
 			list3.Add(pinGroupPlan2);
 			RemoveGroupPins(list2, pinGroupPlan2);
 		}
@@ -840,12 +840,12 @@ public sealed partial class DimensionPlanner
 		AddVerticalOutlineReferenceDimension(plan, outline, datum.BaseY, hole.Center, DimensionKind.HoleLocation, verticalSide, string.Empty, "HoleDatumY", alignmentKey: verticalAlignmentKey, alignmentPriority: string.IsNullOrEmpty(verticalAlignmentKey) ? 0 : 100, preservePreferredSide: true, preferSideFacingOutlineEndpoint: verticalEndpoint);
 	}
 
-	private PinGroupPlan CreatePinPairGroup(HoleFeature2D seed, IList<HoleFeature2D> candidates, HoleFeature2D forcedBasePin, HoleFeature2D referenceBasePin)
+	private PinGroupPlan CreatePinPairGroup(HoleFeature2D seed, IList<HoleFeature2D> candidates, HoleFeature2D forcedBasePin, HoleFeature2D referenceBasePin, IList<HoleFeature2D> holes)
 	{
 		List<HoleFeature2D> list = new List<HoleFeature2D> { seed };
 		HoleFeature2D holeFeature2D = (from h in candidates
 			where !IsSameHole(h, seed) && IsSamePinDiameter(h, seed)
-			orderby DistanceSquared(h.Center, seed.Center), h.Center.X, h.Center.Y
+			orderby GetPinPairPatternSupport(seed, h, holes) descending, DistanceSquared(h.Center, seed.Center), h.Center.X, h.Center.Y
 			select h).FirstOrDefault();
 		// Without pairing, each pin remains a singleton group; datum/transfer and validation still run.
 		if (holeFeature2D != null && _config.DisabledExperimentRule != DimensionExperimentRule.PinPairGrouping)
@@ -863,6 +863,21 @@ public sealed partial class DimensionPlanner
 			pinGroupPlan.MemberHoles.Add(item);
 		}
 		return pinGroupPlan;
+	}
+
+	private int GetPinPairPatternSupport(HoleFeature2D first, HoleFeature2D second, IList<HoleFeature2D> holes)
+	{
+		if (_config.DisabledExperimentRule == DimensionExperimentRule.FunctionalHoleAssignment) { return 0; }
+		var pair = new PinGroupPlan { BasePin = first };
+		pair.Pins.Add(first);
+		pair.Pins.Add(second);
+		return FindPinPairPatternHoles(pair, holes).Count;
+	}
+
+	private List<HoleFeature2D> FindPinPairPatternHoles(PinGroupPlan pair, IList<HoleFeature2D> holes)
+	{
+		var used = new List<HoleFeature2D>();
+		return FindFunctionalHoleGroupsForPinPair(pair, holes, used).SelectMany(g => g.Holes).ToList();
 	}
 
 	private HoleFeature2D ChoosePinGroupBasePin(IList<HoleFeature2D> groupPins, HoleFeature2D forcedBasePin, HoleFeature2D referenceBasePin, HoleFeature2D fallbackPin)
@@ -890,8 +905,16 @@ public sealed partial class DimensionPlanner
 		{
 			return;
 		}
+		var patterns = groups.Where(g => g.Pins.Count == 2)
+			.ToDictionary(g => g, g => FindPinPairPatternHoles(g, holes));
 		foreach (HoleFeature2D hole in holes.Where((HoleFeature2D h) => !h.IsPinHole && !h.IsSlotPoint))
 		{
+			var owners = patterns.Where(p => ContainsHole(p.Value, hole)).Select(p => p.Key).ToList();
+			if (owners.Count == 1)
+			{
+				owners[0].MemberHoles.Add(hole);
+				continue;
+			}
 			(from g in groups
 				orderby DistanceToPinPair(hole, g), DistanceSquared(hole.Center, g.BasePin.Center)
 				select g).FirstOrDefault()?.MemberHoles.Add(hole);
@@ -1071,10 +1094,18 @@ public sealed partial class DimensionPlanner
 
 	private IEnumerable<FunctionalHoleGroupPlan> FindFunctionalHoleGroupsForPinPair(PinGroupPlan pinGroup, IList<HoleFeature2D> candidates, IList<HoleFeature2D> used)
 	{
+		// Pick the inner diameter before distance sorting; concentric centers can differ slightly.
+		var locations = new List<HoleFeature2D>();
+		foreach (var hole in candidates.Where(h => h != null && !h.IsPinHole && !h.IsSlotPoint)
+			.OrderBy(h => h.Diameter).ThenBy(h => h.Center.X).ThenBy(h => h.Center.Y))
+		{
+			if (!ContainsHole(locations, hole)) { locations.Add(hole); }
+		}
 		int[] array = new int[2] { 4, 2 };
 		foreach (int attachedCount in array)
 		{
-			List<HoleFeature2D> available = candidates.Where((HoleFeature2D h) => !ContainsHole(used, h)).Take(10).ToList();
+			List<HoleFeature2D> available = locations.Where((HoleFeature2D h) => !ContainsHole(used, h))
+				.OrderBy(h => DistanceToPinPair(h, pinGroup)).ThenBy(h => h.Center.X).ThenBy(h => h.Center.Y).Take(10).ToList();
 			if (available.Count < attachedCount)
 			{
 				continue;
@@ -1088,7 +1119,7 @@ public sealed partial class DimensionPlanner
 					continue;
 				}
 				List<HoleFeature2D> allHoles = pinGroup.Pins.Concat(subset).ToList();
-				if (!FitsFunctionalHoleGrid(allHoles))
+				if (!FitsFunctionalHoleGrid(allHoles) && !FitsCenteredFourHolePattern(pinGroup, subset))
 				{
 					continue;
 				}
@@ -1187,6 +1218,33 @@ public sealed partial class DimensionPlanner
 			},
 			_ => new Tuple<int, int>[0],
 		}).Any((Tuple<int, int> shape) => FitsGridShape(holes, shape.Item1, shape.Item2));
+	}
+
+	private bool FitsCenteredFourHolePattern(PinGroupPlan pinGroup, IList<HoleFeature2D> holes)
+	{
+		if (pinGroup.Pins.Count != 2 || holes.Count != 4) { return false; }
+		Point2D first = pinGroup.Pins[0].Center;
+		Point2D second = pinGroup.Pins[1].Center;
+		double dx = second.X - first.X;
+		double dy = second.Y - first.Y;
+		double length = Math.Sqrt(dx * dx + dy * dy);
+		double tolerance = GetFunctionalHoleAlignmentTolerance();
+		if (length <= tolerance) { return false; }
+		double centerX = (first.X + second.X) / 2.0;
+		double centerY = (first.Y + second.Y) / 2.0;
+		var local = holes.Select(h => new HoleFeature2D
+		{
+			Center = new Point2D(((h.Center.X - centerX) * dx + (h.Center.Y - centerY) * dy) / length,
+				(-(h.Center.X - centerX) * dy + (h.Center.Y - centerY) * dx) / length)
+		}).ToList();
+		if (!FitsGridShape(local, 2, 2)) { return false; }
+		double minX = local.Min(h => h.Center.X);
+		double maxX = local.Max(h => h.Center.X);
+		double minY = local.Min(h => h.Center.Y);
+		double maxY = local.Max(h => h.Center.Y);
+		return Math.Abs(minX + maxX) <= tolerance * 2.0 && Math.Abs(minY + maxY) <= tolerance * 2.0
+			&& minX < -length / 2.0 - tolerance && maxX > length / 2.0 + tolerance
+			&& minY < -tolerance && maxY > tolerance;
 	}
 
 	private bool FitsGridShape(IList<HoleFeature2D> holes, int rowCount, int columnCount)

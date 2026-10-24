@@ -13,6 +13,15 @@ namespace CadAuto.CadAdapter.Recognition;
 
 public sealed class FeatureRecognizer
 {
+	private sealed class SelectedCircle
+	{
+		public Point3d Center;
+		public double Radius;
+		public ObjectId SourceId;
+		public ObjectId CircleId;
+		public ObjectId ComplementId;
+	}
+
 	private sealed class SlotArcCandidate
 	{
 		public ObjectId Id { get; set; }
@@ -148,7 +157,7 @@ public sealed class FeatureRecognizer
 		HashSet<ObjectId> hashSet = new HashSet<ObjectId>(LastRecognizedSlots.SelectMany(GetSlotSourceIds));
 		IList<Point3d> list2 = CollectPinMarkers(contextIds, list, tr);
 		IList<ThreadArcInfo> list3 = CollectThreadArcInfos(list, tr);
-		List<Circle> selectionCircles = MaterializeSelectionCircles(list, tr);
+		List<SelectedCircle> selectionCircles = MaterializeSelectionCircles(list, tr);
 		List<HoleFeature> list4 = new List<HoleFeature>();
 		int num = 0;
 		int num2 = 0;
@@ -176,7 +185,7 @@ public sealed class FeatureRecognizer
 				continue;
 			}
 			Entity entity = tr.GetObject(item2, OpenMode.ForRead) as Entity;
-			Circle circle = entity as Circle;
+			SelectedCircle circle = selectionCircles.FirstOrDefault(c => c.SourceId == item2);
 			if (circle != null)
 			{
 				num++;
@@ -210,7 +219,7 @@ public sealed class FeatureRecognizer
 					Center = circle.Center,
 					Diameter = diameter,
 					SourceId = item2,
-					CircleId = item2,
+					CircleId = circle.CircleId,
 					HoleKind = (flag2 ? HoleKind.Pin : HoleKind.Normal),
 					FitTolerance = (flag2 ? _config.PinHoleFitToleranceText : string.Empty),
 					ThreadCallout = string.Empty
@@ -359,7 +368,7 @@ public sealed class FeatureRecognizer
 		}
 	}
 
-	private static string FormatCircleSuppression(Circle circle, string reason)
+	private static string FormatCircleSuppression(SelectedCircle circle, string reason)
 	{
 		return $"center=({circle.Center.X:0.###},{circle.Center.Y:0.###}) radius={circle.Radius:0.###} reason={reason}";
 	}
@@ -425,12 +434,13 @@ public sealed class FeatureRecognizer
 	{
 		List<SlotArcCandidate> arcs = new List<SlotArcCandidate>();
 		List<SlotLineCandidate> list = new List<SlotLineCandidate>();
-		List<Circle> selectionCircles = MaterializeSelectionCircles(sourceIds, tr);
+		List<SelectedCircle> selectionCircles = MaterializeSelectionCircles(sourceIds, tr);
 		foreach (ObjectId sourceId in sourceIds)
 		{
 			Entity entity = tr.GetObject(sourceId, OpenMode.ForRead) as Entity;
 			Arc arc = entity as Arc;
-			if (arc != null && IsDrawingLayer(arc.Layer) && !IsConfirmedThreadArc(arc, selectionCircles) && IsHalfArc(arc))
+			if (arc != null && IsDrawingLayer(arc.Layer) && !selectionCircles.Any(c => c.SourceId == sourceId || c.ComplementId == sourceId)
+				&& !IsConfirmedThreadArc(arc, selectionCircles) && IsHalfArc(arc))
 			{
 				arcs.Add(new SlotArcCandidate
 				{
@@ -1560,13 +1570,13 @@ public sealed class FeatureRecognizer
 		return ThreadArcRules.IsThreadSweep(GetArcSweep(arc), _config);
 	}
 
-	private bool IsConfirmedThreadArc(Arc arc, IList<Circle> selectionCircles)
+	private bool IsConfirmedThreadArc(Arc arc, IList<SelectedCircle> selectionCircles)
 	{
 		if (!IsDrawingLayer(arc.Layer) || !IsThreadArc(arc))
 		{
 			return false;
 		}
-		foreach (Circle circle in selectionCircles)
+		foreach (SelectedCircle circle in selectionCircles)
 		{
 			if (arc.Center.DistanceTo(circle.Center) <= _config.GeometryTolerance && circle.Radius < arc.Radius - _config.GeometryTolerance)
 			{
@@ -1576,23 +1586,60 @@ public sealed class FeatureRecognizer
 		return false;
 	}
 
-	private static List<Circle> MaterializeSelectionCircles(IEnumerable<ObjectId> sourceIds, Transaction tr)
+	private List<SelectedCircle> MaterializeSelectionCircles(IEnumerable<ObjectId> sourceIds, Transaction tr)
 	{
-		List<Circle> list = new List<Circle>();
+		List<SelectedCircle> list = new List<SelectedCircle>();
+		List<Arc> arcs = new List<Arc>();
 		if (sourceIds == null)
 		{
 			return list;
 		}
 		foreach (ObjectId sourceId in sourceIds)
 		{
-			Circle circle = tr.GetObject(sourceId, OpenMode.ForRead) as Circle;
+			Entity entity = tr.GetObject(sourceId, OpenMode.ForRead) as Entity;
+			Circle circle = entity as Circle;
 			if (circle != null)
 			{
-				list.Add(circle);
+				list.Add(new SelectedCircle { Center = circle.Center, Radius = circle.Radius,
+					SourceId = sourceId, CircleId = sourceId });
 			}
+			Arc arc = entity as Arc;
+			if (arc != null && IsHalfArc(arc) && (IsDrawingLayer(arc.Layer)
+				|| string.Equals(arc.Layer, "HIDDEN", StringComparison.OrdinalIgnoreCase))) { arcs.Add(arc); }
+		}
+		double tolerance = _config.GeometryTolerance;
+		Func<Arc, Arc, bool> complementary = (a, b) => a.ObjectId != b.ObjectId
+			&& a.Center.DistanceTo(b.Center) <= tolerance && Math.Abs(Math.Abs(a.Normal.Z) - 1) <= tolerance
+			&& (a.Normal - b.Normal).Length <= tolerance
+			&& FullCircleArcRules.AreComplementarySemicircles(ToCircleArc(a), ToCircleArc(b), tolerance);
+		var used = new HashSet<ObjectId>();
+		foreach (Arc arc in arcs.Where(a => IsDrawingLayer(a.Layer)))
+		{
+			if (used.Contains(arc.ObjectId) || list.Any(c => c.Center.DistanceTo(arc.Center) <= tolerance
+				&& Math.Abs(c.Radius - arc.Radius) <= tolerance)) { continue; }
+			var matches = arcs.Where(other => complementary(arc, other)).ToList();
+			if (matches.Count != 1 || used.Contains(matches[0].ObjectId)
+				|| arcs.Count(other => complementary(matches[0], other)) != 1) { continue; }
+			Arc partner = matches[0];
+			used.Add(arc.ObjectId); used.Add(partner.ObjectId);
+			list.Add(new SelectedCircle { Center = arc.Center, Radius = arc.Radius, SourceId = arc.ObjectId,
+				CircleId = ObjectId.Null, ComplementId = partner.ObjectId });
 		}
 		return list;
 	}
+
+	internal ISet<ObjectId> CollectClosedCircleArcIds(IEnumerable<ObjectId> sourceIds, Transaction tr)
+	{
+		return new HashSet<ObjectId>(MaterializeSelectionCircles(sourceIds, tr)
+			.Where(circle => !circle.ComplementId.IsNull)
+			.SelectMany(circle => new[] { circle.SourceId, circle.ComplementId }));
+	}
+
+	private static CadAuto.Core.Geometry.Arc2D ToCircleArc(Arc arc) => new CadAuto.Core.Geometry.Arc2D {
+		Center = new CadAuto.Core.Geometry.Point2D(arc.Center.X, arc.Center.Y), Radius = arc.Radius,
+		Start = new CadAuto.Core.Geometry.Point2D(arc.StartPoint.X, arc.StartPoint.Y),
+		End = new CadAuto.Core.Geometry.Point2D(arc.EndPoint.X, arc.EndPoint.Y),
+		Bulge = Math.Tan(GetArcSweep(arc) / 4) * Math.Sign(arc.Normal.Z) };
 
 	private IList<ThreadArcInfo> CollectThreadArcInfos(IEnumerable<ObjectId> sourceIds, Transaction tr)
 	{
@@ -1601,7 +1648,7 @@ public sealed class FeatureRecognizer
 		{
 			return list;
 		}
-		List<Circle> selectionCircles = MaterializeSelectionCircles(sourceIds, tr);
+		List<SelectedCircle> selectionCircles = MaterializeSelectionCircles(sourceIds, tr);
 		foreach (ObjectId sourceId in sourceIds)
 		{
 			Arc arc = tr.GetObject(sourceId, OpenMode.ForRead) as Arc;
@@ -1617,7 +1664,7 @@ public sealed class FeatureRecognizer
 		return list;
 	}
 
-	private bool IsSuppressedByThreadArc(Circle circle, IEnumerable<ThreadArcInfo> threadArcs)
+	private bool IsSuppressedByThreadArc(SelectedCircle circle, IEnumerable<ThreadArcInfo> threadArcs)
 	{
 		foreach (ThreadArcInfo threadArc in threadArcs)
 		{

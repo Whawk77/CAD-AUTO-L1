@@ -458,6 +458,8 @@ public sealed class GeometryCollector
 		{
 			return list;
 		}
+		ISet<ObjectId> closedCircleArcs = new FeatureRecognizer(config)
+			.CollectClosedCircleArcIds(outlineSelection.SelectedIds, tr);
 		foreach (ObjectId selectedId in outlineSelection.SelectedIds)
 		{
 			Entity entity = tr.GetObject(selectedId, OpenMode.ForRead) as Entity;
@@ -481,11 +483,13 @@ public sealed class GeometryCollector
 			}
 			else
 			{
-				if (hashSet.Contains(selectedId))
+				// A merged view component may contain hole halves as well as outer edges.
+				if (hashSet.Contains(selectedId) && !closedCircleArcs.Contains(selectedId))
 				{
 					continue;
 				}
-				if (arc != null && IsDrawingLayer(arc.Layer) && !IsThreadArc(arc, config) && IsPointInsideBounds(arc.Center, outline, geometryTolerance))
+				if (arc != null && (IsDrawingLayer(arc.Layer) || string.Equals(arc.Layer, "HIDDEN", StringComparison.OrdinalIgnoreCase))
+					&& !IsThreadArc(arc, config) && IsPointInsideBounds(arc.Center, outline, geometryTolerance))
 				{
 					list.Add(selectedId);
 					continue;

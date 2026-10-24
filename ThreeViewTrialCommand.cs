@@ -36,6 +36,8 @@ public static class ThreeViewTrialCommand
 		public List<HoleFeature> Holes;
 
 		public List<SlotFeature> Slots;
+
+		public OrthographicViewPlan Projection;
 	}
 
 	public static void Execute(Document document)
@@ -104,11 +106,26 @@ public static class ThreeViewTrialCommand
 				ObjectId dimStyleId = DimStyleManager.ResolveDimStyle(database, transaction);
 				ObjectId diameterStyleId = DimStyleManager.ResolveDiameterCalloutDimStyle(database, transaction, dimStyleId);
 				BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
-				DimensionDrawer drawer = new DimensionDrawer(database, transaction, space, config, dimStyleId, diameterStyleId, dimScale, layer, groupId);
-				int drawn = 0;
 				foreach (PreparedView view in prepared)
 				{
-					drawn += DrawView(drawer, view, config, editor);
+					view.Projection = new OrthographicViewPlan { Frame = view.Frame,
+						Plan = new DimensionPlanner(config).CreateDimensionPlan(CadToCoreModelMapper.ToCoreOutline(view.Outline),
+							CadToCoreModelMapper.ToCoreDatum(view.Datum), CadToCoreModelMapper.ToCoreHoles(view.Holes),
+							CadToCoreModelMapper.ToCoreSlots(view.Slots)) };
+				}
+				IList<OrthographicDimensionCoverage> coverage = OrthographicViewSetAssigner.FindProjectedCoverage(
+					prepared.Select(view => view.Projection).ToList(), config.GeometryTolerance);
+				int drawn = 0;
+				foreach (PreparedView view in prepared.OrderBy(view => view.Frame.Role))
+				{
+					int removed = OrthographicViewSetAssigner.SuppressRenderedDuplicates(view.Projection, coverage, WasRendered);
+					// Deferred buckets belong to one view; reusing a drawer would emit earlier views again.
+					DimensionDrawer drawer = new DimensionDrawer(database, transaction, space, config, dimStyleId, diameterStyleId, dimScale, layer, groupId);
+					drawn += DrawView(drawer, view, editor, removed);
+					foreach (var relation in coverage.Where(c => c.Applied && ReferenceEquals(c.TargetView, view.Projection)))
+					{ editor.WriteMessage("\nASD3V 去重证据: {0}", relation.Evidence); }
+					foreach (string warning in view.Projection.Plan.Diagnostics.Warnings.Where(w => w.StartsWith("CrossView.", StringComparison.Ordinal)))
+					{ editor.WriteMessage("\nASD3V 保留待确认: {0}", warning); }
 				}
 				transaction.Commit();
 				editor.WriteMessage("\nASD3V 试做完成，线性尺寸 {0} 条。直径、倒角和圆角引线仍用原来的单视图命令。", drawn);
@@ -185,39 +202,26 @@ public static class ThreeViewTrialCommand
 		};
 	}
 
-	private static int DrawView(DimensionDrawer drawer, PreparedView view, DimensionRuleConfig config, Editor editor)
+	private static bool WasRendered(OrthographicViewPlan view, PlannedDimension dimension)
 	{
-		OutlineFeature2D outline = CadToCoreModelMapper.ToCoreOutline(view.Outline);
+		return view.Plan.Diagnostics.FinalDimensions.Any(d => d.Id == dimension.DiagnosticId && d.IsSelected
+			&& !d.IsSuppressed && d.HasFinalPlacement && !string.IsNullOrEmpty(d.ExtensionLineDecision) && d.ExtensionLineDecision != "Unknown");
+	}
+
+	private static int DrawView(DimensionDrawer drawer, PreparedView view, Editor editor, int removed)
+	{
 		Datum2D datum = CadToCoreModelMapper.ToCoreDatum(view.Datum);
-		List<HoleFeature2D> holes = CadToCoreModelMapper.ToCoreHoles(view.Holes);
-		List<SlotFeature2D> slots = CadToCoreModelMapper.ToCoreSlots(view.Slots);
-		DimensionPlan plan = new DimensionPlanner(config).CreateDimensionPlan(outline, datum, holes, slots);
-		int removed = OrthographicViewSetAssigner.Apply(plan, view.Ownership);
+		DimensionPlan plan = view.Projection.Plan;
 		drawer.DrawDimensionPlan(plan, plan.Diagnostics, datum);
 		drawer.FlushStackedDimensions(view.Outline);
 		plan.SynchronizeFinalPlacementSides();
+		int drawn = plan.Dimensions.Count(d => WasRendered(view.Projection, d));
 		editor.WriteMessage(
-			"\nASD3V {0}: 保留{1}{2}，跨视图收起 {3} 条，留下 {4} 条。",
+			"\nASD3V {0}: 跨视图收起 {1} 条，实际生成 {2} 条。",
 			OrthographicViewSetAssigner.RoleName(view.Ownership.Role),
-			DescribeKeptExtents(view.Ownership),
-			view.Ownership.KeepPinDimensions ? "，销孔链留在本视图" : string.Empty,
 			removed,
-			plan.Dimensions.Count);
-		return plan.Dimensions.Count;
-	}
-
-	private static string DescribeKeptExtents(ViewExtentOwnership ownership)
-	{
-		List<string> kept = new List<string>();
-		if (ownership.KeepHorizontalOverall)
-		{
-			kept.Add(OrthographicViewSetAssigner.ExtentName(ownership.HorizontalExtent));
-		}
-		if (ownership.KeepVerticalOverall)
-		{
-			kept.Add(OrthographicViewSetAssigner.ExtentName(ownership.VerticalExtent));
-		}
-		return kept.Count == 0 ? "外形总尺寸交给其他视图" : string.Join("、", kept);
+			drawn);
+		return drawn;
 	}
 
 	private static bool IsInside(Point3d point, OutlineFeature outline, double tolerance)

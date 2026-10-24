@@ -84,7 +84,7 @@ public sealed class OrthographicViewSetAssignment
 /// First-angle placement is used only as a tie break: the front view sits above the top view
 /// and to the left of the left view. Each part extent and the pin chain is owned by one view.
 /// </summary>
-public static class OrthographicViewSetAssigner
+public static partial class OrthographicViewSetAssigner
 {
 	public const string RuleId = "ThreeViewExtentOwnership";
 

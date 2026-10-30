@@ -21,7 +21,10 @@ public sealed partial class DimensionPlanner
 
 	private bool IsBoundaryChamfer(OutlineTopologyEdge edge, OutlineFeature2D outline) => edge.Kind == "Line"
 		&& outline.Chamfers.Any(c => c.Value > _config.GeometryTolerance
-			&& SameBoundaryPair(edge.Start, edge.End, c.StartPoint, c.EndPoint));
+			&& (SameBoundaryPair(edge.Start, edge.End, c.StartPoint, c.EndPoint)
+				|| (c.SourceGeometryIds.Count > 0 && edge.SourceKeys.Any(c.SourceGeometryIds.Contains)
+					&& PointLiesOnSegment(edge.Start, new Segment2D(c.StartPoint, c.EndPoint), _config.GeometryTolerance)
+					&& PointLiesOnSegment(edge.End, new Segment2D(c.StartPoint, c.EndPoint), _config.GeometryTolerance))));
 
 	private bool HasBodyObliqueBoundary(DimensionPlan plan, OutlineFeature2D outline)
 	{
@@ -209,32 +212,44 @@ public sealed partial class DimensionPlanner
 		{
 			if (!plan.BoundaryInformationRequirements.Contains(raw)) { plan.BoundaryInformationRequirements.Add(raw); }
 		}
+		var runs = BoundaryLineRuns.Find(graph, tol);
+		var processed = new HashSet<int>();
 		foreach (var edge in graph.Edges.Where(e => e.IsBoundary && e.Kind == "Line"
 			&& Math.Abs(e.End.X - e.Start.X) > tol && Math.Abs(e.End.Y - e.Start.Y) > tol && !IsBoundaryChamfer(e, outline)))
 		{
+			if (!processed.Add(edge.Id)) { continue; }
+			var run = runs.FirstOrDefault(r => r.Edges.Contains(edge) && r.Edges.All(e => !IsBoundaryChamfer(e, outline)));
+			var edges = run == null ? new List<OutlineTopologyEdge> { edge } : run.Edges;
+			foreach (var member in edges) { processed.Add(member.Id); }
+			var start = run == null ? edge.Start : run.Start;
+			var end = run == null ? edge.End : run.End;
+			int startNode = run == null ? edge.StartNode : graph.BoundaryPath.Single(s => s.EdgeId == edges[0].Id).FromNode;
+			int endNode = run == null ? edge.EndNode : graph.BoundaryPath.Single(s => s.EdgeId == edges[edges.Count - 1].Id).ToNode;
+			var sources = edges.SelectMany(e => e.SourceKeys.Count > 0 ? e.SourceKeys : new List<string> { e.SourceKey })
+				.Where(s => !string.IsNullOrEmpty(s)).Distinct().ToList();
 			foreach (bool horizontal in new[] { true, false })
 			{
 				var orientation = horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical;
 				var side = BoundaryProjectionSide(edge, graph, horizontal);
-				var first = edge.Start;
-				var second = edge.End;
+				var first = start;
+				var second = end;
 				var attachmentEvidence = new List<string>();
-				if (TryChooseClearBoundaryEndpoint(graph, edge.StartNode, 1, first, orientation, side, outline,
+				if (TryChooseClearBoundaryEndpoint(graph, startNode, 1, first, orientation, side, outline,
 					out var replacement, out var evidence))
 				{
 					first = replacement;
 				}
 				if (!string.IsNullOrEmpty(evidence)) { attachmentEvidence.Add(evidence); }
-				if (TryChooseClearBoundaryEndpoint(graph, edge.EndNode, 2, second, orientation, side, outline,
+				if (TryChooseClearBoundaryEndpoint(graph, endNode, 2, second, orientation, side, outline,
 					out replacement, out evidence))
 				{
 					second = replacement;
 				}
 				if (!string.IsNullOrEmpty(evidence)) { attachmentEvidence.Add(evidence); }
-				string proof = "BoundaryInformation|Relation=BodyObliqueProjection|BoundaryEdge=" + edge.Id
+				string proof = "BoundaryInformation|Relation=BodyObliqueProjection|BoundaryEdge=" + string.Join(",", edges.Select(e => e.Id))
 					+ (attachmentEvidence.Count == 0 ? string.Empty : "|" + string.Join("|", attachmentEvidence));
-				AddBoundaryInformationDimension(plan, "BoundaryInformation:Oblique:" + edge.SourceKey, BoundaryObliqueRole,
-					orientation, side, first, second, new[] { edge.SourceKey }, proof);
+				AddBoundaryInformationDimension(plan, "BoundaryInformation:Oblique:" + string.Join(">", sources), BoundaryObliqueRole,
+					orientation, side, first, second, sources, proof);
 			}
 		}
 		// A chamfer / straight face / chamfer route defines its full face width using

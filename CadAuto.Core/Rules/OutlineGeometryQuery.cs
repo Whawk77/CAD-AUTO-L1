@@ -305,7 +305,7 @@ public static class OutlineGeometryQuery
 		return list;
 	}
 
-	private static bool IsPointOnSegment(Point2D point, Segment2D segment, double tolerance)
+	public static bool IsPointOnSegment(Point2D point, Segment2D segment, double tolerance)
 	{
 		double dx = segment.End.X - segment.Start.X;
 		double dy = segment.End.Y - segment.Start.Y;

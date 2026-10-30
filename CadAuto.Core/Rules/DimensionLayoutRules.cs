@@ -362,7 +362,7 @@ public sealed partial class DimensionLayoutRules
 		ApplyAlignmentCoordinateOverrides(placements, dimensions, alignmentLanes, side, outline);
 		ApplyRootedLayoutBlockCoordinateOverrides(placements, dimensions, side, outline);
 		HashSet<string> unifiedLaneKeys = CaptureUnifiedAlignmentLaneKeys(placements, dimensions, side, outline);
-		EnsureLayoutBlockPhysicalOutwardOrder(placements, dimensions, layoutBlocks, side, outline, perLevelSpacing, isHorizontal);
+		EnsureLayoutBlockPhysicalOutwardOrder(placements, dimensions, layoutBlocks, side, outline, perLevelSpacing, textHeight, gap, isHorizontal);
 		RestoreSplitAlignmentLanes(placements, dimensions, side, outline, unifiedLaneKeys);
 		CompactParallelDatumStacks(placements, dimensions, layoutBlocks, side, outline, textHeight, gap, firstOffset, perLevelSpacing, isHorizontal);
 		EnsureOverallPhysicalOutermostOffset(placements, dimensions, side, outline, perLevelSpacing);
@@ -402,7 +402,7 @@ public sealed partial class DimensionLayoutRules
 			.Where(IsPreserveLevelFunctionalHoleBlock)
 			.Where(functional => datumChains.Any(chain =>
 				SharesPinGroupSource(functional, chain)
-				&& FunctionalHoleOrdersBeyondChain(functional, chain)))
+				&& FunctionalHoleOrdersBeyondChain(functional, chain, true)))
 			.ToList();
 		datumChains = datumChains
 			.Where(chain => functionalHoles.Any(functional => SharesPinGroupSource(functional, chain)))
@@ -465,7 +465,12 @@ public sealed partial class DimensionLayoutRules
 				.Distinct()
 				.OrderBy(chainId => chainId)
 				.Select(chainId => chainId.ToString(CultureInfo.InvariantCulture)));
-			LayoutBlock block = CreateLayoutBlock("LooseChain:" + chainKey, "LooseChain", looseChain, isHorizontal);
+			string blockId = "LooseChain:" + chainKey;
+			for (int lane = 2; blocks.Any(block => string.Equals(block.Id, blockId, StringComparison.Ordinal)); lane++)
+			{
+				blockId = "LooseChain:" + chainKey + "#" + lane.ToString(CultureInfo.InvariantCulture);
+			}
+			LayoutBlock block = CreateLayoutBlock(blockId, "LooseChain", looseChain, isHorizontal);
 			blocks.Add(block);
 			foreach (IndexedLayoutItem member in block.Members)
 			{
@@ -513,7 +518,9 @@ public sealed partial class DimensionLayoutRules
 				added = false;
 				foreach (IndexedLayoutItem candidate in remaining.ToList())
 				{
-					if (!chain.Any(member => CanJoinLooseLayoutChain(member.Dimension, candidate.Dimension, isHorizontal)))
+					if (!chain.Any(member => CanJoinLooseLayoutChain(member.Dimension, candidate.Dimension, isHorizontal))
+						|| chain.Any(member => member.Dimension.LooseChainId != candidate.Dimension.LooseChainId
+							&& HasStrictArrowConflict(member.Dimension, candidate.Dimension, isHorizontal)))
 					{
 						continue;
 					}
@@ -670,12 +677,22 @@ public sealed partial class DimensionLayoutRules
 		{
 			return first.ForceOuterLevel ? 1 : -1;
 		}
+		int independentDatum = CompareIndependentDatumOutsideTransferPair(first, second);
+		if (independentDatum != 0)
+		{
+			return independentDatum;
+		}
 		// Same pin-group: functional holes that reach past the rooted 41-30 (datum/pin) chain
 		// must stack outside that chain even when their raw span is shorter (e.g. 45 outside 71).
-		int functionalBeyondChain = CompareFunctionalHoleBeyondDatumChain(first, second);
+		int functionalBeyondChain = CompareFunctionalHoleBeyondDatumChain(first, second, isHorizontal);
 		if (functionalBeyondChain != 0)
 		{
 			return functionalBeyondChain;
+		}
+		int looseBeyondChain = CompareLooseHoleBeyondDatumChain(first, second, isHorizontal);
+		if (looseBeyondChain != 0)
+		{
+			return looseBeyondChain;
 		}
 		// Same AlignmentKey: an isolated PinGroupDistance that nests over a multi-member continuous
 		// rooted chain (e.g. 223.5 over 59.5+124+50) must stack OUTSIDE that chain even when the
@@ -695,7 +712,7 @@ public sealed partial class DimensionLayoutRules
 		return readingLevelComparison != 0 ? readingLevelComparison : first.FirstSourceIndex.CompareTo(second.FirstSourceIndex);
 	}
 
-	private int CompareFunctionalHoleBeyondDatumChain(LayoutBlock first, LayoutBlock second)
+	private int CompareFunctionalHoleBeyondDatumChain(LayoutBlock first, LayoutBlock second, bool isHorizontal)
 	{
 		bool firstFunc = IsPreserveLevelFunctionalHoleBlock(first);
 		bool secondFunc = IsPreserveLevelFunctionalHoleBlock(second);
@@ -706,13 +723,58 @@ public sealed partial class DimensionLayoutRules
 			// Force the hole OUTER only when it continues past an unshared chain end
 			// (45 outside 41+30). Otherwise span decides: a tiny pin-group gap (1.28)
 			// stays innermost even when a local 15 shares one endpoint and is not "beyond".
-			return FunctionalHoleOrdersBeyondChain(first, second) ? 1 : 0;
+			return FunctionalHoleOrdersBeyondChain(first, second, isHorizontal) ? 1 : 0;
 		}
 		if (secondFunc && firstChain && SharesPinGroupSource(first, second))
 		{
-			return FunctionalHoleOrdersBeyondChain(second, first) ? -1 : 0;
+			return FunctionalHoleOrdersBeyondChain(second, first, isHorizontal) ? -1 : 0;
 		}
 		return 0;
+	}
+
+	private int CompareLooseHoleBeyondDatumChain(LayoutBlock first, LayoutBlock second, bool isHorizontal)
+	{
+		if (LooseHoleExtendsBeyondCommonDatumChain(first, second, isHorizontal)) return 1;
+		if (LooseHoleExtendsBeyondCommonDatumChain(second, first, isHorizontal)) return -1;
+		return 0;
+	}
+
+	private int CompareIndependentDatumOutsideTransferPair(LayoutBlock first, LayoutBlock second)
+	{
+		if (IsIndependentDatumForTransferPair(first, second)) return 1;
+		if (IsIndependentDatumForTransferPair(second, first)) return -1;
+		return 0;
+	}
+
+	private bool IsIndependentDatumForTransferPair(LayoutBlock datum, LayoutBlock pair)
+	{
+		if (datum.Members.Count != 1 || !IsMultiMemberRootedChainBlock(pair)
+			|| !pair.Members.Any(member => member.Dimension.Kind == DimensionKind.PinDistance))
+		{
+			return false;
+		}
+		DimensionLayoutItem location = datum.Members[0].Dimension;
+		return (location.Kind == DimensionKind.DatumHoleLocationX || location.Kind == DimensionKind.DatumHoleLocationY)
+			&& !string.IsNullOrEmpty(location.SourceFeatureId)
+			&& pair.Members.All(member => (member.Dimension.Kind == DimensionKind.PinDistance || member.Dimension.Kind == DimensionKind.PinGroupDistance)
+				&& !string.IsNullOrEmpty(member.Dimension.SourceFeatureId)
+				&& !string.Equals(location.SourceFeatureId, member.Dimension.SourceFeatureId, StringComparison.Ordinal))
+			&& pair.Members.Any(member => member.Dimension.Kind == DimensionKind.PinGroupDistance
+				&& location.SecondPoint.DistanceTo(member.Dimension.FirstPoint) <= _config.GeometryTolerance);
+	}
+
+	private bool LooseHoleExtendsBeyondCommonDatumChain(LayoutBlock loose, LayoutBlock chain, bool isHorizontal)
+	{
+		if (loose.Type != "LooseChain" || !IsMultiMemberRootedChainBlock(chain)
+			|| !loose.Members.All(member => member.Dimension.Kind == DimensionKind.HoleLocation))
+		{
+			return false;
+		}
+		// A longer location from the same pin stays outside its continuous datum/pin chain.
+		bool commonDatum = chain.Members.Any(member =>
+			(member.Dimension.Kind == DimensionKind.DatumHoleLocationX || member.Dimension.Kind == DimensionKind.DatumHoleLocationY)
+			&& loose.Members.All(hole => hole.Dimension.FirstPoint.DistanceTo(member.Dimension.SecondPoint) <= _config.GeometryTolerance));
+		return commonDatum && FunctionalIntervalExtendsPastUnsharedChainEnd(loose, chain, isHorizontal);
 	}
 
 	/// <summary>
@@ -844,32 +906,10 @@ public sealed partial class DimensionLayoutRules
 			&& firstIds.Contains(member.Dimension.SourceFeatureId));
 	}
 
-	private bool FunctionalHoleOrdersBeyondChain(LayoutBlock functionalHole, LayoutBlock chain)
+	private bool FunctionalHoleOrdersBeyondChain(LayoutBlock functionalHole, LayoutBlock chain, bool isHorizontal)
 	{
-		// Horizontal dims: beyond on X. Vertical dims: beyond on Y. Mixed blocks fall back to both.
-		bool horizontal = functionalHole.Members.Any(member =>
-			member.Dimension.Kind == DimensionKind.HoleLocation
-			&& Math.Abs(member.Dimension.FirstPoint.Y - member.Dimension.SecondPoint.Y) <= _config.GeometryTolerance);
-		bool vertical = functionalHole.Members.Any(member =>
-			member.Dimension.Kind == DimensionKind.HoleLocation
-			&& Math.Abs(member.Dimension.FirstPoint.X - member.Dimension.SecondPoint.X) <= _config.GeometryTolerance);
-		if (horizontal || !vertical)
-		{
-			if (FunctionalIntervalExtendsPastUnsharedChainEnd(
-				functionalHole, chain, horizontalAxis: true))
-			{
-				return true;
-			}
-		}
-		if (vertical)
-		{
-			if (FunctionalIntervalExtendsPastUnsharedChainEnd(
-				functionalHole, chain, horizontalAxis: false))
-			{
-				return true;
-			}
-		}
-		return false;
+		// Selected centerline endpoints can differ on both axes; use the measured orientation.
+		return FunctionalIntervalExtendsPastUnsharedChainEnd(functionalHole, chain, isHorizontal);
 	}
 
 	/// <summary>
@@ -935,6 +975,16 @@ public sealed partial class DimensionLayoutRules
 		if (block.ForceOuterLevel)
 		{
 			return "ForceOutermost";
+		}
+		if (orderedBlocks.Any(candidate => candidate != block
+			&& CompareIndependentDatumOutsideTransferPair(block, candidate) != 0))
+		{
+			return "IndependentDatumOutsideTransferPair";
+		}
+		if (orderedBlocks.Any(candidate => candidate != block
+			&& CompareLooseHoleBeyondDatumChain(block, candidate, isHorizontal) != 0))
+		{
+			return "LooseHoleBeyondCommonDatumChain";
 		}
 		if (orderedBlocks.Any(candidate => candidate != block
 			&& CompareNestedPinGroupTransferOutsideChain(block, candidate, isHorizontal) != 0))
@@ -1375,7 +1425,17 @@ public sealed partial class DimensionLayoutRules
 		return groups.OrderBy(group => group.Max(block => block.EffectiveOrder)).ToList();
 	}
 
-	private void EnsureLayoutBlockPhysicalOutwardOrder(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, IList<LayoutBlock> layoutBlocks, DimensionSide side, OutlineFeature2D outline, double perLevelSpacing, bool isHorizontal)
+	private double GetTextAwareLaneSpacing(IEnumerable<LayoutBlock> blocks, double spacing, double textHeight, double gap)
+	{
+		// Both outward ordering and later compaction must retain the complete text space.
+		bool hasOverflowText = blocks.SelectMany(block => block.Members).Any(member =>
+			(member.Dimension.Kind == DimensionKind.HoleLocation || member.Dimension.Kind == DimensionKind.PinDistance
+				|| member.Dimension.Kind == DimensionKind.PinGroupDistance)
+			&& !DimensionTextFitsBetweenOwnExtensionLines(member.Dimension, textHeight));
+		return hasOverflowText ? Math.Max(spacing, textHeight * 1.3 + gap + _config.GeometryTolerance * 2.0) : spacing;
+	}
+
+	private void EnsureLayoutBlockPhysicalOutwardOrder(IList<DimensionStackingPlacement> placements, IList<DimensionLayoutItem> dimensions, IList<LayoutBlock> layoutBlocks, DimensionSide side, OutlineFeature2D outline, double perLevelSpacing, double textHeight, double gap, bool isHorizontal)
 	{
 		if (placements == null || dimensions == null || layoutBlocks == null || placements.Count < 2)
 		{
@@ -1405,7 +1465,7 @@ public sealed partial class DimensionLayoutRules
 					continue;
 				}
 				double innerMaximumRank = innerPlacements.Max(placement => GetPlacementPhysicalOutwardRank(placement, dimensions, side, outline));
-				double requiredRank = innerMaximumRank + clearance;
+				double requiredRank = innerMaximumRank + GetTextAwareLaneSpacing(innerGroup.Concat(outerGroup), clearance, textHeight, gap);
 				if (requiredRank > requiredMinimumRank)
 				{
 					requiredMinimumRank = requiredRank;
@@ -1618,6 +1678,10 @@ public sealed partial class DimensionLayoutRules
 	private bool RequiresPhysicalOutwardOrder(LayoutBlock inner, LayoutBlock outer, bool isHorizontal)
 	{
 		if (outer.ForceOuterLevel)
+		{
+			return true;
+		}
+		if (CompareIndependentDatumOutsideTransferPair(inner, outer) < 0)
 		{
 			return true;
 		}
@@ -2077,9 +2141,11 @@ public sealed partial class DimensionLayoutRules
 			DimensionTextPlacementItem placed = placedDimensions[i];
 			double safeArrowSize = Math.Max(0.0, arrowSize);
 			double safeClearance = Math.Max(_config.GeometryTolerance, clearance);
+			List<TextBounds2D> slideObstacles = currentBounds.Where((bounds, index) => index != i).Concat(obstacles)
+				.Concat(placedDimensions.SelectMany(item => GetArrowBounds(item, safeArrowSize))).ToList();
 			if (CanSlideTextOverlapLocalDimension(placed))
 			{
-				List<TextSlideCandidate> overlapCandidates = GetShortDimensionTextSlideCandidates(placed, textHeight, safeArrowSize, safeClearance).ToList();
+				List<TextSlideCandidate> overlapCandidates = GetShortDimensionTextSlideCandidates(placed, textHeight, safeArrowSize, safeClearance, slideObstacles).ToList();
 				bool currentTextOverlaps = TextBoundsHasHardOverlap(currentBounds[i], currentBounds, obstacles, i, _config.GeometryTolerance);
 				bool fallbackTextOverlaps = !DimensionTextFitsBetweenOwnExtensionLines(placed.Dimension, textHeight)
 					&& overlapCandidates.Any(candidate => TextBoundsHasHardOverlap(candidate.Bounds, currentBounds, obstacles, i, _config.GeometryTolerance));
@@ -2124,7 +2190,13 @@ public sealed partial class DimensionLayoutRules
 				continue;
 			}
 			double effectiveDimScale = (_config.TextHeight > _config.GeometryTolerance) ? (textHeight / _config.TextHeight) : 1.0;
-			TextSlideCandidate textSlideCandidate = (from candidate in GetShortDimensionTextSlideCandidates(placed, textHeight, safeArrowSize, safeClearance)
+			// Neighboring lanes use the text gap; the larger arrow clearance applies along the dimension line.
+			double acrossClearance = Math.Min(safeClearance, textHeight * 0.5);
+			bool horizontal = placed.Side == DimensionSide.Bottom || placed.Side == DimensionSide.Top;
+			TextSlideCandidate textSlideCandidate = (from candidate in GetShortDimensionTextSlideCandidates(placed, textHeight, safeArrowSize, safeClearance, slideObstacles)
+				where !slideObstacles.Any(obstacle => TextBoundsOverlap(candidate.Bounds, obstacle,
+					horizontal ? safeClearance : acrossClearance, horizontal ? acrossClearance : safeClearance))
+					&& !TextEntersAlignedNeighborInterval(candidate.Bounds, placed, placedDimensions)
 				select new TextSlideCandidate
 				{
 					Position = candidate.Position,
@@ -2132,7 +2204,7 @@ public sealed partial class DimensionLayoutRules
 					Score = ScoreTextBoundsAgainstPlaced(candidate.Bounds, currentBounds, obstacles, i, safeClearance, effectiveDimScale)
 						+ ScoreTextBoundsAgainstArrows(candidate.Bounds, placedDimensions, safeArrowSize, safeClearance)
 				} into candidate
-				orderby candidate.Score, IsTopTenPlusMinusDatumHoleLocation(placed) && candidate.Position.X > (placed.Dimension.FirstPoint.X + placed.Dimension.SecondPoint.X) / 2.0 ? 1 : 0, GetTextSlideDistance(candidate.Position, placed)
+				orderby GetTextSlideDistance(candidate.Position, placed), candidate.Score, IsTopTenPlusMinusDatumHoleLocation(placed) && candidate.Position.X > (placed.Dimension.FirstPoint.X + placed.Dimension.SecondPoint.X) / 2.0 ? 1 : 0
 				select candidate).FirstOrDefault();
 			if (textSlideCandidate != null)
 			{
@@ -2146,6 +2218,24 @@ public sealed partial class DimensionLayoutRules
 			}
 		}
 		return list;
+	}
+
+	private bool TextEntersAlignedNeighborInterval(TextBounds2D text, DimensionTextPlacementItem owner, IEnumerable<DimensionTextPlacementItem> placedDimensions)
+	{
+		bool horizontal = owner.Side == DimensionSide.Bottom || owner.Side == DimensionSide.Top;
+		double coordinate = horizontal ? owner.DimLinePoint.Y : owner.DimLinePoint.X;
+		double textMin = horizontal ? text.MinX : text.MinY;
+		double textMax = horizontal ? text.MaxX : text.MaxY;
+		return placedDimensions.Any(neighbor =>
+		{
+			if (ReferenceEquals(neighbor, owner) || neighbor.Side != owner.Side
+				|| Math.Abs((horizontal ? neighbor.DimLinePoint.Y : neighbor.DimLinePoint.X) - coordinate) > _config.GeometryTolerance)
+			{
+				return false;
+			}
+			Tuple<double, double> interval = ComputeArrowInterval(neighbor.Dimension, horizontal);
+			return textMin < interval.Item2 - _config.GeometryTolerance && textMax > interval.Item1 + _config.GeometryTolerance;
+		});
 	}
 
 	private static Point2D GetCenteredDimensionTextPosition(DimensionTextPlacementItem placed)
@@ -2306,7 +2396,12 @@ public sealed partial class DimensionLayoutRules
 
 	public bool TextBoundsOverlap(TextBounds2D first, TextBounds2D second, double gap)
 	{
-		return first.MinX <= second.MaxX + gap && second.MinX <= first.MaxX + gap && first.MinY <= second.MaxY + gap && second.MinY <= first.MaxY + gap;
+		return TextBoundsOverlap(first, second, gap, gap);
+	}
+
+	private bool TextBoundsOverlap(TextBounds2D first, TextBounds2D second, double gapX, double gapY)
+	{
+		return first.MinX <= second.MaxX + gapX && second.MinX <= first.MaxX + gapX && first.MinY <= second.MaxY + gapY && second.MinY <= first.MaxY + gapY;
 	}
 
 	public bool TextBoundsAreTooClose(TextBounds2D first, TextBounds2D second, double gap, double dimScale)
@@ -2323,7 +2418,7 @@ public sealed partial class DimensionLayoutRules
 
 
 
-	private IEnumerable<TextSlideCandidate> GetShortDimensionTextSlideCandidates(DimensionTextPlacementItem placed, double textHeight, double arrowSize, double clearance)
+	private IEnumerable<TextSlideCandidate> GetShortDimensionTextSlideCandidates(DimensionTextPlacementItem placed, double textHeight, double arrowSize, double clearance, IEnumerable<TextBounds2D> obstacles)
 	{
 		double textLength = GetDimensionTextLength(placed.Dimension, textHeight);
 		bool horizontal = placed.Side == DimensionSide.Bottom || placed.Side == DimensionSide.Top;
@@ -2331,16 +2426,36 @@ public sealed partial class DimensionLayoutRules
 		double extraClearance = clearance + _config.GeometryTolerance * 2.0;
 		double lowerCenter = arrow.Item1 - arrowSize - extraClearance - textLength / 2.0;
 		double upperCenter = arrow.Item2 + arrowSize + extraClearance + textLength / 2.0;
+		double freeLowerCenter = lowerCenter;
+		double freeUpperCenter = upperCenter;
+		double lineCoordinate = horizontal ? placed.DimLinePoint.Y : placed.DimLinePoint.X;
+		double halfThickness = textHeight * 0.65 + clearance;
+		// Finite obstacle envelopes give two safe fallbacks when both immediate positions are blocked.
+		foreach (TextBounds2D obstacle in obstacles)
+		{
+			double perpendicularMin = horizontal ? obstacle.MinY : obstacle.MinX;
+			double perpendicularMax = horizontal ? obstacle.MaxY : obstacle.MaxX;
+			if (perpendicularMin > lineCoordinate + halfThickness || perpendicularMax < lineCoordinate - halfThickness)
+			{
+				continue;
+			}
+			freeLowerCenter = Math.Min(freeLowerCenter, (horizontal ? obstacle.MinX : obstacle.MinY) - extraClearance - textLength / 2.0);
+			freeUpperCenter = Math.Max(freeUpperCenter, (horizontal ? obstacle.MaxX : obstacle.MaxY) + extraClearance + textLength / 2.0);
+		}
 		if (horizontal)
 		{
 			double y = placed.DimLinePoint.Y;
 			yield return CreateHorizontalCustomTextCandidate(lowerCenter, y, textLength, textHeight);
 			yield return CreateHorizontalCustomTextCandidate(upperCenter, y, textLength, textHeight);
+			if (freeLowerCenter < lowerCenter) yield return CreateHorizontalCustomTextCandidate(freeLowerCenter, y, textLength, textHeight);
+			if (freeUpperCenter > upperCenter) yield return CreateHorizontalCustomTextCandidate(freeUpperCenter, y, textLength, textHeight);
 			yield break;
 		}
 		double x = placed.DimLinePoint.X;
 		yield return CreateVerticalCustomTextCandidate(x, lowerCenter, textLength, textHeight);
 		yield return CreateVerticalCustomTextCandidate(x, upperCenter, textLength, textHeight);
+		if (freeLowerCenter < lowerCenter) yield return CreateVerticalCustomTextCandidate(x, freeLowerCenter, textLength, textHeight);
+		if (freeUpperCenter > upperCenter) yield return CreateVerticalCustomTextCandidate(x, freeUpperCenter, textLength, textHeight);
 	}
 
 	private static double GetTextSlideDistance(Point2D position, DimensionTextPlacementItem placed)

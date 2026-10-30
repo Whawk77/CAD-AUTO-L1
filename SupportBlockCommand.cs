@@ -69,7 +69,7 @@ internal static class SupportBlockCommand
 				double dimScale = (database.Dimscale <= 0.0) ? 1.0 : database.Dimscale;
 				ObjectId dimStyleId = DimStyleManager.ResolveDimStyle(database, transaction);
 				ObjectId diameterCalloutDimStyleId = DimStyleManager.ResolveDiameterCalloutDimStyle(database, transaction, dimStyleId);
-				if (!ty2 && !NativeDiameterDimensioner.EnsureRoughnessBlockChoice(database, editor))
+				if (!ty1 && !ty2 && !NativeDiameterDimensioner.EnsureRoughnessBlockChoice(database, editor))
 				{
 					return;
 				}
@@ -148,7 +148,7 @@ internal static class SupportBlockCommand
 				{
 					Point3d cncTextMidpoint = Commands.GetAg1TextLandingMidpoint(cncTextPoint, cncArrowPoint, cncText, textHeight);
 					Point3d roughnessPoint = new Point3d(cncTextMidpoint.X, cncEvaluatedLandingPoint.Y, cncTextMidpoint.Z);
-					NativeDiameterDimensioner.InsertRoughnessBlock(database, transaction, space, roughnessPoint, annotationLayer, diameterCalloutDimStyleId, groupId);
+					NativeDiameterDimensioner.InsertRoughnessBlock(database, transaction, space, roughnessPoint, annotationLayer, diameterCalloutDimStyleId, groupId, ty1: ty1);
 				}
 				transaction.Commit();
 			}

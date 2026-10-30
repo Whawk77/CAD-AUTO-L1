@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using CadAuto.Core.Geometry;
 using CadAuto.Core.Model;
 using CadAuto.Core.Rules;
 
@@ -18,24 +19,40 @@ public sealed class HoleCalloutPlanner
 
 	public IList<HoleCalloutPlan> CreatePlans(IEnumerable<HoleFeature2D> holes, HoleFeature2D datumPin)
 	{
+		return CreatePlans(holes, datumPin, null);
+	}
+
+	public IList<HoleCalloutPlan> CreatePlans(IEnumerable<HoleFeature2D> holes, HoleFeature2D datumPin, DimensionPlan positionPlan)
+	{
 		List<HoleFeature2D> list = ((holes == null) ? new List<HoleFeature2D>() : holes.Where((HoleFeature2D h) => h != null && !h.IsSlotPoint).ToList());
 		List<HoleFeature2D> list2 = list.Where((HoleFeature2D h) => h.IsPinHole).ToList();
 		if (list2.Count == 0)
 		{
 			return BuildPlansBySpatialRows(list);
 		}
-		IList<PinGroupPlan> list3 = new DimensionPlanner(_config).BuildPinGroupPlan(list, datumPin);
+		bool usePositionGroups = positionPlan != null && positionPlan.PinGroups.Count > 0;
+		IList<PinGroupPlan> list3 = usePositionGroups ? positionPlan.PinGroups : new DimensionPlanner(_config).BuildPinGroupPlan(list, datumPin);
 		List<HoleCalloutPlan> list4 = new List<HoleCalloutPlan>();
-		int num = 1;
-		foreach (PinGroupPlan item in list3)
+		foreach (PinGroupPlan item in list3.OrderBy(g => g.GroupIndex))
 		{
-			foreach (IList<HoleFeature2D> item2 in GroupCalloutClusterMembers(item.MemberHoles))
+			// Reuse location ownership, but keep diameter anchors on the original WCS holes.
+			IEnumerable<HoleFeature2D> members = usePositionGroups
+				? list.Where(h => item.MemberHoles.Any(member => MatchesPositionMember(h, member, positionPlan.CoordinateFrame)))
+				: item.MemberHoles;
+			foreach (IList<HoleFeature2D> item2 in GroupCalloutClusterMembers(members))
 			{
-				list4.Add(CreatePlan(item2, "PG" + num.ToString(CultureInfo.InvariantCulture)));
+				list4.Add(CreatePlan(item2, "PG" + item.GroupIndex.ToString(CultureInfo.InvariantCulture)));
 			}
-			num++;
 		}
 		return list4;
+	}
+
+	private bool MatchesPositionMember(HoleFeature2D source, HoleFeature2D member, CoordinateFrame2D frame)
+	{
+		return source.Kind == member.Kind
+			&& Math.Abs(source.Diameter - member.Diameter) <= _config.GeometryTolerance
+			&& (string.IsNullOrEmpty(member.SourceKey) || string.Equals(source.SourceKey, member.SourceKey, StringComparison.Ordinal))
+			&& source.Center.DistanceTo((frame ?? CoordinateFrame2D.Identity).ToWorld(member.Center)) <= _config.GeometryTolerance;
 	}
 
 	private IList<HoleCalloutPlan> BuildPlansBySpatialRows(IList<HoleFeature2D> holes)

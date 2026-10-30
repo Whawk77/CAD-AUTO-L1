@@ -28,6 +28,11 @@ High-priority rules for AI coding agents. Keep this file short.
   - In this worktree the versioned sequence starts at **`-v1`** and must strictly increment thereafter (`-v2`, `-v3`, …).
   - Keep related outputs of that build together in the same `Debug-vN` folder (`AutoFixtureDim.dll`, `CadAuto.Core.dll`, `CadAuto.CadAdapter.dll`).
   - See also `docs/Deployment.md` for regression / CAD deploy notes; the increment rule above is mandatory for agents.
+- **Change record after each versioned build (required):**
+  - After every successful versioned build (`bin\Debug-vN\`), create a new Markdown file in `D:\work\AI\9.1 托压块版本\docs\fix\` summarizing what changed in this build. Create the `docs\fix\` folder if it does not exist.
+  - File name: `Debug-vN-YYYY-MM-DD.md` (use the exact build version and exact date). Never overwrite or edit an earlier record; one new file per build.
+  - Keep it a brief summary, not a full report: build version, date, changed files, what was changed and why, and validation actually run (or "not run").
+  - Do not write a record for failed builds, or for documentation/configuration-only tasks that did not produce a new build.
 
 ## Product Invariants
 
@@ -52,7 +57,7 @@ High-priority rules for AI coding agents. Keep this file short.
 
 ## Documentation Discipline
 
-- Do not update project documentation unless the user asks for documentation work.
+- Do not update project documentation unless the user asks for documentation work. The only exception is the per-build change record in `docs\fix\` required under Development Workflow.
 - Use exact dates in documentation; do not write relative time words such as "today", "yesterday", or "recently".
 - Put durable agent instructions here; put evolving implementation knowledge under `docs/`.
 

@@ -909,7 +909,12 @@ public sealed partial class DimensionPlanner
 			.ToDictionary(g => g, g => FindPinPairPatternHoles(g, holes));
 		foreach (HoleFeature2D hole in holes.Where((HoleFeature2D h) => !h.IsPinHole && !h.IsSlotPoint))
 		{
-			var owners = patterns.Where(p => ContainsHole(p.Value, hole)).Select(p => p.Key).ToList();
+			// A containing pin pair takes precedence over a distant grid assembled across groups.
+			var owners = groups.Where(g => IsHoleBetweenPinPair(hole, g)).ToList();
+			if (owners.Count != 1)
+			{
+				owners = patterns.Where(p => ContainsHole(p.Value, hole)).Select(p => p.Key).ToList();
+			}
 			if (owners.Count == 1)
 			{
 				owners[0].MemberHoles.Add(hole);
@@ -951,13 +956,13 @@ public sealed partial class DimensionPlanner
 			if (num > _config.GeometryTolerance)
 			{
 				DimensionSide groupHorizontalSide = groups[i].HorizontalSide;
-				string alignmentKey = ChoosePinGroupAlignmentKey(GetPinGroupHorizontalLaneReferenceSide(outline, groups[i]), datumHorizontalSide, horizontalAlignmentKey, groups[i], horizontal: true);
+				string alignmentKey = ChoosePinGroupAlignmentKey(GetPinGroupHorizontalLaneReferenceSide(outline, groups[i]), datumHorizontalSide, horizontalAlignmentKey, groups[i], groups[0], horizontal: true);
 				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Horizontal, groupHorizontalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: alignmentKey, alignmentPriority: 110, readingLevel: DimensionReadingLevel.DatumTransfer);
 			}
 			if (num2 > _config.GeometryTolerance)
 			{
 				DimensionSide groupVerticalSide = groups[i].VerticalSide;
-				string alignmentKey = ChoosePinGroupAlignmentKey(GetPinGroupVerticalLaneReferenceSide(outline, groups[i]), datumVerticalSide, verticalAlignmentKey, groups[i], horizontal: false);
+				string alignmentKey = ChoosePinGroupAlignmentKey(GetPinGroupVerticalLaneReferenceSide(outline, groups[i]), datumVerticalSide, verticalAlignmentKey, groups[i], groups[0], horizontal: false);
 				AddDimension(plan, DimensionKind.PinGroupDistance, DimensionOrientation.Vertical, groupVerticalSide, basePin.Center, basePin2.Center, _config.FormatPinGroupDistanceOverride(num2), "PinGroupDistance", GetPinGroupDebugOwner(groups[i]), alignmentKey: alignmentKey, alignmentPriority: 110, readingLevel: DimensionReadingLevel.DatumTransfer);
 			}
 		}
@@ -1006,9 +1011,13 @@ public sealed partial class DimensionPlanner
 	}
 
 	// B/C keep their established lane key independently of the unified placement-side policy.
-	private static string ChoosePinGroupAlignmentKey(DimensionSide groupSide, DimensionSide datumSide, string datumAlignmentKey, PinGroupPlan group, bool horizontal)
+	private string ChoosePinGroupAlignmentKey(DimensionSide groupSide, DimensionSide datumSide, string datumAlignmentKey, PinGroupPlan group, PinGroupPlan datumGroup, bool horizontal)
 	{
-		return groupSide == datumSide ? datumAlignmentKey : GetPinGroupPairAlignmentKey(group, horizontal);
+		// Facing the same side does not make an isolated datum part of another group's pin chain.
+		bool datumHasPinSpacing = datumGroup.Pins.Any(pin => Math.Abs(horizontal
+			? pin.Center.X - datumGroup.BasePin.Center.X
+			: pin.Center.Y - datumGroup.BasePin.Center.Y) > _config.GeometryTolerance);
+		return groupSide == datumSide && datumHasPinSpacing ? datumAlignmentKey : GetPinGroupPairAlignmentKey(group, horizontal);
 	}
 
 	private void AddSameGroupPinDistances(DimensionPlan plan, OutlineFeature2D outline, IList<PinGroupPlan> groups)
@@ -1030,14 +1039,14 @@ public sealed partial class DimensionPlanner
 						// The first group's datum location and pin spacing request one rooted chain.
 						// Layout still splits overlapping intervals and checks physical conflicts.
 						string alignmentKey = groupIndex == 0 ? horizontalAlignmentKey
-							: ChoosePinGroupAlignmentKey(GetPinGroupHorizontalLaneReferenceSide(outline, group), groups[0].HorizontalSide, horizontalAlignmentKey, group, horizontal: true);
+							: ChoosePinGroupAlignmentKey(GetPinGroupHorizontalLaneReferenceSide(outline, group), groups[0].HorizontalSide, horizontalAlignmentKey, group, groups[0], horizontal: true);
 						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Horizontal, horizontalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: alignmentKey, alignmentPriority: 100, readingLevel: DimensionReadingLevel.IntraGroup);
 					}
 					if (num2 > _config.GeometryTolerance)
 					{
 						DimensionSide verticalSide = group.VerticalSide;
 						string alignmentKey = groupIndex == 0 ? verticalAlignmentKey
-							: ChoosePinGroupAlignmentKey(GetPinGroupVerticalLaneReferenceSide(outline, group), groups[0].VerticalSide, verticalAlignmentKey, group, horizontal: false);
+							: ChoosePinGroupAlignmentKey(GetPinGroupVerticalLaneReferenceSide(outline, group), groups[0].VerticalSide, verticalAlignmentKey, group, groups[0], horizontal: false);
 						AddDimension(plan, DimensionKind.PinDistance, DimensionOrientation.Vertical, verticalSide, group.BasePin.Center, pin.Center, _config.FormatPinCenterDistanceOverride(num2), "PinDistance", GetPinGroupDebugOwner(group), alignmentKey: alignmentKey, alignmentPriority: 100, readingLevel: DimensionReadingLevel.IntraGroup);
 					}
 				}
@@ -1685,7 +1694,10 @@ public sealed partial class DimensionPlanner
 		List<LooseHoleLineGroup> verticalLineGroups = loosePlan.MacroGroup.LineGroups
 			.Where((LooseHoleLineGroup g) => g != null && !g.Horizontal)
 			.ToList();
+		int pitchStart = plan.Dimensions.Count;
 		List<Tuple<HoleFeature2D, HoleFeature2D>> edges = AddLooseHoleCenterDistances(plan, outline, verticalLineGroups, loosePlan.ReferencePinGroup);
+		List<PlannedDimension> pitches = plan.Dimensions.Skip(pitchStart).ToList();
+		int locationStart = plan.Dimensions.Count;
 		List<HoleFeature2D> located = new List<HoleFeature2D>();
 		foreach (HoleFeature2D hole in loosePlan.MacroGroup.Holes.OrderBy((HoleFeature2D h) => DistanceSquared(h.Center, loosePlan.ReferencePinGroup.BasePin.Center)).ThenBy((HoleFeature2D h) => h.Center.X).ThenBy((HoleFeature2D h) => h.Center.Y))
 		{
@@ -1695,6 +1707,47 @@ public sealed partial class DimensionPlanner
 				located.Add(hole);
 			}
 			ExpandLocatedLooseHolesByCenterEdges(located, edges);
+		}
+		SuppressLooseHolePitchesCoveredByCommonDatum(plan, loosePlan, pitches, plan.Dimensions.Skip(locationStart).ToList());
+	}
+
+	private void SuppressLooseHolePitchesCoveredByCommonDatum(DimensionPlan plan, LooseHoleLocationPlan loosePlan,
+		IList<PlannedDimension> pitches, IList<PlannedDimension> locations)
+	{
+		HoleFeature2D pin = loosePlan.ReferencePinGroup.BasePin;
+		foreach (PlannedDimension pitch in pitches)
+		{
+			if (!string.IsNullOrEmpty(pitch.OverrideText) || pitch.ForceOuterLevel)
+			{
+				continue;
+			}
+			bool horizontal = pitch.Orientation == DimensionOrientation.Horizontal;
+			double datum = horizontal ? pin.Center.X : pin.Center.Y;
+			double first = (horizontal ? pitch.FirstPoint.X : pitch.FirstPoint.Y) - datum;
+			double second = (horizontal ? pitch.SecondPoint.X : pitch.SecondPoint.Y) - datum;
+			// Pairs straddling the datum retain their independent group spacing.
+			if (!(first > _config.GeometryTolerance && second > _config.GeometryTolerance)
+				&& !(first < -_config.GeometryTolerance && second < -_config.GeometryTolerance))
+			{
+				continue;
+			}
+			var supports = locations.Where(d => d.Orientation == pitch.Orientation
+				&& string.IsNullOrEmpty(d.OverrideText) && !d.ForceOuterLevel
+				&& PointsEqual(d.FirstPoint, pin.Center)).ToList();
+			PlannedDimension firstSupport = supports.FirstOrDefault(d => PointsEqual(d.SecondPoint, pitch.FirstPoint));
+			PlannedDimension secondSupport = supports.FirstOrDefault(d => PointsEqual(d.SecondPoint, pitch.SecondPoint));
+			if (firstSupport == null || secondSupport == null)
+			{
+				continue;
+			}
+			var sourceIds = new[] { pin.SourceKey }.Concat(loosePlan.MacroGroup.Holes
+				.Where(h => PointsEqual(h.Center, pitch.FirstPoint) || PointsEqual(h.Center, pitch.SecondPoint))
+				.Select(h => h.SourceKey));
+			plan.MarkSuppressed(pitch, "LooseHolePitchCoveredByCommonDatum", "LooseHole.CommonDatumRedundantPitch", sourceIds,
+				"SameMacroGroup|SameSideOfDatum|RealHoleCenters|SupportCandidateIds="
+				+ firstSupport.DiagnosticId.ToString(CultureInfo.InvariantCulture) + ","
+				+ secondSupport.DiagnosticId.ToString(CultureInfo.InvariantCulture));
+			plan.Dimensions.Remove(pitch);
 		}
 	}
 

@@ -82,6 +82,7 @@ public static class CoordinateFrameModelTransform
 				DeltaX = Math.Abs(end.X - start.X),
 				DeltaY = Math.Abs(end.Y - start.Y),
 				Value = chamfer.Value,
+				SourceGeometryIds = new List<string>(chamfer.SourceGeometryIds),
 				Text = chamfer.Text,
 				SourceSegment = chamfer.SourceSegment != null && segmentMap.TryGetValue(chamfer.SourceSegment, out Segment2D transformedSegment)
 					? transformedSegment

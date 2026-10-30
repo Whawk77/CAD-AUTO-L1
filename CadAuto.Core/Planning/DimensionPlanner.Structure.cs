@@ -50,8 +50,18 @@ public sealed partial class DimensionPlanner
 	{
 		bool informationPlanning = HasBodyObliqueBoundary(plan, outline);
 		var boundaryOwnership = new StructureBoundaryEvidence(plan.Diagnostics.OutlineTopology, _config.GeometryTolerance);
-		foreach (Segment2D segment in outline.Segments)
+		var runsBySegment = informationPlanning ? boundaryOwnership.MapAxisSegments(outline) : new Dictionary<Segment2D, BoundaryLineRun>();
+		var processedRuns = new HashSet<BoundaryLineRun>();
+		foreach (Segment2D sourceSegment in outline.Segments)
 		{
+			var segment = sourceSegment;
+			List<string> sources = null;
+			if (segment != null && runsBySegment.TryGetValue(segment, out var run))
+			{
+				if (!processedRuns.Add(run)) { continue; }
+				segment = new Segment2D(run.Start, run.End) { SourceKey = run.Edges[0].SourceKey };
+				sources = run.Edges.SelectMany(e => e.SourceKeys).Where(s => !string.IsNullOrEmpty(s)).Distinct().ToList();
+			}
 			if (segment == null || segment.Length <= _config.GeometryTolerance || segment.IsArcChord || IsOverallBoundarySegment(segment, outline))
 			{
 				continue;
@@ -66,7 +76,7 @@ public sealed partial class DimensionPlanner
 					Orientation = horizontal ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical,
 					Side = horizontal ? ResolveHorizontalOutlineSegmentSide(segment, outline) : ResolveVerticalOutlineSegmentSide(segment, outline),
 					FirstPoint = segment.Start, SecondPoint = segment.End, SourceKey = segment.SourceKey,
-					SourceGeometryIds = new List<string> { segment.SourceKey }, DebugRole = BoundaryRawEdgeRole,
+					SourceGeometryIds = sources ?? new List<string> { segment.SourceKey }, DebugRole = BoundaryRawEdgeRole,
 					RequiresOuterBoundarySupport = true, AttachmentValidity = true, AttachmentKind = "ExteriorBoundary",
 					AlignmentKey = "Structure:" + (horizontal ? "H:" : "V:")
 						+ (horizontal ? ResolveHorizontalOutlineSegmentSide(segment, outline) : ResolveVerticalOutlineSegmentSide(segment, outline)),

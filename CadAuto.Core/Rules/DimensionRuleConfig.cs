@@ -6,6 +6,8 @@ namespace CadAuto.Core.Rules;
 
 public sealed class DimensionRuleConfig
 {
+	public const double MaximumDimensionExtensionLineLength = 2000.0;
+
 	private DimensionExperimentRule _disabledExperimentRule;
 
 	/// <summary>Explicit per-instance experiment only; never read from global state or environment.</summary>

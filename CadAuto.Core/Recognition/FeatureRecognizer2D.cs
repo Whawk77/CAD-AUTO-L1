@@ -58,6 +58,11 @@ public sealed class FeatureRecognizer2D
 		outline.Chamfers.Clear();
 		outline.Fillets.Clear();
 		RecognizeChamfers(outline);
+		foreach (var chamfer in SplitBoundaryChamferRules.Find(outline, _config))
+		{
+			outline.Chamfers.RemoveAll(c => SplitBoundaryChamferRules.ContainsSegment(chamfer, c.SourceSegment, _config.GeometryTolerance));
+			outline.Chamfers.Add(chamfer);
+		}
 		RecognizeFillets(outline);
 		RecognizeInnerGrooveChamfers(outline);
 	}
@@ -667,7 +672,9 @@ public sealed class FeatureRecognizer2D
 
 	private bool IsKnownChamferSegment(Segment2D segment, OutlineFeature2D outline)
 	{
-		return outline.Chamfers.Any((ChamferFeature2D chamfer) => (PointsEqual(chamfer.StartPoint, segment.Start) && PointsEqual(chamfer.EndPoint, segment.End)) || (PointsEqual(chamfer.StartPoint, segment.End) && PointsEqual(chamfer.EndPoint, segment.Start)));
+		return outline.Chamfers.Any((ChamferFeature2D chamfer) => SplitBoundaryChamferRules.ContainsSegment(chamfer, segment, _config.GeometryTolerance)
+			|| (PointsEqual(chamfer.StartPoint, segment.Start) && PointsEqual(chamfer.EndPoint, segment.End))
+			|| (PointsEqual(chamfer.StartPoint, segment.End) && PointsEqual(chamfer.EndPoint, segment.Start)));
 	}
 
 	private bool IsFortyFiveDegreeSegment(Segment2D segment)

@@ -667,13 +667,14 @@ public sealed class Commands
 			datumDefinition.HoleCenterlineEndpoints.AddRange(geometryCollector.CollectHoleCenterlineEndpoints(transaction, outlineSelection, dimensionRuleConfig.GeometryTolerance));
 			IList<SlotFeature> list = featureRecognizer.RecognizeOutlineSlotFeatures(outlineFeature);
 			IList<ObjectId> list2 = geometryCollector.CollectHoleSourcesFromOutlineSelection(transaction, outlineFeature, outlineSelection, dimensionRuleConfig);
+			IList<ObjectId> pinMarkerIds = geometryCollector.CollectPinMarkersFromOutlineSelection(transaction, outlineFeature, outlineSelection, dimensionRuleConfig.GeometryTolerance);
 			bool flag = false;
-			if (list2.Count == 0 && list.Count > 0)
+			if (list2.Count == 0 && list.Count > 0 && pinMarkerIds.Count == 0)
 			{
 				list2 = new List<ObjectId>();
 				flag = true;
 			}
-			if (list2.Count == 0 && !flag)
+			if (list2.Count == 0 && !flag && pinMarkerIds.Count == 0)
 			{
 				editor.WriteMessage("\nASDCOREDBG: no holes found in selection; select Circle holes manually or press Enter to skip holes.");
 				list2 = geometryCollector.PromptForCircleHoles();
@@ -686,7 +687,7 @@ public sealed class Commands
 			IList<HoleFeature> list3;
 			if (!flag)
 			{
-				list3 = featureRecognizer.RecognizeHoles(list2, transaction, outlineSelection.SelectedIds);
+				list3 = featureRecognizer.RecognizeHoles(list2, transaction, pinMarkerIds);
 			}
 			else
 			{
@@ -733,7 +734,7 @@ public sealed class Commands
 			List<HoleFeature2D> holes = CadToCoreModelMapper.ToCoreHoles(list5);
 			List<SlotFeature2D> list7 = CadToCoreModelMapper.ToCoreSlots(featureRecognizer.LastRecognizedSlots);
 			DimensionPlan dimensionPlan = CreatePlanWithStructureDatumSelection(editor, outline, datum2D, holes, list7, config);
-			IList<HoleCalloutPlan> holeCalloutPlans = new HoleCalloutPlanner(config).CreatePlans(holes, datum2D.DatumHole);
+			IList<HoleCalloutPlan> holeCalloutPlans = new HoleCalloutPlanner(config).CreatePlans(holes, datum2D.DatumHole, dimensionPlan);
 			DimensionPlan dimensionPlan2 = CreateCoreDebugRenderPlan(dimensionPlan);
 			string text = EnsureCoreDebugLayer(database, transaction);
 			BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
@@ -831,16 +832,19 @@ public sealed class Commands
 				}
 				IList<SlotFeature> list4 = list3;
 				IList<ObjectId> list5 = new List<ObjectId>();
+				IList<ObjectId> pinMarkerIds = flag2
+					? geometryCollector.CollectPinMarkersFromOutlineSelection(transaction, outlineFeature, outlineSelection, config.GeometryTolerance)
+					: new List<ObjectId>();
 				bool flag6 = !flag2;
 				if (flag2)
 				{
 					list5 = geometryCollector.CollectHoleSourcesFromOutlineSelection(transaction, outlineFeature, outlineSelection, config);
-					if (list5.Count == 0 && list4.Count > 0)
+					if (list5.Count == 0 && list4.Count > 0 && pinMarkerIds.Count == 0)
 					{
 						list5 = new List<ObjectId>();
 						flag6 = true;
 					}
-					if (list5.Count == 0 && !flag6)
+					if (list5.Count == 0 && !flag6 && pinMarkerIds.Count == 0)
 					{
 						editor.WriteMessage("\n本次框选对象中未识别到孔，请手动选择需要标注的圆孔。");
 						list5 = geometryCollector.PromptForCircleHoles();
@@ -855,7 +859,7 @@ public sealed class Commands
 				IList<HoleFeature> list6;
 				if (!flag6)
 				{
-					list6 = featureRecognizer.RecognizeHoles(list5, transaction, outlineSelection.SelectedIds);
+					list6 = featureRecognizer.RecognizeHoles(list5, transaction, pinMarkerIds);
 				}
 				else
 				{
@@ -908,17 +912,6 @@ public sealed class Commands
 					editor.WriteMessage("\n已清除旧插件标注 {0} 个。", num2);
 				}
 				List<SlotFeature> list10 = (flag4 ? featureRecognizer.LastRecognizedSlots.Concat(list4).ToList() : new List<SlotFeature>());
-				IList<HoleCalloutPlan> list12;
-				if (!flag2)
-				{
-					IList<HoleCalloutPlan> list11 = new List<HoleCalloutPlan>();
-					list12 = list11;
-				}
-				else
-				{
-					list12 = BuildHoleCalloutPlansForPlacement(list8, datumDefinition.DatumHole, config);
-				}
-				IList<HoleCalloutPlan> list13 = list12;
 				BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
 				DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, objectId2, objectId3, num, text, groupId, diagnosticsEnabled, diagnosticSide);
 				if (flag)
@@ -926,6 +919,9 @@ public sealed class Commands
 					DimensionPlan dimensionPlan = DrawLinearDimensions(editor, dimensionDrawer, outlineFeature, datumDefinition, list8, list10, flag6, config, outputScope);
 					completedLinearPlan = dimensionPlan;
 				}
+				IList<HoleCalloutPlan> list13 = flag2
+					? BuildHoleCalloutPlansForPlacement(list8, datumDefinition.DatumHole, config, completedLinearPlan)
+					: new List<HoleCalloutPlan>();
 				outline = outlineFeature;
 				slotFeatures = list10;
 				dimStyleId = objectId2;
@@ -1231,13 +1227,13 @@ public sealed class Commands
 		return database?.FingerprintGuid ?? string.Empty;
 	}
 
-	private static IList<HoleCalloutPlan> BuildHoleCalloutPlansForPlacement(IEnumerable<HoleFeature> holes, HoleFeature datumPin, DimensionRuleConfig config)
+	private static IList<HoleCalloutPlan> BuildHoleCalloutPlansForPlacement(IEnumerable<HoleFeature> holes, HoleFeature datumPin, DimensionRuleConfig config, DimensionPlan positionPlan)
 	{
 		List<HoleFeature> source = ((holes == null) ? new List<HoleFeature>() : holes.Where((HoleFeature h) => h != null && !h.IsSlotPoint).ToList());
 		DimensionRuleConfig config2 = config;
 		List<HoleFeature2D> list = CadToCoreModelMapper.ToCoreHoles(source);
 		HoleFeature2D datumPin2 = ((datumPin == null) ? null : (list.FirstOrDefault((HoleFeature2D h) => IsSameHoleForCallout(h, datumPin, config)) ?? CadToCoreModelMapper.ToCoreHoles(new HoleFeature[1] { datumPin }).FirstOrDefault()));
-		return new HoleCalloutPlanner(config2).CreatePlans(list, datumPin2);
+		return new HoleCalloutPlanner(config2).CreatePlans(list, datumPin2, positionPlan);
 	}
 
 	private static bool IsSameHoleForCallout(HoleFeature2D a, HoleFeature b, DimensionRuleConfig config)

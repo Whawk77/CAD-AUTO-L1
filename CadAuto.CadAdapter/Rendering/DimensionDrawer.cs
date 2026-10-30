@@ -924,6 +924,19 @@ public sealed class DimensionDrawer
 		{
 			PlacedDim placedDim = placedDims[index];
 			ExtensionLineRenderPlan extensionPlan = extensions[index];
+			if (DimensionExtensionLineRules.ExceedsLengthLimit(
+				new Point2D(placedDim.Dim.XLine1.X, placedDim.Dim.XLine1.Y),
+				new Point2D(placedDim.Dim.XLine2.X, placedDim.Dim.XLine2.Y),
+				new Point2D(placedDim.DimLinePoint.X, placedDim.DimLinePoint.Y),
+				placedDim.Dim.Rotation, out double maximumLength))
+			{
+				string reason = string.Format(CultureInfo.InvariantCulture,
+					"ExtensionLineLengthLimit|Length={0:0.########}|Maximum={1:0.########}mm",
+					maximumLength, DimensionRuleConfig.MaximumDimensionExtensionLineLength);
+				RecordRenderSuppressed(placedDim.Dim, reason);
+				_dimensionDiagnosticReport?.RecordLayoutGeometry(placedDim.Dim.DiagnosticId, placedDim.CompactionDecision, reason);
+				continue;
+			}
 			AddRotatedDimension(
 				placedDim.Dim.Rotation,
 				placedDim.Dim.XLine1,
@@ -1123,7 +1136,9 @@ public sealed class DimensionDrawer
 			if (list.Count != 0)
 			{
 				ChamferFeature chamferFeature = PickChamferLeaderTarget(list, outline);
-				Point2d target = Midpoint(chamferFeature.StartPoint, chamferFeature.EndPoint);
+				Point2d target = chamferFeature.SourceIds.Count > 0 && chamferFeature.SourceSegment != null
+					? Midpoint(chamferFeature.SourceSegment.Start, chamferFeature.SourceSegment.End)
+					: Midpoint(chamferFeature.StartPoint, chamferFeature.EndPoint);
 				string text = FormatRepeatedFeatureText(item.Key, list.Count);
 				Point3d textPoint;
 				switch (_cornerCalloutRenderer.PromptLeaderPoint(editor, target, text, dimStyleTextHeight, out textPoint))

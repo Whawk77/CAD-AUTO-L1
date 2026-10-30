@@ -283,7 +283,7 @@ public sealed partial class DimensionPlanner
 			matchedCaseId = new AnnotationCaseOverlay(store).Apply(features, outline);
 		}
 		// A case overlay cannot turn an unsupported internal edge back into an outer contour dimension.
-		boundaryEvidence.ApplyAttachmentEvidence(features);
+		boundaryEvidence.ApplyAttachmentEvidence(features, outline);
 		StructureBoundaryEvidence.EnforceSelection(features);
 		foreach (var rejected in features.Where(f => f.RequiresOuterBoundarySupport && !f.Keep
 			&& (f.BoundaryMembership != "Boundary" || f.BoundaryAttachmentValidity != true)))

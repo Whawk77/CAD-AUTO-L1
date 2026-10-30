@@ -34,7 +34,8 @@ public sealed partial class DimensionLayoutRules
 			{
 				if (RequiresPhysicalOutwardOrder(blocks[inner], block, horizontal) && byBlock.TryGetValue(blocks[inner].Id, out var peers))
 				{
-					minimum = Math.Max(minimum, peers.Max(p => GetPlacementPhysicalOutwardRank(p, dimensions, side, outline)) + clearance);
+					minimum = Math.Max(minimum, peers.Max(p => GetPlacementPhysicalOutwardRank(p, dimensions, side, outline))
+						+ GetTextAwareLaneSpacing(new[] { blocks[inner], block }, clearance, textHeight, gap));
 				}
 			}
 			placement.CompactionDecision = "RetainedForPhysicalClearance";

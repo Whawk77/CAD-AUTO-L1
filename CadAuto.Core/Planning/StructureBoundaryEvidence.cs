@@ -19,6 +19,9 @@ public sealed class StructureBoundaryEvidence
 	public bool IsAvailable => _graph != null && _graph.Status == "UniqueExteriorWalk"
 		&& _graph.IsClosedWalk && !_graph.HasRepeatedBoundaryEdges;
 
+	public IDictionary<Segment2D, BoundaryLineRun> MapAxisSegments(OutlineFeature2D outline)
+		=> BoundaryLineRuns.MapAxisSegments(_graph, outline, _tolerance);
+
 	public StructureBoundaryEvidence(OutlineTopologyDiagnostic graph, double tolerance)
 	{
 		_graph = graph;
@@ -42,7 +45,7 @@ public sealed class StructureBoundaryEvidence
 		scope.Arcs.AddRange(_boundary.Arcs);
 		foreach (var node in _graph.Nodes.Where(n => n.IsBoundary)) { scope.Vertices.Add(node.Point); }
 		foreach (var chamfer in source.Chamfers.Where(c => _graph.Edges.Any(e => e.IsBoundary && e.Kind == "Line"
-			&& PairMatches(c.StartPoint, c.EndPoint, e.Start, e.End)))) { scope.Chamfers.Add(chamfer); }
+			&& IsChamferEdge(e, c)) && ValidateBoundaryAttachments(c.StartPoint, c.EndPoint) == true)) { scope.Chamfers.Add(chamfer); }
 		foreach (var fillet in source.Fillets.Where(f => _graph.Edges.Any(e => e.IsBoundary && e.Kind == "Arc"
 			&& PairMatches(f.StartPoint, f.EndPoint, e.Start, e.End)))) { scope.Fillets.Add(fillet); }
 		return scope;
@@ -273,12 +276,111 @@ public sealed class StructureBoundaryEvidence
 			+ string.Join(",", match.Edges.Select(e => e.Id));
 	}
 
-	public void ApplyAttachmentEvidence(IEnumerable<StructureFeature> features)
+	public void ApplyAttachmentEvidence(IEnumerable<StructureFeature> features, OutlineFeature2D outline = null)
 	{
 		foreach (var feature in features.Where(f => f.RequiresOuterBoundarySupport && f.Kind != StructureFeatureKind.Overall))
 		{
 			feature.BoundaryAttachmentValidity = ValidateBoundaryAttachments(feature.FirstPoint, feature.SecondPoint);
+			if (feature.BoundaryAttachmentValidity == false && outline != null && feature.BoundaryMembership == "Boundary"
+				&& feature.SourceKey != null && feature.SourceKey.EndsWith("+Expanded", StringComparison.Ordinal))
+			{
+				RecoverExpandedEndpoints(feature, outline);
+				feature.BoundaryAttachmentValidity = ValidateBoundaryAttachments(feature.FirstPoint, feature.SecondPoint);
+			}
 		}
+	}
+
+	private void RecoverExpandedEndpoints(StructureFeature feature, OutlineFeature2D outline)
+	{
+		// shortcut: keep existing slope-coverage ownership when body slopes coexist; upgrade with a shared coverage proof.
+		if (_graph.Edges.Any(e => e.IsBoundary && e.Kind == "Line"
+			&& Math.Abs(e.End.X - e.Start.X) > _tolerance && Math.Abs(e.End.Y - e.Start.Y) > _tolerance
+			&& !outline.Chamfers.Any(c => IsChamferEdge(e, c)))) { return; }
+		var sources = feature.SupportSourceKeys.Where(s => !string.IsNullOrEmpty(s)).Distinct().ToList();
+		if (!IsAvailable || sources.Count == 0) { return; }
+		bool horizontal = feature.Axis == StructureFeatureAxis.Horizontal;
+		Func<Point2D, double> axis = p => horizontal ? p.X : p.Y;
+		var seeds = _graph.Edges.Where(e => e.IsBoundary && e.Kind == "Line" && e.SourceKeys.Any(sources.Contains)
+			&& (horizontal ? Math.Abs(e.Start.Y - e.End.Y) <= _tolerance : Math.Abs(e.Start.X - e.End.X) <= _tolerance)
+			&& Math.Abs((horizontal ? e.Start.Y : e.Start.X) - feature.CrossPosition) <= _tolerance).ToList();
+		if (seeds.Count == 0 || sources.Any(s => !seeds.Any(e => e.SourceKeys.Contains(s)))) { return; }
+		if (seeds.Count > 1 && BoundaryLineRuns.Find(_graph, _tolerance).Count(r => r.Edges.Count == seeds.Count
+			&& seeds.All(r.Edges.Contains)) != 1) { return; }
+		Func<Point2D, OutlineTopologyEdge> nearest = p => seeds.OrderBy(e => Math.Min(Math.Abs(axis(e.Start) - axis(p)), Math.Abs(axis(e.End) - axis(p)))).First();
+		var additions = new List<string>();
+		Point2D first = feature.FirstPoint, second = feature.SecondPoint;
+		bool firstReal = ValidateBoundaryAttachments(first, first) == true, secondReal = ValidateBoundaryAttachments(second, second) == true;
+		Func<Point2D, bool> onSeed = p => seeds.Any(e => OutlineGeometryQuery.IsPointOnSegment(p, new Segment2D(e.Start, e.End), _tolerance));
+		if ((firstReal && !onSeed(first)) || (secondReal && !onSeed(second))) { return; }
+		if (!firstReal && !TryRecoverExpandedEndpoint(feature, first, nearest(first), outline, out first, additions)) { return; }
+		if (!secondReal && !TryRecoverExpandedEndpoint(feature, second, nearest(second), outline, out second, additions)) { return; }
+		if (ValidateBoundaryAttachments(first, second) != true) { return; }
+		feature.FirstPoint = first; feature.SecondPoint = second;
+		foreach (string source in additions.Where(s => !feature.SupportSourceKeys.Contains(s))) { feature.SupportSourceKeys.Add(source); }
+		feature.BoundaryEvidence += "|Relation=ExpandedAcrossRecognizedCorner|RealBoundaryEndpoints=True|Sources=" + string.Join(",", additions);
+	}
+
+	private bool TryRecoverExpandedEndpoint(StructureFeature feature, Point2D expected, OutlineTopologyEdge seed,
+		OutlineFeature2D outline, out Point2D recovered, List<string> additions)
+	{
+		recovered = expected;
+		bool horizontal = feature.Axis == StructureFeatureAxis.Horizontal;
+		Func<Point2D, double> axis = p => horizontal ? p.X : p.Y;
+		Func<Point2D, double> cross = p => horizontal ? p.Y : p.X;
+		if (horizontal ? Math.Abs(seed.Start.Y - seed.End.Y) > _tolerance : Math.Abs(seed.Start.X - seed.End.X) > _tolerance) { return false; }
+		double target = axis(expected), low = Math.Min(axis(seed.Start), axis(seed.End)), high = Math.Max(axis(seed.Start), axis(seed.End));
+		if (target >= low - _tolerance && target <= high + _tolerance) { return false; }
+		bool towardHigh = target > high;
+		bool startIsEnd = towardHigh ? axis(seed.End) > axis(seed.Start) : axis(seed.End) < axis(seed.Start);
+		int node = startIsEnd ? seed.EndNode : seed.StartNode;
+		Point2D current = startIsEnd ? seed.End : seed.Start;
+		var path = _graph.BoundaryPath;
+		int forwardIndex = path.FindIndex(s => s.FromNode == node && s.EdgeId != seed.Id);
+		int backwardIndex = path.FindIndex(s => s.ToNode == node && s.EdgeId != seed.Id);
+		if ((forwardIndex >= 0) == (backwardIndex >= 0)) { return false; }
+		int direction = forwardIndex >= 0 ? 1 : -1, index = forwardIndex >= 0 ? forwardIndex : backwardIndex;
+		object corner = null;
+		var walked = new List<string>();
+		for (int count = 0; count < path.Count; count++)
+		{
+			if (!_graph.Nodes.Any(n => n.Id == node && n.IsBoundary && n.Degree == 2)) { return false; }
+			var step = path[index]; var edge = _graph.Edges.Single(e => e.Id == step.EdgeId);
+			bool forward = direction > 0 ? step.Forward : !step.Forward;
+			Point2D next = forward ? edge.End : edge.Start;
+			double advance = (axis(next) - axis(current)) * (towardHigh ? 1 : -1);
+			if (advance < -_tolerance || (axis(next) - target) * (towardHigh ? 1 : -1) > _tolerance
+				|| string.IsNullOrEmpty(edge.SourceKey)) { return false; }
+			object edgeCorner = null;
+			if (edge.Kind == "Arc")
+			{
+				edgeCorner = outline.Fillets.FirstOrDefault(f => Math.Abs(f.Radius - edge.Radius) <= _tolerance
+					&& f.Center.DistanceTo(edge.Center) <= _tolerance && PairMatches(f.StartPoint, f.EndPoint, edge.Start, edge.End));
+				if (edgeCorner == null || edge.Radius <= _tolerance
+					|| Math.Abs(Math.Abs(edge.Bulge) - Math.Tan(Math.PI / 8)) > _tolerance / edge.Radius
+					|| !((Math.Abs(axis(edge.Start) - axis(edge.Center)) <= _tolerance && Math.Abs(cross(edge.End) - cross(edge.Center)) <= _tolerance)
+						|| (Math.Abs(axis(edge.End) - axis(edge.Center)) <= _tolerance && Math.Abs(cross(edge.Start) - cross(edge.Center)) <= _tolerance))) { return false; }
+			}
+			else if (edge.Kind == "Line" && Math.Abs(cross(edge.Start) - cross(edge.End)) <= _tolerance)
+			{
+				if (corner != null || Math.Abs(cross(edge.Start) - feature.CrossPosition) > _tolerance) { return false; }
+			}
+			else if (edge.Kind == "Line")
+			{
+				edgeCorner = outline.Chamfers.FirstOrDefault(c => IsChamferEdge(edge, c));
+				if (edgeCorner == null) { return false; }
+			}
+			else { return false; }
+			if (edgeCorner != null && corner != null && !ReferenceEquals(edgeCorner, corner)) { return false; }
+			if (edgeCorner != null) { corner = edgeCorner; }
+			walked.AddRange(edge.SourceKeys.Count > 0 ? edge.SourceKeys : new List<string> { edge.SourceKey });
+			if (Math.Abs(axis(next) - target) <= _tolerance && corner != null)
+			{
+				recovered = next; additions.AddRange(walked.Where(s => !string.IsNullOrEmpty(s)).Distinct()); return true;
+			}
+			current = next; node = direction > 0 ? step.ToNode : step.FromNode;
+			index = (index + direction + path.Count) % path.Count;
+		}
+		return false;
 	}
 
 	public static void EnforceSelection(IEnumerable<StructureFeature> features)
@@ -297,5 +399,13 @@ public sealed class StructureBoundaryEvidence
 	{
 		return (a.DistanceTo(c) <= _tolerance && b.DistanceTo(d) <= _tolerance)
 			|| (a.DistanceTo(d) <= _tolerance && b.DistanceTo(c) <= _tolerance);
+	}
+
+	private bool IsChamferEdge(OutlineTopologyEdge edge, ChamferFeature2D chamfer)
+	{
+		if (chamfer.Value <= _tolerance) { return false; }
+		if (PairMatches(chamfer.StartPoint, chamfer.EndPoint, edge.Start, edge.End)) { return true; }
+		return edge.SourceKeys.Any(key => SplitBoundaryChamferRules.ContainsSegment(chamfer,
+			new Segment2D(edge.Start, edge.End) { SourceKey = key }, _tolerance));
 	}
 }

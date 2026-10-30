@@ -8,6 +8,7 @@ using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.GraphicsInterface;
 using CadAuto.CadAdapter.Environment;
 using CadAuto.CadAdapter.Model;
+using CadAuto.CadAdapter.Recognition;
 using CadAuto.Core.Model;
 using CadAuto.Core.Planning;
 using CadAuto.Core.Rules;
@@ -109,6 +110,7 @@ public static class NativeDiameterDimensioner
 	}
 
 	private static readonly string PinRoughnessBlockName = "CadAider_日标3个角";
+	private const string Ty1RoughnessBlockName = "CadAider_日标2个角";
 	private const string NationalPinRoughnessBlockName = "CadAider_国标粗糙度16下";
 	private static string _sessionPinRoughnessBlockName;
 
@@ -276,7 +278,7 @@ public static class NativeDiameterDimensioner
 			editor.WriteMessage("\n当前图纸没有国标粗糙度16下或日标3个角块，标注保留并跳过插块。\n");
 			return true;
 		}
-		var options = new PromptKeywordOptions("\n选择粗糙度块（孔径与TY共用，保持至重启CAD） ["
+		var options = new PromptKeywordOptions("\n选择粗糙度类型（保持至重启CAD） ["
 			+ (national && japanese ? "国标16下(G)/日标3个角(J)" : national ? "国标16下(G)" : "日标3个角(J)") + "]",
 			national && japanese ? "GB JP" : national ? "GB" : "JP");
 		options.AllowNone = true;
@@ -294,16 +296,17 @@ public static class NativeDiameterDimensioner
 		InsertRoughnessBlock(db, tr, space, textPoint, annotationLayer, dimStyleId, groupId);
 	}
 
-	public static void InsertRoughnessBlock(Database db, Transaction tr, BlockTableRecord space, Point3d textPoint, string annotationLayer, ObjectId dimStyleId, string groupId)
+	public static void InsertRoughnessBlock(Database db, Transaction tr, BlockTableRecord space, Point3d textPoint, string annotationLayer, ObjectId dimStyleId, string groupId, bool ty1 = false)
 	{
-		if (_sessionPinRoughnessBlockName == null) { return; }
+		string blockName = ty1 ? Ty1RoughnessBlockName : _sessionPinRoughnessBlockName;
+		if (blockName == null) { return; }
 		BlockTable blocks = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-		if (!blocks.Has(_sessionPinRoughnessBlockName))
+		if (!blocks.Has(blockName))
 		{
-			Application.DocumentManager.MdiActiveDocument?.Editor.WriteMessage("\n当前图纸缺少本次会话选定的块 {0}，标注保留并跳过插块。", _sessionPinRoughnessBlockName);
+			Application.DocumentManager.MdiActiveDocument?.Editor.WriteMessage("\n当前图纸缺少块 {0}，标注保留并跳过插块。", blockName);
 			return;
 		}
-		InsertRoughnessBlock(db, tr, space, textPoint, annotationLayer, dimStyleId, groupId, _sessionPinRoughnessBlockName);
+		InsertRoughnessBlock(db, tr, space, textPoint, annotationLayer, dimStyleId, groupId, blockName);
 	}
 
 	private static void InsertRoughnessBlock(Database db, Transaction tr, BlockTableRecord space, Point3d textPoint, string annotationLayer, ObjectId dimStyleId, string groupId, string blockName)
@@ -373,6 +376,13 @@ public static class NativeDiameterDimensioner
 		{
 			center = circle.Center;
 			radius = circle.Radius;
+			return true;
+		}
+		if (hole.IsPinHole && entity is BlockReference marker && FeatureRecognizer.IsPinMarkerBlock(marker, tr)
+			&& hole.Diameter > 0 && !double.IsInfinity(hole.Diameter))
+		{
+			center = marker.Position;
+			radius = hole.Diameter / 2.0;
 			return true;
 		}
 		return false;

@@ -32,16 +32,56 @@ namespace CadAuto.Core.Tests
         };
         private static readonly HashSet<string> P1Tests = new HashSet<string>
         {
+            nameof(ToleranceTextDoesNotBorrowAlignedNeighborInterval),
+            nameof(ToleranceLayoutReservesTextSpaceAfterAlignment),
+            nameof(IndependentDatumDoesNotBorrowForeignPinPairLane),
+            nameof(IndependentDatumPlacementClearsFinalText),
+            nameof(ManualOrderKeepsDatumChainInsideLongerLooseLocation),
+            nameof(ManualOrderUsesMeasuredAxisForFunctionalHole),
+            nameof(ShortToleranceTextAvoids30And9Chain),
+            nameof(ShortToleranceTextEscapesBlockedCandidates),
+            nameof(LooseDatumKeeps8And28DropsRedundant20),
+            nameof(LooseDatumKeepsPitchAcrossDatumAndWithoutTwoSupports),
+            nameof(LooseDatumNestedSpansDoNotMergeThroughBridge),
             nameof(FunctionalLaneKeeps28And32ClearOfSlot35),
             nameof(InteriorPinGroupKeepsCounterboresWithOwningPair),
             nameof(InteriorPinGroupEmitsFourFunctionalLocations),
             nameof(ClosePinGroupsUseCompletePatternsBeforeDistance),
             nameof(ClosePinGroupsKeepFunctionalLocationsAfterRotation),
             nameof(ClosePinGroupsKeepConcentricDiametersTogether),
+            nameof(CollinearPinGroupsKeepBetweenPinHolesWithOwningPair),
+            nameof(HoleCalloutsFinishThroughHolesBeforeNextPinGroup),
+            nameof(HoleCalloutsKeepCounterboresInsideCurrentGroup),
+            nameof(HoleCalloutsKeepThreadVariantsInsideCurrentGroup),
+            nameof(PinMarkerCapturedConcentricCirclesKeepOnly10H7),
+            nameof(PinMarkerRadiusSelectsSourceRatherThanSmallestCircle),
+            nameof(PinMarkerMatchingPreservesTransformedAndSeparateHoles),
+            nameof(PinMarkerMatchingRejectsAmbiguousAndInvalidEvidence),
+            nameof(PinMarkerPriorityCapturedBackPinCompletesPair),
+            nameof(PinMarkerPriorityMeasuredMarkerSurvivesMissingCircle),
+            nameof(PinMarkerPriorityKeepsExistingSourcesAndSeparateDiameters),
+            nameof(PinMarkerPriorityRejectsUnmeasuredGeometry),
+            nameof(ExtensionLengthLimitKeepsBoundaryAndLongMeasuredValues),
+            nameof(ExtensionLengthLimitChecksEachEndAfterFinalPlacement),
+            nameof(ExtensionLengthLimitRejectsNonFiniteGeometry),
+            nameof(ExtensionLengthLimitSuppressionPreservesOtherCandidates),
             nameof(SplitCircleHoleCapturedLeftViewClosesThreeHoles),
             nameof(SplitCircleHolePreservesRotatedScaledAndMirroredPairs),
             nameof(SplitCircleHoleRejectsOpenDuplicateAndUnrelatedArcs),
             nameof(SplitCircleHoleRejectsInvalidEvidence),
+            nameof(OutlineTJunctionCapturedEndpointsConnectToRealLine),
+            nameof(OutlineTJunctionRejectsGapsExtensionsAndCrossings),
+            nameof(OutlineTJunctionCapturedPartKeepsCompleteExterior),
+            nameof(SplitBoundaryChamferUsesContinuousRealEdges),
+            nameof(SplitBoundaryPlanUsesFeatureSpansAndFreeSide),
+            nameof(SplitBoundaryExpandedEndpointsRequireRealCornerPath),
+            nameof(SplitBoundaryBodySlopeKeepsFullOwnedProjections),
+            nameof(SplitBoundaryDoesNotMergeBranchesOrRealTurns),
+            nameof(SplitBoundaryChamferKeepsOtherSegmentsOfSamePolyline),
+            nameof(SplitBoundaryAxisEdgeKeepsSameInformation),
+            nameof(SplitBoundaryRejectsForeignRealAnchor),
+            nameof(OutlineSelectionCapturedTAndSlotsPreferExterior),
+            nameof(OutlineSelectionRequiresGeometryAndPreservesAmbiguity),
             nameof(ThreeViewProjectionRealPlannerKeepsThreeOverallExtents),
             nameof(ThreeViewProjectionLocal50KeepsOtherAxisAndUniqueStep),
             nameof(ThreeViewProjectionThicknessUsesReversedTopAxis),
@@ -278,6 +318,19 @@ namespace CadAuto.Core.Tests
                 bool diagnosticContinuation;
                 string regressionReportPath;
                 ParseRegressionArguments(args, out filter, out diagnosticContinuation, out regressionReportPath);
+                RunTest(nameof(OutlineTJunctionCapturedEndpointsConnectToRealLine), OutlineTJunctionCapturedEndpointsConnectToRealLine);
+                RunTest(nameof(OutlineTJunctionRejectsGapsExtensionsAndCrossings), OutlineTJunctionRejectsGapsExtensionsAndCrossings);
+                RunTest(nameof(OutlineTJunctionCapturedPartKeepsCompleteExterior), OutlineTJunctionCapturedPartKeepsCompleteExterior);
+                RunTest(nameof(SplitBoundaryChamferUsesContinuousRealEdges), SplitBoundaryChamferUsesContinuousRealEdges);
+                RunTest(nameof(SplitBoundaryPlanUsesFeatureSpansAndFreeSide), SplitBoundaryPlanUsesFeatureSpansAndFreeSide);
+                RunTest(nameof(SplitBoundaryExpandedEndpointsRequireRealCornerPath), SplitBoundaryExpandedEndpointsRequireRealCornerPath);
+                RunTest(nameof(SplitBoundaryBodySlopeKeepsFullOwnedProjections), SplitBoundaryBodySlopeKeepsFullOwnedProjections);
+                RunTest(nameof(SplitBoundaryDoesNotMergeBranchesOrRealTurns), SplitBoundaryDoesNotMergeBranchesOrRealTurns);
+                RunTest(nameof(SplitBoundaryChamferKeepsOtherSegmentsOfSamePolyline), SplitBoundaryChamferKeepsOtherSegmentsOfSamePolyline);
+                RunTest(nameof(SplitBoundaryAxisEdgeKeepsSameInformation), SplitBoundaryAxisEdgeKeepsSameInformation);
+                RunTest(nameof(SplitBoundaryRejectsForeignRealAnchor), SplitBoundaryRejectsForeignRealAnchor);
+                RunTest(nameof(OutlineSelectionCapturedTAndSlotsPreferExterior), OutlineSelectionCapturedTAndSlotsPreferExterior);
+                RunTest(nameof(OutlineSelectionRequiresGeometryAndPreservesAmbiguity), OutlineSelectionRequiresGeometryAndPreservesAmbiguity);
                 RunTest(nameof(CompositeOutlineKeepsFeatureWidthDropsSeamFragments), CompositeOutlineKeepsFeatureWidthDropsSeamFragments);
                 RunTest(nameof(CompositeOutlineNormalizesExistingEndpointsOnly), CompositeOutlineNormalizesExistingEndpointsOnly);
 				RunTest(nameof(CompositeOutlineUsesClearSelectedHoleAxis), CompositeOutlineUsesClearSelectedHoleAxis);
@@ -452,6 +505,10 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(SeparatePinGroupsKeepIndependentSides), SeparatePinGroupsKeepIndependentSides);
                 RunTest(nameof(ParallelDatumStacksKeepNestedDimensionsSeparated), ParallelDatumStacksKeepNestedDimensionsSeparated);
                 RunTest(nameof(ContinuousExtensionPolicyNeverBreaksOrDeduplicates), ContinuousExtensionPolicyNeverBreaksOrDeduplicates);
+                RunTest(nameof(ExtensionLengthLimitKeepsBoundaryAndLongMeasuredValues), ExtensionLengthLimitKeepsBoundaryAndLongMeasuredValues);
+                RunTest(nameof(ExtensionLengthLimitChecksEachEndAfterFinalPlacement), ExtensionLengthLimitChecksEachEndAfterFinalPlacement);
+                RunTest(nameof(ExtensionLengthLimitRejectsNonFiniteGeometry), ExtensionLengthLimitRejectsNonFiniteGeometry);
+                RunTest(nameof(ExtensionLengthLimitSuppressionPreservesOtherCandidates), ExtensionLengthLimitSuppressionPreservesOtherCandidates);
                 RunTest(nameof(ExtensionGeometrySegmentsAllFourSides), ExtensionGeometrySegmentsAllFourSides);
                 RunTest(nameof(ExtensionSharingRequiresFamilyAndRealPoint), ExtensionSharingRequiresFamilyAndRealPoint);
                 RunTest(nameof(SingletonAlignmentIsNotProof), SingletonAlignmentIsNotProof);
@@ -546,6 +603,7 @@ namespace CadAuto.Core.Tests
 				RunTest(nameof(ClosePinGroupsKeepFunctionalLocationsAfterRotation), ClosePinGroupsKeepFunctionalLocationsAfterRotation);
 				RunTest(nameof(ClosePinGroupsKeepConcentricDiametersTogether), ClosePinGroupsKeepConcentricDiametersTogether);
 				RunTest(nameof(ClosePinGroupsWithoutPatternKeepDistanceFallback), ClosePinGroupsWithoutPatternKeepDistanceFallback);
+				RunTest(nameof(CollinearPinGroupsKeepBetweenPinHolesWithOwningPair), CollinearPinGroupsKeepBetweenPinHolesWithOwningPair);
 				RunTest(nameof(FunctionalHolesAttachToPinGroup), FunctionalHolesAttachToPinGroup);
 				RunTest(nameof(HoleBetweenPinPairAttachesAsFunctionalHole), HoleBetweenPinPairAttachesAsFunctionalHole);
 				RunTest(nameof(FunctionalHoleAlignmentUsesSeparateSameOrientationLane), FunctionalHoleAlignmentUsesSeparateSameOrientationLane);
@@ -563,9 +621,20 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(HoleLocationDimensionsUseSegmentedExtensionLines), HoleLocationDimensionsUseSegmentedExtensionLines);
                 RunTest(nameof(HoleCalloutsGroupByRowsWithoutPins), HoleCalloutsGroupByRowsWithoutPins);
                 RunTest(nameof(HoleCalloutsUsePinClustersAndFitText), HoleCalloutsUsePinClustersAndFitText);
+                RunTest(nameof(HoleCalloutsFinishThroughHolesBeforeNextPinGroup), HoleCalloutsFinishThroughHolesBeforeNextPinGroup);
+                RunTest(nameof(HoleCalloutsKeepCounterboresInsideCurrentGroup), HoleCalloutsKeepCounterboresInsideCurrentGroup);
+                RunTest(nameof(HoleCalloutsKeepThreadVariantsInsideCurrentGroup), HoleCalloutsKeepThreadVariantsInsideCurrentGroup);
                 RunTest(nameof(ThreeViewFirstAngleKeepsLengthAndHeightOnFrontAndWidthOnTop), ThreeViewFirstAngleKeepsLengthAndHeightOnFrontAndWidthOnTop);
                 RunTest(nameof(ThreeViewProjectionRealPlannerKeepsThreeOverallExtents), ThreeViewProjectionRealPlannerKeepsThreeOverallExtents);
                 RunTest(nameof(SplitCircleHoleCapturedLeftViewClosesThreeHoles), SplitCircleHoleCapturedLeftViewClosesThreeHoles);
+                RunTest(nameof(PinMarkerCapturedConcentricCirclesKeepOnly10H7), PinMarkerCapturedConcentricCirclesKeepOnly10H7);
+                RunTest(nameof(PinMarkerRadiusSelectsSourceRatherThanSmallestCircle), PinMarkerRadiusSelectsSourceRatherThanSmallestCircle);
+                RunTest(nameof(PinMarkerMatchingPreservesTransformedAndSeparateHoles), PinMarkerMatchingPreservesTransformedAndSeparateHoles);
+                RunTest(nameof(PinMarkerMatchingRejectsAmbiguousAndInvalidEvidence), PinMarkerMatchingRejectsAmbiguousAndInvalidEvidence);
+                RunTest(nameof(PinMarkerPriorityCapturedBackPinCompletesPair), PinMarkerPriorityCapturedBackPinCompletesPair);
+                RunTest(nameof(PinMarkerPriorityMeasuredMarkerSurvivesMissingCircle), PinMarkerPriorityMeasuredMarkerSurvivesMissingCircle);
+                RunTest(nameof(PinMarkerPriorityKeepsExistingSourcesAndSeparateDiameters), PinMarkerPriorityKeepsExistingSourcesAndSeparateDiameters);
+                RunTest(nameof(PinMarkerPriorityRejectsUnmeasuredGeometry), PinMarkerPriorityRejectsUnmeasuredGeometry);
                 RunTest(nameof(SplitCircleHolePreservesRotatedScaledAndMirroredPairs), SplitCircleHolePreservesRotatedScaledAndMirroredPairs);
                 RunTest(nameof(SplitCircleHoleRejectsOpenDuplicateAndUnrelatedArcs), SplitCircleHoleRejectsOpenDuplicateAndUnrelatedArcs);
                 RunTest(nameof(SplitCircleHoleRejectsInvalidEvidence), SplitCircleHoleRejectsInvalidEvidence);
@@ -577,6 +646,17 @@ namespace CadAuto.Core.Tests
                 RunTest(nameof(ThreeViewPinChainStaysOnTheViewThatShowsThePins), ThreeViewPinChainStaysOnTheViewThatShowsThePins);
                 RunTest(nameof(TwoViewTopAndLeftSplitLengthHeightAndWidth), TwoViewTopAndLeftSplitLengthHeightAndWidth);
                 RunTest(nameof(MismatchedViewEnvelopesDoNotAssign), MismatchedViewEnvelopesDoNotAssign);
+                RunTest(nameof(LooseDatumKeeps8And28DropsRedundant20), LooseDatumKeeps8And28DropsRedundant20);
+                RunTest(nameof(LooseDatumKeepsPitchAcrossDatumAndWithoutTwoSupports), LooseDatumKeepsPitchAcrossDatumAndWithoutTwoSupports);
+                RunTest(nameof(LooseDatumNestedSpansDoNotMergeThroughBridge), LooseDatumNestedSpansDoNotMergeThroughBridge);
+                RunTest(nameof(IndependentDatumDoesNotBorrowForeignPinPairLane), IndependentDatumDoesNotBorrowForeignPinPairLane);
+                RunTest(nameof(IndependentDatumPlacementClearsFinalText), IndependentDatumPlacementClearsFinalText);
+                RunTest(nameof(ManualOrderKeepsDatumChainInsideLongerLooseLocation), ManualOrderKeepsDatumChainInsideLongerLooseLocation);
+                RunTest(nameof(ManualOrderUsesMeasuredAxisForFunctionalHole), ManualOrderUsesMeasuredAxisForFunctionalHole);
+                RunTest(nameof(ShortToleranceTextAvoids30And9Chain), ShortToleranceTextAvoids30And9Chain);
+                RunTest(nameof(ShortToleranceTextEscapesBlockedCandidates), ShortToleranceTextEscapesBlockedCandidates);
+                RunTest(nameof(ToleranceTextDoesNotBorrowAlignedNeighborInterval), ToleranceTextDoesNotBorrowAlignedNeighborInterval);
+                RunTest(nameof(ToleranceLayoutReservesTextSpaceAfterAlignment), ToleranceLayoutReservesTextSpaceAfterAlignment);
                 ValidateTestRegistration();
                 RunRegisteredTests(filter, diagnosticContinuation);
                 WriteRegressionReport(regressionReportPath);

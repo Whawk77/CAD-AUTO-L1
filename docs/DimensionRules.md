@@ -120,9 +120,9 @@ Current follow-up areas:
 
 ## Style And Callouts
 
-- Prefer annotation layer `JEE-DIM标注`; otherwise use the current layer.
-- Linear dimensions prefer current drawing dimstyles named `SCALE-1-01`, `SCALE-1-02`, `SCALE-1-03`, `SCALE-1-04`, `SCALE-1-06`, `SCALE-1-08`, or `SCALE-1-10`.
-- Diameter/thread callouts prefer matching `$3` child styles, then `SCALE-1-01$3`, then fallback style.
+- Generated entities are written to the current layer (`LayerManager.ResolveAnnotationLayer` returns `db.Clayer`). The `JEE-DIM标注` constant (`LayerManager.PreferredAnnotationLayer`) is kept but not applied.
+- Linear dimensions use the current database dimstyle (`db.Dimstyle`); no `SCALE-1-*` style lookup exists in code.
+- Diameter/thread callouts use the `<current dimstyle name>$3` child style when it exists, otherwise the current dimstyle.
 - Use AutoCAD diameter control text `%%c`.
 - Final chamfer leaders are `Leader` + `MText`.
 - Final fillet callouts use `RadialDimension`.

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
 
 namespace CadAuto.CadAdapter.Model;
@@ -19,6 +21,8 @@ public sealed class ChamferFeature
 	public string Text { get; set; }
 
 	public OutlineSegment SourceSegment { get; set; }
+
+	public List<ObjectId> SourceIds { get; set; } = new List<ObjectId>();
 
 	public double Confidence { get; set; }
 }

@@ -53,8 +53,18 @@ public sealed class StructureFeatureExtractor
 			return features;
 		}
 
-		foreach (Segment2D segment in outline.Segments)
+		var runsBySegment = boundaryEvidence.MapAxisSegments(outline);
+		var processedRuns = new HashSet<BoundaryLineRun>();
+		foreach (Segment2D sourceSegment in outline.Segments)
 		{
+			var segment = sourceSegment;
+			List<string> runSources = null;
+			if (segment != null && runsBySegment.TryGetValue(segment, out var run))
+			{
+				if (!processedRuns.Add(run)) { continue; }
+				segment = new Segment2D(run.Start, run.End) { SourceKey = run.Edges[0].SourceKey };
+				runSources = run.Edges.SelectMany(e => e.SourceKeys).Where(s => !string.IsNullOrEmpty(s)).Distinct().ToList();
+			}
 			if (segment == null || segment.IsArcChord)
 			{
 				continue;
@@ -94,6 +104,7 @@ public sealed class StructureFeatureExtractor
 					Confidence = inset ? 0.85 : 1.0,
 					SupportSourceKeys = { segment.SourceKey ?? string.Empty }
 				});
+				if (runSources != null) { features[features.Count - 1].SupportSourceKeys.AddRange(runSources.Where(s => s != segment.SourceKey)); }
 			}
 			else if (segment.IsVertical(tol))
 			{
@@ -128,6 +139,7 @@ public sealed class StructureFeatureExtractor
 					Confidence = inset ? 0.9 : 1.0,
 					SupportSourceKeys = { segment.SourceKey ?? string.Empty }
 				});
+				if (runSources != null) { features[features.Count - 1].SupportSourceKeys.AddRange(runSources.Where(s => s != segment.SourceKey)); }
 			}
 		}
 
@@ -197,7 +209,7 @@ public sealed class StructureFeatureExtractor
 		}
 		AssignChainsAndClassify(features, outline, microGap, tol);
 		features.AddRange(unsupported);
-		boundaryEvidence?.ApplyAttachmentEvidence(features);
+		boundaryEvidence?.ApplyAttachmentEvidence(features, outline);
 		StructureBoundaryEvidence.EnforceSelection(features);
 		return features;
 	}

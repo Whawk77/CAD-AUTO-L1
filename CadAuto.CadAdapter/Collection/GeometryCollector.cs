@@ -9,11 +9,14 @@ using CadAuto.CadAdapter.Mapping;
 using CadAuto.Core.Planning;
 using CadAuto.CadAdapter.Recognition;
 using CadAuto.Core.Rules;
+using CadAuto.Core.Geometry;
 
 namespace CadAuto.CadAdapter.Collection;
 
 public sealed class GeometryCollector
 {
+	private const double OutlineConnectionTolerance = 0.01;
+
 	private sealed class OutlineEntityCandidate
 	{
 		public ObjectId ObjectId { get; set; }
@@ -21,6 +24,8 @@ public sealed class GeometryCollector
 		public double BoundsArea { get; set; }
 
 		public List<Point2d> ContinuityPoints { get; set; }
+
+		public Segment2D ContinuityLine { get; set; }
 
 		public bool IsClosed { get; set; }
 
@@ -92,6 +97,46 @@ public sealed class GeometryCollector
 					list.Add(BuildOutlineEntityCandidate(item.ObjectId, entity, tr));
 				}
 			}
+		}
+		if (list2.Count > 0)
+		{
+			List<List<OutlineEntityCandidate>> components = GroupConnectedComponents(list2);
+			var recognizer = new FeatureRecognizer(DimensionRuleConfig.CreateDefault());
+			var outlines = components.Select(component =>
+			{
+				try
+				{
+					OutlineFeature feature = component.Count == 1 && component[0].IsClosed
+						? recognizer.RecognizeOutline((Entity)tr.GetObject(component[0].ObjectId, OpenMode.ForRead), tr)
+						: recognizer.RecognizeOutline(component.Select(candidate => candidate.ObjectId), tr);
+					return CadToCoreModelMapper.ToCoreOutline(feature);
+				}
+				catch (InvalidOperationException) { return null; }
+			}).ToList();
+			IList<int> exteriorCandidates = OutlineSelectionRules.FindExteriorCandidates(outlines, OutlineConnectionTolerance);
+			if (exteriorCandidates.Count > 0)
+			{
+				int chosen = exteriorCandidates[0];
+				if (exteriorCandidates.Count > 1)
+				{
+					while (true)
+					{
+						PromptEntityResult selected = _editor.GetEntity(new PromptEntityOptions("\n发现多个可能轮廓或未闭合对象，请点选本次需要标注的外轮廓: "));
+						if (selected.Status != PromptStatus.OK) { throw new OperationCanceledException("用户取消选择外轮廓。"); }
+						int match = exteriorCandidates.Where(index => components[index].Any(candidate => candidate.ObjectId == selected.ObjectId)).DefaultIfEmpty(-1).First();
+						if (match >= 0) { chosen = match; break; }
+						_editor.WriteMessage("\n请点选已框选的外轮廓线或多段线。");
+					}
+				}
+				List<OutlineEntityCandidate> selectedComponent = components[chosen];
+				OutlineSelection result = new OutlineSelection();
+				if (selectedComponent.Count == 1 && selectedComponent[0].IsClosed) { result.PrimaryPolylineId = selectedComponent[0].ObjectId; }
+				else { result.EntityIds.AddRange(selectedComponent.Select(candidate => candidate.ObjectId)); }
+				result.SelectedIds.AddRange(list3);
+				_editor.WriteMessage("\n已选定 {0} 个外轮廓对象。", selectedComponent.Count);
+				return result;
+			}
+			_editor.WriteMessage("\n未能验证闭合边界，将按原有规则选择轮廓，请人工核对。\n");
 		}
 		if (list.Count > 0)
 		{
@@ -505,6 +550,27 @@ public sealed class GeometryCollector
 		return list;
 	}
 
+	public IList<ObjectId> CollectPinMarkersFromOutlineSelection(Transaction tr, OutlineFeature outline, OutlineSelection selection, double tolerance)
+	{
+		var result = new List<ObjectId>();
+		if (outline == null || selection == null) { return result; }
+		var coreOutline = CadToCoreModelMapper.ToCoreOutline(outline);
+		bool warned = false;
+		foreach (ObjectId id in selection.SelectedIds.Distinct())
+		{
+			if (!(tr.GetObject(id, OpenMode.ForRead) is BlockReference block) || !FeatureRecognizer.IsPinMarkerBlock(block, tr)) { continue; }
+			bool? inside = OutlineSelectionRules.ContainsPoint(coreOutline, new Point2D(block.Position.X, block.Position.Y), tolerance);
+			if (!inside.HasValue && !warned)
+			{
+				_editor.WriteMessage("\n外轮廓尚未确认闭合，销孔标记按现有范围筛选，请人工核对。");
+				warned = true;
+			}
+			// shortcut: unverified outlines use existing bounds, upgrade when open outlines can be proven.
+			if (inside ?? IsPointInsideBounds(block.Position, outline, tolerance)) { result.Add(id); }
+		}
+		return result;
+	}
+
 	public DatumDefinition PromptForDatum(OutlineFeature outline)
 	{
 		return DatumDefinition.FromOutline(outline);
@@ -749,11 +815,15 @@ public sealed class GeometryCollector
 		double layerSemanticScore = GetLayerSemanticScore(entity.Layer);
 		double lineWeightScore = GetLineWeightScore(entity, tr);
 		bool flag = IsClosedPolyline(entity);
+		Line line = entity as Line;
 		return new OutlineEntityCandidate
 		{
 			ObjectId = id,
 			BoundsArea = boundsArea,
 			ContinuityPoints = continuityPoints,
+			ContinuityLine = line == null ? null : new Segment2D(
+				new Point2D(line.StartPoint.X, line.StartPoint.Y),
+				new Point2D(line.EndPoint.X, line.EndPoint.Y)),
 			IsClosed = flag,
 			LineWeightScore = lineWeightScore,
 			LayerSemanticScore = layerSemanticScore,
@@ -849,12 +919,16 @@ public sealed class GeometryCollector
 				}
 			}
 		}
-		return false;
+		// T-junctions join real LINE interiors; arc chords are not source geometry.
+		return b.ContinuityLine != null && a.ContinuityPoints.Any(point => OutlineGeometryQuery.IsPointOnSegment(
+			new Point2D(point.X, point.Y), b.ContinuityLine, OutlineConnectionTolerance))
+			|| a.ContinuityLine != null && b.ContinuityPoints.Any(point => OutlineGeometryQuery.IsPointOnSegment(
+				new Point2D(point.X, point.Y), a.ContinuityLine, OutlineConnectionTolerance));
 	}
 
 	private static bool AreSamePoint(Point2d a, Point2d b)
 	{
-		return a.GetDistanceTo(b) <= 0.01;
+		return a.GetDistanceTo(b) <= OutlineConnectionTolerance;
 	}
 
 	private static List<Point2d> GetContinuityPoints(Entity entity, Transaction tr)

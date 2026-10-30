@@ -3782,7 +3782,8 @@ public sealed partial class DimensionPlanner
 				StartPoint = new Point2D(chamfer.StartPoint.Y, chamfer.StartPoint.X),
 				EndPoint = new Point2D(chamfer.EndPoint.Y, chamfer.EndPoint.X),
 				Length = chamfer.Length, DeltaX = chamfer.DeltaY, DeltaY = chamfer.DeltaX,
-				Value = chamfer.Value, Text = chamfer.Text, Confidence = chamfer.Confidence
+				Value = chamfer.Value, Text = chamfer.Text, Confidence = chamfer.Confidence,
+				SourceGeometryIds = new List<string>(chamfer.SourceGeometryIds)
 			});
 		}
 		return target;

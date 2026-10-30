@@ -15,8 +15,8 @@
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Collection/GeometryCollector.cs": {
-    "mtime": 1792657234.0431552,
-    "ast_hash": "ea476ae6ef9ab5414a55d4be8df468f2",
+    "mtime": 1793066903.0834904,
+    "ast_hash": "173ffe00c60e6cd05c2f98a847d06c9c",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Environment/DimStyleManager.cs": {
@@ -40,8 +40,8 @@
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Recognition/FeatureRecognizer.cs": {
-    "mtime": 1792657218.7033699,
-    "ast_hash": "fa99ca4687895e973c30c399c95a3b14",
+    "mtime": 1793096979.485019,
+    "ast_hash": "9e5a1fc1226b3941dc9c3e1c82785d78",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Rendering/CadEntityWriter.cs": {
@@ -60,8 +60,8 @@
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Rendering/DimensionDrawer.cs": {
-    "mtime": 1792573129.9769573,
-    "ast_hash": "67d5996262cc79facb6097fc39213ec5",
+    "mtime": 1792912499.5792353,
+    "ast_hash": "b07565ed10ccd9901ad8b224a13cee27",
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Rendering/DimensionExtensionLineRenderer.cs": {
@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core.Tests/Program.cs": {
-    "mtime": 1792817168.6848457,
-    "ast_hash": "c5ebed7a671ca277c2c30e8b77688f01",
+    "mtime": 1793098274.721525,
+    "ast_hash": "d195935aacd5e49648678222715fe48c",
     "semantic_hash": ""
   },
   "CadAuto.Core.Tests/Properties/AssemblyInfo.cs": {
@@ -165,8 +165,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/HoleCalloutPlanner.cs": {
-    "mtime": 1792805728.9860332,
-    "ast_hash": "1b7a88cd0b2eebffcae7288510aad0a9",
+    "mtime": 1793098622.280907,
+    "ast_hash": "d749e20f418f28124f8d05f613ae8e0a",
     "semantic_hash": ""
   },
   "CadAuto.Core/Properties/AssemblyInfo.cs": {
@@ -180,13 +180,13 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/DimensionRuleConfig.cs": {
-    "mtime": 1792216523.173894,
-    "ast_hash": "5aa9d2c940faf696d41d981a3cc9f37d",
+    "mtime": 1792912499.5772338,
+    "ast_hash": "ad19d0a8c7883763371fc683511af062",
     "semantic_hash": ""
   },
   "Commands.cs": {
-    "mtime": 1792656435.2384555,
-    "ast_hash": "4bda2b569823c9daa9678206c30039f9",
+    "mtime": 1793098622.2824738,
+    "ast_hash": "8fee179f9a3f405c7c444c577b7813d9",
     "semantic_hash": ""
   },
   "PluginEntry.cs": {
@@ -370,8 +370,8 @@
     "semantic_hash": ""
   },
   "CadAuto.CadAdapter/Rendering/NativeDiameterDimensioner.cs": {
-    "mtime": 1792722820.6749234,
-    "ast_hash": "b2765bdf1d063460afcba7e5834332dd",
+    "mtime": 1793096597.12886,
+    "ast_hash": "5ee04288d5964c3baabc5abc6ae2d46c",
     "semantic_hash": ""
   },
   "CadAuto.Core/Model/HoleKind2D.cs": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/DimensionLayoutRules.cs": {
-    "mtime": 1792817325.2095008,
-    "ast_hash": "41f04ad6570ac0420ceaf0cb1819882e",
+    "mtime": 1792826759.232814,
+    "ast_hash": "3efec62a26263eaedb0d9a9aa4372cb0",
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/DimensionPlanPostValidator.cs": {
@@ -470,8 +470,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/OutlineGeometryQuery.cs": {
-    "mtime": 1788256962.4031365,
-    "ast_hash": "d0da30d0d48513235733446f24369d4d",
+    "mtime": 1793066903.084491,
+    "ast_hash": "c4370c341e4958c4b7a15b7df950aa82",
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/StructureEndpointRules.cs": {
@@ -555,8 +555,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.Features.cs": {
-    "mtime": 1792810446.4188077,
-    "ast_hash": "2ccb11597db4b16e6d8620df97d5576b",
+    "mtime": 1792978387.8449292,
+    "ast_hash": "ac2cb5b233e541499db3fab06dbd9194",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/DimensionPlanner.Structure.cs": {
@@ -740,8 +740,8 @@
     "semantic_hash": ""
   },
   "SupportBlockCommand.cs": {
-    "mtime": 1792722862.9597547,
-    "ast_hash": "fb7a4e94867689e9b2a11c1e706183f0",
+    "mtime": 1792910892.3106267,
+    "ast_hash": "ee565db852386f419bc5b971d8bccb25",
     "semantic_hash": ""
   },
   "docs/\u4e0d\u906e\u6321\u4e2d\u5fc3\u7ebf\u6807\u6ce8\u89c4\u5219.md": {
@@ -835,8 +835,8 @@
     "semantic_hash": ""
   },
   "diagnostics/last-run.outline.svg": {
-    "mtime": 1792816821.8901274,
-    "ast_hash": "9c1936ba38cf9ef9848f982d834ecc9e",
+    "mtime": 1793098308.8352416,
+    "ast_hash": "6cdaa9b69c0f75a9cdc8785d1249447d",
     "semantic_hash": ""
   },
   "CadAuto.Core/Planning/StructureBoundaryEvidence.cs": {
@@ -845,13 +845,13 @@
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/DimensionExtensionLineRules.cs": {
-    "mtime": 1792142672.1995268,
-    "ast_hash": "6fc38c1974075e2b77ae4cbabe7b82ab",
+    "mtime": 1792912499.5782366,
+    "ast_hash": "1794448df896a0bd63651cf003040dc6",
     "semantic_hash": ""
   },
   "CadAuto.Core/Rules/DimensionLayoutRules.DatumStacks.cs": {
-    "mtime": 1792216523.2188938,
-    "ast_hash": "c37051730e9ccf37086058e742fd5e48",
+    "mtime": 1792826759.2338138,
+    "ast_hash": "c7c9a3ff5b75ce814726c1d5c6563755",
     "semantic_hash": ""
   },
   "CadAuto.Core/Model/PinGroupVerticalLayoutPreference.cs": {
@@ -2010,8 +2010,8 @@
     "semantic_hash": ""
   },
   "CadAuto.Core.Tests/Runner/ClosePinGroupChecks.cs": {
-    "mtime": 1792805668.4499938,
-    "ast_hash": "a3fd51be18562a4b295f348f6261b8d3",
+    "mtime": 1792978387.8459299,
+    "ast_hash": "18b8833f9266c2ec7ef230efe634252d",
     "semantic_hash": ""
   },
   "CadAuto.Core.Tests/Runner/InteriorPinGroupChecks.cs": {
@@ -2027,6 +2027,396 @@
   "CadAuto.Core.Tests/Runner/FunctionalLaneCollisionChecks.cs": {
     "mtime": 1792817192.38546,
     "ast_hash": "592c108bf0aacdba4023e200e2c4ef77",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/LooseDatumChecks.cs": {
+    "mtime": 1792820075.1290205,
+    "ast_hash": "9ad2e482d24fa44308e4c9fadba66e3e",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/ShortToleranceTextChecks.cs": {
+    "mtime": 1792820544.362796,
+    "ast_hash": "7a4e4263e4d807463fe8ed351a2f4de5",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/ManualDatumChainOrderChecks.cs": {
+    "mtime": 1792823761.50555,
+    "ast_hash": "77e9d570a72a9ac946d8540a06298d8a",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/DatumTextOwnershipChecks.cs": {
+    "mtime": 1792824962.9226625,
+    "ast_hash": "df56d571db303446c9cdfff7d36e38f8",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/ToleranceLayoutChecks.cs": {
+    "mtime": 1792826731.0956452,
+    "ast_hash": "598aa9695f5c159e57a6d3d6012afcf4",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/PinMarkerChecks.cs": {
+    "mtime": 1792904351.9150896,
+    "ast_hash": "63b4a6f6aa9f206d6d1d4a9932e067a6",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core/Rules/PinHoleRules.cs": {
+    "mtime": 1793096597.1268568,
+    "ast_hash": "f625252640aba61d81e6e962f3fd2881",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/ExtensionLengthLimitChecks.cs": {
+    "mtime": 1792912499.5847738,
+    "ast_hash": "f3ab2fb537ff35186462e8d9ce41a180",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/OutlineTJunctionChecks.cs": {
+    "mtime": 1793067169.7945876,
+    "ast_hash": "ec1867c2a1f1e62154b902f8b05f04ba",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/PinMarkerPriorityChecks.cs": {
+    "mtime": 1793096803.846152,
+    "ast_hash": "7d6bd01db65d993a59cedf8700436f2a",
+    "semantic_hash": ""
+  },
+  "diagnostics/outline-tjunction-20261027-44dbd318/CompositeOutline.report.json": {
+    "mtime": 1793067393.7675314,
+    "ast_hash": "a244d23b496c5f460826366e3bd8934e",
+    "semantic_hash": ""
+  },
+  "diagnostics/outline-tjunction-20261027-44dbd318/OutlineTJunction.report.json": {
+    "mtime": 1793067393.3691084,
+    "ast_hash": "7103f8b47a53fec69fc00bbb93fdc58f",
+    "semantic_hash": ""
+  },
+  "diagnostics/outline-tjunction-20261027-44dbd318/OutlineTopology.report.json": {
+    "mtime": 1793067394.096938,
+    "ast_hash": "cef7bc9dbdc1995d5749ca7c315faa07",
+    "semantic_hash": ""
+  },
+  "diagnostics/outline-tjunction-20261027-44dbd318/ThreeViewProjection.report.json": {
+    "mtime": 1793067394.5029664,
+    "ast_hash": "2e74ad41e864faa3420cb259d1a3605c",
+    "semantic_hash": ""
+  },
+  "diagnostics/outline-tjunction-20261027-44dbd318/agent-runtime-final.json": {
+    "mtime": 1793067717.265928,
+    "ast_hash": "8422a4004aebce0ca2e337ef6db3cffb",
+    "semantic_hash": ""
+  },
+  "diagnostics/outline-tjunction-20261027-44dbd318/agent-runtime.json": {
+    "mtime": 1793067501.0696104,
+    "ast_hash": "69ae8f48a544cae1c94757f368c85d19",
+    "semantic_hash": ""
+  },
+  "diagnostics/outline-tjunction-20261027-44dbd318/final-verification.json": {
+    "mtime": 1793067863.646004,
+    "ast_hash": "ee38bbde066b99a19f2ceed84df5a14e",
+    "semantic_hash": ""
+  },
+  "diagnostics/outline-tjunction-20261027-44dbd318/preservation.json": {
+    "mtime": 1793067501.0566106,
+    "ast_hash": "dd69c51965a77ef5c2b811fe6efca123",
+    "semantic_hash": ""
+  },
+  "diagnostics/outline-tjunction-20261027-44dbd318/validation.json": {
+    "mtime": 1793067396.4485602,
+    "ast_hash": "04fd917891b4f5159dfdf5e76c265997",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/baseline.json": {
+    "mtime": 1793096571.7253172,
+    "ast_hash": "f9949c9aff7578de62a01f381bfbde9d",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/build-runner-1/invocation.json": {
+    "mtime": 1793096865.1912427,
+    "ast_hash": "ce780047c8a4e995620b96dd35d25a88",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/round-1/ArcSlotIsRecognized.report.json": {
+    "mtime": 1793096832.1921384,
+    "ast_hash": "8781ffb7a1c39c9a9353c89042499016",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/round-1/ClosePinGroups.report.json": {
+    "mtime": 1793096831.5005798,
+    "ast_hash": "bb7f58037356f362bc27e05be8b48749",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/round-1/CollinearPinGroups.report.json": {
+    "mtime": 1793096831.9652877,
+    "ast_hash": "7b10493c935ecf05efbdf631f9188237",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/round-1/HoleCallouts.report.json": {
+    "mtime": 1793096832.0820863,
+    "ast_hash": "722eb50d23a8795a06ae514bf575a36e",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/round-1/OutlineTJunction.report.json": {
+    "mtime": 1793096832.526949,
+    "ast_hash": "1385556b6ec77ca44a5cc0f057cee0e4",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/round-1/PinMarker.report.json": {
+    "mtime": 1793096830.8959842,
+    "ast_hash": "5c61afcbdd7da6c28938c84a28bae26d",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/round-1/SplitCircleHole.report.json": {
+    "mtime": 1793096831.005984,
+    "ast_hash": "a4ccd0d94f56f311fef56eb6a85873c0",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/round-1/validation.json": {
+    "mtime": 1793096834.2708426,
+    "ast_hash": "69c6ae5329da69ab81564c20683703ca",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/run_agent.py": {
+    "mtime": 1793096804.2955067,
+    "ast_hash": "b5a8fe521d2b788eda3663417f74b6e0",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/validate.py": {
+    "mtime": 1793096804.296507,
+    "ast_hash": "cdd4231f125081ccd225fe1ac36e52db",
+    "semantic_hash": ""
+  },
+  "diagnostics/outline-tjunction-20261027-44dbd318/change-record.md": {
+    "mtime": 1793067501.0696104,
+    "ast_hash": "453bd72e0d7b9d05c5efdb457ab90112",
+    "semantic_hash": ""
+  },
+  "diagnostics/outline-tjunction-20261027-44dbd318/report-final-review.md": {
+    "mtime": 1793067863.645013,
+    "ast_hash": "c66db670ebd0cb518e33372a957b7460",
+    "semantic_hash": ""
+  },
+  "diagnostics/outline-tjunction-20261027-44dbd318/validation-summary.md": {
+    "mtime": 1793067668.0062854,
+    "ast_hash": "c0504bdd55521b050d9a55bdec7ed3f1",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/build-runner-1/last-message.md": {
+    "mtime": 1793096859.5898805,
+    "ast_hash": "c1b8b4805b8c1524526559f16a7f7b95",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/build_runner.prompt.txt": {
+    "mtime": 1793096804.296507,
+    "ast_hash": "253461e71e3b140cb6651637b1c71b09",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/graphify.json": {
+    "mtime": 1793096898.2072465,
+    "ast_hash": "68cbe821c975b9a40544d6b8ee2fc32b",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/preservation.json": {
+    "mtime": 1793097026.5359502,
+    "ast_hash": "6c819dac793d8cc790e0f0e92b322b1a",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/round-2/validation.json": {
+    "mtime": 1793097016.0389051,
+    "ast_hash": "bbd530804c638f6d892141a31cb38d07",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/validate-plugin.py": {
+    "mtime": 1793096979.9247918,
+    "ast_hash": "928e8368c29ccbdb2447ff7a24a65cf8",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/verified-tests.json": {
+    "mtime": 1793097026.5419483,
+    "ast_hash": "fc4e47170d49823844b3fba3196f35e6",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/build_runner-2.prompt.txt": {
+    "mtime": 1793096979.9257922,
+    "ast_hash": "8acb64272f86075db5459535b68c1b24",
+    "semantic_hash": ""
+  },
+  "CadAuto.Core.Tests/Runner/HoleCalloutOrderChecks.cs": {
+    "mtime": 1793098686.4742694,
+    "ast_hash": "cc8c60cfc6f736d4ad08b384f6f93924",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/baseline.json": {
+    "mtime": 1793098226.2818954,
+    "ast_hash": "00550b5c82c0ac684f1ca63aaf04febd",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/preservation.json": {
+    "mtime": 1793098320.1690156,
+    "ast_hash": "4c767eec7235593d37b1f939a5796c77",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/run_agent.py": {
+    "mtime": 1793098226.5830448,
+    "ast_hash": "b5a8fe521d2b788eda3663417f74b6e0",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/validate.py": {
+    "mtime": 1793098320.1700149,
+    "ast_hash": "16e307e9fb1ac2a5330b5b894cb05594",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/agent-runtime-final.json": {
+    "mtime": 1793097323.6051376,
+    "ast_hash": "903e01d69c20e974b35a8bd3e05e8d49",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/agent-runtime.json": {
+    "mtime": 1793097125.0073473,
+    "ast_hash": "a8d49fb4d8165f180898c4939b7b2d5a",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/build-runner-2/invocation.json": {
+    "mtime": 1793097050.7161398,
+    "ast_hash": "30c54dcc5ead001ea3fb26bf2762e693",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/final-verification.json": {
+    "mtime": 1793097323.6092262,
+    "ast_hash": "670f78a29507a8bfdab058858db7a6fc",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/graphify-final.json": {
+    "mtime": 1793097051.6354053,
+    "ast_hash": "5fdf59a54056b58d13e68ecbd32817e7",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/report-summarizer-1/invocation.json": {
+    "mtime": 1793097301.9865873,
+    "ast_hash": "1912888b95a0e09eb1146de988553738",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/build_runner.prompt.txt": {
+    "mtime": 1793098320.1710136,
+    "ast_hash": "8391616d981cfe21ce2f70f0392c5df1",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/change-record.md": {
+    "mtime": 1793098780.4447546,
+    "ast_hash": "bec481e0aee34f8a15a38de24f1e0180",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/build-runner-2/last-message.md": {
+    "mtime": 1793097050.6800036,
+    "ast_hash": "5467a0cf148b5a37ac4787c77cfb7c14",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/change-record.md": {
+    "mtime": 1793097125.0073473,
+    "ast_hash": "f6f8784e27de49830684ad3fd8a63eac",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/report-summarizer-1/last-message.md": {
+    "mtime": 1793097301.7693722,
+    "ast_hash": "d37876ef5153fb739b7756157ec921da",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/report_summarizer.prompt.txt": {
+    "mtime": 1793097125.0083482,
+    "ast_hash": "f9558ef3701e150190436c9c6f838ef4",
+    "semantic_hash": ""
+  },
+  "diagnostics/pin-marker-priority-20261027-88cbe3ca/validation-summary.md": {
+    "mtime": 1793097282.7365818,
+    "ast_hash": "8470b4cc1b10a7bbddc034c1f5ceb092",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/HoleCalloutOrderChecks.first.cs": {
+    "mtime": 1793098622.2275696,
+    "ast_hash": "884e5934d28cc991147e39a86d9f0373",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/build-runner-1/invocation.json": {
+    "mtime": 1793098412.1252017,
+    "ast_hash": "a732ab93a700c1d5c988ab9c0c37af3d",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/build-runner-2/invocation.json": {
+    "mtime": 1793098859.5307362,
+    "ast_hash": "9cb365152af5b169db2893850576692d",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/preservation-final.json": {
+    "mtime": 1793098780.3468902,
+    "ast_hash": "7a18f5eea517326624802ea0d0946115",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/rotated-callout-failures.json": {
+    "mtime": 1793098495.147733,
+    "ast_hash": "6034fdfccc44d2c690f24f6937dfddd8",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/round-1/HoleCallouts.report.json": {
+    "mtime": 1793098378.27683,
+    "ast_hash": "b547f6d9c614366c8e3983a3b02df9da",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/round-1/validation.json": {
+    "mtime": 1793098378.283831,
+    "ast_hash": "d400107032cf54fcb9512574c3b4df23",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/round-2/ClosePinGroups.report.json": {
+    "mtime": 1793098807.7145686,
+    "ast_hash": "8525ae72d04d82f9fba49302a8c2b85a",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/round-2/CollinearPinGroups.report.json": {
+    "mtime": 1793098808.1738443,
+    "ast_hash": "4a1378bf7c8defe55e2d249dbea79767",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/round-2/HoleCallouts.report.json": {
+    "mtime": 1793098807.2503152,
+    "ast_hash": "7959218702264b47cf7006ec1a0c3fed",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/round-2/InteriorPinGroup.report.json": {
+    "mtime": 1793098809.1120653,
+    "ast_hash": "bc9fe064350d0b69266375d86cf3552b",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/round-2/PinMarker.report.json": {
+    "mtime": 1793098809.4162135,
+    "ast_hash": "741faba03891392758ed67eb7997bd7d",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/round-2/validation.json": {
+    "mtime": 1793098811.1625247,
+    "ast_hash": "cc2ed735dfd20956d3fe61f0e3259c61",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/validate-round2.py": {
+    "mtime": 1793098780.3208902,
+    "ast_hash": "4895fca4404a11ddc4426fdc594abc5f",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/verified-results.json": {
+    "mtime": 1793098861.0123093,
+    "ast_hash": "76ca75c90e3d211fed09e33ad38a0e90",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/build-runner-1/last-message.md": {
+    "mtime": 1793098411.332396,
+    "ast_hash": "99d66d1d8ec03583483086d4dfa75dc5",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/build-runner-2/last-message.md": {
+    "mtime": 1793098859.4812841,
+    "ast_hash": "c92ecdf151e202a9b45e0210356d823d",
+    "semantic_hash": ""
+  },
+  "diagnostics/hole-callout-order-20261027-2b3efcd1/build_runner-round2.prompt.txt": {
+    "mtime": 1793098780.32189,
+    "ast_hash": "6ad0ea76ae6c024f107176ed83a47e99",
     "semantic_hash": ""
   }
 }

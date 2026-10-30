@@ -10,7 +10,7 @@
   - `CadAuto.Core/` — planning, recognition, rules, geometry
   - `CadAuto.CadAdapter/` — AutoCAD rendering and adapters
   - `CadAuto.Core.Tests/` — core unit/plan tests
-  - Root plugin entry: `Commands.cs`, `PluginEntry.cs`, …
+  - Root plugin entry: `Commands.cs`, `PluginEntry.cs`, `SupportBlockCommand.cs` (`TY`/`TY1`/`TY2`), `ThreeViewTrialCommand.cs` (`ASD3V`)
 - Default build output (may be locked by AutoCAD): `bin\Debug\AutoFixtureDim.dll`
 - Loadable/test DLL deliverables must use a fresh `bin\Debug-vN\` folder containing all three plugin DLLs; see `docs/Deployment.md`.
 
@@ -42,22 +42,29 @@ Notes:
 ## Source Map
 
 - `Commands.cs`: AutoCAD command entrypoints and top-level workflow.
+- `SupportBlockCommand.cs`: support-block (托压块) commands `TY`, `TY1`, `TY2`. They bypass `DimensionPlanner`: the source LINE/ARC is copied as dashed geometry and annotated with leaders.
+- `ThreeViewTrialCommand.cs`: `ASD3V` three-view trial; runs `DimensionPlanner` per view and de-duplicates across views via `OrthographicViewSetAssigner`.
 - `CadAuto.Core` planning (`DimensionPlanner`, …): dimension plan generation, pin groups, functional/loose holes, structure dims, suppression.
 - `CadAuto.CadAdapter/Recognition/FeatureRecognizer.cs`: the only production recognizer (outline, hole, pin, thread, slot, chamfer, fillet). `CadAuto.Core/Recognition/FeatureRecognizer2D.cs` is used exclusively by `CadAuto.Core.Tests`; the two implementations are not yet unified.
 - `CadAuto.CadAdapter` rendering (`DimensionDrawer`, …): linear dimensions, stacking, local boundary, leaders, debug labels.
 - `CadAuto.Core/Rules/DimensionRuleConfig.cs`: machining constants, tolerance text, number formatting, and thread minor-diameter mapping.
-- Dim style / layer / XData helpers: style selection, annotation layer, `AUTOFIXDIM` marking and cleanup.
+- Dim style / layer / XData helpers: `DimStyleManager` returns the current `db.Dimstyle`; `LayerManager` returns the current layer; `AUTOFIXDIM` marking and cleanup.
 
 ## Current Command Surface
 
 - `ASD`: generate annotations.
 - `AUTOFIXDIM`: compatibility alias for normal generation.
-- `ASD4`: diagnostic generation with side selection.
+- `ASD4`: clear generated annotations, then diagnostic generation with side selection.
 - `ASD5`: generate outline-related annotations only.
 - `ASD6`: generate hole-related annotations only.
 - `ASD7`: generate corner-feature annotations only.
-- `ASDCOREDBG`: core diagnostic generation.
+- `ASD8`: generate diameter callouts only.
+- `ASDREPRO`: clear generated annotations, then diagnostic generation after prompting for scope (All / Outline / Hole / Corner).
+- `ASDCASE`: save the last successful `ASD` snapshot as a confirmed case to `annotation-cases.json` in the plugin DLL directory.
+- `ASDCOREDBG`: core diagnostic generation (uses `CreateDefault()` without forcing FeatureFirst).
+- `ASD3V`: three-view trial (2 or 3 separate closed view outlines).
 - `ASD3`: clear the most recently generated plugin annotation group.
-- `AG1`: special line-processing helper.
+- `TY` / `TY1` / `TY2`: support-block (托压块) marking; see `docs/当前标注规则.md` section 11.
+- `AG1`: special line-processing helper (uses `CreateDefault()`).
 
 Historical command names such as `AUTOFIXDIMREGEN`, `AUTOFIXDIMCLEAR`, and `ASDDBG` should not be documented as current source behavior unless they are reintroduced in code.

@@ -134,6 +134,13 @@ public sealed class DimensionPlanPostValidator
 		{
 			validSide = dimension2.Side == DimensionSide.Left || dimension2.Side == DimensionSide.Right;
 		}
+		// T 型托压块：总尺寸放凸台一侧或定位起点一侧，两侧都允许。
+		else if (dimension2.RuleId != null && dimension2.RuleId.StartsWith("SupportBlock.T.", StringComparison.Ordinal))
+		{
+			validSide = kind == DimensionKind.OverallWidth
+				? dimension2.Side == DimensionSide.Top || dimension2.Side == DimensionSide.Bottom
+				: dimension2.Side == DimensionSide.Left || dimension2.Side == DimensionSide.Right;
+		}
 		if (dimension2.Orientation != orientation || !validSide || !dimension2.ForceOuterLevel || dimension2.UseSegmentedExtensionLines || !NearlyEqual(actualMinimum, expectedMinimum) || !NearlyEqual(actualMaximum, expectedMaximum) || !OutlineGeometryQuery.IsPointOnBoundary(dimension2.FirstPoint, outline, _config.GeometryTolerance) || !OutlineGeometryQuery.IsPointOnBoundary(dimension2.SecondPoint, outline, _config.GeometryTolerance))
 		{
 			throw new InvalidOperationException(kind + " does not preserve the real outline envelope and attachment rules.");

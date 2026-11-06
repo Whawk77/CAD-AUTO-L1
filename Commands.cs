@@ -33,7 +33,9 @@ public sealed class Commands
 		OutlineOnly,
 		HoleOnly,
 		CornerOnly,
-		DiameterOnly
+		DiameterOnly,
+		// ASD2：除外轮廓尺寸以外的全部输出（孔/销/槽尺寸、孔标注、倒角圆角、槽半径）。
+		ExceptOutline
 	}
 
 	private sealed class DiagnosticBounds
@@ -90,6 +92,8 @@ public sealed class Commands
 		public SortedDictionary<string, int> EntityTypeCounts { get; } = new SortedDictionary<string, int>(StringComparer.Ordinal);
 
 		public List<DiagnosticCenterlineEndpoint> CenterlineEndpoints { get; } = new List<DiagnosticCenterlineEndpoint>();
+
+		public List<string> OutlineSelectionDecisions { get; } = new List<string>();
 
 		public DiagnosticBounds SelectedGeometryBoundsWcs { get; set; }
 
@@ -150,6 +154,13 @@ public sealed class Commands
 	public void Asd()
 	{
 		RunAutoFixDim(clearExistingBeforeGenerate: false, commandName: "ASD");
+	}
+
+	// ASD2（用户 2026-11-05）：执行 ASD 除外轮廓标注以外的全部功能。
+	[CommandMethod("ASD2")]
+	public void Asd2()
+	{
+		RunAutoFixDim(clearExistingBeforeGenerate: false, outputScope: AutoFixDimOutputScope.ExceptOutline, commandName: "ASD2");
 	}
 
 	[CommandMethod("TY")]
@@ -667,13 +678,14 @@ public sealed class Commands
 			datumDefinition.HoleCenterlineEndpoints.AddRange(geometryCollector.CollectHoleCenterlineEndpoints(transaction, outlineSelection, dimensionRuleConfig.GeometryTolerance));
 			IList<SlotFeature> list = featureRecognizer.RecognizeOutlineSlotFeatures(outlineFeature);
 			IList<ObjectId> list2 = geometryCollector.CollectHoleSourcesFromOutlineSelection(transaction, outlineFeature, outlineSelection, dimensionRuleConfig);
+			IList<ObjectId> pinMarkerIds = geometryCollector.CollectPinMarkersFromOutlineSelection(transaction, outlineFeature, outlineSelection, dimensionRuleConfig.GeometryTolerance);
 			bool flag = false;
-			if (list2.Count == 0 && list.Count > 0)
+			if (list2.Count == 0 && list.Count > 0 && pinMarkerIds.Count == 0)
 			{
 				list2 = new List<ObjectId>();
 				flag = true;
 			}
-			if (list2.Count == 0 && !flag)
+			if (list2.Count == 0 && !flag && pinMarkerIds.Count == 0)
 			{
 				editor.WriteMessage("\nASDCOREDBG: no holes found in selection; select Circle holes manually or press Enter to skip holes.");
 				list2 = geometryCollector.PromptForCircleHoles();
@@ -686,7 +698,7 @@ public sealed class Commands
 			IList<HoleFeature> list3;
 			if (!flag)
 			{
-				list3 = featureRecognizer.RecognizeHoles(list2, transaction, outlineSelection.SelectedIds);
+				list3 = featureRecognizer.RecognizeHoles(list2, transaction, pinMarkerIds);
 			}
 			else
 			{
@@ -733,7 +745,7 @@ public sealed class Commands
 			List<HoleFeature2D> holes = CadToCoreModelMapper.ToCoreHoles(list5);
 			List<SlotFeature2D> list7 = CadToCoreModelMapper.ToCoreSlots(featureRecognizer.LastRecognizedSlots);
 			DimensionPlan dimensionPlan = CreatePlanWithStructureDatumSelection(editor, outline, datum2D, holes, list7, config);
-			IList<HoleCalloutPlan> holeCalloutPlans = new HoleCalloutPlanner(config).CreatePlans(holes, datum2D.DatumHole);
+			IList<HoleCalloutPlan> holeCalloutPlans = new HoleCalloutPlanner(config).CreatePlans(holes, datum2D.DatumHole, dimensionPlan);
 			DimensionPlan dimensionPlan2 = CreateCoreDebugRenderPlan(dimensionPlan);
 			string text = EnsureCoreDebugLayer(database, transaction);
 			BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
@@ -779,9 +791,10 @@ public sealed class Commands
 		DiagnosticDimensionSide diagnosticSide = (diagnosticsEnabled ? PromptForDiagnosticSide(editor) : DiagnosticDimensionSide.All);
 		bool diameterOnly = outputScope == AutoFixDimOutputScope.DiameterOnly;
 		bool flag = outputScope != AutoFixDimOutputScope.CornerOnly && !diameterOnly;
-		bool flag2 = outputScope == AutoFixDimOutputScope.All || outputScope == AutoFixDimOutputScope.HoleOnly || diameterOnly;
-		bool flag3 = outputScope == AutoFixDimOutputScope.All || outputScope == AutoFixDimOutputScope.CornerOnly;
-		bool flag4 = outputScope == AutoFixDimOutputScope.All || outputScope == AutoFixDimOutputScope.HoleOnly;
+		bool exceptOutline = outputScope == AutoFixDimOutputScope.ExceptOutline;
+		bool flag2 = outputScope == AutoFixDimOutputScope.All || outputScope == AutoFixDimOutputScope.HoleOnly || diameterOnly || exceptOutline;
+		bool flag3 = outputScope == AutoFixDimOutputScope.All || outputScope == AutoFixDimOutputScope.CornerOnly || exceptOutline;
+		bool flag4 = outputScope == AutoFixDimOutputScope.All || outputScope == AutoFixDimOutputScope.HoleOnly || exceptOutline;
 		bool flag5 = flag4;
 		IList<HoleCalloutPlan> list = null;
 		IList<HoleFeature> sourceHoles = null;
@@ -804,6 +817,7 @@ public sealed class Commands
 				ObjectId objectId3 = DimStyleManager.ResolveDiameterCalloutDimStyle(database, transaction, objectId2);
 				GeometryCollector geometryCollector = new GeometryCollector(editor);
 				OutlineSelection outlineSelection = geometryCollector.PromptForOutlineSelection(transaction);
+				config.SupportBlockMode = outlineSelection.IsSupportBlock;
 				FeatureRecognizer featureRecognizer = new FeatureRecognizer(config);
 				OutlineFeature outlineFeature;
 				if (outlineSelection.HasPrimaryPolyline)
@@ -831,16 +845,19 @@ public sealed class Commands
 				}
 				IList<SlotFeature> list4 = list3;
 				IList<ObjectId> list5 = new List<ObjectId>();
+				IList<ObjectId> pinMarkerIds = flag2
+					? geometryCollector.CollectPinMarkersFromOutlineSelection(transaction, outlineFeature, outlineSelection, config.GeometryTolerance)
+					: new List<ObjectId>();
 				bool flag6 = !flag2;
 				if (flag2)
 				{
 					list5 = geometryCollector.CollectHoleSourcesFromOutlineSelection(transaction, outlineFeature, outlineSelection, config);
-					if (list5.Count == 0 && list4.Count > 0)
+					if (list5.Count == 0 && list4.Count > 0 && pinMarkerIds.Count == 0)
 					{
 						list5 = new List<ObjectId>();
 						flag6 = true;
 					}
-					if (list5.Count == 0 && !flag6)
+					if (list5.Count == 0 && !flag6 && pinMarkerIds.Count == 0)
 					{
 						editor.WriteMessage("\n本次框选对象中未识别到孔，请手动选择需要标注的圆孔。");
 						list5 = geometryCollector.PromptForCircleHoles();
@@ -855,7 +872,7 @@ public sealed class Commands
 				IList<HoleFeature> list6;
 				if (!flag6)
 				{
-					list6 = featureRecognizer.RecognizeHoles(list5, transaction, outlineSelection.SelectedIds);
+					list6 = featureRecognizer.RecognizeHoles(list5, transaction, pinMarkerIds);
 				}
 				else
 				{
@@ -908,24 +925,31 @@ public sealed class Commands
 					editor.WriteMessage("\n已清除旧插件标注 {0} 个。", num2);
 				}
 				List<SlotFeature> list10 = (flag4 ? featureRecognizer.LastRecognizedSlots.Concat(list4).ToList() : new List<SlotFeature>());
-				IList<HoleCalloutPlan> list12;
-				if (!flag2)
-				{
-					IList<HoleCalloutPlan> list11 = new List<HoleCalloutPlan>();
-					list12 = list11;
-				}
-				else
-				{
-					list12 = BuildHoleCalloutPlansForPlacement(list8, datumDefinition.DatumHole, config);
-				}
-				IList<HoleCalloutPlan> list13 = list12;
 				BlockTableRecord space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
 				DimensionDrawer dimensionDrawer = new DimensionDrawer(database, transaction, space, config, objectId2, objectId3, num, text, groupId, diagnosticsEnabled, diagnosticSide);
 				if (flag)
 				{
 					DimensionPlan dimensionPlan = DrawLinearDimensions(editor, dimensionDrawer, outlineFeature, datumDefinition, list8, list10, flag6, config, outputScope);
 					completedLinearPlan = dimensionPlan;
+					if (outlineSelection.IsSupportBlock)
+					{
+						// TY 标注和 ASD 尺寸重叠时移到尺寸外面（用户 2026-11-05）；间距同 TY 的引线偏移。
+						double calloutGap = Math.Max(num * config.LeaderOffset, dimensionDrawer.LinearTextHeight * 2.0);
+						List<string> shiftRecords = SupportBlockCalloutAdjuster.Adjust(transaction, space, outlineSelection.SupportBlockIds,
+							dimensionDrawer.AppendedIds, outlineFeature, calloutGap, config.GeometryTolerance);
+						foreach (string record in shiftRecords)
+						{
+							dimensionPlan?.Diagnostics.Warnings.Add(record);
+						}
+						if (shiftRecords.Count > 0)
+						{
+							editor.WriteMessage("\nTY 标注与尺寸重叠，已移到尺寸外侧 {0} 组。", shiftRecords.Count);
+						}
+					}
 				}
+				IList<HoleCalloutPlan> list13 = flag2
+					? BuildHoleCalloutPlansForPlacement(list8, datumDefinition.DatumHole, config, completedLinearPlan)
+					: new List<HoleCalloutPlan>();
 				outline = outlineFeature;
 				slotFeatures = list10;
 				dimStyleId = objectId2;
@@ -1231,13 +1255,13 @@ public sealed class Commands
 		return database?.FingerprintGuid ?? string.Empty;
 	}
 
-	private static IList<HoleCalloutPlan> BuildHoleCalloutPlansForPlacement(IEnumerable<HoleFeature> holes, HoleFeature datumPin, DimensionRuleConfig config)
+	private static IList<HoleCalloutPlan> BuildHoleCalloutPlansForPlacement(IEnumerable<HoleFeature> holes, HoleFeature datumPin, DimensionRuleConfig config, DimensionPlan positionPlan)
 	{
 		List<HoleFeature> source = ((holes == null) ? new List<HoleFeature>() : holes.Where((HoleFeature h) => h != null && !h.IsSlotPoint).ToList());
 		DimensionRuleConfig config2 = config;
 		List<HoleFeature2D> list = CadToCoreModelMapper.ToCoreHoles(source);
 		HoleFeature2D datumPin2 = ((datumPin == null) ? null : (list.FirstOrDefault((HoleFeature2D h) => IsSameHoleForCallout(h, datumPin, config)) ?? CadToCoreModelMapper.ToCoreHoles(new HoleFeature[1] { datumPin }).FirstOrDefault()));
-		return new HoleCalloutPlanner(config2).CreatePlans(list, datumPin2);
+		return new HoleCalloutPlanner(config2).CreatePlans(list, datumPin2, positionPlan);
 	}
 
 	private static bool IsSameHoleForCallout(HoleFeature2D a, HoleFeature b, DimensionRuleConfig config)
@@ -1259,7 +1283,7 @@ public sealed class Commands
 		List<HoleFeature2D> holes2 = CadToCoreModelMapper.ToCoreHoles(source);
 		List<SlotFeature2D> slots2 = CadToCoreModelMapper.ToCoreSlots(slots);
 		DimensionPlan dimensionPlan = CreatePlanWithStructureDatumSelection(editor, outline2, datum2, holes2, slots2, config,
-			outputScope != AutoFixDimOutputScope.HoleOnly);
+			outputScope != AutoFixDimOutputScope.HoleOnly && outputScope != AutoFixDimOutputScope.ExceptOutline);
 		drawer.DrawDimensionPlan(FilterDimensionPlan(dimensionPlan, outputScope), dimensionPlan.Diagnostics, datum2);
 		drawer.FlushStackedDimensions(outline);
 		dimensionPlan.SynchronizeFinalPlacementSides();
@@ -1270,14 +1294,19 @@ public sealed class Commands
 		List<HoleFeature2D> holes, List<SlotFeature2D> slots, DimensionRuleConfig config, bool promptForStructure = true)
 	{
 		var planner = new DimensionPlanner(config);
-		var plan = planner.CreateDimensionPlan(outline, datum, holes, slots, CoordinateFrame2D.Identity);
+		// 较长内侧臂面竖直的 L 型在转 90° 的坐标系里规划（只放开 L 型，其余零件仍按 WCS）。
+		var plan = planner.CreateDimensionPlan(outline, datum, holes, slots, CoordinateFrame2D.Identity, allowLProfileQuarterTurn: true);
 		if (!promptForStructure) { return plan; }
-		bool conflictY = plan.Diagnostics.Warnings.Any(w => w.Contains("|Axis=Y|Reason=ConflictingTopBottomBlocks|"));
-		bool conflictX = plan.Diagnostics.Warnings.Any(w => w.Contains("|Axis=X|Reason=ConflictingLeftRightBlocks|"));
-		if (!conflictY && !conflictX) { return plan; }
+		bool localConflictY = plan.Diagnostics.Warnings.Any(w => w.Contains("|Axis=Y|Reason=ConflictingTopBottomBlocks|"));
+		bool localConflictX = plan.Diagnostics.Warnings.Any(w => w.Contains("|Axis=X|Reason=ConflictingLeftRightBlocks|"));
+		if (!localConflictY && !localConflictX) { return plan; }
+		// 警告里的 X/Y 是规划坐标系的轴；提示用户和回写 datum 要用世界的左右、上下。
+		CadAuto.Core.Model.CoordinateFrameModelTransform.TryGetQuarterTurn(plan.CoordinateFrame, out bool swapAxes);
+		bool conflictY = swapAxes ? localConflictX : localConflictY;
+		bool conflictX = swapAxes ? localConflictY : localConflictX;
 		if (conflictY) { datum.StructureDatumMinimumY = PromptForStructureDatumMinimum(editor, horizontal: false); }
 		if (conflictX) { datum.StructureDatumMinimumX = PromptForStructureDatumMinimum(editor, horizontal: true); }
-		return planner.CreateDimensionPlan(outline, datum, holes, slots, CoordinateFrame2D.Identity);
+		return planner.CreateDimensionPlan(outline, datum, holes, slots, CoordinateFrame2D.Identity, allowLProfileQuarterTurn: true);
 	}
 
 	private static bool PromptForStructureDatumMinimum(Editor editor, bool horizontal)
@@ -1365,6 +1394,7 @@ public sealed class Commands
 		{
 			// Observability only - never fail the run over style metrics.
 		}
+		diagnosticRunContext.OutlineSelectionDecisions.AddRange(selection?.SelectionDecisions ?? Enumerable.Empty<string>());
 		IEnumerable<ObjectId> source = selection?.SelectedIds ?? Enumerable.Empty<ObjectId>();
 		IEnumerable<ObjectId> second = holeSourceIds ?? Enumerable.Empty<ObjectId>();
 		ObjectId objectId = ((datum?.DatumHole == null) ? ObjectId.Null : (!datum.DatumHole.CircleId.IsNull ? datum.DatumHole.CircleId : datum.DatumHole.SourceId));
@@ -1693,6 +1723,7 @@ public sealed class Commands
 		AppendJsonProperty(builder, 2, "selectedGeometryBoundsStatus", context.SelectedGeometryBoundsStatus, comma: true);
 		AppendDiagnosticBounds(builder, 2, "selectedGeometryBoundsWcs", context.SelectedGeometryBoundsWcs, comma: true);
 		AppendDiagnosticBounds(builder, 2, "recognizedOutlineBoundsWcs", context.RecognizedOutlineBoundsWcs, comma: true);
+		AppendStringArray(builder, 2, "outlineSelectionDecisions", context.OutlineSelectionDecisions, comma: true);
 		AppendJsonProperty(builder, 2, "centerlineEndpointCount", context.CenterlineEndpoints.Count, comma: true);
 		AppendDiagnosticCenterlineEndpoints(builder, 2, context.CenterlineEndpoints, comma: false);
 		AppendIndent(builder, 1);
@@ -2093,6 +2124,8 @@ public sealed class Commands
 		{
 			AutoFixDimOutputScope.OutlineOnly => IsOutlineDimension(dimension),
 			AutoFixDimOutputScope.HoleOnly => IsHoleDimension(dimension) || IsSlotDimension(dimension),
+			AutoFixDimOutputScope.ExceptOutline => IsHoleDimension(dimension) || IsSlotDimension(dimension)
+				|| dimension.Role == DimensionCandidateRole.Hole || dimension.Role == DimensionCandidateRole.Pin || dimension.Role == DimensionCandidateRole.Slot,
 			_ => outputScope == AutoFixDimOutputScope.All,
 		};
 	}

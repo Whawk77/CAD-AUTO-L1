@@ -32,6 +32,17 @@ public sealed class ExtensionLineRenderPlan
 /// <summary>Pure geometry plan; it never changes dimension definition points or creates centerlines.</summary>
 public static class DimensionExtensionLineRules
 {
+	public static bool ExceedsLengthLimit(Point2D first, Point2D second, Point2D dimLinePoint,
+		double rotation, out double maximumLength)
+	{
+		double normalX = -Math.Sin(rotation), normalY = Math.Cos(rotation);
+		double firstLength = Math.Abs((first.X - dimLinePoint.X) * normalX + (first.Y - dimLinePoint.Y) * normalY);
+		double secondLength = Math.Abs((second.X - dimLinePoint.X) * normalX + (second.Y - dimLinePoint.Y) * normalY);
+		maximumLength = Math.Max(firstLength, secondLength);
+		// Allow floating-point roundoff at the exact model-space limit, independent of annotation scale.
+		return !Finite(maximumLength) || maximumLength > DimensionRuleConfig.MaximumDimensionExtensionLineLength + 1E-9;
+	}
+
 	private sealed class Candidate
 	{
 		public int Index;

@@ -32,8 +32,8 @@ public sealed partial class DimensionPlanner
 				width = new StructurePlacementAdapter(_config).CreateStructureCandidate(notch);
 				if (FindBoundaryInformationProof(plan, outline, width, includeOutlineSegments: true) == null) { continue; }
 			}
-			bool minimum = ChooseStepDatumMinimum(plan, boundary, datum, horizontal,
-				PreferMinimumStepDatum(boundary, new[] { notch.T0, notch.T1 }, horizontal, width.Side), out var markers, out string reason);
+			bool minimum = ChooseStructureDatumMinimum(plan, boundary, datum, horizontal,
+				() => PreferMinimumStepDatum(boundary, new[] { notch.T0, notch.T1 }, horizontal, width.Side), out var markers, out string reason);
 			double reference = horizontal ? minimum ? boundary.MinX : boundary.MaxX : minimum ? boundary.MinY : boundary.MaxY;
 			var supports = boundary.Segments.Where(e => !e.IsArcChord && (horizontal ? e.IsVertical(tol) : e.IsHorizontal(tol))
 				&& Math.Abs(axis(e.Start) - reference) <= tol).ToList();

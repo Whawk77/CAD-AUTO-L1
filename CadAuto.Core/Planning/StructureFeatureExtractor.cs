@@ -53,8 +53,18 @@ public sealed class StructureFeatureExtractor
 			return features;
 		}
 
-		foreach (Segment2D segment in outline.Segments)
+		var runsBySegment = boundaryEvidence.MapAxisSegments(outline);
+		var processedRuns = new HashSet<BoundaryLineRun>();
+		foreach (Segment2D sourceSegment in outline.Segments)
 		{
+			var segment = sourceSegment;
+			List<string> runSources = null;
+			if (segment != null && runsBySegment.TryGetValue(segment, out var run))
+			{
+				if (!processedRuns.Add(run)) { continue; }
+				segment = new Segment2D(run.Start, run.End) { SourceKey = run.Edges[0].SourceKey };
+				runSources = BoundaryLineRuns.SourceKeys(run.Edges);
+			}
 			if (segment == null || segment.IsArcChord)
 			{
 				continue;
@@ -94,6 +104,7 @@ public sealed class StructureFeatureExtractor
 					Confidence = inset ? 0.85 : 1.0,
 					SupportSourceKeys = { segment.SourceKey ?? string.Empty }
 				});
+				if (runSources != null) { features[features.Count - 1].SupportSourceKeys.AddRange(runSources.Where(s => s != segment.SourceKey)); }
 			}
 			else if (segment.IsVertical(tol))
 			{
@@ -128,6 +139,7 @@ public sealed class StructureFeatureExtractor
 					Confidence = inset ? 0.9 : 1.0,
 					SupportSourceKeys = { segment.SourceKey ?? string.Empty }
 				});
+				if (runSources != null) { features[features.Count - 1].SupportSourceKeys.AddRange(runSources.Where(s => s != segment.SourceKey)); }
 			}
 		}
 
@@ -193,11 +205,13 @@ public sealed class StructureFeatureExtractor
 
 		foreach (var groove in features.Where(f => f.SourceKey != null && f.SourceKey.StartsWith("StepGroove:", StringComparison.Ordinal)))
 		{
+			// 侧壁是内部线的"槽"不是真实结构，不再做边界恢复；容差与收集槽壁时一致。
+			if (boundaryEvidence != null && boundaryEvidence.RejectGrooveWithoutBoundaryWalls(groove, maxBridge, Math.Max(tol * 4.0, 1.0))) { continue; }
 			boundaryEvidence.AttachRecoveredGroove(groove, maxBridge);
 		}
 		AssignChainsAndClassify(features, outline, microGap, tol);
 		features.AddRange(unsupported);
-		boundaryEvidence?.ApplyAttachmentEvidence(features);
+		boundaryEvidence?.ApplyAttachmentEvidence(features, outline);
 		StructureBoundaryEvidence.EnforceSelection(features);
 		return features;
 	}
@@ -342,7 +356,7 @@ public sealed class StructureFeatureExtractor
 					&& (f.SourceKey == null || !f.SourceKey.StartsWith("InnerBoss", StringComparison.Ordinal))
 					&& (f.SourceKey == null || !f.SourceKey.StartsWith("StepGroove", StringComparison.Ordinal)))
 				.ToList();
-			AddBossLedgesFromSegments(ledges, features, outline, axis, tipIsHorizontal, axisOverall, envelopeBand, minSpan, tol);
+			AddBossLedgesFromSegments(ledges, features, outline, axis, tipIsHorizontal, axisOverall, envelopeBand, minSpan, tol, boundaryEvidence);
 			foreach (StructureFeature tip in tips)
 			{
 				double t0 = Math.Min(tip.T0, tip.T1);
@@ -642,7 +656,8 @@ public sealed class StructureFeatureExtractor
 		double axisOverall,
 		double envelopeBand,
 		double minSpan,
-		double tol)
+		double tol,
+		StructureBoundaryEvidence boundaryEvidence)
 	{
 		if (outline?.Segments == null || ledges == null)
 		{
@@ -700,6 +715,16 @@ public sealed class StructureFeatureExtractor
 				Confidence = 0.93,
 				SourceKey = s.SourceKey
 			};
+			// 内部线不是台阶面：交给 EnforceSelection 按外轮廓规则去掉（2026-11-02 用户确认）。
+			// 仍保留在 ledges 里，RecoverInnerBossGroove 可以把它改写成经过验证的内凸台槽路径。
+			if (boundaryEvidence != null && boundaryEvidence.IsAvailable && boundaryEvidence.GetMembership(s) == "NonBoundary")
+			{
+				ledge.RequiresOuterBoundarySupport = true;
+				ledge.BoundaryMembership = "NonBoundary";
+				ledge.BoundaryAttachmentValidity = false;
+				ledge.BoundaryEvidence = "StructureBoundary|Relation=BossLedgeSegment|Membership=NonBoundary|Source=" + s.SourceKey;
+				ledge.SupportSourceKeys.Add(s.SourceKey);
+			}
 			ledges.Add(ledge);
 			features.Add(ledge);
 		}

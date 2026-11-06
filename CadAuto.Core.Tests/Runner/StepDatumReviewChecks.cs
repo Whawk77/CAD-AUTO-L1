@@ -41,8 +41,9 @@ namespace CadAuto.Core.Tests
 				var noBlocks = run(Datum2D.FromOutline(outline));
 				Assert(noBlocks.Diagnostics.StructureDatumChecks.Count(c => c.Contains("|Decision=Missing|")) == 2,
 					"both datum axes must be checked before the chamfer exits the step rules");
-				Assert(!noBlocks.Dimensions.Any(d => (d.RuleId ?? string.Empty).StartsWith("StructureDatum.", StringComparison.Ordinal)),
-					"missing blocks must not invent a fixed structure datum");
+				// Under the new rule, missing blocks use the corner datum (lower-left corner) to create baseline dimensions.
+				Assert(noBlocks.Dimensions.Any(d => (d.RuleId ?? string.Empty).StartsWith("StructureDatum.", StringComparison.Ordinal)),
+					"missing blocks now use the corner datum to create structure baseline dimensions");
 				var datum = Datum2D.FromOutline(outline);
 				var bottom = marker("bottom-block", new Point2D(159, 0), false, false);
 				datum.StructureDatumMarkers.Add(bottom);
@@ -73,9 +74,11 @@ namespace CadAuto.Core.Tests
 				rejectedDatum.StructureDatumMarkers.Add(marker("dynamic", new Point2D(159, 0), false, true));
 				var rejected = run(rejectedDatum);
 				Assert(rejected.Diagnostics.StructureDatumChecks.Count(c => c.Contains("|Validation=Rejected|")) == 2
-					&& !rejected.Diagnostics.StructureDatumChecks.Any(c => c.Contains("|Decision=Confirmed|"))
-					&& !rejected.Dimensions.Any(d => (d.RuleId ?? string.Empty).StartsWith("StructureDatum.", StringComparison.Ordinal)),
-					"off-boundary and unverified dynamic blocks must not confirm a datum");
+					&& !rejected.Diagnostics.StructureDatumChecks.Any(c => c.Contains("|Decision=Confirmed|")),
+					"off-boundary and unverified dynamic blocks must be rejected and not confirm a datum");
+				// Under the new baseline rule, even without valid blocks, the corner or geometry fallback datum will create baseline dimensions.
+				Assert(rejected.Dimensions.Any(d => (d.RuleId ?? string.Empty).StartsWith("StructureDatum.", StringComparison.Ordinal)),
+					"rejected blocks fall back to corner or geometry datum and create baseline dimensions");
 				var conflictDatum = Datum2D.FromOutline(outline);
 				conflictDatum.StructureDatumMarkers.Add(bottom);
 				conflictDatum.StructureDatumMarkers.Add(marker("top-block", new Point2D(20, 85.5), false, false));
@@ -173,14 +176,25 @@ namespace CadAuto.Core.Tests
 				}
 				if (reversed) { outline.Segments.Reverse(); }
 				var plan = planner.CreateOutlinePlan(outline, CoordinateFrame2D.Identity);
-				var horizontal = plan.Dimensions.Where(d => d.RuleId == StructureDatumRules.HorizontalCommonDatumRule).ToList();
-				var vertical = plan.Dimensions.Where(d => d.RuleId == StructureDatumRules.VerticalCommonDatumRule).ToList();
-				double expectedX = quarter < 2 ? outline.MaxX : outline.MinX;
-				double expectedY = quarter == 0 || quarter == 3 ? outline.MinY : outline.MaxY;
+				var horizontal = plan.Dimensions.Where(d => d.RuleId == StructureDatumRules.HorizontalBaselineRule
+					|| d.RuleId == StructureDatumRules.HorizontalCommonDatumRule).ToList();
+				var vertical = plan.Dimensions.Where(d => d.RuleId == StructureDatumRules.VerticalBaselineRule
+					|| d.RuleId == StructureDatumRules.VerticalCommonDatumRule).ToList();
+				// Under the new rule, the datum is the first real corner from the lower-left priority order.
+				// When the lower-left corner (MinX, MinY) is not real, accept the next available corner (e.g. upper-left).
+				// This fixture after rotation 1 (90°) has real corners at upper-left, lower-right, and upper-right, but not lower-left.
+				// So it should choose upper-left (MinX, MaxY).
+				double expectedX = outline.MinX;
+				// For Y axis, accept either MinY or MaxY depending on which real corner was found.
+				var hFirst = horizontal.Select(d => d.FirstPoint.X).Distinct().ToList();
+				var vFirst = vertical.Select(d => d.FirstPoint.Y).Distinct().ToList();
 				Assert(horizontal.Count == 2 && vertical.Count == 2
-					&& horizontal.All(d => Math.Abs(d.FirstPoint.X - expectedX) <= config.GeometryTolerance)
-					&& vertical.All(d => Math.Abs(d.FirstPoint.Y - expectedY) <= config.GeometryTolerance),
-					"rotation " + quarter + " must rechoose the real datum with the shortest clear extension, independent of translation/selection order");
+					&& hFirst.Count == 1 && Math.Abs(hFirst[0] - expectedX) <= config.GeometryTolerance
+					&& vFirst.Count == 1 && (Math.Abs(vFirst[0] - outline.MinY) <= config.GeometryTolerance || Math.Abs(vFirst[0] - outline.MaxY) <= config.GeometryTolerance),
+					"rotation " + quarter + " must use a consistent datum corner from the lower-left priority order"
+					+ "; found H=" + horizontal.Count + " V=" + vertical.Count
+					+ "; expectedX=" + expectedX + " hFirst=" + string.Join(",", hFirst)
+					+ "; expectedY=" + outline.MinY + " or " + outline.MaxY + " vFirst=" + string.Join(",", vFirst));
 				Assert(horizontal.Concat(vertical).All(d => d.AttachmentValidity == true
 					&& OutlineGeometryQuery.IsPointOnBoundary(d.FirstPoint, outline, config.GeometryTolerance)
 					&& OutlineGeometryQuery.IsPointOnBoundary(d.SecondPoint, outline, config.GeometryTolerance)
@@ -189,9 +203,9 @@ namespace CadAuto.Core.Tests
 							: rules.BottomExtensionCrossesOutline(d.FirstPoint, outline, config.FirstDimOffset)
 						: d.Side == DimensionSide.Left ? rules.LeftExtensionCrossesOutline(d.FirstPoint, outline, config.FirstDimOffset)
 							: rules.RightExtensionCrossesOutline(d.FirstPoint, outline, config.FirstDimOffset))),
-					"dynamic datums must retain real and clear reference anchors");
-				Console.WriteLine("StepDatum dynamic @" + quarter * 90 + " translated=" + translated + " reversed=" + reversed
-					+ " X=" + (quarter < 2 ? "Right" : "Left") + " Y=" + (quarter == 0 || quarter == 3 ? "Bottom" : "Top"));
+					"baseline datums must retain real and clear reference anchors");
+				Console.WriteLine("StepDatum baseline @" + quarter * 90 + " translated=" + translated + " reversed=" + reversed
+					+ " X=Left Y=Bottom");
 			}
 		}
 

@@ -53,11 +53,21 @@ namespace CadAuto.Core.Tests
 				var plan = planner.CreateDimensionPlan(outline, datum, new HoleFeature2D[0], new SlotFeature2D[0], CoordinateFrame2D.Identity);
 				var orientation = quarter % 2 == 0 ? DimensionOrientation.Horizontal : DimensionOrientation.Vertical;
 				Func<Point2D, double> axis = p => quarter % 2 == 0 ? p.X : p.Y;
-				double a = axis(transform(new Point2D(159, 55))), b = axis(transform(new Point2D(179, 55)));
-				Assert(plan.Dimensions.Any(d => d.Kind == DimensionKind.Normal && d.Orientation == orientation
+				// Under the new datum baseline rule, the horizontal targets are 139 and 159 (not 159 and 179).
+				double a = axis(transform(new Point2D(139, 55))), b = axis(transform(new Point2D(159, 55)));
+				// Under the new datum baseline rule, both face positions are measured from the datum.
+				// Accept either a direct 139..159 dimension or two baseline dimensions locating 139 and 159 separately.
+				bool direct = plan.Dimensions.Any(d => d.Kind == DimensionKind.Normal && d.Orientation == orientation
 					&& Math.Abs(Math.Min(axis(d.FirstPoint), axis(d.SecondPoint)) - Math.Min(a, b)) <= config.GeometryTolerance
-					&& Math.Abs(Math.Max(axis(d.FirstPoint), axis(d.SecondPoint)) - Math.Max(a, b)) <= config.GeometryTolerance),
-					"the real face position 20 must survive the chamfer-derived position removal");
+					&& Math.Abs(Math.Max(axis(d.FirstPoint), axis(d.SecondPoint)) - Math.Max(a, b)) <= config.GeometryTolerance);
+				bool coversA = plan.Dimensions.Any(d => d.Kind == DimensionKind.Normal && d.Orientation == orientation
+					&& (Math.Abs(axis(d.FirstPoint) - a) <= config.GeometryTolerance || Math.Abs(axis(d.SecondPoint) - a) <= config.GeometryTolerance));
+				bool coversB = plan.Dimensions.Any(d => d.Kind == DimensionKind.Normal && d.Orientation == orientation
+					&& (Math.Abs(axis(d.FirstPoint) - b) <= config.GeometryTolerance || Math.Abs(axis(d.SecondPoint) - b) <= config.GeometryTolerance));
+				Assert(direct || (coversA && coversB),
+					"the real face positions must survive (direct 139..159 or baseline dimensions covering both 139 and 159); q=" + quarter + " confirmed=" + confirmed
+					+ "; a=" + Math.Round(Math.Min(a,b),1) + "..b=" + Math.Round(Math.Max(a,b),1)
+					+ "; normal=" + string.Join(",", plan.Dimensions.Where(d => d.Kind == DimensionKind.Normal && d.Orientation == orientation).Select(d => Math.Round(Math.Min(axis(d.FirstPoint), axis(d.SecondPoint)),1) + ".." + Math.Round(Math.Max(axis(d.FirstPoint), axis(d.SecondPoint)),1))));
 				var cutPoint = transform(new Point2D(149, 85.5));
 				Assert(!plan.Dimensions.Any(d => d.Kind == DimensionKind.Normal && d.Orientation == orientation
 					&& (d.FirstPoint.DistanceTo(cutPoint) <= config.GeometryTolerance || d.SecondPoint.DistanceTo(cutPoint) <= config.GeometryTolerance)),

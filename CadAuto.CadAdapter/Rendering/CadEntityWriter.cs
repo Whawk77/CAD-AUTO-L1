@@ -271,11 +271,15 @@ public sealed class CadEntityWriter
 		return Math.Max(0, Math.Min(8, dimStyleTableRecord.Dimdec));
 	}
 
+	// 本次写入的对象（托压块 TY 标注避让用来找 ASD 新画的尺寸）。
+	public List<ObjectId> AppendedIds { get; } = new List<ObjectId>();
+
 	public void Append(Entity entity)
 	{
 		_space.AppendEntity(entity);
 		_transaction.AddNewlyCreatedDBObject(entity, add: true);
 		AnnotationMetadata.Mark(entity, _groupId, _kind);
+		AppendedIds.Add(entity.ObjectId);
 	}
 
 	public double Scale(double value)

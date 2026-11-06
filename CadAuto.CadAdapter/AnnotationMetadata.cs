@@ -29,6 +29,9 @@ public static class AnnotationMetadata
 
 	public const string KindCoreDebug = "CoreDebug";
 
+	// TY/TY1/TY2 生成的托压块标注。ASD 框选到它时按托压块规则规划；ASD4 清除旧标注时不删除它。
+	public const string KindSupportBlock = "SupportBlock";
+
 	public static void EnsureRegApp(Database db, Transaction tr)
 	{
 		RegAppTable regAppTable = (RegAppTable)tr.GetObject(db.RegAppTableId, OpenMode.ForRead);

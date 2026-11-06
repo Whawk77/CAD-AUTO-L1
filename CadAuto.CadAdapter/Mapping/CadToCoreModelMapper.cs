@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Autodesk.AutoCAD.Geometry;
 using CadAuto.CadAdapter.Model;
 using CadAuto.Core.Geometry;
@@ -52,7 +53,8 @@ public static class CadToCoreModelMapper
 				DeltaY = chamfer.DeltaY,
 				Value = chamfer.Value,
 				Text = chamfer.Text,
-				Confidence = chamfer.Confidence
+				Confidence = chamfer.Confidence,
+				SourceGeometryIds = chamfer.SourceIds.Select(id => id.ToString()).ToList()
 			});
 		}
 		foreach (FilletFeature fillet in source.Fillets)

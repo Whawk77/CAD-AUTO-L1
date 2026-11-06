@@ -76,6 +76,12 @@ public sealed partial class DimensionPlanner
 				plan.Diagnostics.Warnings.Add("LProfile.NotApplied|Reason=RoundedRectangle");
 				return;
 			}
+			// 统一形状判定已否决的轮廓不再尝试旧的直接匹配，只记录判定依据。
+			if (outerContourFailure.StartsWith("LProfileShape=NotLProfile|", StringComparison.Ordinal))
+			{
+				plan.Diagnostics.Warnings.Add("LProfile.NotApplied|Stage=Shape|" + outerContourFailure);
+				return;
+			}
 			string legacyDirectFailure;
 			LProfileMatch.TryCreate(outline, _config.GeometryTolerance, out legacyDirectFailure);
 			string legacyTransposedFailure;
@@ -351,6 +357,26 @@ public sealed partial class DimensionPlanner
 			new[] { totalHeight, horizontalArmHeight },
 			heightCoverage.SourceGeometryIds,
 			heightSuppressionEvidence);
+		// 台阶立面自身的线段尺寸与被覆盖的台阶高度是同一区间（总臂高 − 臂高），一并去掉，避免尺寸链封闭。
+		SuppressSameIntervalOutlineSegments(plan, heightCoverage.Residual, LProfileCoveredStepHeightRuleId,
+			new[] { totalHeight, horizontalArmHeight }, heightCoverage.SourceGeometryIds, heightSuppressionEvidence);
+	}
+
+	private void SuppressSameIntervalOutlineSegments(DimensionPlan plan, PlannedDimension residual, string ruleId,
+		IList<PlannedDimension> covering, IEnumerable<string> sourceGeometryIds, string evidence)
+	{
+		if (residual == null) { return; }
+		double tol = _config.GeometryTolerance;
+		bool vertical = residual.Orientation == DimensionOrientation.Vertical;
+		Func<PlannedDimension, double> low = d => vertical ? Math.Min(d.FirstPoint.Y, d.SecondPoint.Y) : Math.Min(d.FirstPoint.X, d.SecondPoint.X);
+		Func<PlannedDimension, double> high = d => vertical ? Math.Max(d.FirstPoint.Y, d.SecondPoint.Y) : Math.Max(d.FirstPoint.X, d.SecondPoint.X);
+		foreach (PlannedDimension duplicate in plan.Dimensions.Where(d => !ReferenceEquals(d, residual)
+			&& d.Orientation == residual.Orientation && d.DebugRole == "OutlineSegment"
+			&& Math.Abs(low(d) - low(residual)) <= tol && Math.Abs(high(d) - high(residual)) <= tol).ToList())
+		{
+			plan.TrySuppressCoveredStructure(duplicate, ruleId, covering, sourceGeometryIds,
+				evidence + "|SameIntervalOutlineSegment", allowOutlineSegment: true);
+		}
 	}
 
 	private LProfileStepCoverageEvidence TryBuildLProfileHorizontalStepCoverage(
@@ -3782,7 +3808,8 @@ public sealed partial class DimensionPlanner
 				StartPoint = new Point2D(chamfer.StartPoint.Y, chamfer.StartPoint.X),
 				EndPoint = new Point2D(chamfer.EndPoint.Y, chamfer.EndPoint.X),
 				Length = chamfer.Length, DeltaX = chamfer.DeltaY, DeltaY = chamfer.DeltaX,
-				Value = chamfer.Value, Text = chamfer.Text, Confidence = chamfer.Confidence
+				Value = chamfer.Value, Text = chamfer.Text, Confidence = chamfer.Confidence,
+				SourceGeometryIds = new List<string>(chamfer.SourceGeometryIds)
 			});
 		}
 		return target;
@@ -3849,6 +3876,13 @@ public sealed partial class DimensionPlanner
 			if (turns.Count == 0)
 			{
 				failureReason = "EffectiveConcaveTurnCount=0";
+				return null;
+			}
+			// 是否 L 型统一由 LProfileShapeRules 判定，与基准基线规则共用同一结论。
+			LProfileShape shape = LProfileShapeRules.Classify(diagnostic, tolerance, DimensionRuleConfig.LProfileLocalStepMaxDepthRatio);
+			if (!shape.IsLProfile)
+			{
+				failureReason = shape.Evidence;
 				return null;
 			}
 			LProfileConcaveTurn primaryTurn = turns[0];
@@ -5399,10 +5433,13 @@ public sealed partial class DimensionPlanner
 							|| (e.Segment.Start.DistanceTo(end) <= tolerance && e.Segment.End.DistanceTo(start) <= tolerance)));
 					if (duplicate != null)
 					{
-						if (!duplicate.SourceKeys.Contains(segment.SourceKey)) { duplicate.SourceKeys.Add(segment.SourceKey); }
+						foreach (var key in (segment.SourceKeys ?? new List<string>()).Prepend(segment.SourceKey))
+						{
+							if (!duplicate.SourceKeys.Contains(key)) { duplicate.SourceKeys.Add(key); }
+						}
 						continue;
 					}
-					var part = distinct.Count == 2 ? segment : new Segment2D(start, end) { SourceKey = segment.SourceKey };
+					var part = distinct.Count == 2 ? segment : new Segment2D(start, end) { SourceKey = segment.SourceKey, SourceKeys = segment.SourceKeys };
 					AddEdge(new LProfileEdge { Segment = part }, start, end, tolerance);
 				}
 			}
@@ -5411,6 +5448,11 @@ public sealed partial class DimensionPlanner
 		private void AddEdge(LProfileEdge edge, Point2D start, Point2D end, double tolerance)
 		{
 			edge.SourceKeys.Add(edge.SourceKey);
+			// 规划入口合并过的碎段带有全部原图元来源。
+			foreach (var key in edge.Segment?.SourceKeys ?? edge.Arc?.SourceKeys ?? new List<string>())
+			{
+				if (!string.IsNullOrEmpty(key) && !edge.SourceKeys.Contains(key)) { edge.SourceKeys.Add(key); }
+			}
 			edge.Id = AllEdges.Count;
 			edge.StartNode = GetNode(start, tolerance);
 			edge.EndNode = GetNode(end, tolerance);

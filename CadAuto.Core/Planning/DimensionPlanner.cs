@@ -194,24 +194,72 @@ public sealed partial class DimensionPlanner
 		OutlineFeature2D localOutline = frame.IsIdentity
 			? outline
 			: CoordinateFrameModelTransform.ToLocal(outline, frame, _config.GeometryTolerance);
+		localOutline = MergeOutlineFragments(localOutline, out List<string> fragmentRecords);
+		string supportBlockRecord = null;
+		if (_config.SupportBlockMode) { localOutline = PrepareSupportBlockOutline(localOutline, out supportBlockRecord); }
 		DimensionPlan dimensionPlan = CreateOutlinePlanLocal(localOutline);
+		dimensionPlan.Diagnostics.Warnings.AddRange(fragmentRecords);
+		if (supportBlockRecord != null) { dimensionPlan.Diagnostics.Warnings.Add(supportBlockRecord); }
 		dimensionPlan.CoordinateFrame = frame;
 		return dimensionPlan;
 	}
 
 	public DimensionPlan CreateOutlinePlan(OutlineFeature2D outline, CoordinateFrame2D coordinateFrame)
 	{
+		return CreateOutlinePlan(outline, coordinateFrame, allowLProfileQuarterTurn: false);
+	}
+
+	public DimensionPlan CreateOutlinePlan(OutlineFeature2D outline, CoordinateFrame2D coordinateFrame, bool allowLProfileQuarterTurn)
+	{
 		if (outline == null)
 		{
 			throw new ArgumentNullException("outline");
 		}
 		CoordinateFrame2D frame = coordinateFrame ?? CoordinateFrame2D.InferFromOutline(outline, _config.GeometryTolerance);
+		string frameRecord = null;
+		if (allowLProfileQuarterTurn) { frame = ResolveLProfileQuarterTurnFrame(outline, frame, out frameRecord); }
 		OutlineFeature2D localOutline = frame.IsIdentity
 			? outline
 			: CoordinateFrameModelTransform.ToLocal(outline, frame, _config.GeometryTolerance);
+		localOutline = MergeOutlineFragments(localOutline, out List<string> fragmentRecords);
+		string supportBlockRecord = null;
+		if (_config.SupportBlockMode) { localOutline = PrepareSupportBlockOutline(localOutline, out supportBlockRecord); }
 		DimensionPlan dimensionPlan = CreateOutlinePlanLocal(localOutline);
+		dimensionPlan.Diagnostics.Warnings.AddRange(fragmentRecords);
+		if (supportBlockRecord != null) { dimensionPlan.Diagnostics.Warnings.Add(supportBlockRecord); }
+		if (frameRecord != null) { dimensionPlan.Diagnostics.Warnings.Add(frameRecord); }
 		dimensionPlan.CoordinateFrame = frame;
 		return dimensionPlan;
+	}
+
+	// L 型规则只在"较长内侧臂面水平"的朝向下验证正确（0°、180° 及镜像）。较长内侧臂面竖直时，
+	// 改在转 90° 的坐标系里规划，渲染器按 plan.CoordinateFrame 换回 WCS（用户 2026-11-02 选定 A1）。
+	// 只在调用方给的是 WCS（Identity）时生效；斜放零件的坐标系不在此处改变。
+	private CoordinateFrame2D ResolveLProfileQuarterTurnFrame(OutlineFeature2D outline, CoordinateFrame2D frame, out string record)
+	{
+		record = null;
+		if (frame == null || !frame.IsIdentity)
+		{
+			return frame;
+		}
+		double tol = _config.GeometryTolerance;
+		OutlineFeature2D merged = MergeOutlineFragments(outline, out List<string> _);
+		LProfileShape shape = LProfileShapeRules.Classify(InspectOutlineTopology(merged, tol), tol, DimensionRuleConfig.LProfileLocalStepMaxDepthRatio);
+		if (!shape.IsLProfile || shape.InnerVerticalLength <= shape.InnerHorizontalLength + tol)
+		{
+			return frame;
+		}
+		// 局部 X 轴 = 世界 +Y：局部坐标 (x, y) = (世界 y, -世界 x)，较长内侧臂面在局部坐标系里水平。
+		record = "CoordinateFrame.LProfileQuarterTurn|Angle=90|" + shape.Evidence;
+		return new CoordinateFrame2D(new Point2D(0.0, 0.0), new Point2D(0.0, 1.0));
+	}
+
+	// 断开但端点重合的碎段在规划时视为一条边（只改插件内存模型，不改 CAD 图纸）。
+	private OutlineFeature2D MergeOutlineFragments(OutlineFeature2D outline, out List<string> records)
+	{
+		var merge = OutlineFragmentRules.Merge(outline, _config.GeometryTolerance, value => _config.FormatNumber(value));
+		records = merge.Records;
+		return merge.Outline;
 	}
 
 	private DimensionPlan CreateOutlinePlanLocal(OutlineFeature2D outline, Datum2D structureDatum = null)
@@ -227,6 +275,13 @@ public sealed partial class DimensionPlanner
 			out lProfileOuterContourFailure,
 			out outlineTopology);
 		dimensionPlan.Diagnostics.OutlineTopology = outlineTopology;
+		// T 型托压块只走自己的规则（用户 2026-11-05）；其他托压块形状照常规划。
+		if (_config.SupportBlockMode && TryAddSupportBlockTDimensions(dimensionPlan, outline))
+		{
+			_postValidator.Validate(dimensionPlan, outline);
+			dimensionPlan.CaptureFinalDimensions();
+			return dimensionPlan;
+		}
 		structureDatum = structureDatum ?? Datum2D.FromOutline(outline);
 		InspectStructureDatumBlocks(dimensionPlan, structureDatum);
 		AddOverallWidth(dimensionPlan, outline);
@@ -253,12 +308,20 @@ public sealed partial class DimensionPlanner
 		ApplyLProfileOverallSplitByFilletRule(dimensionPlan, outline, lProfileOuterContour);
 		SuppressDuplicateDimensions(dimensionPlan, outline);
 		ResolveStructureExtensionAttachments(dimensionPlan, outline);
-		ApplyVerticalStepDatumDimensions(dimensionPlan, outline, structureDatum);
-		ApplyHorizontalStepDatumDimensions(dimensionPlan, outline, structureDatum);
+		bool datumBaseline = ApplyDatumBaselineStructureDimensions(dimensionPlan, outline, structureDatum);
+		if (!datumBaseline)
+		{
+			ApplyVerticalStepDatumDimensions(dimensionPlan, outline, structureDatum);
+			ApplyHorizontalStepDatumDimensions(dimensionPlan, outline, structureDatum);
+		}
 		ResolveStructureExtensionAttachments(dimensionPlan, outline);
-		ApplyConfirmedStructureDatumDimensions(dimensionPlan, structureDatum);
+		if (!datumBaseline)
+		{
+			ApplyConfirmedStructureDatumDimensions(dimensionPlan, structureDatum);
+		}
 		SuppressChamferDerivedStructurePositions(dimensionPlan, outline);
 		EnsureNotchOpeningLocations(dimensionPlan, outline, structureDatum);
+		if (_config.SupportBlockMode) { SuppressSupportBlockDerivableDimensions(dimensionPlan, outline); }
 		_postValidator.Validate(dimensionPlan, outline);
 		AuditBoundaryInformationPlan(dimensionPlan, outline);
 		dimensionPlan.CaptureFinalDimensions();
@@ -283,7 +346,7 @@ public sealed partial class DimensionPlanner
 			matchedCaseId = new AnnotationCaseOverlay(store).Apply(features, outline);
 		}
 		// A case overlay cannot turn an unsupported internal edge back into an outer contour dimension.
-		boundaryEvidence.ApplyAttachmentEvidence(features);
+		boundaryEvidence.ApplyAttachmentEvidence(features, outline);
 		StructureBoundaryEvidence.EnforceSelection(features);
 		foreach (var rejected in features.Where(f => f.RequiresOuterBoundarySupport && !f.Keep
 			&& (f.BoundaryMembership != "Boundary" || f.BoundaryAttachmentValidity != true)))
@@ -324,11 +387,18 @@ public sealed partial class DimensionPlanner
 
 	public DimensionPlan CreateDimensionPlan(OutlineFeature2D outline, Datum2D datum, IEnumerable<HoleFeature2D> holes, IEnumerable<SlotFeature2D> slots, CoordinateFrame2D coordinateFrame)
 	{
+		return CreateDimensionPlan(outline, datum, holes, slots, coordinateFrame, allowLProfileQuarterTurn: false);
+	}
+
+	public DimensionPlan CreateDimensionPlan(OutlineFeature2D outline, Datum2D datum, IEnumerable<HoleFeature2D> holes, IEnumerable<SlotFeature2D> slots, CoordinateFrame2D coordinateFrame, bool allowLProfileQuarterTurn)
+	{
 		if (outline == null)
 		{
 			throw new ArgumentNullException("outline");
 		}
 		CoordinateFrame2D frame = coordinateFrame ?? CoordinateFrame2D.InferFromOutline(outline, _config.GeometryTolerance);
+		string frameRecord = null;
+		if (allowLProfileQuarterTurn) { frame = ResolveLProfileQuarterTurnFrame(outline, frame, out frameRecord); }
 		OutlineFeature2D localOutline = frame.IsIdentity
 			? outline
 			: CoordinateFrameModelTransform.ToLocal(outline, frame, _config.GeometryTolerance);
@@ -341,8 +411,14 @@ public sealed partial class DimensionPlanner
 		List<SlotFeature2D> localSlots = frame.IsIdentity
 			? (slots ?? new SlotFeature2D[0]).Where((SlotFeature2D s) => s != null).ToList()
 			: CoordinateFrameModelTransform.ToLocal(slots, frame);
+		localOutline = MergeOutlineFragments(localOutline, out List<string> fragmentRecords);
+		string supportBlockRecord = null;
+		if (_config.SupportBlockMode) { localOutline = PrepareSupportBlockOutline(localOutline, out supportBlockRecord); }
 		Datum2D datum2 = localDatum ?? Datum2D.FromOutline(localOutline);
 		DimensionPlan dimensionPlan = CreateOutlinePlanLocal(localOutline, datum2);
+		dimensionPlan.Diagnostics.Warnings.AddRange(fragmentRecords);
+		if (supportBlockRecord != null) { dimensionPlan.Diagnostics.Warnings.Add(supportBlockRecord); }
+		if (frameRecord != null) { dimensionPlan.Diagnostics.Warnings.Add(frameRecord); }
 		AddHolePositionDimensions(dimensionPlan, localOutline, datum2, localHoles);
 		AddSlotDimensions(dimensionPlan, localOutline, datum2, localHoles, localSlots);
 		ApplyCenterlineEndpointAttachments(dimensionPlan, datum2, localOutline);

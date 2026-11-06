@@ -92,6 +92,57 @@ public sealed partial class DimensionPlanner
 		return geometricMinimum;
 	}
 
+	private static readonly (bool MinimumX, bool MinimumY)[] DatumCornerOrder = { (true, true), (true, false), (false, true), (false, false) };
+
+	// Without a block the datum is the first real envelope corner (lower-left first) that agrees with any block-confirmed axis.
+	internal bool ChooseStructureDatumMinimum(DimensionPlan plan, OutlineFeature2D boundary, Datum2D datum, bool horizontal,
+		Func<bool> geometryFallback, out List<StructureDatumMarker2D> markers, out string reason)
+	{
+		bool minimum = ChooseStepDatumMinimum(plan, boundary, datum, horizontal, false, out markers, out reason);
+		if (markers.Count > 0) { return minimum; }
+		bool otherMinimum = ChooseStepDatumMinimum(plan, boundary, datum, !horizontal, false, out var otherMarkers, out _, inspectionOnly: true);
+		bool? required = otherMarkers.Count > 0 ? otherMinimum : null;
+		if (TryFindRealDatumCorner(plan.Diagnostics.OutlineTopology, _config.GeometryTolerance,
+			horizontal ? null : required, horizontal ? required : null, out var corner))
+		{
+			reason = "RealDatumCornerLowerLeftFirst";
+			return horizontal ? corner.MinimumX : corner.MinimumY;
+		}
+		string warning = "StepDatum.PendingHumanConfirmation|Axis=" + (horizontal ? "X" : "Y") + "|Reason=NoRealDatumCorner|Fallback=Geometry";
+		if (!plan.Diagnostics.Warnings.Contains(warning)) { plan.Diagnostics.Warnings.Add(warning); }
+		return geometryFallback();
+	}
+
+	internal static bool TryFindRealDatumCorner(OutlineTopologyDiagnostic graph, double tolerance,
+		bool? requiredMinimumX, bool? requiredMinimumY, out (bool MinimumX, bool MinimumY) corner)
+	{
+		// Prefer lower-left (MinX, MinY) when both axes are free (no block confirmation).
+		// When one axis is block-confirmed, accept corners matching that axis constraint.
+		foreach (var candidate in DatumCornerOrder)
+		{
+			if ((requiredMinimumX ?? candidate.MinimumX) != candidate.MinimumX
+				|| (requiredMinimumY ?? candidate.MinimumY) != candidate.MinimumY
+				|| !IsRealEnvelopeCorner(graph, tolerance, candidate.MinimumX, candidate.MinimumY)) { continue; }
+			corner = candidate;
+			return true;
+		}
+		corner = default;
+		return false;
+	}
+
+	// Chamfers and fillets remove the vertex, so only an uncut corner whose two edges lie on both envelope sides qualifies.
+	private static bool IsRealEnvelopeCorner(OutlineTopologyDiagnostic graph, double tolerance, bool minimumX, bool minimumY)
+	{
+		if (graph == null) { return false; }
+		var point = new Point2D(minimumX ? graph.MinX : graph.MaxX, minimumY ? graph.MinY : graph.MaxY);
+		var node = graph.Nodes.FirstOrDefault(n => n.IsBoundary && n.Degree == 2 && n.Point.DistanceTo(point) <= tolerance);
+		if (node == null) { return false; }
+		var edges = graph.Edges.Where(e => e.IsBoundary && e.Kind == "Line" && (e.StartNode == node.Id || e.EndNode == node.Id)).ToList();
+		return edges.Count == 2
+			&& edges.Any(e => Math.Abs(e.Start.Y - point.Y) <= tolerance && Math.Abs(e.End.Y - point.Y) <= tolerance)
+			&& edges.Any(e => Math.Abs(e.Start.X - point.X) <= tolerance && Math.Abs(e.End.X - point.X) <= tolerance);
+	}
+
 	private bool PreferMinimumStepDatum(OutlineFeature2D boundary, IEnumerable<double> targets,
 		bool horizontal, DimensionSide side)
 	{
@@ -155,8 +206,8 @@ public sealed partial class DimensionPlanner
 		}
 		var group = groups[0];
 		var edges = group.Item2;
-		bool minimum = ChooseStepDatumMinimum(plan, boundary, datum, horizontal: true,
-			geometricMinimum: PreferMinimumStepDatum(boundary, edges.Select(e => e.Start.X), horizontal: true, side: group.Item1),
+		bool minimum = ChooseStructureDatumMinimum(plan, boundary, datum, horizontal: true,
+			() => PreferMinimumStepDatum(boundary, edges.Select(e => e.Start.X), horizontal: true, side: group.Item1),
 			out var markers, out string reason);
 		double baseX = minimum ? outline.MinX : outline.MaxX;
 		var supports = boundary.Segments.Where(e => e.IsVertical(tol) && Math.Abs(e.MinX - baseX) <= tol).ToList();
@@ -256,8 +307,8 @@ public sealed partial class DimensionPlanner
 			if (!levels.Any(y => Math.Abs(y - edge.MinY) <= tol)) { levels.Add(edge.MinY); }
 		}
 		if (levels.Count < 2) { return; }
-		bool bottom = ChooseStepDatumMinimum(plan, boundary, datum, horizontal: false,
-			geometricMinimum: PreferMinimumStepDatum(boundary, levels, horizontal: false, side: side),
+		bool bottom = ChooseStructureDatumMinimum(plan, boundary, datum, horizontal: false,
+			() => PreferMinimumStepDatum(boundary, levels, horizontal: false, side: side),
 			out var selectedMarkers, out string datumReason);
 		double baseY = bottom ? outline.MinY : outline.MaxY;
 		var supports = boundary.Segments.Where(e => e.IsHorizontal(tol) && Math.Abs(e.MinY - baseY) <= tol).ToList();

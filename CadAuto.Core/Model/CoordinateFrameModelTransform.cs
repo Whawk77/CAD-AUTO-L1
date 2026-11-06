@@ -82,6 +82,7 @@ public static class CoordinateFrameModelTransform
 				DeltaX = Math.Abs(end.X - start.X),
 				DeltaY = Math.Abs(end.Y - start.Y),
 				Value = chamfer.Value,
+				SourceGeometryIds = new List<string>(chamfer.SourceGeometryIds),
 				Text = chamfer.Text,
 				SourceSegment = chamfer.SourceSegment != null && segmentMap.TryGetValue(chamfer.SourceSegment, out Segment2D transformedSegment)
 					? transformedSegment
@@ -151,6 +152,8 @@ public static class CoordinateFrameModelTransform
 		}
 		CoordinateFrame2D effectiveFrame = frame ?? CoordinateFrame2D.Identity;
 		Point2D localBase = effectiveFrame.ToLocal(new Point2D(source.BaseX, source.BaseY));
+		// 坐标系转 90° 的整数倍时，按轴区分的设置要跟着换轴、换方向；斜坐标系没有对应的轴，保持原值。
+		bool quarterTurn = TryGetQuarterTurn(effectiveFrame, out bool swapAxes);
 		Datum2D target = new Datum2D
 		{
 			BaseX = localBase.X,
@@ -158,16 +161,22 @@ public static class CoordinateFrameModelTransform
 			DatumHole = ToLocal(source.DatumHole, effectiveFrame),
 			PinGroupVerticalLayout = source.PinGroupVerticalLayout,
 			PinGroupHorizontalLayout = source.PinGroupHorizontalLayout,
-			DatumHoleLocationUseToleranceX = source.DatumHoleLocationUseToleranceX,
-			DatumHoleLocationUseToleranceY = source.DatumHoleLocationUseToleranceY
+			DatumHoleLocationUseToleranceX = swapAxes ? source.DatumHoleLocationUseToleranceY : source.DatumHoleLocationUseToleranceX,
+			DatumHoleLocationUseToleranceY = swapAxes ? source.DatumHoleLocationUseToleranceX : source.DatumHoleLocationUseToleranceY
 		};
+		if (quarterTurn)
+		{
+			MapPinGroupLayouts(source, target, effectiveFrame);
+		}
 		if (source.DatumHoleLocationBaseX.HasValue || source.DatumHoleLocationBaseY.HasValue)
 		{
 			Point2D location = effectiveFrame.ToLocal(new Point2D(
 				source.DatumHoleLocationBaseX ?? source.BaseX,
 				source.DatumHoleLocationBaseY ?? source.BaseY));
-			target.DatumHoleLocationBaseX = source.DatumHoleLocationBaseX.HasValue ? location.X : (double?)null;
-			target.DatumHoleLocationBaseY = source.DatumHoleLocationBaseY.HasValue ? location.Y : (double?)null;
+			bool hasLocalX = swapAxes ? source.DatumHoleLocationBaseY.HasValue : source.DatumHoleLocationBaseX.HasValue;
+			bool hasLocalY = swapAxes ? source.DatumHoleLocationBaseX.HasValue : source.DatumHoleLocationBaseY.HasValue;
+			target.DatumHoleLocationBaseX = hasLocalX ? location.X : (double?)null;
+			target.DatumHoleLocationBaseY = hasLocalY ? location.Y : (double?)null;
 		}
 		foreach (CenterlineEndpoint2D endpoint in source.HoleCenterlineEndpoints ?? Enumerable.Empty<CenterlineEndpoint2D>())
 		{
@@ -187,9 +196,61 @@ public static class CoordinateFrameModelTransform
 				BlockName = marker.BlockName, SourceGeometryId = marker.SourceGeometryId,
 				ContactKind = marker.ContactKind, ValidationFailure = marker.ValidationFailure });
 		}
-		target.StructureDatumMinimumX = source.StructureDatumMinimumX;
-		target.StructureDatumMinimumY = source.StructureDatumMinimumY;
+		target.StructureDatumMinimumX = quarterTurn
+			? MapMinimumChoice(source.StructureDatumMinimumX, source.StructureDatumMinimumY, effectiveFrame.UnitX)
+			: source.StructureDatumMinimumX;
+		target.StructureDatumMinimumY = quarterTurn
+			? MapMinimumChoice(source.StructureDatumMinimumX, source.StructureDatumMinimumY, effectiveFrame.UnitY)
+			: source.StructureDatumMinimumY;
 		return target;
+	}
+
+	/// <summary>
+	/// 坐标系的 X 轴与世界 X 轴或 Y 轴重合时返回 true；swapAxes 表示局部 X 对应世界 Y。
+	/// </summary>
+	public static bool TryGetQuarterTurn(CoordinateFrame2D frame, out bool swapAxes)
+	{
+		const double axisTolerance = 1E-9;
+		Point2D unitX = (frame ?? CoordinateFrame2D.Identity).UnitX;
+		swapAxes = false;
+		if (Math.Abs(unitX.Y) <= axisTolerance) { return true; }
+		if (Math.Abs(unitX.X) <= axisTolerance) { swapAxes = true; return true; }
+		return false;
+	}
+
+	// 局部轴 localAxis 的"最小侧"对应世界上哪一侧：沿局部轴正向就是沿某个世界轴的正向或反向。
+	private static bool? MapMinimumChoice(bool? worldMinimumX, bool? worldMinimumY, Point2D localAxis)
+	{
+		bool alongWorldX = Math.Abs(localAxis.X) >= Math.Abs(localAxis.Y);
+		bool? world = alongWorldX ? worldMinimumX : worldMinimumY;
+		double sign = alongWorldX ? localAxis.X : localAxis.Y;
+		if (!world.HasValue) { return null; }
+		return sign > 0 ? world.Value : !world.Value;
+	}
+
+	private static void MapPinGroupLayouts(Datum2D source, Datum2D target, CoordinateFrame2D frame)
+	{
+		target.PinGroupVerticalLayout = PinGroupVerticalLayoutPreference.Automatic;
+		target.PinGroupHorizontalLayout = PinGroupHorizontalLayoutPreference.Automatic;
+		Point2D? vertical = source.PinGroupVerticalLayout == PinGroupVerticalLayoutPreference.Left ? new Point2D(-1, 0)
+			: source.PinGroupVerticalLayout == PinGroupVerticalLayoutPreference.Right ? new Point2D(1, 0) : (Point2D?)null;
+		Point2D? horizontal = source.PinGroupHorizontalLayout == PinGroupHorizontalLayoutPreference.Top ? new Point2D(0, 1)
+			: source.PinGroupHorizontalLayout == PinGroupHorizontalLayoutPreference.Bottom ? new Point2D(0, -1) : (Point2D?)null;
+		foreach (Point2D? worldSide in new[] { vertical, horizontal })
+		{
+			if (!worldSide.HasValue) { continue; }
+			Point2D v = worldSide.Value;
+			double x = v.X * frame.UnitX.X + v.Y * frame.UnitX.Y;
+			double y = v.X * frame.UnitY.X + v.Y * frame.UnitY.Y;
+			if (Math.Abs(x) >= Math.Abs(y))
+			{
+				target.PinGroupVerticalLayout = x < 0 ? PinGroupVerticalLayoutPreference.Left : PinGroupVerticalLayoutPreference.Right;
+			}
+			else
+			{
+				target.PinGroupHorizontalLayout = y > 0 ? PinGroupHorizontalLayoutPreference.Top : PinGroupHorizontalLayoutPreference.Bottom;
+			}
+		}
 	}
 
 	public static List<HoleFeature2D> ToLocal(IEnumerable<HoleFeature2D> source, CoordinateFrame2D frame)

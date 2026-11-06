@@ -12,8 +12,11 @@ public static class StructureDatumRules
 	public const string ConfirmedHorizontalDatumRule = "StructureDatum.HorizontalFromConfirmedBoundary";
 	public const string ConfirmedVerticalDatumRule = "StructureDatum.VerticalFromConfirmedBoundary";
 	public const string NotchLocationRule = "StructureDatum.NotchLocation";
+	public const string HorizontalBaselineRule = "StructureDatum.HorizontalBaseline";
+	public const string VerticalBaselineRule = "StructureDatum.VerticalBaseline";
+	public static bool IsBaselineRule(string rule) => rule == HorizontalBaselineRule || rule == VerticalBaselineRule;
 	public static bool IsCommonDatumRule(string rule) => rule == VerticalCommonDatumRule || rule == HorizontalCommonDatumRule
-		|| rule == ConfirmedHorizontalDatumRule || rule == ConfirmedVerticalDatumRule || rule == NotchLocationRule;
+		|| rule == ConfirmedHorizontalDatumRule || rule == ConfirmedVerticalDatumRule || rule == NotchLocationRule || IsBaselineRule(rule);
 
 	public static bool IsDatumBlock(string name) =>
 		string.Equals(name, "CadAider_日标2个角", StringComparison.OrdinalIgnoreCase)

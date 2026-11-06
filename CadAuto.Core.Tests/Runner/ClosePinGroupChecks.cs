@@ -94,5 +94,71 @@ namespace CadAuto.Core.Tests
             var groups = new DimensionPlanner(DimensionRuleConfig.CreateDefault()).BuildPinGroupPlan(holes, holes[0]);
             Assert(groups[0].Pins.Contains(holes[1]), "missing pattern evidence must preserve legacy diagonal nearest pairing");
         }
+
+        private static void CollinearPinGroupsKeepBetweenPinHolesWithOwningPair()
+        {
+            // Run 20261026085621430: normalized centers; D34 incorrectly joined PG3 to PG2's middle hole.
+            foreach (double angle in new[] { 0.0, Math.PI / 2, Math.PI, 3 * Math.PI / 2, .37 })
+            foreach (bool mirror in new[] { false, true })
+            foreach (bool reverse in new[] { false, true })
+            {
+                var holes = new List<HoleFeature2D> {
+                    CreateHole(220, 10, 8, HoleKind2D.Pin), CreateHole(190, 10, 8, HoleKind2D.Pin),
+                    CreateHole(165, 10, 8, HoleKind2D.Pin), CreateHole(135, 10, 8, HoleKind2D.Pin),
+                    CreateHole(105, 10, 8, HoleKind2D.Pin), CreateHole(75, 10, 8, HoleKind2D.Pin),
+                    CreateHole(205, 10, 9, HoleKind2D.Normal), CreateHole(235, 10, 9, HoleKind2D.Normal),
+                    CreateHole(150, 10, 9, HoleKind2D.Normal), CreateHole(90, 10, 9, HoleKind2D.Normal),
+                    CreateHole(30, 10, 6, HoleKind2D.Thread)
+                };
+                for (int i = 0; i < holes.Count; i++) holes[i].SourceKey = "bar-report-position-" + i;
+                holes[10].ThreadCallout = "M6";
+                var expectedPins = new[] { holes.Take(2).ToList(), holes.Skip(2).Take(2).ToList(), holes.Skip(4).Take(2).ToList() };
+                var expectedHoles = new[] { holes.Skip(6).Take(2).ToList(), holes.Skip(8).Take(1).ToList(), holes.Skip(9).Take(1).ToList() };
+                var datumPin = holes[0];
+                var frame = new CoordinateFrame2D(new Point2D(102631.96596602, 8535.15431285), RotatePoint(new Point2D(1, 0), angle));
+                foreach (var hole in holes)
+                    hole.Center = frame.ToWorld(new Point2D(mirror ? 245 - hole.Center.X : hole.Center.X, hole.Center.Y));
+                if (reverse) holes.Reverse();
+                var config = DimensionRuleConfig.CreateDefault();
+                var planner = new DimensionPlanner(config);
+                var groups = planner.BuildPinGroupPlan(holes, datumPin);
+                var callouts = new HoleCalloutPlanner(config).CreatePlans(holes, datumPin);
+                Assert(groups.Count == 3, "the bar must retain its three real pin pairs");
+                for (int i = 0; i < expectedPins.Length; i++)
+                {
+                    var group = groups.Single(g => expectedPins[i].All(g.Pins.Contains));
+                    Assert(expectedHoles[i].All(group.MemberHoles.Contains),
+                        "a between-pin hole must belong to its containing pair before a distant grid or loose-chain reference");
+                    Assert(expectedHoles[i].All(h => callouts.Any(c => c.DebugOwner == "PG" + group.GroupIndex && c.Holes.Contains(h))),
+                        "diameter callouts must retain the same pin-pair ownership as positioning");
+                }
+                var corners = new[] { new Point2D(0, 0), new Point2D(245, 0), new Point2D(245, 20), new Point2D(0, 20) }
+                    .Select(frame.ToWorld).ToArray();
+                var outline = new OutlineFeature2D { MinX = corners.Min(p => p.X), MaxX = corners.Max(p => p.X),
+                    MinY = corners.Min(p => p.Y), MaxY = corners.Max(p => p.Y) };
+                for (int i = 0; i < corners.Length; i++) AddSegment(outline, corners[i], corners[(i + 1) % corners.Length], "bar-boundary-" + i);
+                var datum = Datum2D.FromOutline(outline);
+                datum.DatumHole = datumPin;
+                var plan = planner.CreateDimensionPlan(outline, datum, holes, new SlotFeature2D[0], frame);
+                for (int i = 0; i < expectedPins.Length; i++)
+                {
+                    var group = plan.PinGroups.Single(g => g.Pins.Any(p => p.SourceKey == expectedPins[i][0].SourceKey));
+                    foreach (var expected in expectedHoles[i])
+                    {
+                        var target = group.MemberHoles.Single(h => h.SourceKey == expected.SourceKey);
+                        var locations = plan.Dimensions.Where(d => d.Kind == DimensionKind.HoleLocation
+                            && IsNear(d.SecondPoint, target.Center, config)).ToList();
+                        Assert(locations.Count == 1 && locations[0].DebugRole == "FunctionalHole"
+                            && locations[0].DebugOwner == "PG" + group.GroupIndex
+                            && IsNear(locations[0].FirstPoint, group.BasePin.Center, config)
+                            && Math.Abs(GetSpan(locations[0]) - 15) < .001,
+                            "each normal hole must keep its own 15 location from its owning group's base pin, without a cross-group 45");
+                    }
+                }
+                Assert(plan.Dimensions.Count(d => d.Kind == DimensionKind.PinDistance && Math.Abs(GetSpan(d) - 30) < .001) == 3,
+                    "all three legitimate equal-valued pin spacings must survive");
+                Assert(plan.Dimensions.Any(d => d.DebugRole == "LooseHole"), "the isolated thread must remain loose");
+            }
+        }
     }
 }

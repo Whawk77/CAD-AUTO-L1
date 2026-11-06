@@ -10,6 +10,9 @@ public sealed class Segment2D
 
 	public string SourceKey { get; set; }
 
+	// 由多个首尾相接的共线碎段合并而成时，记录全部原图元来源；未合并时为 null。
+	public System.Collections.Generic.List<string> SourceKeys { get; set; }
+
 	public bool IsArcChord { get; set; }
 
 	public double MinX => Math.Min(Start.X, End.X);

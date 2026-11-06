@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using CadAuto.Core.Geometry;
 
 namespace CadAuto.Core.Model;
@@ -19,6 +20,8 @@ public sealed class ChamferFeature2D
 	public string Text { get; set; }
 
 	public Segment2D SourceSegment { get; set; }
+
+	public List<string> SourceGeometryIds { get; set; } = new List<string>();
 
 	public double Confidence { get; set; }
 }

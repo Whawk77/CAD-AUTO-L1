@@ -261,6 +261,20 @@ public sealed class DimensionPlan
 	/// </summary>
 	public bool IsCoverageProvider(PlannedDimension dimension) => _coverageDependencies.Values.Any(providers => providers.Contains(dimension));
 
+	/// <summary>
+	/// Removes a structure dimension that is an artifact of an internal line or off-boundary endpoint.
+	/// Use only when the dimension cannot go through TrySuppressCoveredStructure (e.g. MissingSourceGeometry).
+	/// Records the removal in diagnostics as a suppressed candidate.
+	/// </summary>
+	public void RemoveStructureDimension(PlannedDimension dimension, string suppressionReason)
+	{
+		if (!Dimensions.Contains(dimension)) { return; }
+		Dimensions.Remove(dimension);
+		MarkSuppressed(dimension, suppressionReason, dimension.RuleId ?? suppressionReason,
+			dimension.SourceGeometryIds ?? new System.Collections.Generic.List<string>(),
+			suppressionReason + "|CandidateId=" + dimension.DiagnosticId);
+	}
+
 	public bool TrySuppressCoveredStructure(PlannedDimension residual, string ruleId,
 		IEnumerable<PlannedDimension> coveringDimensions, IEnumerable<string> sourceGeometryIds,
 		string topologyEvidence, string replaceableRuleId = null, bool allowOutlineSegment = false)

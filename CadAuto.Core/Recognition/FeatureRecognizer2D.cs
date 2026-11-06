@@ -58,6 +58,11 @@ public sealed class FeatureRecognizer2D
 		outline.Chamfers.Clear();
 		outline.Fillets.Clear();
 		RecognizeChamfers(outline);
+		foreach (var chamfer in SplitBoundaryChamferRules.Find(outline, _config))
+		{
+			outline.Chamfers.RemoveAll(c => SplitBoundaryChamferRules.ContainsSegment(chamfer, c.SourceSegment, _config.GeometryTolerance));
+			outline.Chamfers.Add(chamfer);
+		}
 		RecognizeFillets(outline);
 		RecognizeInnerGrooveChamfers(outline);
 	}
@@ -201,7 +206,6 @@ public sealed class FeatureRecognizer2D
 
 	public void RecognizeChamfers(OutlineFeature2D outline)
 	{
-		double num = Math.Max(outline.Width, outline.Height) * 0.25;
 		foreach (Segment2D item in outline.Segments.Where((Segment2D s) => !s.IsArcChord))
 		{
 			if (item.IsHorizontal(_config.GeometryTolerance) || item.IsVertical(_config.GeometryTolerance))
@@ -210,23 +214,12 @@ public sealed class FeatureRecognizer2D
 			}
 			double dx = Math.Abs(item.Start.X - item.End.X);
 			double dy = Math.Abs(item.Start.Y - item.End.Y);
-			double chamferDimensionLeg = GetChamferDimensionLeg(outline, item, dx, dy);
-			if (item.Length <= _config.GeometryTolerance || chamferDimensionLeg > num || !IsFortyFiveDegreeSegment(item) || !TryGetChamferAxisNeighbors(outline, item, out var firstNeighbor, out var secondNeighbor))
+			// A 45-degree edge between a horizontal and a vertical edge is a chamfer at any size (e.g. C35).
+			if (item.Length <= _config.GeometryTolerance || !IsFortyFiveDegreeSegment(item) || !TryGetChamferAxisNeighbors(outline, item, out _, out _))
 			{
 				continue;
 			}
-			double num2 = Math.Max(firstNeighbor.Length, secondNeighbor.Length);
-			if (num2 <= _config.GeometryTolerance || chamferDimensionLeg > num2 * 0.5 + _config.GeometryTolerance)
-			{
-				if (IsLocalStepChamferCallout(item, firstNeighbor, secondNeighbor, outline))
-				{
-					outline.Chamfers.Add(CreateChamferFeature(item, dx, dy, chamferDimensionLeg));
-				}
-			}
-			else
-			{
-				outline.Chamfers.Add(CreateChamferFeature(item, dx, dy, chamferDimensionLeg));
-			}
+			outline.Chamfers.Add(CreateChamferFeature(item, dx, dy, GetChamferDimensionLeg(outline, item, dx, dy)));
 		}
 	}
 
@@ -505,24 +498,6 @@ public sealed class FeatureRecognizer2D
 		};
 	}
 
-	private bool IsLocalStepChamferCallout(Segment2D chamfer, Segment2D firstNeighbor, Segment2D secondNeighbor, OutlineFeature2D outline)
-	{
-		return IsAtOuterLocalStep(chamfer.Start, firstNeighbor, outline) || IsAtOuterLocalStep(chamfer.Start, secondNeighbor, outline) || IsAtOuterLocalStep(chamfer.End, firstNeighbor, outline) || IsAtOuterLocalStep(chamfer.End, secondNeighbor, outline);
-	}
-
-	private bool IsAtOuterLocalStep(Point2D point, Segment2D neighbor, OutlineFeature2D outline)
-	{
-		if (neighbor == null)
-		{
-			return false;
-		}
-		double num = Math.Max(_config.GeometryTolerance, 0.2);
-		if (!(Math.Abs(neighbor.MinX - outline.MinX) <= num) && !(Math.Abs(neighbor.MaxX - outline.MaxX) <= num) && !(Math.Abs(neighbor.MinY - outline.MinY) <= num) && !(Math.Abs(neighbor.MaxY - outline.MaxY) <= num) && !(Math.Abs(point.X - outline.MinX) <= num) && !(Math.Abs(point.X - outline.MaxX) <= num) && !(Math.Abs(point.Y - outline.MinY) <= num) && !(Math.Abs(point.Y - outline.MaxY) <= num))
-		{
-			return false;
-		}
-		return neighbor.Length <= Math.Max(outline.Width, outline.Height) * 0.35 + num;
-	}
 
 	private double GetChamferDimensionLeg(OutlineFeature2D outline, Segment2D chamfer, double dx, double dy)
 	{
@@ -667,7 +642,9 @@ public sealed class FeatureRecognizer2D
 
 	private bool IsKnownChamferSegment(Segment2D segment, OutlineFeature2D outline)
 	{
-		return outline.Chamfers.Any((ChamferFeature2D chamfer) => (PointsEqual(chamfer.StartPoint, segment.Start) && PointsEqual(chamfer.EndPoint, segment.End)) || (PointsEqual(chamfer.StartPoint, segment.End) && PointsEqual(chamfer.EndPoint, segment.Start)));
+		return outline.Chamfers.Any((ChamferFeature2D chamfer) => SplitBoundaryChamferRules.ContainsSegment(chamfer, segment, _config.GeometryTolerance)
+			|| (PointsEqual(chamfer.StartPoint, segment.Start) && PointsEqual(chamfer.EndPoint, segment.End))
+			|| (PointsEqual(chamfer.StartPoint, segment.End) && PointsEqual(chamfer.EndPoint, segment.Start)));
 	}
 
 	private bool IsFortyFiveDegreeSegment(Segment2D segment)
@@ -678,7 +655,7 @@ public sealed class FeatureRecognizer2D
 		{
 			return false;
 		}
-		return Math.Abs(num - num2) <= Math.Max(_config.GeometryTolerance, Math.Max(num, num2) * 0.05);
+		return Math.Abs(num - num2) <= Math.Max(_config.GeometryTolerance, DimensionRuleConfig.ChamferLegDifferenceTolerance);
 	}
 
 	private bool SegmentTouchesPoint(Segment2D segment, Point2D point)
@@ -720,6 +697,19 @@ public sealed class FeatureRecognizer2D
 			firstNeighbor = verticalAtStart;
 			secondNeighbor = horizontalAtEnd;
 			return true;
+		}
+		foreach (bool horizontal in new[] { true, false })
+		{
+			Segment2D atStart = horizontal ? horizontalAtStart : verticalAtStart;
+			Segment2D atEnd = horizontal ? horizontalAtEnd : verticalAtEnd;
+			if (atStart != null && atEnd != null && atStart != atEnd
+				&& SplitBoundaryChamferRules.ParallelNeighborLeavesChamfer(atStart, chamfer.Start, chamfer.End, horizontal, _config.GeometryTolerance)
+				&& SplitBoundaryChamferRules.ParallelNeighborLeavesChamfer(atEnd, chamfer.End, chamfer.Start, horizontal, _config.GeometryTolerance))
+			{
+				firstNeighbor = atStart;
+				secondNeighbor = atEnd;
+				return true;
+			}
 		}
 		return false;
 	}

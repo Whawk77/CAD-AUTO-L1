@@ -232,6 +232,10 @@ public sealed class DimensionDrawer
 		return _entityWriter.GetDimStyleTextStyle(dimStyleId);
 	}
 
+	public IReadOnlyList<ObjectId> AppendedIds => _entityWriter.AppendedIds;
+
+	public double LinearTextHeight => GetDimStyleTextHeight(_dimStyleId);
+
 	private double GetDimStyleTextHeight(ObjectId dimStyleId)
 	{
 		return _entityWriter.GetDimStyleTextHeight(dimStyleId);
@@ -701,13 +705,6 @@ public sealed class DimensionDrawer
 		{
 			return 0.0;
 		}
-		if (!_coordinateFrame.IsIdentity)
-		{
-			// ponytail: existing dimensions are WCS entities. Until their geometry is
-			// projected into the planning frame, ignoring them is safer than comparing
-			// WCS coordinates against local bounds and reserving a false lane.
-			return 0.0;
-		}
 		if (_existingGeneratedDimensions == null)
 		{
 			_existingGeneratedDimensions = new List<RotatedDimension>();
@@ -758,44 +755,58 @@ public sealed class DimensionDrawer
 		return _space.Cast<ObjectId>();
 	}
 
-	private static bool IsExistingDimensionOnSide(RotatedDimension dimension, DimSide side, OutlineFeature outline, bool isHorizontal, out double offset)
+	private bool IsExistingDimensionOnSide(RotatedDimension dimension, DimSide side, OutlineFeature outline, bool isHorizontal, out double offset)
 	{
 		offset = 0.0;
 		if (!IsExistingDimensionRelevantToOutline(dimension, outline))
 		{
 			return false;
 		}
-		Point3d dimLinePoint = dimension.DimLinePoint;
-		if (isHorizontal)
+		// 已有尺寸是 WCS 实体；规划坐标系不是 WCS 时，先把尺寸线位置和角度换到规划坐标系，再和局部外包络比较。
+		double minX = outline.MinX, maxX = outline.MaxX, minY = outline.MinY, maxY = outline.MaxY;
+		Point2D dimLinePoint = new Point2D(dimension.DimLinePoint.X, dimension.DimLinePoint.Y);
+		double rotation = dimension.Rotation;
+		if (!_coordinateFrame.IsIdentity)
 		{
-			if (!(Math.Abs(Math.Sin(dimension.Rotation)) < 0.5))
+			OutlineFeature2D local = ToCoreOutlineOrNull(outline);
+			if (local == null)
 			{
 				return false;
 			}
-			if (side == DimSide.Bottom && dimLinePoint.Y <= outline.MinY)
+			minX = local.MinX; maxX = local.MaxX; minY = local.MinY; maxY = local.MaxY;
+			dimLinePoint = _coordinateFrame.ToLocal(dimLinePoint);
+			rotation -= _coordinateFrame.Angle;
+		}
+		if (isHorizontal)
+		{
+			if (!(Math.Abs(Math.Sin(rotation)) < 0.5))
 			{
-				offset = outline.MinY - dimLinePoint.Y;
+				return false;
+			}
+			if (side == DimSide.Bottom && dimLinePoint.Y <= minY)
+			{
+				offset = minY - dimLinePoint.Y;
 				return true;
 			}
-			if (side == DimSide.Top && dimLinePoint.Y >= outline.MaxY)
+			if (side == DimSide.Top && dimLinePoint.Y >= maxY)
 			{
-				offset = dimLinePoint.Y - outline.MaxY;
+				offset = dimLinePoint.Y - maxY;
 				return true;
 			}
 			return false;
 		}
-		if (!(Math.Abs(Math.Cos(dimension.Rotation)) < 0.5))
+		if (!(Math.Abs(Math.Cos(rotation)) < 0.5))
 		{
 			return false;
 		}
-		if (side == DimSide.Left && dimLinePoint.X <= outline.MinX)
+		if (side == DimSide.Left && dimLinePoint.X <= minX)
 		{
-			offset = outline.MinX - dimLinePoint.X;
+			offset = minX - dimLinePoint.X;
 			return true;
 		}
-		if (side == DimSide.Right && dimLinePoint.X >= outline.MaxX)
+		if (side == DimSide.Right && dimLinePoint.X >= maxX)
 		{
-			offset = dimLinePoint.X - outline.MaxX;
+			offset = dimLinePoint.X - maxX;
 			return true;
 		}
 		return false;
@@ -924,6 +935,19 @@ public sealed class DimensionDrawer
 		{
 			PlacedDim placedDim = placedDims[index];
 			ExtensionLineRenderPlan extensionPlan = extensions[index];
+			if (DimensionExtensionLineRules.ExceedsLengthLimit(
+				new Point2D(placedDim.Dim.XLine1.X, placedDim.Dim.XLine1.Y),
+				new Point2D(placedDim.Dim.XLine2.X, placedDim.Dim.XLine2.Y),
+				new Point2D(placedDim.DimLinePoint.X, placedDim.DimLinePoint.Y),
+				placedDim.Dim.Rotation, out double maximumLength))
+			{
+				string reason = string.Format(CultureInfo.InvariantCulture,
+					"ExtensionLineLengthLimit|Length={0:0.########}|Maximum={1:0.########}mm",
+					maximumLength, DimensionRuleConfig.MaximumDimensionExtensionLineLength);
+				RecordRenderSuppressed(placedDim.Dim, reason);
+				_dimensionDiagnosticReport?.RecordLayoutGeometry(placedDim.Dim.DiagnosticId, placedDim.CompactionDecision, reason);
+				continue;
+			}
 			AddRotatedDimension(
 				placedDim.Dim.Rotation,
 				placedDim.Dim.XLine1,
@@ -1123,7 +1147,9 @@ public sealed class DimensionDrawer
 			if (list.Count != 0)
 			{
 				ChamferFeature chamferFeature = PickChamferLeaderTarget(list, outline);
-				Point2d target = Midpoint(chamferFeature.StartPoint, chamferFeature.EndPoint);
+				Point2d target = chamferFeature.SourceIds.Count > 0 && chamferFeature.SourceSegment != null
+					? Midpoint(chamferFeature.SourceSegment.Start, chamferFeature.SourceSegment.End)
+					: Midpoint(chamferFeature.StartPoint, chamferFeature.EndPoint);
 				string text = FormatRepeatedFeatureText(item.Key, list.Count);
 				Point3d textPoint;
 				switch (_cornerCalloutRenderer.PromptLeaderPoint(editor, target, text, dimStyleTextHeight, out textPoint))
@@ -1175,11 +1201,23 @@ public sealed class DimensionDrawer
 			return;
 		}
 		int dimStyleLinearPrecision = GetDimStyleLinearPrecision(_diameterCalloutDimStyleId);
+		// 倒角文字是插件拼的字符串，CAD 不会替它消零。标注样式开了"消除后续零"（DIMZIN 第 8 位）时照样去掉，
+		// 和线性尺寸显示一致：C0.50 → C0.5（用户 2026-11-05 指出）。
+		bool suppressTrailingZeros = SuppressesTrailingZeros(_diameterCalloutDimStyleId) || SuppressesTrailingZeros(_dimStyleId);
 		foreach (ChamferFeature chamfer in outline.Chamfers)
 		{
 			double value = ((chamfer.Value > _config.GeometryTolerance) ? chamfer.Value : Math.Max(chamfer.DeltaX, chamfer.DeltaY));
-			chamfer.Text = "C" + FormatNumberWithPrecision(value, dimStyleLinearPrecision);
+			string number = FormatNumberWithPrecision(value, dimStyleLinearPrecision);
+			if (suppressTrailingZeros && number.Contains(".")) { number = number.TrimEnd('0').TrimEnd('.'); }
+			chamfer.Text = "C" + number;
 		}
+	}
+
+	private bool SuppressesTrailingZeros(ObjectId dimStyleId)
+	{
+		if (dimStyleId.IsNull || !dimStyleId.IsValid) { return false; }
+		var style = _transaction.GetObject(dimStyleId, OpenMode.ForRead) as DimStyleTableRecord;
+		return style != null && (style.Dimzin & 8) != 0;
 	}
 
 	public void DrawSlotRadiusLeadersWithJig(Editor editor, IEnumerable<SlotFeature> slots)
@@ -1222,9 +1260,9 @@ public sealed class DimensionDrawer
 	private void AddManualFilletRadiusDimension(FilletFeature feature, Point3d textPoint, string text)
 	{
 		Point2d arcLeaderTarget = GetArcLeaderTarget(feature);
-		Point3d centerPoint = new Point3d(feature.Center.X, feature.Center.Y, 0.0);
-		Point3d chordPoint = new Point3d(arcLeaderTarget.X, arcLeaderTarget.Y, 0.0);
-		_cornerCalloutRenderer.AddRadialDimension(centerPoint, chordPoint, textPoint, Scale(_config.LeaderOffset), text, useCustomTextPosition: true);
+		// 圆角箭头仍指向实际圆弧；与倒角一样以文字靠近零件的一端连接引线。
+		Point3d arrowPoint = new Point3d(arcLeaderTarget.X, arcLeaderTarget.Y, 0.0);
+		AddCornerLeader(arrowPoint, textPoint, textPoint, text);
 	}
 
 	private void AddManualSlotRadiusDimension(SlotFeature slot, Point3d textPoint, string text)

@@ -6,6 +6,14 @@ namespace CadAuto.Core.Rules;
 
 public sealed class DimensionRuleConfig
 {
+	public const double MaximumDimensionExtensionLineLength = 2000.0;
+
+	// Absolute, so the accepted angle error does not grow with chamfer size.
+	public const double ChamferLegDifferenceTolerance = 0.01;
+
+	// L 型内角处允许一个局部小台阶：台阶较浅方向的深度不超过较薄臂厚的这个比例（用户于 2026-11-02 确认 25%）。
+	public const double LProfileLocalStepMaxDepthRatio = 0.25;
+
 	private DimensionExperimentRule _disabledExperimentRule;
 
 	/// <summary>Explicit per-instance experiment only; never read from global state or environment.</summary>
@@ -68,6 +76,12 @@ public sealed class DimensionRuleConfig
 	/// JSON file of confirmed annotation cases. Empty disables the Select overlay.
 	/// </summary>
 	public string AnnotationCaseStorePath { get; set; }
+
+	/// <summary>
+	/// 托压块规则：框选集合里有 TY/TY1/TY2 生成的标注时由 CAD 层打开（用户 2026-11-04 确认）。
+	/// 外轮廓只出总宽、总高和 L 型两条臂的末端宽度；孔照常标。
+	/// </summary>
+	public bool SupportBlockMode { get; set; }
 
 	public DimensionRuleConfig()
 	{

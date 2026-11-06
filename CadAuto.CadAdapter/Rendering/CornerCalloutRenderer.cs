@@ -77,8 +77,11 @@ public sealed class CornerCalloutRenderer
 			vector3d = vector3d.GetNormal();
 			Vector3d zAxis = Vector3d.ZAxis;
 			Vector3d xAxis = Vector3d.XAxis;
-			Point3d position = ((_textPoint.X < _arrowPoint.X) ? (_textPoint - xAxis * _textWidth) : _textPoint);
+			bool textOnLeft = _textPoint.X < _arrowPoint.X;
+			Point3d position = textOnLeft ? _textPoint - xAxis * _textWidth : _textPoint;
+			// 点选位置是文字靠近箭头的一端；预览横线向远离箭头的方向延伸。
 			draw.Geometry.WorldLine(_arrowPoint, _textPoint);
+			draw.Geometry.WorldLine(_textPoint, textOnLeft ? position : _textPoint + xAxis * _textWidth);
 			draw.Geometry.Text(position, zAxis, xAxis, _textHeight, 1.0, 0.0, _text);
 			return true;
 		}

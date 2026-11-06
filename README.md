@@ -4,15 +4,25 @@ AutoCAD 2020 .NET Framework plugin for semi-automatic fixture-part annotation.
 
 Main command: `ASD`
 
+中文使用手册：[命令使用说明](docs/命令使用说明.md)。
+
 Compatibility and helper commands:
 
 - `AUTOFIXDIM`: same main workflow.
+- `ASD2`: generate annotations other than outline dimensions.
 - `ASD4`: clear generated annotations, then run diagnostic generation with side selection.
 - `ASD5`: generate outline-related annotations only.
 - `ASD6`: generate hole-related annotations only.
 - `ASD7`: generate corner-feature annotations only.
+- `ASD8`: generate diameter callouts only.
+- `ASDREPRO`: clear generated annotations, then run diagnostic generation after prompting for scope (All / Outline / Hole / Corner).
+- `ASDCASE`: save the last successful `ASD` result on the current drawing as a confirmed case in `annotation-cases.json` next to the plugin DLL.
 - `ASDCOREDBG`: core diagnostic generation.
+- `ASD3V`: trial three-view annotation (2 or 3 separate closed view outlines; linear dimensions only).
 - `ASD3`: clear the most recently generated plugin annotation group.
+- `TY`: support-block (托压块) marking; two dashed copies (offset 1 and 2) with `CNC加工` and `淬火` leaders plus a roughness block.
+- `TY1`: support-block marking; one dashed copy (offset 1) with an `NC` leader plus a roughness block.
+- `TY2`: support-block marking; one dashed copy (offset 1) with a wear-line leader; no roughness block.
 - `AG1`: special line-processing helper.
 
 ## Debug Flow

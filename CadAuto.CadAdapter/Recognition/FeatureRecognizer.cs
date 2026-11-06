@@ -7,6 +7,8 @@ using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
 using CadAuto.CadAdapter.Model;
+using CadAuto.CadAdapter.Mapping;
+using CadAuto.Core.Geometry;
 using CadAuto.Core.Rules;
 
 namespace CadAuto.CadAdapter.Recognition;
@@ -20,6 +22,13 @@ public sealed class FeatureRecognizer
 		public ObjectId SourceId;
 		public ObjectId CircleId;
 		public ObjectId ComplementId;
+	}
+
+	private sealed class PinMarker
+	{
+		public Point3d Center;
+		public double Radius;
+		public ObjectId SourceId;
 	}
 
 	private sealed class SlotArcCandidate
@@ -153,11 +162,40 @@ public sealed class FeatureRecognizer
 	public IList<HoleFeature> RecognizeHoles(IEnumerable<ObjectId> sourceIds, Transaction tr, IEnumerable<ObjectId> contextIds)
 	{
 		List<ObjectId> list = ((sourceIds == null) ? new List<ObjectId>() : sourceIds.ToList());
-		LastRecognizedSlots = RecognizeSlotFeatures(list, tr);
-		HashSet<ObjectId> hashSet = new HashSet<ObjectId>(LastRecognizedSlots.SelectMany(GetSlotSourceIds));
-		IList<Point3d> list2 = CollectPinMarkers(contextIds, list, tr);
-		IList<ThreadArcInfo> list3 = CollectThreadArcInfos(list, tr);
+		IList<PinMarker> list2 = CollectPinMarkers(contextIds, list, tr);
 		List<SelectedCircle> selectionCircles = MaterializeSelectionCircles(list, tr);
+		var pinCircleIds = new HashSet<ObjectId>();
+		foreach (PinMarker marker in list2)
+		{
+			var circles = selectionCircles.Select(c => Math.Abs(c.Center.Z - marker.Center.Z) <= _config.GeometryTolerance
+				? new Circle2D { Center = new Point2D(c.Center.X, c.Center.Y), Radius = c.Radius } : null).ToList();
+			var resolved = PinHoleRules.ResolveMarkedCircle(circles,
+				new Circle2D { Center = new Point2D(marker.Center.X, marker.Center.Y), Radius = marker.Radius }, _config.GeometryTolerance);
+			if (resolved != null)
+			{
+				int match = circles.IndexOf(resolved);
+				if (match < 0)
+				{
+					match = selectionCircles.Count;
+					selectionCircles.Add(new SelectedCircle { Center = marker.Center, Radius = resolved.Radius,
+						SourceId = marker.SourceId, CircleId = ObjectId.Null });
+					if (!list.Contains(marker.SourceId)) { list.Add(marker.SourceId); }
+				}
+				pinCircleIds.Add(selectionCircles[match].SourceId);
+			}
+			else
+			{
+				Application.DocumentManager.MdiActiveDocument?.Editor.WriteMessage(
+					"\nPin marker at ({0:0.###},{1:0.###}) identifies a pin hole; its diameter needs confirmation.", marker.Center.X, marker.Center.Y);
+			}
+		}
+		Func<Point3d, bool> isPinCenter = center => selectionCircles.Any(c => pinCircleIds.Contains(c.SourceId)
+			&& c.Center.DistanceTo(center) <= _config.GeometryTolerance);
+		LastRecognizedSlots = RecognizeSlotFeatures(list, tr)
+			.Where(slot => !isPinCenter(new Point3d(slot.FirstCenter.X, slot.FirstCenter.Y, 0))
+				&& !isPinCenter(new Point3d(slot.SecondCenter.X, slot.SecondCenter.Y, 0))).ToList();
+		HashSet<ObjectId> hashSet = new HashSet<ObjectId>(LastRecognizedSlots.SelectMany(GetSlotSourceIds));
+		IList<ThreadArcInfo> list3 = CollectThreadArcInfos(list, tr).Where(arc => !isPinCenter(arc.Center)).ToList();
 		List<HoleFeature> list4 = new List<HoleFeature>();
 		int num = 0;
 		int num2 = 0;
@@ -189,23 +227,26 @@ public sealed class FeatureRecognizer
 			if (circle != null)
 			{
 				num++;
+				bool flag2 = pinCircleIds.Contains(circle.SourceId);
+				if (!flag2 && selectionCircles.Any(c => pinCircleIds.Contains(c.SourceId)
+					&& c.Center.DistanceTo(circle.Center) <= _config.GeometryTolerance
+					&& Math.Abs(c.Radius - circle.Radius) <= _config.GeometryTolerance)) { continue; }
 				double diameter = circle.Radius * 2.0;
 				string threadCalloutForMinorDiameter = _config.GetThreadCalloutForMinorDiameter(diameter);
 				bool flag = HasThreadArcAtCenter(circle.Center, list3);
-				if (!string.IsNullOrEmpty(threadCalloutForMinorDiameter) && flag)
+				if (!flag2 && !string.IsNullOrEmpty(threadCalloutForMinorDiameter) && flag)
 				{
 					num2++;
 					num3++;
 					list5.Add(FormatCircleSuppression(circle, "thread minor " + threadCalloutForMinorDiameter));
 					continue;
 				}
-				if (IsSuppressedByThreadArc(circle, list3))
+				if (!flag2 && IsSuppressedByThreadArc(circle, list3))
 				{
 					num2++;
 					list5.Add($"(涓\ue15e績={circle.Center.X:0.###},{circle.Center.Y:0.###} R={circle.Radius:0.###})");
 					continue;
 				}
-				bool flag2 = HasPinMarker(circle.Center, circle.Radius, list2);
 				if (flag2)
 				{
 					num4++;
@@ -227,7 +268,7 @@ public sealed class FeatureRecognizer
 				continue;
 			}
 			Arc arc = entity as Arc;
-			if (arc != null && IsConfirmedThreadArc(arc, selectionCircles))
+			if (arc != null && !isPinCenter(arc.Center) && IsConfirmedThreadArc(arc, selectionCircles))
 			{
 				// The confirmed thread arc represents the major diameter, not the minor diameter.
 				string text = _config.FormatThreadCallout(arc.Radius * 2.0);
@@ -254,9 +295,9 @@ public sealed class FeatureRecognizer
 			if (num5 > 0 && list2.Count > 0)
 			{
 				editor.WriteMessage("\n[璇婃柇] 閿€瀛旀爣璁颁綅缃?");
-				foreach (Point3d item3 in list2)
+				foreach (PinMarker item3 in list2)
 				{
-					editor.WriteMessage(" ({0:0.###},{1:0.###})", item3.X, item3.Y);
+					editor.WriteMessage(" ({0:0.###},{1:0.###})", item3.Center.X, item3.Center.Y);
 				}
 				editor.WriteMessage("\n[璇婃柇] 鏈\ue044尮閰嶉攢瀛旂殑Circle:");
 				foreach (HoleFeature item4 in list4)
@@ -1133,6 +1174,17 @@ public sealed class FeatureRecognizer
 		outline.Chamfers.Clear();
 		outline.Fillets.Clear();
 		RecognizeChamfers(outline);
+		foreach (var chamfer in SplitBoundaryChamferRules.Find(CadToCoreModelMapper.ToCoreOutline(outline), _config))
+		{
+			var sources = outline.Segments.Where(s => SplitBoundaryChamferRules.ContainsSegment(chamfer, CadToCoreModelMapper.ToCoreSegment(s), _config.GeometryTolerance)).ToList();
+			if (sources.Count == 0 || chamfer.SourceGeometryIds.Any(id => sources.All(s => s.SourceId.ToString() != id))) { continue; }
+			outline.Chamfers.RemoveAll(c => c.SourceSegment != null && SplitBoundaryChamferRules.ContainsSegment(chamfer, CadToCoreModelMapper.ToCoreSegment(c.SourceSegment), _config.GeometryTolerance));
+			outline.Chamfers.Add(new ChamferFeature { StartPoint = new Point2d(chamfer.StartPoint.X, chamfer.StartPoint.Y),
+				EndPoint = new Point2d(chamfer.EndPoint.X, chamfer.EndPoint.Y), Length = chamfer.Length,
+				DeltaX = chamfer.DeltaX, DeltaY = chamfer.DeltaY, Value = chamfer.Value, Text = chamfer.Text,
+				Confidence = chamfer.Confidence, SourceSegment = sources.OrderByDescending(s => s.Length).First(),
+				SourceIds = sources.Select(s => s.SourceId).Distinct().ToList() });
+		}
 		RecognizeFillets(outline);
 		RecognizeInnerGrooveChamfers(outline);
 		WriteCornerFeatureDiagnostics(outline);
@@ -1164,7 +1216,6 @@ public sealed class FeatureRecognizer
 
 	public void RecognizeChamfers(OutlineFeature outline)
 	{
-		double num = Math.Max(outline.Width, outline.Height) * 0.25;
 		foreach (OutlineSegment segment in outline.Segments)
 		{
 			if (segment.IsArcChord || segment.IsHorizontal(_config.GeometryTolerance) || segment.IsVertical(_config.GeometryTolerance))
@@ -1173,23 +1224,12 @@ public sealed class FeatureRecognizer
 			}
 			double num2 = Math.Abs(segment.End.X - segment.Start.X);
 			double num3 = Math.Abs(segment.End.Y - segment.Start.Y);
-			double chamferDimensionLeg = GetChamferDimensionLeg(outline, segment, num2, num3);
-			if (segment.Length <= _config.GeometryTolerance || chamferDimensionLeg > num || Math.Abs(num2 - num3) > Math.Max(_config.GeometryTolerance, Math.Max(num2, num3) * 0.05) || !TryGetChamferAxisNeighbors(outline, segment, out var firstNeighbor, out var secondNeighbor))
+			// A 45-degree edge between a horizontal and a vertical edge is a chamfer at any size (e.g. C35).
+			if (segment.Length <= _config.GeometryTolerance || !IsFortyFiveDegreeSegment(segment) || !TryGetChamferAxisNeighbors(outline, segment, out _, out _))
 			{
 				continue;
 			}
-			double num4 = Math.Max(firstNeighbor.Length, secondNeighbor.Length);
-			if (num4 <= _config.GeometryTolerance || chamferDimensionLeg > num4 * 0.5 + _config.GeometryTolerance)
-			{
-				if (IsLocalStepChamferCallout(segment, firstNeighbor, secondNeighbor, outline))
-				{
-					outline.Chamfers.Add(CreateChamferFeature(segment, num2, num3, chamferDimensionLeg));
-				}
-			}
-			else
-			{
-				outline.Chamfers.Add(CreateChamferFeature(segment, num2, num3, chamferDimensionLeg));
-			}
+			outline.Chamfers.Add(CreateChamferFeature(segment, num2, num3, GetChamferDimensionLeg(outline, segment, num2, num3)));
 		}
 	}
 
@@ -1227,40 +1267,16 @@ public sealed class FeatureRecognizer
 		};
 	}
 
-	private bool IsLocalStepChamferCallout(OutlineSegment chamfer, OutlineSegment firstNeighbor, OutlineSegment secondNeighbor, OutlineFeature outline)
-	{
-		return IsAtOuterLocalStep(chamfer.Start, firstNeighbor, outline) || IsAtOuterLocalStep(chamfer.Start, secondNeighbor, outline) || IsAtOuterLocalStep(chamfer.End, firstNeighbor, outline) || IsAtOuterLocalStep(chamfer.End, secondNeighbor, outline);
-	}
-
-	private bool IsAtOuterLocalStep(Point2d point, OutlineSegment neighbor, OutlineFeature outline)
-	{
-		if (neighbor == null)
-		{
-			return false;
-		}
-		double num = Math.Max(_config.GeometryTolerance, 0.2);
-		if (!(Math.Abs(neighbor.MinX - outline.MinX) <= num) && !(Math.Abs(neighbor.MaxX - outline.MaxX) <= num) && !(Math.Abs(neighbor.MinY - outline.MinY) <= num) && !(Math.Abs(neighbor.MaxY - outline.MaxY) <= num) && !(Math.Abs(point.X - outline.MinX) <= num) && !(Math.Abs(point.X - outline.MaxX) <= num) && !(Math.Abs(point.Y - outline.MinY) <= num) && !(Math.Abs(point.Y - outline.MaxY) <= num))
-		{
-			return false;
-		}
-		return neighbor.Length <= Math.Max(outline.Width, outline.Height) * 0.35 + num;
-	}
-
 	private double GetChamferDimensionLeg(OutlineFeature outline, OutlineSegment chamfer, double dx, double dy)
 	{
 		double num = Math.Max(dx, dy);
 		List<Point2d> list = new List<Point2d> { chamfer.Start, chamfer.End };
 		foreach (OutlineSegment segment in outline.Segments)
 		{
-			if (segment != chamfer && !segment.IsArcChord && !segment.IsHorizontal(_config.GeometryTolerance) && !segment.IsVertical(_config.GeometryTolerance))
+			if (segment != chamfer && !segment.IsArcChord && !segment.IsHorizontal(_config.GeometryTolerance) && !segment.IsVertical(_config.GeometryTolerance) && IsFortyFiveDegreeSegment(segment) && IsChamferExtensionSegment(chamfer, segment, num))
 			{
-				double num2 = Math.Abs(segment.End.X - segment.Start.X);
-				double num3 = Math.Abs(segment.End.Y - segment.Start.Y);
-				if (!(Math.Abs(num2 - num3) > Math.Max(_config.GeometryTolerance, Math.Max(num2, num3) * 0.05)) && IsChamferExtensionSegment(chamfer, segment, num))
-				{
-					list.Add(segment.Start);
-					list.Add(segment.End);
-				}
+				list.Add(segment.Start);
+				list.Add(segment.End);
 			}
 		}
 		double val = list.Max((Point2d p) => p.X) - list.Min((Point2d p) => p.X);
@@ -1387,7 +1403,15 @@ public sealed class FeatureRecognizer
 
 	private bool IsKnownChamferSegment(OutlineSegment segment, OutlineFeature outline)
 	{
-		return outline.Chamfers.Any((ChamferFeature chamfer) => (PointsEqual(chamfer.StartPoint, segment.Start) && PointsEqual(chamfer.EndPoint, segment.End)) || (PointsEqual(chamfer.StartPoint, segment.End) && PointsEqual(chamfer.EndPoint, segment.Start)));
+		return outline.Chamfers.Any((ChamferFeature chamfer) =>
+		{
+			if ((PointsEqual(chamfer.StartPoint, segment.Start) && PointsEqual(chamfer.EndPoint, segment.End))
+				|| (PointsEqual(chamfer.StartPoint, segment.End) && PointsEqual(chamfer.EndPoint, segment.Start))) { return true; }
+			if (!chamfer.SourceIds.Contains(segment.SourceId)) { return false; }
+			var full = new Segment2D(new Point2D(chamfer.StartPoint.X, chamfer.StartPoint.Y), new Point2D(chamfer.EndPoint.X, chamfer.EndPoint.Y));
+			return OutlineGeometryQuery.IsPointOnSegment(new Point2D(segment.Start.X, segment.Start.Y), full, _config.GeometryTolerance)
+				&& OutlineGeometryQuery.IsPointOnSegment(new Point2D(segment.End.X, segment.End.Y), full, _config.GeometryTolerance);
+		});
 	}
 
 	private bool IsFortyFiveDegreeSegment(OutlineSegment segment)
@@ -1398,7 +1422,7 @@ public sealed class FeatureRecognizer
 		{
 			return false;
 		}
-		return Math.Abs(num - num2) <= Math.Max(_config.GeometryTolerance, Math.Max(num, num2) * 0.05);
+		return Math.Abs(num - num2) <= Math.Max(_config.GeometryTolerance, DimensionRuleConfig.ChamferLegDifferenceTolerance);
 	}
 
 	private bool SegmentTouchesPoint(OutlineSegment segment, Point2d point)
@@ -1461,6 +1485,21 @@ public sealed class FeatureRecognizer
 			secondNeighbor = axisNeighborAtPoint3;
 			return true;
 		}
+		var start = new Point2D(chamfer.Start.X, chamfer.Start.Y);
+		var end = new Point2D(chamfer.End.X, chamfer.End.Y);
+		foreach (bool horizontal in new[] { true, false })
+		{
+			OutlineSegment atStart = horizontal ? axisNeighborAtPoint : axisNeighborAtPoint2;
+			OutlineSegment atEnd = horizontal ? axisNeighborAtPoint3 : axisNeighborAtPoint4;
+			if (atStart != null && atEnd != null && atStart != atEnd
+				&& SplitBoundaryChamferRules.ParallelNeighborLeavesChamfer(CadToCoreModelMapper.ToCoreSegment(atStart), start, end, horizontal, _config.GeometryTolerance)
+				&& SplitBoundaryChamferRules.ParallelNeighborLeavesChamfer(CadToCoreModelMapper.ToCoreSegment(atEnd), end, start, horizontal, _config.GeometryTolerance))
+			{
+				firstNeighbor = atStart;
+				secondNeighbor = atEnd;
+				return true;
+			}
+		}
 		return false;
 	}
 
@@ -1492,10 +1531,10 @@ public sealed class FeatureRecognizer
 		return group.Average((HoleFeature h) => h.Diameter);
 	}
 
-	private IList<Point3d> CollectPinMarkers(IEnumerable<ObjectId> contextIds, IEnumerable<ObjectId> circleIds, Transaction tr)
+	private IList<PinMarker> CollectPinMarkers(IEnumerable<ObjectId> contextIds, IEnumerable<ObjectId> circleIds, Transaction tr)
 	{
 		HashSet<ObjectId> hashSet = new HashSet<ObjectId>(circleIds);
-		List<Point3d> list = new List<Point3d>();
+		List<PinMarker> list = new List<PinMarker>();
 		if (contextIds == null)
 		{
 			return list;
@@ -1518,7 +1557,7 @@ public sealed class FeatureRecognizer
 				if (IsPinMarkerBlock(blockReference, tr))
 				{
 					num2++;
-					list.Add(blockReference.Position);
+					list.Add(new PinMarker { Center = blockReference.Position, Radius = GetPinMarkerRadius(blockReference, tr), SourceId = contextId });
 				}
 				else if (!string.IsNullOrEmpty(blockName) && !list2.Contains(blockName))
 				{
@@ -1539,30 +1578,34 @@ public sealed class FeatureRecognizer
 		return list;
 	}
 
-	private const double PinMarkerFallbackHitRadius = 1.0;
-
-	private bool HasPinMarker(Point3d center, double radius, IEnumerable<Point3d> markerPoints)
+	private double GetPinMarkerRadius(BlockReference block, Transaction tr)
 	{
-		foreach (Point3d markerPoint in markerPoints)
+		if (Math.Abs(Math.Abs(block.Normal.Z) - 1.0) > _config.GeometryTolerance) { return 0; }
+		var record = (BlockTableRecord)tr.GetObject(block.BlockTableRecord, OpenMode.ForRead);
+		Extents3d? bounds = null;
+		try
 		{
-			if (center.DistanceTo(markerPoint) <= radius + _config.GeometryTolerance)
+			foreach (ObjectId id in record)
 			{
-				return true;
+				Entity entity = tr.GetObject(id, OpenMode.ForRead) as Entity;
+				if (entity == null || !entity.Visible) { continue; }
+				Extents3d extents = entity.GeometricExtents;
+				if (bounds.HasValue) { extents.AddExtents(bounds.Value); }
+				bounds = extents;
 			}
 		}
-		// NOTE: this was 'Math.Max(radius * 0.0, 1.0)', i.e. identically 1.0 - the radius term
-		// was multiplied by zero. Kept bit-identical pending a decision on whether the marker
-		// hit radius was meant to scale with the hole (see report V2); do not 'restore' a
-		// factor without a real drawing to verify against.
-		double num = PinMarkerFallbackHitRadius;
-		foreach (Point3d markerPoint2 in markerPoints)
-		{
-			if (center.DistanceTo(markerPoint2) <= num)
-			{
-				return true;
-			}
-		}
-		return false;
+		catch (Autodesk.AutoCAD.Runtime.Exception) { return 0; }
+		if (!bounds.HasValue) { return 0; }
+		// Measure the block definition before rotation; world-axis bounds shrink for rotated quarter fills.
+		Extents3d b = bounds.Value;
+		double scaleX = Math.Abs(block.ScaleFactors.X), scaleY = Math.Abs(block.ScaleFactors.Y);
+		double radiusX = (b.MaxPoint.X - b.MinPoint.X) * scaleX / 2.0;
+		double radiusY = (b.MaxPoint.Y - b.MinPoint.Y) * scaleY / 2.0;
+		if (!(radiusX > _config.GeometryTolerance) || double.IsInfinity(radiusX)
+			|| !(Math.Abs(radiusX - radiusY) <= _config.GeometryTolerance)
+			|| !(Math.Abs((b.MinPoint.X + b.MaxPoint.X) / 2.0 - record.Origin.X) * scaleX <= _config.GeometryTolerance)
+			|| !(Math.Abs((b.MinPoint.Y + b.MaxPoint.Y) / 2.0 - record.Origin.Y) * scaleY <= _config.GeometryTolerance)) { return 0; }
+		return (radiusX + radiusY) / 2.0;
 	}
 
 	private bool IsThreadArc(Arc arc)

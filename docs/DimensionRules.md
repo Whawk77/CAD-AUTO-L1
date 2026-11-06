@@ -54,6 +54,48 @@
 
 ## Step And Structure Dimensions
 
+### Datum Baseline Rule (Feature-First Pipeline)
+
+When `UseFeatureFirstStructurePipeline` is enabled and the outline meets the following conditions:
+- Unique closed exterior boundary (`StructureBoundaryEvidence.IsAvailable`)
+- No arcs in boundary edges
+- All non-orthogonal edges are recognized chamfers
+- Has at least one interior layer (not a pure rectangle)
+- Is not a simple L profile. After collapsing chamfers and fillets, an outline with exactly six orthogonal faces alternating horizontal/vertical (one concave corner) keeps the LProfile rules (arm width/height) instead (`DatumBaselineRules.IsSimpleLProfile`, check `Baseline|Decision=OutOfScope|Reason=SimpleLProfile`)
+
+The datum baseline rule applies:
+1. **Datum Selection**:
+   - With valid datum blocks: use the block-confirmed edge
+   - Without blocks: use the first real corner from lower-left priority order: (MinX,MinY) → (MinX,MaxY) → (MaxX,MinY) → (MaxX,MaxY)
+   - If no real corner exists: fall back to geometry-based minimum (MinX, MinY)
+   - A real corner requires a Degree==2 boundary node at the envelope corner with orthogonal edges on both envelope axes
+
+2. **Dimension Generation**:
+   - Each step face is measured once from the datum edge (not face length)
+   - RuleId: `StructureDatum.HorizontalBaseline` / `StructureDatum.VerticalBaseline`
+   - Dimensions form a datum family: `DatumBaseline:{Axis}:{Side}:Datum={coordinate}`
+   - Preferred side: datum side; switches to opposite if extension crosses outline
+
+3. **Chamfer Derived Position Coverage**:
+   - When a face is cut by a chamfer: far layer = near layer + C (not dimensioned separately)
+   - Applies recursively to multi-level chamfered faces
+   - Far layer must not be the overall envelope edge
+
+4. **Legacy Dimension Replacement**:
+   - Replaces: `TopStructWidth`, `BottomStructWidth`, `LeftStructHeight`, `RightStructHeight`, `OutlineSegment`, `BoundaryRawEdge`, `BoundaryChamfer`, LProfile arm widths/heights, chamfered step dimensions
+   - Protected: Overall dimensions, toleranced dimensions, hole/pin/slot/datum dimensions, independent features
+   - Coverage tracking: `TrySuppressCoveredStructure` with `allowOutlineSegment: true`
+   - Source ID merging: when baseline dimension covers a legacy dimension with identical interval, merge source IDs for traceability
+
+5. **Off-Boundary and Unmeasured Target Handling**:
+   - Off-boundary artifacts (one or both endpoints not on exterior boundary): suppressed if an on-boundary known position exists
+   - Internal-line artifacts (one end known, other neither target nor known): directly removed via `RemoveStructureDimension`
+   - Orphaned-target artifacts (both ends unknown, one is unmeasured target, other is not): suppressed
+   - Local complements (one end known, other is unmeasured target): kept and registered in `known` set
+
+### Legacy Step/Structure Rules
+
+When the datum baseline rule does not apply:
 - Four side-specific step/structure flows exist (current code anchors by `DebugRole` and planner structure generation, not legacy `Draw*` method names):
   - Top: `TopStructWidth` (`CadAuto.Core/Planning/DimensionPlanner.Structure.cs`, `AddStepOutlineDimensions` / horizontal structure family)
   - Bottom: `BottomStructWidth` (same planner structure family)
@@ -75,6 +117,7 @@
 - Top/bottom use horizontal groove context.
 - Left/right use vertical groove context.
 - Do not scatter one-off ignored-point rules when existing directional helpers can express the behavior.
+
 
 ## Top Diagnostic Rules
 
@@ -120,9 +163,9 @@ Current follow-up areas:
 
 ## Style And Callouts
 
-- Prefer annotation layer `JEE-DIM标注`; otherwise use the current layer.
-- Linear dimensions prefer current drawing dimstyles named `SCALE-1-01`, `SCALE-1-02`, `SCALE-1-03`, `SCALE-1-04`, `SCALE-1-06`, `SCALE-1-08`, or `SCALE-1-10`.
-- Diameter/thread callouts prefer matching `$3` child styles, then `SCALE-1-01$3`, then fallback style.
+- Generated entities are written to the current layer (`LayerManager.ResolveAnnotationLayer` returns `db.Clayer`). The `JEE-DIM标注` constant (`LayerManager.PreferredAnnotationLayer`) is kept but not applied.
+- Linear dimensions use the current database dimstyle (`db.Dimstyle`); no `SCALE-1-*` style lookup exists in code.
+- Diameter/thread callouts use the `<current dimstyle name>$3` child style when it exists, otherwise the current dimstyle.
 - Use AutoCAD diameter control text `%%c`.
 - Final chamfer leaders are `Leader` + `MText`.
 - Final fillet callouts use `RadialDimension`.
